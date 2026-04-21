@@ -39,32 +39,65 @@ srdatalog = "srdatalog.cli:main"
 Homepage = "https://github.com/anthropics/srdatalog-python"
 Issues = "https://github.com/anthropics/srdatalog-python/issues"
 
+# ---------------------------------------------------------------------------
+# Wheel build
+# ---------------------------------------------------------------------------
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/srdatalog"]
+# Packages scan picks up .py files under src/srdatalog/. We EXCLUDE the
+# C++ runtime trees from that scan and re-add them via `force-include`
+# below — otherwise the same files land in the wheel twice (once from
+# the package scan, once from force-include) and hatchling emits
+# ZipFile duplicate-name warnings.
+exclude = [
+  "src/srdatalog/runtime/generalized_datalog",
+  "src/srdatalog/runtime/vendor",
+]
 
 [tool.hatch.build.targets.wheel.force-include]
-# Bundle the C++ runtime headers so callers can point the compiler at them
-# via `srdatalog.runtime.runtime_include_path()`.
+# Always-bundled: our own runtime headers (1.5 MB).
 "src/srdatalog/runtime/generalized_datalog" = "srdatalog/runtime/generalized_datalog"
+# vendor/ is conditionally bundled by the build hook below — only
+# present at wheel-build time, gitignored from source.
+
+# Custom hook fetches boost/highway/RMM/spdlog into vendor/ before
+# the wheel is assembled. Sdist builds skip the hook (small source dist).
+[tool.hatch.build.hooks.custom]
+path = "scripts/hatch_build.py"
+
+# ---------------------------------------------------------------------------
+# Sdist
+# ---------------------------------------------------------------------------
 
 [tool.hatch.build.targets.sdist]
 include = [
   "src/srdatalog",
   "tests",
   "examples",
-  "xmake",
-  "xmake.lua",
+  "scripts",
   "README.md",
   "LICENSE",
   "pyproject.toml",
 ]
+# Vendor is fetched at wheel-build time; never in sdist.
+exclude = [
+  "src/srdatalog/runtime/vendor",
+]
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-# Make test-to-test imports (e.g., `from test_integration_triangle import build_triangle`)
-# work by inserting tests/ on sys.path.
+# Make test-to-test imports work by adding tests/ to sys.path.
 pythonpath = ["tests"]
+
+# ---------------------------------------------------------------------------
+# ruff
+# ---------------------------------------------------------------------------
 
 [tool.ruff]
 line-length = 100
@@ -72,10 +105,41 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
-ignore = ["E501"]  # Line length handled by formatter.
+ignore = ["E501"]
+
+# ---------------------------------------------------------------------------
+# uv dev group
+# ---------------------------------------------------------------------------
 
 [dependency-groups]
 dev = [
   "pytest>=7",
   "ruff",
+  "cibuildwheel>=2.20",
 ]
+
+# ---------------------------------------------------------------------------
+# cibuildwheel — build wheels on Linux x86_64 + aarch64.
+# CUDA wheels are not built in CI (CUDA toolkit too heavy for runners);
+# the ON-DISK header subset is what the wheel ships, end users supply
+# CUDA themselves at compile time.
+# ---------------------------------------------------------------------------
+
+[tool.cibuildwheel]
+build = "cp310-* cp311-* cp312-* cp313-*"
+skip = "*-musllinux_* *-win32 *_i686 pp*"
+build-verbosity = 1
+
+# Run the populate hook once per build; it's cached afterward inside
+# the cibuildwheel container via the same _verify_sha + .version
+# marker logic.
+test-command = "python -c 'import srdatalog; print(srdatalog.__version__)'"
+test-skip = ""
+
+[tool.cibuildwheel.linux]
+# Manylinux container with build tools; CUDA NOT installed here.
+manylinux-x86_64-image = "manylinux_2_28_x86_64"
+
+[tool.cibuildwheel.macos]
+# CPU-only smoke build; user can't run GPU on macOS anyway.
+archs = ["x86_64", "arm64"]

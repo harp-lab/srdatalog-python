@@ -320,7 +320,10 @@ def test_compile_jit_project_aggregates_compile_and_link():
     with mock.patch(
       "srdatalog.codegen.jit.compiler.subprocess.run", side_effect=fake_run,
     ):
-      result = compile_jit_project(project_result, cfg)
+      # Force ThreadPoolExecutor path — this test mocks out per-TU
+      # subprocess.run calls; the ninja backend collapses compile into
+      # one ninja invocation and wouldn't see them.
+      result = compile_jit_project(project_result, cfg, use_ninja=False)
 
     assert isinstance(result, BuildResult)
     assert result.ok()
@@ -358,7 +361,7 @@ def test_compile_jit_project_reports_compile_failure():
     with mock.patch(
       "srdatalog.codegen.jit.compiler.subprocess.run", side_effect=fake_run,
     ):
-      result = compile_jit_project(project_result, cfg)
+      result = compile_jit_project(project_result, cfg, use_ninja=False)
 
     assert not result.ok()
     # Link skipped because compile failed.

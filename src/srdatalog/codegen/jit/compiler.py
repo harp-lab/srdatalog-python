@@ -22,11 +22,9 @@ Design notes:
   stamp cache is trusted. Mirrors `SRDATALOG_SKIP_JIT_REGEN` on the
   cache side.
 
-This module does NOT ship default include paths / link flags for
-`generalized_datalog`. Callers (or a higher-level driver) must supply
-those via `CompilerConfig.include_paths` / `link_flags`. The runtime
-is built externally (xmake in this project); we link against its
-artifacts.
+Default include paths / link flags for `generalized_datalog` are
+supplied by `srdatalog.runtime.runtime_include_paths()` etc. — this
+module just consumes a `CompilerConfig`.
 '''
 from __future__ import annotations
 
@@ -48,10 +46,10 @@ from pathlib import Path
 class CompilerConfig:
   '''Compile + link configuration.
 
-  Defaults are minimal — `cxx_std=c++23` matches the project's xmake
-  (`set_languages("cxx23")`). Callers add include/link/libs via the
-  list fields. `extra_sources` is for object files / shared libs to
-  feed into the final link (e.g., pre-built runtime artifacts).
+  Defaults are minimal — `cxx_std=c++23` is what the runtime headers
+  require. Callers add include/link/libs via the list fields.
+  `extra_sources` is for object files / shared libs to feed into the
+  final link (e.g., pre-built runtime artifacts).
   '''
   cxx: str = ""                              # empty → auto-detect
   cxx_std: str = "c++23"
@@ -141,8 +139,9 @@ def _build_compile_cmd(
   source: str, output: str, config: CompilerConfig,
 ) -> list[str]:
   cxx = config.resolved_cxx()
-  cmd = [cxx, "-c", source, "-o", output]
-  cmd += _base_cxx_flags(config)
+  # Flags go BEFORE the source so language switches like `-x cuda` take
+  # effect (clang warns `after last input file has no effect` otherwise).
+  cmd = [cxx] + _base_cxx_flags(config) + ["-c", source, "-o", output]
   return cmd
 
 
@@ -272,6 +271,8 @@ def _artifact_name(project_dir: str, shared: bool) -> str:
 def compile_jit_project(
   project_result: dict[str, object],
   config: CompilerConfig | None = None,
+  *,
+  use_ninja: bool | None = None,
 ) -> BuildResult:
   '''Compile the `.cpp` tree written by `cache.write_jit_project` into
   a shared library. `project_result` is the dict returned by that
@@ -280,8 +281,30 @@ def compile_jit_project(
   Returns a `BuildResult`. The caller inspects `.ok()` and
   `.compile_results`/`.link_result` for errors — this function never
   raises on a compile/link error.
+
+  `use_ninja` selects the backend:
+    - True / None (default): emit a build.ninja + PCH rule and invoke
+      the ninja binary (from the `ninja` PyPI wheel). Best wall time
+      on multi-TU projects because `srdatalog.h` is precompiled once
+      and reused across every shard.
+    - False: fall through to the ThreadPoolExecutor path below (one
+      subprocess per TU, no PCH). Useful on hosts without ninja or
+      for debugging a single TU's compile command.
+
+  `SRDATALOG_JIT_NO_NINJA=1` forces use_ninja=False regardless of the
+  argument.
   '''
   config = config or CompilerConfig()
+
+  if use_ninja is None:
+    use_ninja = os.environ.get("SRDATALOG_JIT_NO_NINJA", "") != "1"
+  if use_ninja:
+    try:
+      from srdatalog.codegen.jit.compiler_ninja import compile_jit_project_ninja
+      return compile_jit_project_ninja(project_result, config)
+    except RuntimeError as e:
+      # ninja binary not found; fall through with a one-line notice.
+      print(f"[compile_jit_project] ninja unavailable ({e}); falling back to pool")
   project_dir = str(project_result["dir"])
   main_cpp = str(project_result["main"])
   batches = list(project_result["batches"])

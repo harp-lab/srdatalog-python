@@ -87,7 +87,11 @@ def program_to_decls(program: Program) -> list[RelationDecl]:
       RelationDecl(
         rel_name=rel.name,
         types=[t.__name__ for t in rel.column_types],
-        semiring="NoProvenance",
+        semiring=getattr(rel, "semiring", "NoProvenance") or "NoProvenance",
+        input_file=getattr(rel, "input_file", "") or "",
+        print_size=bool(getattr(rel, "print_size", False)),
+        output_file=getattr(rel, "output_file", "") or "",
+        index_type=getattr(rel, "index_type", "") or "",
       )
     )
   return decls

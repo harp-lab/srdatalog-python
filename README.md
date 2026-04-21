@@ -8,17 +8,26 @@ through HIR → MIR → GPU-targeted C++, writes the resulting `.cpp` tree to a 
 ## Install
 
 ```bash
-# Editable install while iterating on the library itself
+# Contributors (editable):
+uv sync --group dev
+uv run python scripts/populate_vendor.py   # fetch boost/highway/RMM/spdlog (~3 min, one-time)
 uv pip install -e .
 
-# Or: build a wheel
-uv build
+# End users (from PyPI — vendor is already bundled in the wheel):
+uv pip install srdatalog
 ```
 
-The wheel bundles the `generalized_datalog/` C++ runtime headers as package data, so
-no external checkout is needed at install time. A C++ toolchain (`clang++` / `g++`, and
-`nvcc` for GPU targets) is required at **compile time** — the library discovers it via
-`$CXX` or by scanning `PATH`.
+Wheels bundle:
+- `generalized_datalog/` — this project's C++ runtime headers (~1.5 MB)
+- `vendor/{boost,highway,rmm,spdlog}/` — third-party headers, fetched at
+  wheel-build time by `scripts/populate_vendor.py` (gitignored in source).
+
+Source distributions do **not** ship vendored deps — contributors fetch them
+locally (see above) so the git repo stays small.
+
+A C++ toolchain (`clang++` / `g++`, and a CUDA toolkit for GPU targets) is
+required at **compile time** — the library auto-detects it via `$CXX`,
+`$CUDA_HOME`, or standard install paths.
 
 ## Quickstart
 
@@ -124,6 +133,33 @@ uv sync --group dev
 uv run pytest
 ```
 
+## Docker / RunPod
+
+A self-contained image (CUDA 12.9 + clang-20 + uv + Python 3.12 + RunPod
+infra: SSH, Jupyter, nginx proxy) lives under [docker/](docker/).
+Same image serves two purposes — a RunPod dev pod, and a sandbox for
+verifying the published wheel is actually self-contained.
+
+```bash
+# Build (via docker buildx bake — reads docker-bake.hcl)
+docker buildx bake
+
+# Run as a RunPod-style dev pod
+docker run --gpus all -p 22:22 -p 8888:8888 \
+  -e PUBLIC_KEY="$(cat ~/.ssh/id_ed25519.pub)" \
+  -e JUPYTER_PASSWORD=changeme \
+  stargazermiao/srdatalog-python-runpod:latest
+
+# Verify wheel is self-contained + publishable
+docker run --gpus all --rm stargazermiao/srdatalog-python-runpod:latest \
+  bash docker/test_wheel.sh
+```
+
+`test_wheel.sh` runs `uv build`, installs the produced wheel into a fresh
+venv (source tree not on sys.path), and drives a clang++ JIT compile of a
+triangle-count program against *only* the headers the wheel shipped. If
+that succeeds, the wheel is publishable.
+
 ## Status & roadmap
 
 - ✅ Phase 1-4: JIT codegen byte-match (125/127 fixtures)
@@ -133,7 +169,7 @@ uv run pytest
 - ✅ Phase 9: ctypes loader
 - ⬜ Work-stealing runner variant (Phase 5 — deferred)
 - ⬜ DSL plumbing for `input_file` / `print_size` pragmas on `Relation(...)`
-- ⬜ Pre-built runtime library distribution (currently: user builds via `xmake`)
+- ⬜ Pre-built runtime library distribution
 
 ## License
 

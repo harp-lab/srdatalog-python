@@ -343,15 +343,39 @@ class Rule:
 class Relation:
   '''A relation declaration. Callable to build atoms.
 
-  Arity and column types are metadata; the DSL does not type-check arguments
-  at construction (lowering will).
+  Arity + column_types are structural metadata.
+  Pragma fields (all optional) mirror Nim's Relation[...] pragmas:
+    - input_file   → CSV the load-data block reads into this relation
+    - print_size   → runner emits a size-readback line after the fixpoint
+    - output_file  → runner writes the final contents to this path
+    - index_type   → C++ index template (e.g. "SRDatalog::GPU::Device2LevelIndex")
+    - semiring     → override "NoProvenance" (rare — provenance semirings)
   '''
-  __slots__ = ("name", "arity", "column_types")
+  __slots__ = (
+    "name", "arity", "column_types",
+    "input_file", "print_size", "output_file", "index_type", "semiring",
+  )
 
-  def __init__(self, name: str, arity: int, column_types: tuple[type, ...] | None = None):
+  def __init__(
+    self,
+    name: str,
+    arity: int,
+    column_types: tuple[type, ...] | None = None,
+    *,
+    input_file: str = "",
+    print_size: bool = False,
+    output_file: str = "",
+    index_type: str = "",
+    semiring: str = "NoProvenance",
+  ):
     self.name = name
     self.arity = arity
     self.column_types = column_types or tuple([int] * arity)
+    self.input_file = input_file
+    self.print_size = print_size
+    self.output_file = output_file
+    self.index_type = index_type
+    self.semiring = semiring
 
   def __call__(self, *args) -> Atom:
     if len(args) != self.arity:

@@ -1,0 +1,35 @@
+# Keep the Docker build context small — most of these are regenerated
+# inside the image (vendor/ by the hatch build hook, JIT caches at runtime).
+
+.git
+.github
+.venv
+venv
+.vscode
+.idea
+
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+
+dist
+build
+wheelhouse
+
+# JIT / C++ build artifacts
+.cache
+*.o
+*.so
+*.a
+*.stamp
+
+# Vendored C++ headers — the hatch build hook re-populates these inside
+# the image, so shipping them in the build context just wastes bandwidth.
+src/srdatalog/runtime/vendor
+
+# Local envs
+.env

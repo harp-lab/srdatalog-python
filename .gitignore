@@ -5,8 +5,8 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.egg-info/
-dist/
-build/
+/dist/
+/build/
 .venv/
 venv/
 .env
@@ -24,6 +24,12 @@ venv/
 .idea/
 *.swp
 
-# xmake
+# xmake (no longer used; kept gitignored if anything appears locally)
 .xmake/
-vendor/
+
+# Vendored C++ deps (boost / highway / RMM / spdlog) — fetched by
+# scripts/populate_vendor.py at install time / wheel build.
+src/srdatalog/runtime/vendor/
+
+# Wheel build cache
+wheelhouse/

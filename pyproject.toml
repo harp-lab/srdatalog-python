@@ -31,6 +31,13 @@ dev = [
   "pytest>=7",
   "ruff",
 ]
+docs = [
+  "sphinx>=7",
+  "furo",
+  "myst-parser",
+  "sphinx-autodoc2",
+  "sphinx-copybutton",
+]
 
 [project.scripts]
 srdatalog = "srdatalog.cli:main"
@@ -116,6 +123,13 @@ dev = [
   "pytest>=7",
   "ruff",
   "cibuildwheel>=2.20",
+]
+docs = [
+  "sphinx>=7",
+  "furo",
+  "myst-parser",
+  "sphinx-autodoc2",
+  "sphinx-copybutton",
 ]
 
 # ---------------------------------------------------------------------------

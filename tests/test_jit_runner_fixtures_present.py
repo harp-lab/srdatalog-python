@@ -9,9 +9,9 @@ This test guards Phase 1 of the jit_complete_runner.nim port:
 The test just asserts the fixtures exist so a missing fixture is caught
 early (e.g., if someone regenerates without the runner-dump flag).
 '''
+
 import sys
 from pathlib import Path
-
 
 JIT_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "jit"
 
@@ -25,8 +25,7 @@ def _stems_and_rules() -> list[tuple[str, list[str]]]:
     if not d.is_dir():
       continue
     rules = sorted(
-      p.name.removeprefix("jit_batch.").removesuffix(".cpp")
-      for p in d.glob("jit_batch.*.cpp")
+      p.name.removeprefix("jit_batch.").removesuffix(".cpp") for p in d.glob("jit_batch.*.cpp")
     )
     out.append((d.name, rules))
   return out
@@ -76,6 +75,7 @@ def test_fixture_count_sanity():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   failed = 0

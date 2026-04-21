@@ -8,14 +8,23 @@ Counters are per-pass-invocation (reset each call). Nim uses a
 `compileTime` counter that persists across a single macro compilation —
 for fixtures the tool compiles once, so starting at 0 matches.
 '''
+
 from __future__ import annotations
+
 import dataclasses
 
 from srdatalog.dsl import (
-  Atom, Negation, Filter, Let, ClauseArg, ArgKind, Rule, PlanEntry,
+  ArgKind,
+  Atom,
+  ClauseArg,
+  Filter,
+  Let,
+  Negation,
+  PlanEntry,
+  Rule,
 )
+from srdatalog.hir.pass_ import Dialect, PassInfo, PassLevel
 from srdatalog.hir.types import RelationDecl
-from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 from srdatalog.provenance import compiler_gen
 
 
@@ -24,7 +33,8 @@ def _atom_has_const(atom: Atom) -> bool:
 
 
 def rewrite_constants(
-  rules: list[Rule], decls: list[RelationDecl],
+  rules: list[Rule],
+  decls: list[RelationDecl],
 ) -> tuple[list[Rule], list[RelationDecl]]:
   '''Pass 0: body-constant rewriting.
 
@@ -61,7 +71,8 @@ def rewrite_constants(
 
 
 def rewrite_head_constants(
-  rules: list[Rule], decls: list[RelationDecl],
+  rules: list[Rule],
+  decls: list[RelationDecl],
 ) -> tuple[list[Rule], list[RelationDecl]]:
   '''Pass 1: head-constant rewriting.
 
@@ -97,6 +108,7 @@ def rewrite_head_constants(
 # Pipeline pass wrappers
 # -----------------------------------------------------------------------------
 
+
 class ConstantRewritePass:
   info = PassInfo(
     name="ConstantRewrite",
@@ -127,6 +139,7 @@ class HeadConstantRewritePass:
 # Semi-join optimization (Pass 1.5 in Nim's compileToHir)
 # -----------------------------------------------------------------------------
 
+
 def _clause_vars(clause) -> set[str]:
   '''Var names in an Atom or Negation; empty for Filter/Let.'''
   if isinstance(clause, Atom):
@@ -154,7 +167,8 @@ def _is_semi_join_candidate(filt, target) -> bool:
 
 
 def optimize_semi_joins(
-  rules: list[Rule], decls: list[RelationDecl],
+  rules: list[Rule],
+  decls: list[RelationDecl],
 ) -> tuple[list[Rule], list[RelationDecl]]:
   '''Single pass. Rule must have semi_join=True and body.len > 2 to be
   considered. For each candidate target/filter pair, synthesise an
@@ -178,7 +192,7 @@ def optimize_semi_joins(
       continue
 
     body = list(rule.body)
-    replaced: set[int] = set()               # body indices removed
+    replaced: set[int] = set()  # body indices removed
     rewrites: dict[int, tuple[Atom, int]] = {}  # target_idx -> (new_atom, filter_idx)
 
     # Pass 1: find each target -> filter opportunity.
@@ -231,27 +245,26 @@ def optimize_semi_joins(
               if k < len(orig.types):
                 types.append(orig.types[k])
 
-          generated_decls.append(RelationDecl(
-            rel_name=new_rel_name,
-            types=types,
-            semiring=semiring,
-            is_generated=True,
-          ))
+          generated_decls.append(
+            RelationDecl(
+              rel_name=new_rel_name,
+              types=types,
+              semiring=semiring,
+              is_generated=True,
+            )
+          )
 
           fresh = [f"v{k}" for k in range(len(target.args))]
 
           # _SJ_X(v_kept...) :- Target(v0..vN), Filter(filter_args@target_pos).
           gen_head = Atom(
             rel=new_rel_name,
-            args=tuple(
-              ClauseArg(kind=ArgKind.LVAR, var_name=fresh[k]) for k in kept_idx
-            ),
+            args=tuple(ClauseArg(kind=ArgKind.LVAR, var_name=fresh[k]) for k in kept_idx),
           )
           gen_target = Atom(
             rel=target.rel,
             args=tuple(
-              ClauseArg(kind=ArgKind.LVAR, var_name=fresh[k])
-              for k in range(len(target.args))
+              ClauseArg(kind=ArgKind.LVAR, var_name=fresh[k]) for k in range(len(target.args))
             ),
           )
           # Map each filter arg to its corresponding target column's fresh var.
@@ -260,9 +273,12 @@ def optimize_semi_joins(
             fv = _lvar_name(f_arg)
             for ti, t_arg in enumerate(target.args):
               if _lvar_name(t_arg) == fv:
-                filter_args.append(ClauseArg(
-                  kind=ArgKind.LVAR, var_name=fresh[ti],
-                ))
+                filter_args.append(
+                  ClauseArg(
+                    kind=ArgKind.LVAR,
+                    var_name=fresh[ti],
+                  )
+                )
                 break
           gen_filter = Atom(rel=filt.rel, args=tuple(filter_args))
 
@@ -271,13 +287,15 @@ def optimize_semi_joins(
             derived_from=target.rel,
             transform_pass="semi_join",
           )
-          generated_rules.append(Rule(
-            head=gen_head,
-            body=(gen_target, gen_filter),
-            name=f"{new_rel_name}_Gen",
-            is_generated=True,
-            prov=prov,
-          ))
+          generated_rules.append(
+            Rule(
+              head=gen_head,
+              body=(gen_target, gen_filter),
+              name=f"{new_rel_name}_Gen",
+              is_generated=True,
+              prov=prov,
+            )
+          )
 
         # Build the replacement clause for the original rule.
         prov = compiler_gen(
@@ -292,7 +310,7 @@ def optimize_semi_joins(
         )
         rewrites[i] = (new_atom, j)
         replaced.add(j)
-        break   # one opt per target
+        break  # one opt per target
 
     # Pass 2: build the rewritten body + clause-index mapping.
     new_body: list = []
@@ -332,20 +350,25 @@ def optimize_semi_joins(
           continue
         new_delta = mapped
       new_clause_order = tuple(
-        idx_map[k] for k in plan.clause_order
-        if k in idx_map and idx_map[k] >= 0
+        idx_map[k] for k in plan.clause_order if k in idx_map and idx_map[k] >= 0
       )
       new_var_order = tuple(v for v in plan.var_order if v in body_vars)
-      translated_plans.append(dataclasses.replace(
-        plan,
-        delta=new_delta,
-        clause_order=new_clause_order,
-        var_order=new_var_order,
-      ))
+      translated_plans.append(
+        dataclasses.replace(
+          plan,
+          delta=new_delta,
+          clause_order=new_clause_order,
+          var_order=new_var_order,
+        )
+      )
 
-    new_rules.append(dataclasses.replace(
-      rule, body=tuple(new_body), plans=tuple(translated_plans),
-    ))
+    new_rules.append(
+      dataclasses.replace(
+        rule,
+        body=tuple(new_body),
+        plans=tuple(translated_plans),
+      )
+    )
 
   # Generated rules go FIRST so stratification schedules them upstream of
   # their consumers. Generated decls append to the existing list.
@@ -357,6 +380,7 @@ class SemiJoinPass:
   loop in compileToHir; we keep it inside the pass for symmetry with the
   other rule-rewrites.
   '''
+
   info = PassInfo(
     name="SemiJoinOpt",
     level=PassLevel.RULE_REWRITE,

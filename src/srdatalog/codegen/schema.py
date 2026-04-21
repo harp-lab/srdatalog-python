@@ -10,7 +10,9 @@ Two emission formats exist:
   - `schema.get_batch_prelude(name)` — same aliases plus the Database /
     SemiNaiveDatabase typedefs, used at the top of each JIT batch file.
 '''
+
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -20,6 +22,7 @@ class Pragma(Enum):
   '''Fact pragmas. INPUT carries the CSV filename to load from (required
   for `load_data()` in the FFI wrapper). PRINT_SIZE and SEMIRING are bool.
   '''
+
   INPUT = "input"
   PRINT_SIZE = "print_size"
   SEMIRING = "semiring"
@@ -32,6 +35,7 @@ class FactDefinition:
   `params` is the column type tuple, e.g. `[int, int]` for an arity-2
   int-valued relation.
   '''
+
   name: str
   params: list[type]
   pragmas: dict[Pragma, Any] = field(default_factory=dict)
@@ -49,6 +53,7 @@ class FactDefinition:
 class SchemaDefinition:
   '''All relations used by a program. Order matters for the emitted
   `AST::Database<...>` template argument list.'''
+
   facts: list[FactDefinition]
 
   def __str__(self) -> str:
@@ -67,9 +72,7 @@ class SchemaDefinition:
         f'decltype("{fact.name}"_s), {semiring}, std::tuple<{params_str}>>;'
       )
     fact_names = ", ".join(f.name for f in self.facts)
-    parts.append(
-      f'using {name}Fixpoint_DB_Blueprint = SRDatalog::AST::Database<{fact_names}>;'
-    )
+    parts.append(f'using {name}Fixpoint_DB_Blueprint = SRDatalog::AST::Database<{fact_names}>;')
     parts.append(
       f'using {name}Fixpoint_DB_DeviceDB = SRDatalog::AST::SemiNaiveDatabase<'
       f'{name}Fixpoint_DB_Blueprint, SRDatalog::GPU::DeviceRelationType>;'

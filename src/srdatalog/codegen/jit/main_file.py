@@ -32,24 +32,23 @@ Scope caveats:
 - User-level `datalog_db(<BlueprintName>, <DBCode>)` emission is
   caller responsibility — not part of this module.
 '''
+
 from __future__ import annotations
 
 import srdatalog.mir.types as m
 from srdatalog.hir.types import RelationDecl
 
-
 # -----------------------------------------------------------------------------
 # Small helpers
 # -----------------------------------------------------------------------------
+
 
 def _extract_computed_relations(plan: m.MirNode) -> list[str]:
   '''Walk a FixpointPlan or Block and collect the dest relation names
   from ExecutePipeline / ParallelGroup children. Dedup preserving order.
   '''
   instructions: list[m.MirNode] = []
-  if isinstance(plan, m.FixpointPlan):
-    instructions = list(plan.instructions)
-  elif isinstance(plan, m.Block):
+  if isinstance(plan, m.FixpointPlan) or isinstance(plan, m.Block):
     instructions = list(plan.instructions)
   else:
     return []
@@ -76,6 +75,7 @@ def _extract_computed_relations(plan: m.MirNode) -> list[str]:
 # -----------------------------------------------------------------------------
 # Section emitters
 # -----------------------------------------------------------------------------
+
 
 def gen_relation_typedefs(decls: list[RelationDecl]) -> str:
   '''Emit `using <Name> = AST::RelationSchema<decltype("<Name>"_s),
@@ -128,7 +128,8 @@ def gen_schema_definitions_for_batch(decls: list[RelationDecl]) -> str:
 
 
 def gen_db_type_alias_for_batch(
-  ruleset_name: str, decls: list[RelationDecl],
+  ruleset_name: str,
+  decls: list[RelationDecl],
 ) -> str:
   '''DB blueprint + DeviceDB alias inlined into each batch file so
   `JitRunner_<rule>::DB` resolves. Mirrors the `dbTypeAlias` Nim
@@ -186,7 +187,8 @@ def gen_kernel_decls_block(
   if standalone_order:
     out = (
       '#include "gpu/runtime/query.h"  // DeviceRelationType, init_cuda, copy_host_to_device\n'
-      + base_gpu_includes + alias_block
+      + base_gpu_includes
+      + alias_block
     )
   else:
     out = alias_block + base_gpu_includes
@@ -206,10 +208,7 @@ def gen_load_data_method(decls: list[RelationDecl]) -> str:
   out += "  static void load_data(DB& db, std::string root_dir) {\n"
   for d in decls:
     if d.input_file:
-      out += (
-        f'    SRDatalog::load_from_file<{d.rel_name}>'
-        f'(db, root_dir + "/{d.input_file}");\n'
-      )
+      out += f'    SRDatalog::load_from_file<{d.rel_name}>(db, root_dir + "/{d.input_file}");\n'
   out += "  }\n\n"
   return out
 
@@ -221,9 +220,7 @@ def _gen_run_body_per_step(step_idx: int, step: m.MirNode, is_recursive: bool) -
   rels = _extract_computed_relations(step)
   step_type = "recursive" if is_recursive else "simple"
 
-  out = (
-    f"    auto step_{s}_start = std::chrono::high_resolution_clock::now();\n"
-  )
+  out = f"    auto step_{s}_start = std::chrono::high_resolution_clock::now();\n"
   out += f"    step_{s}(db, max_iterations);\n"
   out += f"    auto step_{s}_end = std::chrono::high_resolution_clock::now();\n"
   out += (
@@ -234,10 +231,7 @@ def _gen_run_body_per_step(step_idx: int, step: m.MirNode, is_recursive: bool) -
   out += f'    std::cout << "[Step {s} ({step_type})] "'
   if rels:
     out += f' << "Relations: {", ".join(rels)}"'
-  out += (
-    f' << " completed in " << step_{s}_duration.count() '
-    '<< " ms" << std::endl;\n'
-  )
+  out += f' << " completed in " << step_{s}_duration.count() << " ms" << std::endl;\n'
   return out
 
 
@@ -262,9 +256,7 @@ def _gen_final_print_block(
     cols_str = ", ".join(str(c) for c in cols)
     out += "    {\n"
     out += f"      SRDatalog::IndexSpec canonical_idx{{{cols_str}}};\n"
-    out += (
-      f"      auto& rel = get_relation_by_schema<{d.rel_name}, FULL_VER>(db);\n"
-    )
+    out += f"      auto& rel = get_relation_by_schema<{d.rel_name}, FULL_VER>(db);\n"
     out += "      if (rel.has_index(canonical_idx)) {\n"
     out += "        auto& idx = rel.get_index(canonical_idx);\n"
     out += (
@@ -273,8 +265,7 @@ def _gen_final_print_block(
     )
     out += "      } else {\n"
     out += (
-      f'        std::cout << " >>>>>>>>>>>>>>>>> {d.rel_name} : '
-      '[Index Missing]" << std::endl;\n'
+      f'        std::cout << " >>>>>>>>>>>>>>>>> {d.rel_name} : [Index Missing]" << std::endl;\n'
     )
     out += "      }\n"
     out += "    }\n"
@@ -312,8 +303,7 @@ def gen_runner_struct(
   # run() method.
   out += "  template <typename DB>\n"
   out += (
-    "  static void run(DB& db, std::size_t max_iterations = "
-    "std::numeric_limits<int>::max()) {\n"
+    "  static void run(DB& db, std::size_t max_iterations = std::numeric_limits<int>::max()) {\n"
   )
   for i, (step, is_rec) in enumerate(mir_program.steps):
     out += _gen_run_body_per_step(i, step, is_rec)
@@ -338,6 +328,7 @@ def gen_runner_struct(
 # parallel compile queue. main.cpp keeps only the Runner struct's *non-
 # template declarations* and the extern "C" shim that calls into them.
 
+
 def gen_runner_struct_declonly(
   ruleset_name: str,
   decls: list[RelationDecl],
@@ -356,15 +347,13 @@ def gen_runner_struct_declonly(
   for i in range(len(mir_program.steps)):
     out += f"  static void step_{i}(DB& db, std::size_t max_iterations);\n"
   out += (
-    f"  static void run(DB& db, std::size_t max_iterations = "
-    "std::numeric_limits<int>::max());\n"
+    "  static void run(DB& db, std::size_t max_iterations = std::numeric_limits<int>::max());\n"
   )
   out += "};\n"
   return out
 
 
-def _step_body_template_to_oop(body: str, ruleset_name: str,
-                               step_idx: int, device_db: str) -> str:
+def _step_body_template_to_oop(body: str, ruleset_name: str, step_idx: int, device_db: str) -> str:
   '''Rewrite the templated step body produced by `gen_step_body` into
   an out-of-line method definition.
 
@@ -380,12 +369,9 @@ def _step_body_template_to_oop(body: str, ruleset_name: str,
       }
   '''
   template_decl = "  template <typename DB>\n"
-  sig = (
-    f"  static void step_{step_idx}"
-    "(DB& db, std::size_t max_iterations) {\n"
-  )
+  sig = f"  static void step_{step_idx}(DB& db, std::size_t max_iterations) {{\n"
   if body.startswith(template_decl + sig):
-    remainder = body[len(template_decl + sig):]
+    remainder = body[len(template_decl + sig) :]
   else:
     # Fallback — don't mangle something we didn't recognize.
     raise ValueError(
@@ -394,8 +380,7 @@ def _step_body_template_to_oop(body: str, ruleset_name: str,
     )
   return (
     f"void {ruleset_name}_Runner::step_{step_idx}"
-    f"({device_db}& db, std::size_t max_iterations) {{\n"
-    + remainder
+    f"({device_db}& db, std::size_t max_iterations) {{\n" + remainder
   )
 
 
@@ -422,7 +407,7 @@ def _shared_runner_preamble(
   out += '#include "gpu/runtime/jit/ws_infrastructure.h"\n'
   out += '#include "gpu/runtime/stream_pool.h"\n'
   out += "using namespace SRDatalog::GPU;\n\n"
-  for h in (extra_index_headers or []):
+  for h in extra_index_headers or []:
     out += f'#include "{h}"\n'
   if extra_index_headers:
     out += "\n"
@@ -462,19 +447,20 @@ def gen_step_shard_file(
   instead of serializing through main.cpp.
   '''
   device_db = f"{ruleset_name}_DB_DeviceDB"
-  pre = _shared_runner_preamble(ruleset_name, decls, runner_decls,
-                                extra_index_headers)
+  pre = _shared_runner_preamble(ruleset_name, decls, runner_decls, extra_index_headers)
   # Complete the Runner struct declaration with all step_N + run sigs.
   for i in range(len(mir_program.steps)):
     pre += f"  static void step_{i}(DB& db, std::size_t max_iterations);\n"
   pre += (
-    "  static void run(DB& db, std::size_t max_iterations = "
-    "std::numeric_limits<int>::max());\n"
+    "  static void run(DB& db, std::size_t max_iterations = std::numeric_limits<int>::max());\n"
   )
   pre += "};\n\n"
 
   body_oop = _step_body_template_to_oop(
-    step_bodies[step_idx], ruleset_name, step_idx, device_db,
+    step_bodies[step_idx],
+    ruleset_name,
+    step_idx,
+    device_db,
   )
   return pre + body_oop + "\n"
 
@@ -491,19 +477,14 @@ def gen_run_dispatcher_file(
   Contains the step_0..step_N dispatch + print_size block.
   '''
   device_db = f"{ruleset_name}_DB_DeviceDB"
-  pre = _shared_runner_preamble(ruleset_name, decls, runner_decls,
-                                extra_index_headers)
+  pre = _shared_runner_preamble(ruleset_name, decls, runner_decls, extra_index_headers)
   for i in range(len(mir_program.steps)):
     pre += f"  static void step_{i}(DB& db, std::size_t max_iterations);\n"
   pre += (
-    "  static void run(DB& db, std::size_t max_iterations = "
-    "std::numeric_limits<int>::max());\n"
+    "  static void run(DB& db, std::size_t max_iterations = std::numeric_limits<int>::max());\n"
   )
   pre += "};\n\n"
-  body = (
-    f"void {ruleset_name}_Runner::run({device_db}& db, "
-    "std::size_t max_iterations) {\n"
-  )
+  body = f"void {ruleset_name}_Runner::run({device_db}& db, std::size_t max_iterations) {{\n"
   for i, (step, is_rec) in enumerate(mir_program.steps):
     body += _gen_run_body_per_step(i, step, is_rec)
   body += _gen_final_print_block(decls, canonical_indices)
@@ -514,6 +495,7 @@ def gen_run_dispatcher_file(
 # -----------------------------------------------------------------------------
 # Top-level assembly
 # -----------------------------------------------------------------------------
+
 
 def gen_main_file_preamble() -> str:
   '''Top-of-file preamble needed for main.cpp to compile as its own TU.
@@ -559,7 +541,7 @@ def gen_main_file_content(
     out += gen_main_file_preamble()
     # Plugin index headers must appear BEFORE schema typedefs so their
     # class names are in scope when used as the 4th template argument.
-    for h in (extra_index_headers or []):
+    for h in extra_index_headers or []:
       out += f'#include "{h}"\n'
     if extra_index_headers:
       out += "\n"
@@ -567,7 +549,10 @@ def gen_main_file_content(
   out += gen_db_alias(ruleset_name, decls)
   out += "using namespace SRDatalog::mir::dsl;\n"
   out += gen_kernel_decls_block(
-    ruleset_name, decls, runner_decls, cache_dir_hint,
+    ruleset_name,
+    decls,
+    runner_decls,
+    cache_dir_hint,
     standalone_order=emit_preamble,
   )
   out += f"namespace {ruleset_name}_Plans {{\n"
@@ -577,7 +562,11 @@ def gen_main_file_content(
     out += gen_runner_struct_declonly(ruleset_name, decls, mir_program)
   else:
     out += gen_runner_struct(
-      ruleset_name, decls, mir_program, step_bodies, canonical_indices,
+      ruleset_name,
+      decls,
+      mir_program,
+      step_bodies,
+      canonical_indices,
     )
   if jit_batch_count > 0:
     out += "\n// ======== JIT File-Based Compilation ========\n"
@@ -626,7 +615,7 @@ def gen_unity_main_file_content(
   out += 'using SRDatalog::GPU::JIT::intersect_handles;\n'
   out += 'using namespace SRDatalog::GPU;\n\n'
   # Plugin index headers (Device2LevelIndex, DeviceTvjoinIndex, ...).
-  for h in (extra_index_headers or []):
+  for h in extra_index_headers or []:
     out += f'#include "{h}"\n'
   if extra_index_headers:
     out += '\n'
@@ -655,7 +644,11 @@ def gen_unity_main_file_content(
 
   # Host-side Runner struct with step bodies inline (template form).
   out += gen_runner_struct(
-    ruleset_name, decls, mir_program, step_bodies, canonical_indices,
+    ruleset_name,
+    decls,
+    mir_program,
+    step_bodies,
+    canonical_indices,
   )
   return out
 
@@ -713,12 +706,17 @@ def gen_extern_c_shim(
   for d in loadable:
     kw = "if" if first else "else if"
     first = False
-    out.append(f'    {kw} (rn == "{d.rel_name}") '
-               f'SRDatalog::load_from_file<{d.rel_name}>(*g_host_db, path);')
+    out.append(
+      f'    {kw} (rn == "{d.rel_name}") SRDatalog::load_from_file<{d.rel_name}>(*g_host_db, path);'
+    )
   if loadable:
-    out.append('    else { std::cerr << "srdatalog_load_csv: unknown or non-input relation " << rn << std::endl; return 2; }')
+    out.append(
+      '    else { std::cerr << "srdatalog_load_csv: unknown or non-input relation " << rn << std::endl; return 2; }'
+    )
   else:
-    out.append('    std::cerr << "srdatalog_load_csv: no loadable relations declared (set input_file= on Relation)" << std::endl;')
+    out.append(
+      '    std::cerr << "srdatalog_load_csv: no loadable relations declared (set input_file= on Relation)" << std::endl;'
+    )
     out.append('    return 2;')
   out += [
     "    return 0;",
@@ -763,7 +761,9 @@ def gen_extern_c_shim(
     out.append(f'  if (rn == "{d.rel_name}") {{')
     out.append(f'    auto& rel = get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_host_db);')
     out.append(f'    SRDatalog::IndexSpec idx{{{cols}}};')
-    out.append('    return rel.has_index(idx) ? (unsigned long long)rel.get_index(idx).root().degree() : 0ULL;')
+    out.append(
+      '    return rel.has_index(idx) ? (unsigned long long)rel.get_index(idx).root().degree() : 0ULL;'
+    )
     out.append('  }')
   out += [
     "  return 0;",

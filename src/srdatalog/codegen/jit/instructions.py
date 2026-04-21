@@ -18,24 +18,38 @@ block-group cumulative work tracking, Device2LevelIndex multi-view
 segment loops, dedup-hash, fan-out explore) raise NotImplementedError
 and will be filled in as the programs that exercise them come online.
 '''
+
 from __future__ import annotations
-from typing import Optional
 
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
-  CodeGenContext, ind, inc_indent, dec_indent, gen_unique_name,
-  with_bound_var, sanitize_var_name, get_view_slot_base, get_rel_index_type,
-  gen_view_access, gen_view_var_name, gen_handle_var_name,
-  gen_handle_state_key, gen_root_handle, gen_valid, gen_degree,
-  gen_get_value_at, gen_child, gen_child_range, gen_iterators,
+  CodeGenContext,
+  dec_indent,
   gen_chained_prefix_calls,
+  gen_child,
+  gen_child_range,
+  gen_degree,
+  gen_get_value_at,
+  gen_handle_state_key,
+  gen_handle_var_name,
+  gen_iterators,
+  gen_root_handle,
+  gen_unique_name,
+  gen_valid,
+  gen_view_access,
+  gen_view_var_name,
+  get_rel_index_type,
+  get_view_slot_base,
+  inc_indent,
+  ind,
+  sanitize_var_name,
 )
 from srdatalog.codegen.jit.plugin import plugin_view_count
-
 
 # -----------------------------------------------------------------------------
 # jit_nested_column_join
 # -----------------------------------------------------------------------------
+
 
 def _multi_view_present(source: m.ColumnSource, ctx: CodeGenContext) -> bool:
   '''True iff this source uses an index plugin that contributes >1 view
@@ -48,9 +62,7 @@ def _feature_flags_disabled(ctx: CodeGenContext) -> None:
   '''Guard baseline-only paths. Raises NotImplementedError when the
   caller's context has one of the advanced feature flags set.'''
   if ctx.ws_enabled:
-    raise NotImplementedError(
-      "jit_instructions: work-stealing ColumnJoin branch not yet ported"
-    )
+    raise NotImplementedError("jit_instructions: work-stealing ColumnJoin branch not yet ported")
   if ctx.bg_enabled or ctx.bg_histogram_mode:
     # bg_enabled must be cleared by the BG root CJ before descending
     # into nested ops (handle narrowing already restricted work to this
@@ -60,13 +72,13 @@ def _feature_flags_disabled(ctx: CodeGenContext) -> None:
       "(bg_enabled should be cleared by the BG root CJ before nested emit)"
     )
   if ctx.is_fan_out_explore:
-    raise NotImplementedError(
-      "jit_instructions: fan-out explore branch not yet ported"
-    )
+    raise NotImplementedError("jit_instructions: fan-out explore branch not yet ported")
 
 
 def jit_nested_column_join(
-  node: m.ColumnJoin, ctx: CodeGenContext, body: str,
+  node: m.ColumnJoin,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   '''Emit a nested ColumnJoin. Single source — iterate the prefixed
   handle; multi-source — emit `intersect_handles(...)` over each
@@ -93,7 +105,9 @@ def jit_nested_column_join(
 
 
 def _nested_column_join_single(
-  node: m.ColumnJoin, ctx: CodeGenContext, body: str,
+  node: m.ColumnJoin,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   '''Single-source ColumnJoin: iterate the narrowed handle, bind the
   join var, descend into body. When the source is multi-view
@@ -115,9 +129,7 @@ def _nested_column_join_single(
 
   code = ""
   if ctx.debug:
-    code += (
-      i + f"// Nested ColumnJoin (single): bind '{var_name}' from {rel_name}\n"
-    )
+    code += i + f"// Nested ColumnJoin (single): bind '{var_name}' from {rel_name}\n"
     code += (
       i + f"// MIR: (column-join :var {var_name} :sources (({rel_name}"
       f" :handle {src_idx} :prefix ({' '.join(src.prefix_vars)}))))\n"
@@ -146,7 +158,10 @@ def _nested_column_join_single(
     parent = ctx.handle_vars.get(str(src_idx), "")
     parent_handle = parent if parent else gen_root_handle(view_var, index_type)
     chained = gen_chained_prefix_calls(
-      parent_handle, src.prefix_vars, view_var, index_type=index_type,
+      parent_handle,
+      src.prefix_vars,
+      view_var,
+      index_type=index_type,
     )
     code += si + f"auto {handle_var} = {chained};\n"
   else:
@@ -158,9 +173,7 @@ def _nested_column_join_single(
   code += si + f"uint32_t {degree_var} = {gen_degree(handle_var, index_type)};\n\n"
 
   idx_var = gen_unique_name(ctx, "idx")
-  code += (
-    si + f"for (uint32_t {idx_var} = 0; {idx_var} < {degree_var}; ++{idx_var}) {{\n"
-  )
+  code += si + f"for (uint32_t {idx_var} = 0; {idx_var} < {degree_var}; ++{idx_var}) {{\n"
 
   inc_indent(ctx)
   if has_segment_loop:
@@ -176,13 +189,14 @@ def _nested_column_join_single(
 
     # Deterministic child name — Cartesian sources look up by this name
     child_var = f"ch_{rel_name}_{src_idx}_{sanitize_var_name(var_name)}"
-    code += (
-      ii + f"auto {child_var} = {gen_child(handle_var, idx_var, index_type)};\n"
-    )
+    code += ii + f"auto {child_var} = {gen_child(handle_var, idx_var, index_type)};\n"
     # Register BOTH semantic keys + numeric key so subsequent ops can resolve.
     child_prefixes = list(src.prefix_vars) + [var_name]
     child_state_key = gen_handle_state_key(
-      rel_name, list(src.index), child_prefixes, src.version.code,
+      rel_name,
+      list(src.index),
+      child_prefixes,
+      src.version.code,
     )
     ctx.handle_vars[child_state_key] = child_var
     ctx.handle_vars[str(src_idx)] = child_var
@@ -211,7 +225,9 @@ def _nested_column_join_single(
 
 
 def _nested_column_join_multi(
-  node: m.ColumnJoin, ctx: CodeGenContext, body: str,
+  node: m.ColumnJoin,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   '''Multi-source ColumnJoin: set up per-source handles, intersect
   their iterators, iterate the result, register child handles in ctx,
@@ -223,14 +239,12 @@ def _nested_column_join_multi(
   code = ""
   if ctx.debug:
     code += (
-      i + f"// Nested ColumnJoin (intersection): bind '{var_name}'"
-      f" from {len(sources)} sources\n"
+      i + f"// Nested ColumnJoin (intersection): bind '{var_name}' from {len(sources)} sources\n"
     )
     src_debug = ""
     for src in sources:
       src_debug += (
-        f"({src.rel_name} :handle {src.handle_start}"
-        f" :prefix ({' '.join(src.prefix_vars)})) "
+        f"({src.rel_name} :handle {src.handle_start} :prefix ({' '.join(src.prefix_vars)})) "
       )
     code += i + f"// MIR: (column-join :var {var_name} :sources ({src_debug}))\n"
 
@@ -253,13 +267,15 @@ def _nested_column_join_multi(
         + "_".join(str(c) for c in src.index)
         + (f"_{src.version.code}" if src.version.code else "")
       )
-      nested_segments.append({
-        "src_idx_pos": idx_,
-        "view_count": vc,
-        "seg_var": sv,
-        "base_slot": bs,
-        "fixed_view_var": fvv,
-      })
+      nested_segments.append(
+        {
+          "src_idx_pos": idx_,
+          "view_count": vc,
+          "seg_var": sv,
+          "base_slot": bs,
+          "fixed_view_var": fvv,
+        }
+      )
 
   # Open segment loops for multi-view non-root sources. Each one bumps
   # the effective emit indent by one level.
@@ -267,15 +283,11 @@ def _nested_column_join_multi(
   for seg in nested_segments:
     sv = seg["seg_var"]
     vc = seg["view_count"]
-    code += (
-      seg_indent + f"for (int {sv} = 0; {sv} < {vc}; {sv}++) {{\n"
-    )
+    code += seg_indent + f"for (int {sv} = 0; {sv} < {vc}; {sv}++) {{\n"
     seg_indent += "  "
     # Reassign the fixed view variable to the current segment so all
     # nested code referencing it sees the current segment, not just FULL.
-    code += (
-      seg_indent + f"{seg['fixed_view_var']} = views[{seg['base_slot']} + {sv}];\n"
-    )
+    code += seg_indent + f"{seg['fixed_view_var']} = views[{seg['base_slot']} + {sv}];\n"
 
   # Rest of emit uses seg_indent as the effective `i`.
   i = seg_indent
@@ -303,16 +315,16 @@ def _nested_column_join_multi(
     existing_view = ctx.view_vars.get(str(src_idx), "")
     view_var = existing_view if existing_view else gen_view_var_name(rel_name, src_idx)
     if not existing_view:
-      code += (
-        i + f"auto {view_var} = "
-        f"{gen_view_access(get_view_slot_base(ctx, src_idx))};\n"
-      )
+      code += i + f"auto {view_var} = {gen_view_access(get_view_slot_base(ctx, src_idx))};\n"
 
     index_type = get_rel_index_type(ctx, rel_name)
     if src.prefix_vars:
       # Check for a fully-prefixed existing handle first (exact match).
       full_state_key = gen_handle_state_key(
-        rel_name, list(src.index), list(src.prefix_vars), src.version.code,
+        rel_name,
+        list(src.index),
+        list(src.prefix_vars),
+        src.version.code,
       )
       existing_handle = ctx.handle_vars.get(full_state_key, "")
       if existing_handle:
@@ -321,26 +333,37 @@ def _nested_column_join_multi(
         # Try parent with prefixes[:-1].
         parent_prefixes = list(src.prefix_vars[:-1])
         parent_state_key = gen_handle_state_key(
-          rel_name, list(src.index), parent_prefixes, src.version.code,
+          rel_name,
+          list(src.index),
+          parent_prefixes,
+          src.version.code,
         )
         parent_handle = ctx.handle_vars.get(parent_state_key, "")
         if parent_handle:
           remaining = [src.prefix_vars[-1]]
           chained = gen_chained_prefix_calls(
-            parent_handle, remaining, view_var, index_type=index_type,
+            parent_handle,
+            remaining,
+            view_var,
+            index_type=index_type,
           )
           code += i + f"auto {handle_var} = {chained};\n"
         else:
           # No parent — apply all prefixes from root.
           chained = gen_chained_prefix_calls(
             gen_root_handle(view_var, index_type),
-            list(src.prefix_vars), view_var, index_type=index_type,
+            list(src.prefix_vars),
+            view_var,
+            index_type=index_type,
           )
           code += i + f"auto {handle_var} = {chained};\n"
     else:
       # No prefix vars — prefer pre-registered handle.
       empty_state_key = gen_handle_state_key(
-        rel_name, list(src.index), [], src.version.code,
+        rel_name,
+        list(src.index),
+        [],
+        src.version.code,
       )
       pre_registered = ctx.handle_vars.get(empty_state_key, "")
       if not pre_registered:
@@ -348,10 +371,7 @@ def _nested_column_join_multi(
         if by_idx:
           code += i + f"auto {handle_var} = {by_idx};\n"
         else:
-          code += (
-            i + f"auto {handle_var} = "
-            f"{gen_root_handle(view_var, index_type)};\n"
-          )
+          code += i + f"auto {handle_var} = {gen_root_handle(view_var, index_type)};\n"
       else:
         code += i + f"auto {handle_var} = {pre_registered};\n"
 
@@ -361,14 +381,12 @@ def _nested_column_join_multi(
 
   intersect_var = gen_unique_name(ctx, "intersect")
   code += (
-    i + f"auto {intersect_var} = intersect_handles("
-    f"{ctx.tile_var}, {', '.join(iterator_args)});\n"
+    i + f"auto {intersect_var} = intersect_handles({ctx.tile_var}, {', '.join(iterator_args)});\n"
   )
 
   it_var = gen_unique_name(ctx, "it")
   code += (
-    i + f"for (auto {it_var} = {intersect_var}.begin(); "
-    f"{it_var}.valid(); {it_var}.next()) {{\n"
+    i + f"for (auto {it_var} = {intersect_var}.begin(); {it_var}.valid(); {it_var}.next()) {{\n"
   )
 
   inc_indent(ctx)
@@ -392,7 +410,10 @@ def _nested_column_join_multi(
       )
       child_prefixes = list(src_prefix_vars[idx_]) + [var_name]
       child_state_key = gen_handle_state_key(
-        rel_name, src_index_specs[idx_], child_prefixes, src_versions[idx_],
+        rel_name,
+        src_index_specs[idx_],
+        child_prefixes,
+        src_versions[idx_],
       )
       ctx.handle_vars[child_state_key] = child_var
       ctx.handle_vars[str(src_idx)] = child_var
@@ -429,8 +450,11 @@ def _nested_column_join_multi(
 # jit_nested_cartesian_join (baseline: no WS, no BG, no tiled, no fan-out)
 # -----------------------------------------------------------------------------
 
+
 def jit_nested_cartesian_join(
-  node: m.CartesianJoin, ctx: CodeGenContext, body: str,
+  node: m.CartesianJoin,
+  ctx: CodeGenContext,
+  body: str,
   tiled_body: str = "",
 ) -> str:
   '''Nested CartesianJoin: Cartesian product over prefixed handles.
@@ -463,9 +487,7 @@ def jit_nested_cartesian_join(
   assert isinstance(node, m.CartesianJoin)
   _feature_flags_disabled(ctx)
   if ctx.ws_cartesian_valid_var:
-    raise NotImplementedError(
-      "jit_instructions: ws Cartesian batch branch not yet ported"
-    )
+    raise NotImplementedError("jit_instructions: ws Cartesian batch branch not yet ported")
 
   sources = node.sources
   vars_bound = list(node.vars)
@@ -477,19 +499,14 @@ def jit_nested_cartesian_join(
 
   if ctx.debug:
     code += (
-      i + f"// Nested CartesianJoin: bind {', '.join(vars_bound)}"
-      f" from {num_sources} source(s)\n"
+      i + f"// Nested CartesianJoin: bind {', '.join(vars_bound)} from {num_sources} source(s)\n"
     )
     src_debug = ""
     for src in sources:
       src_debug += (
-        f"({src.rel_name} :handle {src.handle_start}"
-        f" :prefix ({' '.join(src.prefix_vars)})) "
+        f"({src.rel_name} :handle {src.handle_start} :prefix ({' '.join(src.prefix_vars)})) "
       )
-    code += (
-      i + f"// MIR: (cartesian-join :vars ({' '.join(vars_bound)})"
-      f" :sources ({src_debug}))\n"
-    )
+    code += i + f"// MIR: (cartesian-join :vars ({' '.join(vars_bound)}) :sources ({src_debug}))\n"
 
   # Note: Cartesian doesn't open its own segment loop — when an outer
   # ColumnJoin has a multi-view source its `_seg` loop is already in
@@ -517,7 +534,10 @@ def jit_nested_cartesian_join(
 
     # Handle state-key reuse: match the full prefix first.
     state_key = gen_handle_state_key(
-      rel_name, list(src.index), list(src.prefix_vars), src.version.code,
+      rel_name,
+      list(src.index),
+      list(src.prefix_vars),
+      src.version.code,
     )
     existing_handle = ctx.handle_vars.get(state_key, "")
 
@@ -525,6 +545,7 @@ def jit_nested_cartesian_join(
 
     # View lookup by spec-key or numeric.
     from srdatalog.codegen.jit.context import gen_index_spec_key
+
     spec_key = gen_index_spec_key(rel_name, list(src.index), src.version.code)
     existing_view = ctx.view_vars.get(spec_key, "")
     if not existing_view:
@@ -535,38 +556,40 @@ def jit_nested_cartesian_join(
 
     if not existing_view:
       code += (
-        i + f"auto {view_var} = "
-        f"{gen_view_access(get_view_slot_base(ctx, h_idx))};  // {rel_name}\n"
+        i + f"auto {view_var} = {gen_view_access(get_view_slot_base(ctx, h_idx))};  // {rel_name}\n"
       )
 
     if existing_handle:
-      code += (
-        i + f"auto {handle_var} = {existing_handle};"
-        "  // reusing narrowed handle\n"
-      )
+      code += i + f"auto {handle_var} = {existing_handle};  // reusing narrowed handle\n"
     elif src.prefix_vars:
       # No exact match — try parent with prefixes[:-1].
       parent_prefixes = list(src.prefix_vars[:-1])
       parent_state_key = gen_handle_state_key(
-        rel_name, list(src.index), parent_prefixes, src.version.code,
+        rel_name,
+        list(src.index),
+        parent_prefixes,
+        src.version.code,
       )
       parent_handle = ctx.handle_vars.get(parent_state_key, "")
       if parent_handle:
         remaining = [src.prefix_vars[-1]]
         chained = gen_chained_prefix_calls(
-          parent_handle, remaining, view_var, index_type=index_type,
+          parent_handle,
+          remaining,
+          view_var,
+          index_type=index_type,
         )
         code += i + f"auto {handle_var} = {chained};\n"
       else:
         chained = gen_chained_prefix_calls(
           gen_root_handle(view_var, index_type),
-          list(src.prefix_vars), view_var, index_type=index_type,
+          list(src.prefix_vars),
+          view_var,
+          index_type=index_type,
         )
         code += i + f"auto {handle_var} = {chained};\n"
     else:
-      code += (
-        i + f"auto {handle_var} = {gen_root_handle(view_var, index_type)};\n"
-      )
+      code += i + f"auto {handle_var} = {gen_root_handle(view_var, index_type)};\n"
 
     handle_var_names.append(handle_var)
     view_var_names.append(view_var)
@@ -602,16 +625,12 @@ def jit_nested_cartesian_join(
   if ctx.is_counting and ctx.cartesian_as_product:
     total_expr = " * (uint64_t)".join(degree_var_names)
     if ctx.bg_enabled and ctx.bg_cumulative_var:
-      raise NotImplementedError(
-        "jit_nested_cartesian_join: BG count-as-product not yet ported"
-      )
+      raise NotImplementedError("jit_nested_cartesian_join: BG count-as-product not yet ported")
     code += i + "// Count-as-product: per-lane share without inner loop\n"
     code += i + "{\n"
     nbII = i + "  "
     code += nbII + f"uint64_t cap_total = (uint64_t){total_expr};\n"
-    code += (
-      nbII + "uint32_t lane_total = static_cast<uint32_t>(cap_total);\n"
-    )
+    code += nbII + "uint32_t lane_total = static_cast<uint32_t>(cap_total);\n"
     code += (
       nbII + f"uint32_t lane_share = ({lane_var} < lane_total) ? ("
       f"(lane_total - {lane_var} + {group_size_var} - 1) / "
@@ -638,15 +657,16 @@ def jit_nested_cartesian_join(
     for col_idx, const_val in info.pre_consts:
       const_var = gen_unique_name(ctx, f"h_{info.rel_name}_neg_pre_const")
       code += (
-        i + f"auto {const_var} = {current_handle}.prefix("
-        f"{const_val}, tile, {info.view_var});\n"
+        i + f"auto {const_var} = {current_handle}.prefix({const_val}, tile, {info.view_var});\n"
       )
       current_handle = const_var
     # Pre-Cartesian variable prefixes (cooperative via empty
     # cartesian_bound_vars — all use .prefix(), not .prefix_seq()).
     if info.pre_vars:
       chained = gen_chained_prefix_calls(
-        current_handle, info.pre_vars, info.view_var,
+        current_handle,
+        info.pre_vars,
+        info.view_var,
         index_type=info.index_type,
       )
       code += i + f"auto {info.var_name} = {chained};\n"
@@ -674,7 +694,10 @@ def jit_nested_cartesian_join(
 
   if tiled_eligible:
     return code + _emit_tiled_cartesian(
-      node, ctx, body, tiled_body,
+      node,
+      ctx,
+      body,
+      tiled_body,
       i=i,
       handle_var_names=handle_var_names,
       view_var_names=view_var_names,
@@ -710,33 +733,19 @@ def jit_nested_cartesian_join(
       code += ii + f"uint32_t {idx_vars[0]} = {flat_idx_var};\n"
     elif num_sources == 2:
       major_var = gen_unique_name(ctx, "major_is_1")
-      code += (
-        ii + f"const bool {major_var} = "
-        f"({degree_var_names[1]} >= {degree_var_names[0]});\n"
-      )
+      code += ii + f"const bool {major_var} = ({degree_var_names[1]} >= {degree_var_names[0]});\n"
       code += ii + f"uint32_t {idx_vars[0]}, {idx_vars[1]};\n"
       code += ii + f"if ({major_var}) {{\n"
-      code += (
-        ii + f"  {idx_vars[0]} = {flat_idx_var} / {degree_var_names[1]};\n"
-      )
-      code += (
-        ii + f"  {idx_vars[1]} = {flat_idx_var} % {degree_var_names[1]};\n"
-      )
+      code += ii + f"  {idx_vars[0]} = {flat_idx_var} / {degree_var_names[1]};\n"
+      code += ii + f"  {idx_vars[1]} = {flat_idx_var} % {degree_var_names[1]};\n"
       code += ii + "} else {\n"
-      code += (
-        ii + f"  {idx_vars[1]} = {flat_idx_var} / {degree_var_names[0]};\n"
-      )
-      code += (
-        ii + f"  {idx_vars[0]} = {flat_idx_var} % {degree_var_names[0]};\n"
-      )
+      code += ii + f"  {idx_vars[1]} = {flat_idx_var} / {degree_var_names[0]};\n"
+      code += ii + f"  {idx_vars[0]} = {flat_idx_var} % {degree_var_names[0]};\n"
       code += ii + "}\n"
     else:
       code += ii + f"uint32_t remaining = {flat_idx_var};\n"
       for src_idx in range(num_sources - 1, -1, -1):
-        code += (
-          ii + f"uint32_t {idx_vars[src_idx]} = "
-          f"remaining % {degree_var_names[src_idx]};\n"
-        )
+        code += ii + f"uint32_t {idx_vars[src_idx]} = remaining % {degree_var_names[src_idx]};\n"
         if src_idx > 0:
           code += ii + f"remaining /= {degree_var_names[src_idx]};\n"
 
@@ -745,6 +754,7 @@ def jit_nested_cartesian_join(
     # Bind each source's contributed vars via
     # view.get_value(col, handle.begin() + idx).
     from srdatalog.codegen.jit.context import gen_get_value
+
     for idx_, src in enumerate(sources):
       prefix_len = len(src.prefix_vars)
       src_index_type = get_rel_index_type(ctx, src.rel_name)
@@ -779,6 +789,7 @@ def jit_nested_cartesian_join(
 # -----------------------------------------------------------------------------
 # Tiled Cartesian — smem pre-load + coalesced writes for 2-source / 1-var
 # -----------------------------------------------------------------------------
+
 
 def _emit_tiled_cartesian(
   node: m.CartesianJoin,
@@ -822,12 +833,11 @@ def _emit_tiled_cartesian(
   src0_index_type = get_rel_index_type(ctx, src0.rel_name)
   src1_index_type = get_rel_index_type(ctx, src1.rel_name)
 
-  from srdatalog.codegen.jit.context import gen_get_value, dec_indent as _dec
+  from srdatalog.codegen.jit.context import gen_get_value
+
   # Tiled branch open.
   code += i + f"if ({total_var} > 32) {{\n"
-  code += (
-    i + "  // Tiled Cartesian: smem pre-load reads, standard emit_direct writes\n"
-  )
+  code += i + "  // Tiled Cartesian: smem pre-load reads, standard emit_direct writes\n"
   t0_base = gen_unique_name(ctx, "t0_base")
   t1_base = gen_unique_name(ctx, "t1_base")
   t0_len = gen_unique_name(ctx, "t0_len")
@@ -844,10 +854,7 @@ def _emit_tiled_cartesian(
     f"{degree_var_names[0]}) - {t0_base};\n"
   )
   # Pre-load source 0 values into s_cart[warp_in_block][0][_ti].
-  code += (
-    i + f"    for (uint32_t _ti = {lane_var}; _ti < {t0_len}; "
-    f"_ti += {group_size_var})\n"
-  )
+  code += i + f"    for (uint32_t _ti = {lane_var}; _ti < {t0_len}; _ti += {group_size_var})\n"
   code += (
     i + f"      s_cart[warp_in_block][0][_ti] = {view_var_names[0]}.get_value("
     f"{col0}, {handle_var_names[0]}.begin() + {t0_base} + _ti);\n"
@@ -861,10 +868,7 @@ def _emit_tiled_cartesian(
     i + f"      uint32_t {t1_len} = min({t1_base} + (uint32_t)kCartTileSize, "
     f"{degree_var_names[1]}) - {t1_base};\n"
   )
-  code += (
-    i + f"      for (uint32_t _ti = {lane_var}; _ti < {t1_len}; "
-    f"_ti += {group_size_var})\n"
-  )
+  code += i + f"      for (uint32_t _ti = {lane_var}; _ti < {t1_len}; _ti += {group_size_var})\n"
   code += (
     i + f"        s_cart[warp_in_block][1][_ti] = {view_var_names[1]}.get_value("
     f"{col1}, {handle_var_names[1]}.begin() + {t1_base} + _ti);\n"
@@ -883,9 +887,7 @@ def _emit_tiled_cartesian(
       i + f"      for (uint32_t {batch_var} = 0; {batch_var} < {tile_total}; "
       f"{batch_var} += {group_size_var}) {{\n"
     )
-    code += (
-      i + f"        uint32_t {flat_idx_var} = {batch_var} + {lane_var};\n"
-    )
+    code += i + f"        uint32_t {flat_idx_var} = {batch_var} + {lane_var};\n"
     code += i + f"        bool {valid_var} = {flat_idx_var} < {tile_total};\n"
     code += (
       i + f"        auto {var_name0} = {valid_var} ? "
@@ -910,14 +912,8 @@ def _emit_tiled_cartesian(
       f"{flat_idx_var} < {tile_total}; "
       f"{flat_idx_var} += {group_size_var}) {{\n"
     )
-    code += (
-      i + f"        auto {var_name0} = s_cart[warp_in_block][0]"
-      f"[{flat_idx_var} / {t1_len}];\n"
-    )
-    code += (
-      i + f"        auto {var_name1} = s_cart[warp_in_block][1]"
-      f"[{flat_idx_var} % {t1_len}];\n"
-    )
+    code += i + f"        auto {var_name0} = s_cart[warp_in_block][0][{flat_idx_var} / {t1_len}];\n"
+    code += i + f"        auto {var_name1} = s_cart[warp_in_block][1][{flat_idx_var} % {t1_len}];\n"
     ctx.bound_vars.append(var_from_source[0][0])
     ctx.bound_vars.append(var_from_source[1][0])
     try:
@@ -929,7 +925,7 @@ def _emit_tiled_cartesian(
 
   code += i + f"      {ctx.tile_var}.sync();\n"
   code += i + "    }\n"  # end t1 loop
-  code += i + "  }\n"    # end t0 loop
+  code += i + "  }\n"  # end t0 loop
   code += i + "} else {\n"
 
   # Fallback: flat loop with major_is_1 decomposition. When tiled_body
@@ -944,9 +940,7 @@ def _emit_tiled_cartesian(
       i + f"  for (uint32_t {fb_batch_var} = 0; {fb_batch_var} < {total_var}; "
       f"{fb_batch_var} += {group_size_var}) {{\n"
     )
-    code += (
-      i + f"    uint32_t {flat_idx_var} = {fb_batch_var} + {lane_var};\n"
-    )
+    code += i + f"    uint32_t {flat_idx_var} = {fb_batch_var} + {lane_var};\n"
     code += i + f"    bool {valid_var} = {flat_idx_var} < {total_var};\n"
     flat_var_inner = flat_idx_var
   else:
@@ -961,10 +955,7 @@ def _emit_tiled_cartesian(
   idx0_var = gen_unique_name(ctx, "idx0")
   idx1_var = gen_unique_name(ctx, "idx1")
   fbii = i + "    "
-  code += (
-    fbii + f"const bool {major_var} = "
-    f"({degree_var_names[1]} >= {degree_var_names[0]});\n"
-  )
+  code += fbii + f"const bool {major_var} = ({degree_var_names[1]} >= {degree_var_names[0]});\n"
   code += fbii + f"uint32_t {idx0_var}, {idx1_var};\n"
   code += (
     fbii + f"if ({major_var}) {{ {idx0_var} = {flat_var_inner} / "
@@ -983,10 +974,7 @@ def _emit_tiled_cartesian(
       continue
     for v_idx, vn in enumerate(var_from_source[src_idx]):
       col_idx = prefix_len + v_idx
-      pos_expr = (
-        f"{handle_var_names[src_idx]}.begin() + "
-        f"{idx0_var if src_idx == 0 else idx1_var}"
-      )
+      pos_expr = f"{handle_var_names[src_idx]}.begin() + {idx0_var if src_idx == 0 else idx1_var}"
       code += (
         fbii + f"auto {sanitize_var_name(vn)} = "
         f"{gen_get_value(view_var_names[src_idx], col_idx, pos_expr, src_index_type)};\n"
@@ -998,8 +986,8 @@ def _emit_tiled_cartesian(
   finally:
     ctx.bound_vars.pop()
     ctx.bound_vars.pop()
-  code += i + "  }\n"   # close fallback for-loop
-  code += i + "}\n"     # close if/else
+  code += i + "  }\n"  # close fallback for-loop
+  code += i + "}\n"  # close if/else
   return code
 
 
@@ -1007,8 +995,11 @@ def _emit_tiled_cartesian(
 # jit_positioned_extract (balanced-scan follow-up)
 # -----------------------------------------------------------------------------
 
+
 def jit_positioned_extract(
-  node: m.PositionedExtract, ctx: CodeGenContext, body: str,
+  node: m.PositionedExtract,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   '''Emit a PositionedExtract — point-lookup on multiple already-bound
   sources. Used as a join level after a BalancedScan when the root
@@ -1025,10 +1016,7 @@ def jit_positioned_extract(
   bind_vars = list(node.bind_vars)
 
   if ctx.debug:
-    code += (
-      i + f"// PositionedExtract: extract {extract_var}"
-      f" then bind {', '.join(bind_vars)}\n"
-    )
+    code += i + f"// PositionedExtract: extract {extract_var} then bind {', '.join(bind_vars)}\n"
 
   # Each source contributes a narrowed handle; we look up extract_var
   # on each and verify existence (semijoin behavior).
@@ -1044,10 +1032,7 @@ def jit_positioned_extract(
     existing_view = ctx.view_vars.get(str(src_idx), "")
     view_var = existing_view if existing_view else gen_view_var_name(rel_name, src_idx)
     if not existing_view:
-      code += (
-        i + f"auto {view_var} = "
-        f"{gen_view_access(get_view_slot_base(ctx, src_idx))};\n"
-      )
+      code += i + f"auto {view_var} = {gen_view_access(get_view_slot_base(ctx, src_idx))};\n"
     index_type = get_rel_index_type(ctx, rel_name)
     handle_var = gen_handle_var_name(rel_name, src_idx, ctx)
 
@@ -1055,7 +1040,10 @@ def jit_positioned_extract(
     root = parent if parent else gen_root_handle(view_var, index_type)
     if src.prefix_vars:
       chained = gen_chained_prefix_calls(
-        root, list(src.prefix_vars), view_var, index_type=index_type,
+        root,
+        list(src.prefix_vars),
+        view_var,
+        index_type=index_type,
       )
       code += i + f"auto {handle_var} = {chained};\n"
     else:
@@ -1064,15 +1052,15 @@ def jit_positioned_extract(
     # Probe extract_var cooperatively (per-thread since we're usually inside
     # a Cartesian — match Nim's prefix_seq usage here via the plugin).
     probed = gen_chained_prefix_calls(
-      handle_var, [extract_var], view_var,
-      ctx.cartesian_bound_vars + [extract_var], index_type=index_type,
+      handle_var,
+      [extract_var],
+      view_var,
+      ctx.cartesian_bound_vars + [extract_var],
+      index_type=index_type,
     )
     probed_var = gen_unique_name(ctx, f"h_pe_{idx_}")
     code += i + f"auto {probed_var} = {probed};\n"
-    code += (
-      i + f"{valid_var} = {valid_var} && "
-      f"{gen_valid(probed_var, index_type)};\n"
-    )
+    code += i + f"{valid_var} = {valid_var} && {gen_valid(probed_var, index_type)};\n"
     handle_narrows.append((probed_var, view_var, index_type))
 
   code += i + f"if ({valid_var}) {{\n"

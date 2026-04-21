@@ -1,21 +1,21 @@
 '''Tests for codegen/jit/scan_negation.py.'''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
+from srdatalog.codegen.jit.context import NegPreNarrowInfo, new_code_gen_context
+from srdatalog.codegen.jit.scan_negation import jit_aggregate, jit_negation, jit_scan
 from srdatalog.hir.types import Version
-from srdatalog.codegen.jit.context import new_code_gen_context, NegPreNarrowInfo
-from srdatalog.codegen.jit.scan_negation import jit_scan, jit_negation, jit_aggregate
-
 
 # -----------------------------------------------------------------------------
 # jit_scan
 # -----------------------------------------------------------------------------
 
+
 def test_scan_basic_no_prefix_binds_remaining_cols():
-  node = m.Scan(vars=["x", "y"], rel_name="Edge",
-                version=Version.FULL, index=[0, 1], handle_start=0)
+  node = m.Scan(
+    vars=["x", "y"], rel_name="Edge", version=Version.FULL, index=[0, 1], handle_start=0
+  )
   ctx = new_code_gen_context()
   out = jit_scan(node, ctx, "          body();\n")
   assert "auto view_Edge_0 = views[0];" in out
@@ -29,9 +29,14 @@ def test_scan_basic_no_prefix_binds_remaining_cols():
 
 
 def test_scan_with_prefix_emits_chained_prefix_narrow():
-  node = m.Scan(vars=["y"], rel_name="Edge",
-                version=Version.FULL, index=[0, 1],
-                prefix_vars=["x"], handle_start=0)
+  node = m.Scan(
+    vars=["y"],
+    rel_name="Edge",
+    version=Version.FULL,
+    index=[0, 1],
+    prefix_vars=["x"],
+    handle_start=0,
+  )
   ctx = new_code_gen_context()
   out = jit_scan(node, ctx, "")
   # Narrow via chained .prefix(x, tile, view)
@@ -42,8 +47,7 @@ def test_scan_with_prefix_emits_chained_prefix_narrow():
 
 
 def test_scan_reuses_preexisting_view_var():
-  node = m.Scan(vars=["x"], rel_name="R", version=Version.FULL,
-                index=[0], handle_start=5)
+  node = m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0], handle_start=5)
   ctx = new_code_gen_context()
   ctx.view_vars["5"] = "view_R_5_preexisting"
   out = jit_scan(node, ctx, "")
@@ -55,8 +59,7 @@ def test_scan_reuses_preexisting_view_var():
 def test_scan_uses_parent_handle_when_available():
   '''If a parent handle is registered in ctx.handle_vars, reuse it
   instead of emitting a fresh root handle.'''
-  node = m.Scan(vars=["x"], rel_name="R", version=Version.FULL,
-                index=[0], handle_start=5)
+  node = m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0], handle_start=5)
   ctx = new_code_gen_context()
   ctx.view_vars["5"] = "view_R_5"
   ctx.handle_vars["5"] = "parent_h_42"
@@ -70,9 +73,11 @@ def test_scan_uses_parent_handle_when_available():
 # jit_negation — standard path
 # -----------------------------------------------------------------------------
 
+
 def test_negation_standard_if_not_valid_wraps_body():
-  node = m.Negation(rel_name="R", version=Version.FULL, index=[0],
-                    prefix_vars=["x"], handle_start=0)
+  node = m.Negation(
+    rel_name="R", version=Version.FULL, index=[0], prefix_vars=["x"], handle_start=0
+  )
   ctx = new_code_gen_context()
   out = jit_negation(node, ctx, "          body();\n")
   assert "auto view_R_neg_0 = views[0];" in out
@@ -85,8 +90,12 @@ def test_negation_constant_args_apply_first():
   '''Nim ordering: constants first, then variables (matches HIR
   indexCols layout: const cols come before variable cols).'''
   node = m.Negation(
-    rel_name="Method_Modifier", version=Version.FULL, index=[1, 0],
-    prefix_vars=["meth"], const_args=[(1, 42)], handle_start=0,
+    rel_name="Method_Modifier",
+    version=Version.FULL,
+    index=[1, 0],
+    prefix_vars=["meth"],
+    const_args=[(1, 42)],
+    handle_start=0,
   )
   ctx = new_code_gen_context()
   out = jit_negation(node, ctx, "")
@@ -97,8 +106,9 @@ def test_negation_constant_args_apply_first():
 
 def test_negation_inside_cartesian_uses_prefix_seq():
   '''Inside Cartesian, prefix narrowing must be per-thread sequential.'''
-  node = m.Negation(rel_name="R", version=Version.FULL, index=[0],
-                    prefix_vars=["x"], handle_start=0)
+  node = m.Negation(
+    rel_name="R", version=Version.FULL, index=[0], prefix_vars=["x"], handle_start=0
+  )
   ctx = new_code_gen_context()
   ctx.inside_cartesian = True
   out = jit_negation(node, ctx, "")
@@ -107,8 +117,9 @@ def test_negation_inside_cartesian_uses_prefix_seq():
 
 
 def test_negation_ws_cartesian_folds_into_valid_flag():
-  node = m.Negation(rel_name="R", version=Version.FULL, index=[0],
-                    prefix_vars=["x"], handle_start=0)
+  node = m.Negation(
+    rel_name="R", version=Version.FULL, index=[0], prefix_vars=["x"], handle_start=0
+  )
   ctx = new_code_gen_context()
   ctx.ws_cartesian_valid_var = "ws_valid"
   out = jit_negation(node, ctx, "body();\n")
@@ -118,8 +129,9 @@ def test_negation_ws_cartesian_folds_into_valid_flag():
 
 
 def test_negation_tiled_cartesian_folds_into_valid_flag():
-  node = m.Negation(rel_name="R", version=Version.FULL, index=[0],
-                    prefix_vars=["x"], handle_start=0)
+  node = m.Negation(
+    rel_name="R", version=Version.FULL, index=[0], prefix_vars=["x"], handle_start=0
+  )
   ctx = new_code_gen_context()
   ctx.tiled_cartesian_valid_var = "tc_valid"
   out = jit_negation(node, ctx, "body();\n")
@@ -130,9 +142,11 @@ def test_negation_tiled_cartesian_folds_into_valid_flag():
 # jit_negation — pre-narrowed path
 # -----------------------------------------------------------------------------
 
+
 def test_negation_pre_narrowed_uses_existing_var():
-  node = m.Negation(rel_name="R", version=Version.FULL, index=[0, 1],
-                    prefix_vars=[], handle_start=7)
+  node = m.Negation(
+    rel_name="R", version=Version.FULL, index=[0, 1], prefix_vars=[], handle_start=7
+  )
   ctx = new_code_gen_context()
   ctx.neg_pre_narrow[7] = NegPreNarrowInfo(
     var_name="h_prenarrowed_12",
@@ -148,8 +162,9 @@ def test_negation_pre_narrowed_uses_existing_var():
 
 
 def test_negation_pre_narrowed_applies_in_cartesian_vars_per_thread():
-  node = m.Negation(rel_name="R", version=Version.FULL, index=[0, 1],
-                    prefix_vars=[], handle_start=7)
+  node = m.Negation(
+    rel_name="R", version=Version.FULL, index=[0, 1], prefix_vars=[], handle_start=7
+  )
   ctx = new_code_gen_context()
   ctx.neg_pre_narrow[7] = NegPreNarrowInfo(
     var_name="h_pn",
@@ -167,10 +182,16 @@ def test_negation_pre_narrowed_applies_in_cartesian_vars_per_thread():
 # jit_aggregate
 # -----------------------------------------------------------------------------
 
+
 def test_aggregate_basic():
-  node = m.Aggregate(result_var="cnt", agg_func="SRDatalog::AggCount",
-                     rel_name="R", version=Version.FULL, index=[0],
-                     handle_start=0)
+  node = m.Aggregate(
+    result_var="cnt",
+    agg_func="SRDatalog::AggCount",
+    rel_name="R",
+    version=Version.FULL,
+    index=[0],
+    handle_start=0,
+  )
   ctx = new_code_gen_context()
   out = jit_aggregate(node, ctx, "        body();\n")
   assert "auto view_R_agg_0 = views[0];" in out
@@ -182,9 +203,15 @@ def test_aggregate_basic():
 
 
 def test_aggregate_with_prefix_narrows_first():
-  node = m.Aggregate(result_var="cnt", agg_func="AggCount",
-                     rel_name="R", version=Version.FULL, index=[0, 1],
-                     prefix_vars=["x"], handle_start=0)
+  node = m.Aggregate(
+    result_var="cnt",
+    agg_func="AggCount",
+    rel_name="R",
+    version=Version.FULL,
+    index=[0, 1],
+    prefix_vars=["x"],
+    handle_start=0,
+  )
   ctx = new_code_gen_context()
   out = jit_aggregate(node, ctx, "")
   assert "auto h_R_agg_0_" in out
@@ -202,9 +229,14 @@ def test_aggregate_binds_result_var_into_body_scope():
     seen_during_body.extend(ctx.bound_vars)
     return "body()\n"
 
-  node = m.Aggregate(result_var="total", agg_func="AggSum",
-                     rel_name="R", version=Version.FULL, index=[0],
-                     handle_start=0)
+  node = m.Aggregate(
+    result_var="total",
+    agg_func="AggSum",
+    rel_name="R",
+    version=Version.FULL,
+    index=[0],
+    handle_start=0,
+  )
   ctx = new_code_gen_context()
   # Render body using a lambda that captures bound_vars
   body_captured = make_body(ctx)  # before aggregate: no 'total'
@@ -217,6 +249,7 @@ def test_aggregate_binds_result_var_into_body_scope():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

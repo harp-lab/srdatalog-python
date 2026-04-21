@@ -22,15 +22,16 @@ hash-random); Nim relies on its deterministic string hash, but these
 fields are internal to downstream passes and not emitted, so the order
 only has to be stable, not byte-matched against Nim.
 '''
+
 from __future__ import annotations
 
+from srdatalog.hir.pass_ import Dialect, PassInfo, PassLevel
 from srdatalog.hir.types import (
   HirProgram,
   HirRuleVariant,
   RelationDecl,
   Version,
 )
-from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 def get_arity(rel_name: str, decls: list[RelationDecl]) -> int:
@@ -152,7 +153,9 @@ def select_indices(hir: HirProgram) -> HirProgram:
 
       stratum.required_indices[rel_name] = indices
       stratum.canonical_index[rel_name] = canonical_index(
-        rel_name, indices, decls,
+        rel_name,
+        indices,
+        decls,
         full_indices=full_idx if stratum.is_recursive else None,
       )
 

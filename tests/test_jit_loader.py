@@ -7,15 +7,15 @@ and build_and_load without needing the generalized_datalog runtime.
 
 Skipped on hosts with no C++ compiler on PATH (rare in dev).
 '''
+
 import ctypes
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
-
+from srdatalog.codegen.jit.compiler import CompilerConfig, compile_cpp, link_shared
 from srdatalog.codegen.jit.loader import (
   EntryPoint,
   JitRuntime,
@@ -23,7 +23,6 @@ from srdatalog.codegen.jit.loader import (
   build_and_load,
   gen_runtime_shim_template,
 )
-from srdatalog.codegen.jit.compiler import CompilerConfig, compile_cpp, link_shared
 
 
 def _cxx() -> str | None:
@@ -33,6 +32,7 @@ def _cxx() -> str | None:
 # -----------------------------------------------------------------------------
 # Shim template
 # -----------------------------------------------------------------------------
+
 
 def test_shim_template_shape():
   shim = gen_runtime_shim_template(
@@ -59,6 +59,7 @@ def test_shim_template_no_dest_relations_omits_size_queries():
 # errcheck default
 # -----------------------------------------------------------------------------
 
+
 def test_errcheck_default_passes_on_zero():
   assert _apply_errcheck_default(0, lambda: None, ()) == 0
 
@@ -77,6 +78,7 @@ def test_errcheck_default_raises_on_nonzero():
 # -----------------------------------------------------------------------------
 # JitRuntime file checks
 # -----------------------------------------------------------------------------
+
 
 def test_runtime_raises_on_missing_file():
   try:
@@ -204,6 +206,7 @@ def test_runtime_bind_missing_symbol_raises():
 # build_and_load — full chain
 # -----------------------------------------------------------------------------
 
+
 def test_build_and_load_runs_compile_then_dlopen():
   if not _cxx():
     print("[SKIP] no C++ compiler on PATH")
@@ -248,8 +251,11 @@ def test_build_and_load_reports_compile_errors():
     main = os.path.join(project_dir, "main.cpp")
     Path(main).write_text("this is not valid c++\n")
     project_result = {
-      "dir": project_dir, "main": main, "batches": [],
-      "schema_header": "", "kernel_header": "",
+      "dir": project_dir,
+      "main": main,
+      "batches": [],
+      "schema_header": "",
+      "kernel_header": "",
     }
     try:
       build_and_load(
@@ -265,6 +271,7 @@ def test_build_and_load_reports_compile_errors():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   failed = 0
@@ -281,6 +288,7 @@ if __name__ == "__main__":
       failed += 1
     except Exception as e:
       import traceback
+
       print(f"ERROR {name}: {type(e).__name__}: {e}")
       traceback.print_exc()
       failed += 1

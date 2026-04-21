@@ -1,6 +1,8 @@
 '''tc_2level_bg.nim -- tc with block_group pragma on recursive variant'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program
+
+from srdatalog.dsl import Program, Relation, Var
 
 
 def build_tc_2level_bg() -> Program:
@@ -13,10 +15,12 @@ def build_tc_2level_bg() -> Program:
     rules=[
       (edge(X, Y) <= arc_in(X, Y)).named("EdgeLoad"),
       (path(X, Y) <= edge(X, Y)).named("TCBase"),
-      (
-        path(X, Z) <= path(X, Y) & edge(Y, Z)
-      ).named("TCRec").with_plan(
-        delta=0, block_group=True, var_order=["y", "x", "z"],
+      (path(X, Z) <= path(X, Y) & edge(Y, Z))
+      .named("TCRec")
+      .with_plan(
+        delta=0,
+        block_group=True,
+        var_order=["y", "x", "z"],
       ),
     ],
   )

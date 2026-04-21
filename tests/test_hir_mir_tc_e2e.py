@@ -8,14 +8,12 @@ lower_hir_to_mir produces in Python).
 
 This closes the loop for tc: DSL -> HIR -> MIR, both byte-verified.
 '''
-import sys
+
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_mir
 from srdatalog.mir.emit import print_mir_sexpr
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -43,6 +41,7 @@ def test_tc_mir_sexpr_matches_golden():
 
   if actual != golden:
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
         golden.splitlines(),

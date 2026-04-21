@@ -31,19 +31,21 @@ generated C++ is correct for those rules too — the difference is that
 our kernel-side emit doesn't yet produce the matching WS / BG kernel
 bodies. The orchestrator half is self-contained.
 '''
+
 from __future__ import annotations
-from typing import Optional
 
 import srdatalog.mir.types as m
 from srdatalog.hir.types import Version
-
 
 # -----------------------------------------------------------------------------
 # C++ type expression generators
 # -----------------------------------------------------------------------------
 
+
 def gen_index_spec_type(
-  rel_name: str, version: str, cols: list[int],
+  rel_name: str,
+  version: str,
+  cols: list[int],
 ) -> str:
   '''`SRDatalog::mir::IndexSpecT<Rel, std::integer_sequence<int, ...>, VER>`'''
   col_str = ", ".join(str(c) for c in cols)
@@ -83,6 +85,7 @@ def extract_source_info(src_spec: m.MirNode) -> tuple[str, str, list[int]]:
 # Dest / count-only helpers
 # -----------------------------------------------------------------------------
 
+
 def build_dest_stream_map(exec_ops: list[m.ExecutePipeline]) -> dict[str, list[int]]:
   '''dest rel → list of stream indices (one per pipeline) that write to it.'''
   out: dict[str, list[int]] = {}
@@ -99,21 +102,22 @@ def all_dests_independent(dest_streams: dict[str, list[int]]) -> bool:
 
 
 def is_count_only_pipeline(
-  instr: m.MirNode, count_only_rels: set[str],
+  instr: m.MirNode,
+  count_only_rels: set[str],
 ) -> bool:
   if not isinstance(instr, m.ExecutePipeline):
     return False
   if not count_only_rels:
     return False
   return any(
-    isinstance(dest, m.InsertInto) and dest.rel_name in count_only_rels
-    for dest in instr.dest_specs
+    isinstance(dest, m.InsertInto) and dest.rel_name in count_only_rels for dest in instr.dest_specs
   )
 
 
 # -----------------------------------------------------------------------------
 # Canonical spec collection
 # -----------------------------------------------------------------------------
+
 
 def collect_canonical_specs(
   instrs: list[m.MirNode],
@@ -141,6 +145,7 @@ def collect_canonical_specs(
 # gen_instruction_code — big per-instruction dispatcher
 # -----------------------------------------------------------------------------
 
+
 def _gen_execute_pipeline(
   instr: m.ExecutePipeline,
   indent: str,
@@ -167,7 +172,9 @@ def _gen_execute_pipeline(
     return out
 
   has_fused = (
-    not instr.dedup_hash and not instr.work_stealing and not instr.block_group
+    not instr.dedup_hash
+    and not instr.work_stealing
+    and not instr.block_group
     and len(instr.dest_specs) == 1
   )
   if has_fused:
@@ -203,7 +210,11 @@ def _gen_parallel_group(
     out = indent + "// === ParallelGroup (single rule, sequential) ===\n"
     for op in instr.ops:
       out += gen_instruction_code(
-        op, indent, iter_var, dest_stream_map_out, count_only_rels,
+        op,
+        indent,
+        iter_var,
+        dest_stream_map_out,
+        count_only_rels,
       )
     return out
 
@@ -214,7 +225,11 @@ def _gen_parallel_group(
       out += indent + f"{runner}::execute(db, {iter_var});\n"
     for op in other_ops:
       out += gen_instruction_code(
-        op, indent, iter_var, dest_stream_map_out, count_only_rels,
+        op,
+        indent,
+        iter_var,
+        dest_stream_map_out,
+        count_only_rels,
       )
     return out
 
@@ -228,8 +243,7 @@ def _gen_parallel_group(
   i2 = indent + "  "
 
   all_fused_eligible = all(
-    not op.dedup_hash and not op.work_stealing and not op.block_group
-    and len(op.dest_specs) == 1
+    not op.dedup_hash and not op.work_stealing and not op.block_group and len(op.dest_specs) == 1
     for op in exec_ops
   )
 
@@ -240,14 +254,15 @@ def _gen_parallel_group(
       out += i2 + f"{runner}::execute_fused(db, {iter_var});\n"
   for op in other_ops:
     out += gen_instruction_code(
-      op, i2, iter_var, dest_stream_map_out, count_only_rels,
+      op,
+      i2,
+      iter_var,
+      dest_stream_map_out,
+      count_only_rels,
     )
   out += i + "} else {\n"
 
-  out += (
-    i + "// === ParallelGroup (stream-parallel, "
-    f"{N} rules, shared dests) ===\n"
-  )
+  out += i + f"// === ParallelGroup (stream-parallel, {N} rules, shared dests) ===\n"
   out += i + "{\n"
   out += i2 + 'nvtxRangePushA("join_pipeline");\n'
 
@@ -255,21 +270,14 @@ def _gen_parallel_group(
   out += i2 + "// Phase 1: Setup all rules\n"
   for idx, op in enumerate(exec_ops):
     runner = f"JitRunner_{op.rule_name}"
-    out += (
-      i2 + f"auto p_{idx} = {runner}::setup(db, {iter_var}, "
-      f"_stream_pool.get({idx}));\n"
-    )
+    out += i2 + f"auto p_{idx} = {runner}::setup(db, {iter_var}, _stream_pool.get({idx}));\n"
   out += "\n"
 
   # Classify single-dest vs multi-head.
   single_dest_indices: list[int] = []
   multi_head_indices: list[int] = []
   for idx, op in enumerate(exec_ops):
-    if (
-      len(op.dest_specs) == 1
-      and not op.work_stealing
-      and not op.dedup_hash
-    ):
+    if len(op.dest_specs) == 1 and not op.work_stealing and not op.dedup_hash:
       single_dest_indices.append(idx)
     else:
       multi_head_indices.append(idx)
@@ -288,44 +296,31 @@ def _gen_parallel_group(
     buf = "shared_buf_" + dest_rel
     size_expr = " + ".join(f"p_{r}.num_threads" for r in rule_indices) + " + 1"
     out += i2 + f"uint32_t {buf}_size = {size_expr};\n"
-    out += (
-      i2 + f"SRDatalog::GPU::DeviceArray<uint32_t> {buf}({buf}_size);\n"
-    )
+    out += i2 + f"SRDatalog::GPU::DeviceArray<uint32_t> {buf}({buf}_size);\n"
     for k, rule_idx in enumerate(rule_indices):
       off = f"off_{dest_rel}_{k}"
       if k == 0:
         out += i2 + f"uint32_t {off} = 0;\n"
       else:
         prev_off = f"off_{dest_rel}_{k - 1}"
-        out += (
-          i2 + f"uint32_t {off} = {prev_off} + "
-          f"p_{rule_indices[k - 1]}.num_threads;\n"
-        )
-      out += (
-        i2 + f"p_{rule_idx}.thread_counts_ptr = {buf}.data() + {off};\n"
-      )
+        out += i2 + f"uint32_t {off} = {prev_off} + p_{rule_indices[k - 1]}.num_threads;\n"
+      out += i2 + f"p_{rule_idx}.thread_counts_ptr = {buf}.data() + {off};\n"
   out += "\n"
 
   # Phase 2b: launch count kernels.
   out += i2 + "// Phase 2b: Launch count kernels (parallel streams)\n"
   for idx, op in enumerate(exec_ops):
     runner = f"JitRunner_{op.rule_name}"
-    out += (
-      i2 + f"{runner}::launch_count(p_{idx}, _stream_pool.get({idx}));\n"
-    )
+    out += i2 + f"{runner}::launch_count(p_{idx}, _stream_pool.get({idx}));\n"
   out += i2 + "_stream_pool.sync_all();\n\n"
 
   # Phase 3a: scan shared buffers + multi-head scans.
-  out += (
-    i2 + "// Phase 3a: Scan shared buffers (one per dest) + multi-head scans\n"
-  )
+  out += i2 + "// Phase 3a: Scan shared buffers (one per dest) + multi-head scans\n"
   for dest_rel, rule_indices in sorted(dest_single_rules.items()):
     if len(rule_indices) < 2:
       idx = rule_indices[0]
       runner = f"JitRunner_{exec_ops[idx].rule_name}"
-      out += (
-        i2 + f"{runner}::scan_only(p_{idx}, _stream_pool.get({idx}));\n"
-      )
+      out += i2 + f"{runner}::scan_only(p_{idx}, _stream_pool.get({idx}));\n"
     else:
       buf = "shared_buf_" + dest_rel
       out += (
@@ -364,10 +359,7 @@ def _gen_parallel_group(
         "sizeof(uint32_t), GPU_DEVICE_TO_HOST, 0);\n"
       )
       for k, rule_idx in enumerate(rule_indices):
-        out += (
-          i2 + f"uint32_t total_{rule_idx} = bnd_{dest_rel}[{k + 1}] "
-          f"- bnd_{dest_rel}[{k}];\n"
-        )
+        out += i2 + f"uint32_t total_{rule_idx} = bnd_{dest_rel}[{k + 1}] - bnd_{dest_rel}[{k}];\n"
 
   for idx in multi_head_indices:
     runner = f"JitRunner_{exec_ops[idx].rule_name}"
@@ -401,13 +393,9 @@ def _gen_parallel_group(
     sum_expr = " + ".join(f"total_{r}" for r in rule_indices)
     out += i2 + f"{{  // Resize {dest_rel}\n"
     out += i2 + f"  uint32_t sum_{dest_rel} = {sum_expr};\n"
+    out += i2 + f"  auto& dest_{dest_rel} = get_relation_by_schema<{dest_rel}, NEW_VER>(db);\n"
     out += (
-      i2 + f"  auto& dest_{dest_rel} = get_relation_by_schema<"
-      f"{dest_rel}, NEW_VER>(db);\n"
-    )
-    out += (
-      i2 + f"  uint32_t base_offset_{dest_rel} = "
-      f"static_cast<uint32_t>(dest_{dest_rel}.size());\n"
+      i2 + f"  uint32_t base_offset_{dest_rel} = static_cast<uint32_t>(dest_{dest_rel}.size());\n"
     )
     out += (
       i2 + f"  if (sum_{dest_rel} > 0) dest_{dest_rel}"
@@ -418,18 +406,12 @@ def _gen_parallel_group(
     multi_in_dest: list[int] = []
     for rule_idx in rule_indices:
       op = exec_ops[rule_idx]
-      if (
-        len(op.dest_specs) == 1
-        and not op.work_stealing
-        and not op.dedup_hash
-      ):
+      if len(op.dest_specs) == 1 and not op.work_stealing and not op.dedup_hash:
         single_in_dest.append(rule_idx)
       else:
         multi_in_dest.append(rule_idx)
 
-    has_concat = (
-      dest_rel in dest_single_rules and len(dest_single_rules[dest_rel]) >= 2
-    )
+    has_concat = dest_rel in dest_single_rules and len(dest_single_rules[dest_rel]) >= 2
 
     if has_concat:
       for rule_idx in single_in_dest:
@@ -438,45 +420,28 @@ def _gen_parallel_group(
         op = exec_ops[rule_idx]
         for local_idx, dest in enumerate(op.dest_specs):
           if isinstance(dest, m.InsertInto) and dest.rel_name == dest_rel:
-            out += (
-              i2 + f"  p_{rule_idx}.old_size_{local_idx} = "
-              f"base_offset_{dest_rel};\n"
-            )
+            out += i2 + f"  p_{rule_idx}.old_size_{local_idx} = base_offset_{dest_rel};\n"
             break
       if multi_in_dest:
         single_sum = " + ".join(f"total_{r}" for r in single_in_dest)
         out += (
-          i2 + f"  uint32_t running_offset_{dest_rel} = base_offset_{dest_rel}"
-          f" + {single_sum};\n"
+          i2 + f"  uint32_t running_offset_{dest_rel} = base_offset_{dest_rel} + {single_sum};\n"
         )
         for rule_idx in multi_in_dest:
           op = exec_ops[rule_idx]
           for local_idx, dest in enumerate(op.dest_specs):
             if isinstance(dest, m.InsertInto) and dest.rel_name == dest_rel:
-              out += (
-                i2 + f"  p_{rule_idx}.old_size_{local_idx} = "
-                f"running_offset_{dest_rel};\n"
-              )
-              out += (
-                i2 + f"  running_offset_{dest_rel} += total_{rule_idx};\n"
-              )
+              out += i2 + f"  p_{rule_idx}.old_size_{local_idx} = running_offset_{dest_rel};\n"
+              out += i2 + f"  running_offset_{dest_rel} += total_{rule_idx};\n"
               break
     else:
-      out += (
-        i2 + f"  uint32_t running_offset_{dest_rel} = "
-        f"base_offset_{dest_rel};\n"
-      )
+      out += i2 + f"  uint32_t running_offset_{dest_rel} = base_offset_{dest_rel};\n"
       for rule_idx in rule_indices:
         op = exec_ops[rule_idx]
         for local_idx, dest in enumerate(op.dest_specs):
           if isinstance(dest, m.InsertInto) and dest.rel_name == dest_rel:
-            out += (
-              i2 + f"  p_{rule_idx}.old_size_{local_idx} = "
-              f"running_offset_{dest_rel};\n"
-            )
-            out += (
-              i2 + f"  running_offset_{dest_rel} += total_{rule_idx};\n"
-            )
+            out += i2 + f"  p_{rule_idx}.old_size_{local_idx} = running_offset_{dest_rel};\n"
+            out += i2 + f"  running_offset_{dest_rel} += total_{rule_idx};\n"
             break
     out += i2 + "}\n"
   out += "\n"
@@ -484,9 +449,7 @@ def _gen_parallel_group(
   # Phase 4: materialize.
   for idx, op in enumerate(exec_ops):
     if op.count or is_count_only_pipeline(op, count_only_rels):
-      out += (
-        i2 + f"// skip materialize for count_only rule {op.rule_name}\n"
-      )
+      out += i2 + f"// skip materialize for count_only rule {op.rule_name}\n"
     else:
       runner = f"JitRunner_{op.rule_name}"
       out += (
@@ -499,7 +462,11 @@ def _gen_parallel_group(
 
   for op in other_ops:
     out += gen_instruction_code(
-      op, i2, iter_var, dest_stream_map_out, count_only_rels,
+      op,
+      i2,
+      iter_var,
+      dest_stream_map_out,
+      count_only_rels,
     )
 
   out += i + "}\n"
@@ -512,7 +479,7 @@ def gen_instruction_code(
   indent: str,
   iter_var: str,
   dest_stream_map: dict[str, list[int]],
-  count_only_rels: Optional[set[str]] = None,
+  count_only_rels: set[str] | None = None,
 ) -> str:
   '''Emit imperative C++ for one fixpoint-level MIR instruction.'''
   if count_only_rels is None:
@@ -523,7 +490,11 @@ def gen_instruction_code(
 
   if isinstance(instr, m.ParallelGroup):
     return _gen_parallel_group(
-      instr, indent, iter_var, dest_stream_map, count_only_rels,
+      instr,
+      indent,
+      iter_var,
+      dest_stream_map,
+      count_only_rels,
     )
 
   if isinstance(instr, m.ComputeDelta):
@@ -540,10 +511,7 @@ def gen_instruction_code(
 
   if isinstance(instr, m.ComputeDeltaIndex):
     if instr.rel_name in count_only_rels:
-      return (
-        indent + f"// skip compute_delta_index for count_only rel "
-        f"{instr.rel_name}\n"
-      )
+      return indent + f"// skip compute_delta_index for count_only rel {instr.rel_name}\n"
     spec_new = gen_index_spec_type(instr.rel_name, "NEW_VER", list(instr.canonical_index))
     spec_full = gen_index_spec_type(instr.rel_name, "FULL_VER", list(instr.canonical_index))
     spec_delta = gen_index_spec_type(instr.rel_name, "DELTA_VER", list(instr.canonical_index))
@@ -560,10 +528,7 @@ def gen_instruction_code(
       return indent + f"// skip merge_index for count_only rel {instr.rel_name}\n"
     spec_type = gen_index_spec_type(instr.rel_name, "FULL_VER", list(instr.index))
     out = indent + 'nvtxRangePushA("merge");\n'
-    out += (
-      indent + "SRDatalog::GPU::mir_helpers::merge_index_fn<"
-      f"{spec_type}>(db);\n"
-    )
+    out += indent + f"SRDatalog::GPU::mir_helpers::merge_index_fn<{spec_type}>(db);\n"
     out += indent + 'nvtxRangePop();  // merge\n'
     return out
 
@@ -581,10 +546,7 @@ def gen_instruction_code(
       return indent + f"// skip rebuild_index for count_only rel {instr.rel_name}\n"
     ver = version_string(instr.version.code)
     spec_type = gen_index_spec_type(instr.rel_name, ver, list(instr.index))
-    return (
-      indent + "SRDatalog::GPU::mir_helpers::rebuild_index_fn<"
-      f"{spec_type}>(db);\n"
-    )
+    return indent + f"SRDatalog::GPU::mir_helpers::rebuild_index_fn<{spec_type}>(db);\n"
 
   if isinstance(instr, m.RebuildIndexFromIndex):
     ver = version_string(instr.version.code)
@@ -598,26 +560,19 @@ def gen_instruction_code(
   if isinstance(instr, m.CreateFlatView):
     ver = version_string(instr.version.code)
     spec_type = gen_index_spec_type(instr.rel_name, ver, list(instr.index))
-    return (
-      indent + "SRDatalog::GPU::mir_helpers::create_flat_view_fn<"
-      f"{spec_type}>(db);\n"
-    )
+    return indent + f"SRDatalog::GPU::mir_helpers::create_flat_view_fn<{spec_type}>(db);\n"
 
   if isinstance(instr, m.ClearRelation):
     if instr.rel_name in count_only_rels:
       return indent + f"// skip clear_relation for count_only rel {instr.rel_name}\n"
     ver = version_string(instr.version.code)
     return (
-      indent + "SRDatalog::GPU::mir_helpers::clear_relation_fn<"
-      f"{instr.rel_name}, {ver}>(db);\n"
+      indent + f"SRDatalog::GPU::mir_helpers::clear_relation_fn<{instr.rel_name}, {ver}>(db);\n"
     )
 
   if isinstance(instr, m.MergeRelation):
     out = indent + 'nvtxRangePushA("merge");\n'
-    out += (
-      indent + "SRDatalog::GPU::mir_helpers::merge_relation_fn<"
-      f"{instr.rel_name}>(db);\n"
-    )
+    out += indent + f"SRDatalog::GPU::mir_helpers::merge_relation_fn<{instr.rel_name}>(db);\n"
     out += indent + 'nvtxRangePop();  // merge\n'
     return out
 
@@ -626,16 +581,13 @@ def gen_instruction_code(
 
   if isinstance(instr, m.PostStratumReconstructInternCols):
     if instr.rel_name in count_only_rels:
-      return (
-        indent + f"// skip reconstruct for count_only rel {instr.rel_name}\n"
-      )
+      return indent + f"// skip reconstruct for count_only rel {instr.rel_name}\n"
     spec_type = gen_index_spec_type(
-      instr.rel_name, "FULL_VER", list(instr.canonical_index),
+      instr.rel_name,
+      "FULL_VER",
+      list(instr.canonical_index),
     )
-    return (
-      indent + "SRDatalog::GPU::mir_helpers::reconstruct_fn<"
-      f"{spec_type}>(db);\n"
-    )
+    return indent + f"SRDatalog::GPU::mir_helpers::reconstruct_fn<{spec_type}>(db);\n"
 
   return indent + f"// TODO: unhandled MIR op kind {type(instr).__name__}\n"
 
@@ -644,11 +596,12 @@ def gen_instruction_code(
 # gen_fixpoint_body — recursive step path
 # -----------------------------------------------------------------------------
 
+
 def gen_fixpoint_body(
   plan: m.FixpointPlan,
   db_type_name: str,
   indent: str,
-  count_only_rels: Optional[set[str]] = None,
+  count_only_rels: set[str] | None = None,
 ) -> str:
   '''Recursive path: fixpoint loop with convergence check + maintenance
   ops + post-fixpoint reconstruct for each canonical rel.'''
@@ -686,7 +639,9 @@ def gen_fixpoint_body(
           out += i + f"mir_helpers::create_index_fn<{spec_type}>(db, 0);\n"
           if ver == "DELTA_VER":
             full_spec_type = gen_index_spec_type(
-              src_spec.rel_name, "FULL_VER", list(src_spec.index),
+              src_spec.rel_name,
+              "FULL_VER",
+              list(src_spec.index),
             )
             out += i + f"mir_helpers::create_index_fn<{full_spec_type}>(db, 0);\n"
 
@@ -706,9 +661,7 @@ def gen_fixpoint_body(
     out += i3 + "std::size_t total_new_facts = 0;\n"
     for rel_name, cols in canonical_specs:
       out += i3 + "{\n"
-      out += (
-        i3 + f"  auto& delta_rel = get_relation_by_schema<{rel_name}, DELTA_VER>(db);\n"
-      )
+      out += i3 + f"  auto& delta_rel = get_relation_by_schema<{rel_name}, DELTA_VER>(db);\n"
       col_str = ", ".join(str(c) for c in cols)
       out += i3 + "  SRDatalog::IndexSpec spec{{" + col_str + "}};\n"
       out += i3 + "  try {\n"
@@ -721,9 +674,7 @@ def gen_fixpoint_body(
     out += i3 + '  std::cerr << "[iter " << iter << "]";\n'
     for rel_name, cols in canonical_specs:
       out += i3 + "  {\n"
-      out += (
-        i3 + f"    auto& _dr = get_relation_by_schema<{rel_name}, DELTA_VER>(db);\n"
-      )
+      out += i3 + f"    auto& _dr = get_relation_by_schema<{rel_name}, DELTA_VER>(db);\n"
       col_str = ", ".join(str(c) for c in cols)
       out += i3 + "    SRDatalog::IndexSpec _sp{{" + col_str + "}};\n"
       out += (
@@ -734,10 +685,7 @@ def gen_fixpoint_body(
       out += i3 + "  }\n"
     out += i3 + "  std::cerr << std::endl;\n"
     out += i3 + '} else if (std::getenv("SRDATALOG_PRINT_DELTA")) {\n'
-    out += (
-      i3 + '  std::cerr << "[iter " << iter << "] delta=" << total_new_facts '
-      '<< std::endl;\n'
-    )
+    out += i3 + '  std::cerr << "[iter " << iter << "] delta=" << total_new_facts << std::endl;\n'
     out += i3 + "}\n"
     out += i3 + "if (total_new_facts == 0) break;\n"
     out += (
@@ -759,19 +707,25 @@ def gen_fixpoint_body(
   dest_stream_map: dict[str, list[int]] = {}
   synced_after_parallel = False
   maint_kinds = (
-    m.RebuildIndex, m.ComputeDelta, m.ComputeDeltaIndex, m.ClearRelation,
-    m.CheckSize, m.MergeIndex, m.RebuildIndexFromIndex, m.CreateFlatView,
+    m.RebuildIndex,
+    m.ComputeDelta,
+    m.ComputeDeltaIndex,
+    m.ClearRelation,
+    m.CheckSize,
+    m.MergeIndex,
+    m.RebuildIndexFromIndex,
+    m.CreateFlatView,
   )
   for instr in instrs:
-    if (
-      not synced_after_parallel
-      and dest_stream_map
-      and isinstance(instr, maint_kinds)
-    ):
+    if not synced_after_parallel and dest_stream_map and isinstance(instr, maint_kinds):
       out += i2 + "GPU_DEVICE_SYNCHRONIZE(); // sync all materialize streams\n"
       synced_after_parallel = True
     out += gen_instruction_code(
-      instr, i2, "static_cast<uint32_t>(iter)", dest_stream_map, count_only_rels,
+      instr,
+      i2,
+      "static_cast<uint32_t>(iter)",
+      dest_stream_map,
+      count_only_rels,
     )
 
   out += i + "}\n"
@@ -789,11 +743,12 @@ def gen_fixpoint_body(
 # gen_non_recursive_block — non-recursive step path
 # -----------------------------------------------------------------------------
 
+
 def gen_non_recursive_block(
   plan: m.MirNode,
   db_type_name: str,
   indent: str,
-  count_only_rels: Optional[set[str]] = None,
+  count_only_rels: set[str] | None = None,
 ) -> str:
   '''Non-recursive path. Handles Block / FixpointPlan / ExecutePipeline /
   PostStratumReconstructInternCols.'''
@@ -808,14 +763,22 @@ def gen_non_recursive_block(
     out += i + "bool _tail_mode = false;\n"
     for instr in plan.instructions:
       out += gen_instruction_code(
-        instr, i, "0", dest_stream_map, count_only_rels,
+        instr,
+        i,
+        "0",
+        dest_stream_map,
+        count_only_rels,
       )
     out += i + "GPU_DEVICE_SYNCHRONIZE();\n"
     return out
 
   if isinstance(plan, m.ExecutePipeline):
     out += gen_instruction_code(
-      plan, i, "0", dest_stream_map, count_only_rels,
+      plan,
+      i,
+      "0",
+      dest_stream_map,
+      count_only_rels,
     )
     out += i + "GPU_DEVICE_SYNCHRONIZE();\n"
     return out
@@ -865,11 +828,13 @@ def gen_non_recursive_block(
               out += i + f"mir_helpers::create_index_fn<{spec_type}>(db, 0);\n"
               if ver == "DELTA_VER":
                 full_spec_type = gen_index_spec_type(rel_name, "FULL_VER", idx)
-                out += (
-                  i + f"mir_helpers::create_index_fn<{full_spec_type}>(db, 0);\n"
-                )
+                out += i + f"mir_helpers::create_index_fn<{full_spec_type}>(db, 0);\n"
       out += gen_instruction_code(
-        instr, i, "0", dest_stream_map, count_only_rels,
+        instr,
+        i,
+        "0",
+        dest_stream_map,
+        count_only_rels,
       )
     return out
 
@@ -878,16 +843,15 @@ def gen_non_recursive_block(
       out += i + f"// skip reconstruct for count_only rel {plan.rel_name}\n"
     else:
       spec_type = gen_index_spec_type(
-        plan.rel_name, "FULL_VER", list(plan.canonical_index),
+        plan.rel_name,
+        "FULL_VER",
+        list(plan.canonical_index),
       )
       out += i + f"mir_helpers::reconstruct_fn<{spec_type}>(db);\n"
       out += i + "GPU_DEVICE_SYNCHRONIZE();\n"
     return out
 
-  out += (
-    i + f"// ERROR: unexpected plan kind for non-recursive step: "
-    f"{type(plan).__name__}\n"
-  )
+  out += i + f"// ERROR: unexpected plan kind for non-recursive step: {type(plan).__name__}\n"
   return out
 
 
@@ -895,12 +859,13 @@ def gen_non_recursive_block(
 # gen_step_body (top-level)
 # -----------------------------------------------------------------------------
 
+
 def gen_step_body(
   plan: m.MirNode,
   db_type_name: str,
   is_recursive: bool,
   step_num: int,
-  count_only_rels: Optional[set[str]] = None,
+  count_only_rels: set[str] | None = None,
 ) -> str:
   '''Matches Nim's `genStepBody`. Returns the full `template <typename DB>
   static void step_N(...) { ... }` function. What the fixture-dumping
@@ -915,8 +880,7 @@ def gen_step_body(
   body += f"  static void step_{step_num}(DB& db, std::size_t max_iterations) {{\n"
 
   if is_recursive:
-    assert isinstance(plan, m.FixpointPlan), \
-      "recursive step must be a FixpointPlan"
+    assert isinstance(plan, m.FixpointPlan), "recursive step must be a FixpointPlan"
     body += gen_fixpoint_body(plan, db_type_name, indent, count_only_rels)
   else:
     body += gen_non_recursive_block(plan, db_type_name, indent, count_only_rels)

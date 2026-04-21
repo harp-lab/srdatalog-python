@@ -5,18 +5,15 @@ Covers stratum wrapping (wrap_in_execute_pipeline + lower_hir_to_mir_steps
 MIR S-expr fixture lives in test_hir_mir_tc_e2e.py — this file only
 verifies structure.
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
+import srdatalog.mir.types as mir
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir.lower import (
-  wrap_in_execute_pipeline,
-  lower_hir_to_mir_steps,
   lower_hir_to_mir,
+  lower_hir_to_mir_steps,
+  wrap_in_execute_pipeline,
 )
-import srdatalog.mir.types as mir
 
 
 def build_tc() -> Program:
@@ -37,10 +34,11 @@ def build_tc() -> Program:
 def test_wrap_in_execute_pipeline_extracts_sources_and_dests():
   '''A pipeline with Scan + InsertInto: sources=[Scan], dests=[InsertInto].'''
   from srdatalog.hir.types import Version
-  scan = mir.Scan(vars=["x", "y"], rel_name="Edge", version=Version.FULL,
-                  index=[0, 1], prefix_vars=[])
-  ins = mir.InsertInto(rel_name="Path", version=Version.NEW,
-                       vars=["x", "y"], index=[1, 0])
+
+  scan = mir.Scan(
+    vars=["x", "y"], rel_name="Edge", version=Version.FULL, index=[0, 1], prefix_vars=[]
+  )
+  ins = mir.InsertInto(rel_name="Path", version=Version.NEW, vars=["x", "y"], index=[1, 0])
   ep = wrap_in_execute_pipeline([scan, ins], clause_order=[0], rule_name="TCBase")
   assert ep.rule_name == "TCBase"
   assert ep.clause_order == [0]
@@ -53,13 +51,16 @@ def test_wrap_in_execute_pipeline_flattens_join_sources():
   source_specs list so the scheduler sees every index-spec.
   '''
   from srdatalog.hir.types import Version
-  src1 = mir.ColumnSource(rel_name="A", version=Version.DELTA, index=[0, 1],
-                          prefix_vars=[])
-  src2 = mir.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1],
-                          prefix_vars=[])
+
+  src1 = mir.ColumnSource(rel_name="A", version=Version.DELTA, index=[0, 1], prefix_vars=[])
+  src2 = mir.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1], prefix_vars=[])
   cj = mir.ColumnJoin(var_name="y", sources=[src1, src2])
-  ins = mir.InsertInto(rel_name="R", version=mir.Version.NEW if hasattr(mir, "Version") else Version.NEW,
-                       vars=["x"], index=[0])
+  ins = mir.InsertInto(
+    rel_name="R",
+    version=mir.Version.NEW if hasattr(mir, "Version") else Version.NEW,
+    vars=["x"],
+    index=[0],
+  )
   # (handle import quirk)
   ins = mir.InsertInto(rel_name="R", version=Version.NEW, vars=["x"], index=[0])
   ep = wrap_in_execute_pipeline([cj, ins], clause_order=[0, 1], rule_name="Test")
@@ -80,9 +81,12 @@ def test_lower_hir_to_mir_steps_tc_count_and_shape():
   assert len(steps) == 6
   kinds = [(type(n).__name__, r) for n, r in steps]
   assert kinds == [
-    ("FixpointPlan", False), ("PostStratumReconstructInternCols", False),
-    ("FixpointPlan", False), ("PostStratumReconstructInternCols", False),
-    ("FixpointPlan", True),  ("PostStratumReconstructInternCols", False),
+    ("FixpointPlan", False),
+    ("PostStratumReconstructInternCols", False),
+    ("FixpointPlan", False),
+    ("PostStratumReconstructInternCols", False),
+    ("FixpointPlan", True),
+    ("PostStratumReconstructInternCols", False),
   ]
 
   # Stratum 2's FixpointPlan is the recursive one; first instruction should

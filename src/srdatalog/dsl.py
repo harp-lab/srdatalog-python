@@ -14,17 +14,20 @@ Rules are constructed with Python objects and operator overloading:
 
 This module defines only the DSL surface; lowering to HIR is in hir_passes.py (TBD).
 '''
+
 from __future__ import annotations
+
 import dataclasses
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
 
-from srdatalog.provenance import Provenance, USER_PROVENANCE
+from srdatalog.provenance import USER_PROVENANCE, Provenance
 
 
 class ArgKind(Enum):
   '''Mirrors Nim ClauseArgKind in syntax.nim.'''
+
   LVAR = "var"
   CONST = "const"
   CPP_CODE = "code"
@@ -33,16 +36,18 @@ class ArgKind(Enum):
 @dataclass(frozen=True)
 class ClauseArg:
   '''An argument slot in an atom: a logic var, a compile-time constant, or raw C++ code.'''
+
   kind: ArgKind
   # Exactly one of the following is populated:
-  var_name: str | None = None       # LVAR
-  const_value: int | None = None    # CONST
-  const_cpp_expr: str | None = None # CONST (C++ representation)
-  cpp_code: str | None = None       # CPP_CODE
+  var_name: str | None = None  # LVAR
+  const_value: int | None = None  # CONST
+  const_cpp_expr: str | None = None  # CONST (C++ representation)
+  cpp_code: str | None = None  # CPP_CODE
 
 
 class Var:
   '''A logic variable. Distinct from Python values; used by operator overloads to build AST.'''
+
   __slots__ = ("name",)
 
   def __init__(self, name: str):
@@ -82,6 +87,7 @@ class Atom:
   optimization when a rewritten body clause is emitted in place of
   the original. Defaults to user-written.
   '''
+
   rel: str
   args: tuple[ClauseArg, ...]
   prov: Provenance = USER_PROVENANCE
@@ -107,6 +113,7 @@ class Atom:
 @dataclass(frozen=True)
 class Negation:
   '''Negated atom (`~rel(...)`). Appears only in rule bodies.'''
+
   atom: Atom
 
   def __and__(self, other: BodyClauseT | Conjunction) -> Conjunction:
@@ -122,6 +129,7 @@ class Filter:
   + `Filter((_c0,), "return _c0 == 1;")`), but available in the surface
   DSL too.
   '''
+
   vars: tuple[str, ...]
   code: str
 
@@ -138,6 +146,7 @@ class Let:
   replaced by a fresh variable and a corresponding `Let` is appended to
   the body (so the fresh variable is bound before InsertInto reads it).
   '''
+
   var_name: str
   code: str
   deps: tuple[str, ...] = ()
@@ -162,6 +171,7 @@ class Agg:
   AggClause (zero such constructions in src/srdatalog). Python mirrors
   that behavior: Agg round-trips through HIR but does not appear in MIR.
   '''
+
   result_var: str
   func: str
   rel: str
@@ -226,6 +236,7 @@ def sum(result_var, rel_atom: Atom) -> Agg:
 @dataclass(frozen=True)
 class Conjunction:
   '''Intermediate: accumulates body clauses under `&`. Not emitted directly.'''
+
   clauses: tuple[BodyClauseT, ...]
 
   def __and__(self, other: BodyClauseT | Conjunction) -> Conjunction:
@@ -250,6 +261,7 @@ class PlanEntry:
   `balanced_root` / `balanced_sources` drive balanced partitioning for
   skewed joins (not yet lowered in Python).
   '''
+
   delta: int = -1
   var_order: tuple[str, ...] = ()
   clause_order: tuple[int, ...] = ()
@@ -273,6 +285,7 @@ class Rule:
   `prov` carries rewrite provenance (user vs compiler-gen) — mirrors
   syntax.nim's `Rule.prov`.
   '''
+
   head: Atom
   body: tuple[BodyClauseT, ...]
   name: str | None = None
@@ -351,9 +364,16 @@ class Relation:
     - index_type   → C++ index template (e.g. "SRDatalog::GPU::Device2LevelIndex")
     - semiring     → override "NoProvenance" (rare — provenance semirings)
   '''
+
   __slots__ = (
-    "name", "arity", "column_types",
-    "input_file", "print_size", "output_file", "index_type", "semiring",
+    "arity",
+    "column_types",
+    "index_type",
+    "input_file",
+    "name",
+    "output_file",
+    "print_size",
+    "semiring",
   )
 
   def __init__(
@@ -389,6 +409,7 @@ class Relation:
 @dataclass
 class Program:
   '''A Datalog program: relation decls + rules. Input to the HIR pipeline.'''
+
   relations: list[Relation] = field(default_factory=list)
   rules: list[Rule] = field(default_factory=list)
 

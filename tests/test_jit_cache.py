@@ -1,26 +1,26 @@
 '''Tests for codegen/jit/cache.py — cache layout, batch sharding,
 header generation, write idempotence, and the one-shot project writer.
 '''
+
 import os
 import sys
 import tempfile
 from pathlib import Path
 
-
 from srdatalog.codegen.jit.cache import (
-  JitBatchManager,
   JIT_COMMON_INCLUDES,
   JIT_FILE_FOOTER,
+  JitBatchManager,
   ensure_jit_cache_dir,
   get_batch_file_name,
   get_jit_cache_dir,
   write_jit_project,
 )
 
-
 # -----------------------------------------------------------------------------
 # Cache dir + project hash
 # -----------------------------------------------------------------------------
+
 
 def test_cache_dir_uses_srdatalog_scope():
   '''Python's cache lives under `<base>/jit/<project>_<hash>/` to
@@ -54,6 +54,7 @@ def test_batch_file_name_format():
 # -----------------------------------------------------------------------------
 # Batch sharding
 # -----------------------------------------------------------------------------
+
 
 def test_add_kernel_shards_at_rules_per_batch():
   mgr = JitBatchManager("X", rules_per_batch=3)
@@ -100,6 +101,7 @@ def test_generate_batch_file_empty_idx_returns_empty():
 # Schema + kernel-decl headers
 # -----------------------------------------------------------------------------
 
+
 def test_schema_header_shape():
   mgr = JitBatchManager("TC")
   mgr.set_schema_definitions("using Edge = ...;\nusing Path = ...;\n")
@@ -129,6 +131,7 @@ def test_empty_schema_or_kernel_headers_skip_write():
 # -----------------------------------------------------------------------------
 # write_batch_files — end-to-end I/O
 # -----------------------------------------------------------------------------
+
 
 def test_write_batch_files_lays_out_cache():
   with tempfile.TemporaryDirectory() as base:
@@ -163,8 +166,7 @@ def test_write_is_idempotent_on_unchanged_content():
     mgr2 = JitBatchManager("IdTest", cache_base=base)
     mgr2.add_kernel("struct R {};\n", rule_name="R")
     mgr2.write_batch_files()
-    assert os.path.getmtime(paths[0]) == first_mtime, \
-      "unchanged content must not update mtime"
+    assert os.path.getmtime(paths[0]) == first_mtime, "unchanged content must not update mtime"
 
 
 def test_skip_regen_env_flag():
@@ -182,8 +184,7 @@ def test_skip_regen_env_flag():
       mgr2 = JitBatchManager("Skip", cache_base=base)
       mgr2.add_kernel("struct Edited {};\n", rule_name="Edited")
       mgr2.write_batch_files()
-      assert Path(paths[0]).read_text() == original, \
-        "skip-regen must preserve existing file"
+      assert Path(paths[0]).read_text() == original, "skip-regen must preserve existing file"
     finally:
       del os.environ["SRDATALOG_SKIP_JIT_REGEN"]
 
@@ -191,6 +192,7 @@ def test_skip_regen_env_flag():
 # -----------------------------------------------------------------------------
 # One-shot write_jit_project
 # -----------------------------------------------------------------------------
+
 
 def test_write_jit_project_lays_out_full_tree():
   with tempfile.TemporaryDirectory() as base:
@@ -223,12 +225,13 @@ def test_write_jit_project_end_to_end_with_real_program():
   '''Full pipeline: compile triangle → emit main + runners → write to
   disk → verify everything loads back. Doesn't invoke compiler —
   just checks the on-disk layout matches expectation.'''
-  from srdatalog.hir import compile_to_hir, compile_to_mir
+  from test_integration_triangle import build_triangle
+
   from srdatalog.codegen.batchfile import _collect_pipelines
   from srdatalog.codegen.jit.complete_runner import gen_complete_runner
-  from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
   from srdatalog.codegen.jit.main_file import gen_main_file_content
-  from test_integration_triangle import build_triangle
+  from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
+  from srdatalog.hir import compile_to_hir, compile_to_mir
 
   prog = build_triangle()
   hir = compile_to_hir(prog)
@@ -236,8 +239,7 @@ def test_write_jit_project_end_to_end_with_real_program():
   db_type = "TrianglePlan_DB_DeviceDB"
 
   step_bodies = [
-    gen_step_body(step, db_type, is_rec, i)
-    for i, (step, is_rec) in enumerate(mir.steps)
+    gen_step_body(step, db_type, is_rec, i) for i, (step, is_rec) in enumerate(mir.steps)
   ]
   per_rule: list[tuple[str, str]] = []
   runner_decls: dict[str, str] = {}
@@ -247,8 +249,13 @@ def test_write_jit_project_end_to_end_with_real_program():
     runner_decls[ep.rule_name] = decl
 
   main_cpp = gen_main_file_content(
-    "TrianglePlan", hir.relation_decls, mir, step_bodies, runner_decls,
-    cache_dir_hint="<cache>", jit_batch_count=1,
+    "TrianglePlan",
+    hir.relation_decls,
+    mir,
+    step_bodies,
+    runner_decls,
+    cache_dir_hint="<cache>",
+    jit_batch_count=1,
   )
 
   with tempfile.TemporaryDirectory() as base:
@@ -270,6 +277,7 @@ def test_write_jit_project_end_to_end_with_real_program():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   failed = 0

@@ -4,18 +4,15 @@ constant rewriting (Pass 1).
 Both e2e-byte-diff against python/tests/fixtures/rewrite_consts.* and
 unit-test the pass functions directly.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program, Atom, Filter, Let, ClauseArg, ArgKind
-from srdatalog.hir.types import RelationDecl
+from srdatalog.dsl import ArgKind, Atom, Filter, Let, Program, Relation, Var
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir.emit import hir_to_obj
 from srdatalog.mir.emit import print_mir_sexpr
 from srdatalog.rule_rewrite import rewrite_constants, rewrite_head_constants
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -23,6 +20,7 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 # -----------------------------------------------------------------------------
 # Unit tests on the bare pass functions
 # -----------------------------------------------------------------------------
+
 
 def test_rewrite_constants_replaces_body_const_and_inserts_filter():
   X = Var("x")
@@ -97,6 +95,7 @@ def test_counter_resets_per_call():
 # End-to-end byte-match against the Nim fixture
 # -----------------------------------------------------------------------------
 
+
 def build_rewrite_consts_program() -> Program:
   X = Var("x")
   inp = Relation("In", 3)
@@ -123,6 +122,7 @@ def test_rewrite_consts_hir_byte_match():
   golden.pop("hirSExpr", None)
   if _canonical(actual) != _canonical(golden):
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
         _canonical(golden).splitlines(),
@@ -141,6 +141,7 @@ def test_rewrite_consts_mir_byte_match():
   golden = (FIXTURES / "rewrite_consts.mir.sexpr").read_text().rstrip("\n")
   if actual != golden:
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
         golden.splitlines(),

@@ -19,12 +19,13 @@ then sees `view_count == 2` for FULL reads of 2-level relations and
 wraps the join body in a `for (_seg = 0; _seg < 2; _seg++)` segment
 loop that iterates both sorted arrays.
 '''
-from srdatalog.codegen.jit.plugin import IndexPlugin, new_default_plugin, register_index_plugin
 
+from srdatalog.codegen.jit.plugin import IndexPlugin, new_default_plugin, register_index_plugin
 
 # -----------------------------------------------------------------------------
 # 2-Level view-level hook overrides
 # -----------------------------------------------------------------------------
+
 
 def _two_level_view_count(version: str) -> int:
   '''DELTA / NEW: 1 sorted array. FULL: 2 sorted arrays (HEAD + FULL).'''

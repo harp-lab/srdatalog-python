@@ -10,15 +10,16 @@ First target: gen_jit_code/Triangle — simplest fixture (no tiled
 Cartesian, single ColumnJoin-only pipeline). Second: triangle/Triangle
 which DOES have a tiled Cartesian leaf (3-level).
 '''
+
 import sys
 from pathlib import Path
 
-
 from integration_helpers import diff_jit_runner
-from srdatalog.hir import compile_to_mir
+
 from srdatalog.codegen.batchfile import _collect_pipelines
 from srdatalog.codegen.jit.complete_runner import gen_complete_runner
 from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
+from srdatalog.hir import compile_to_mir
 
 
 def _python_jit_runner(prog, rule_name: str, db_type_name: str) -> str:
@@ -46,10 +47,14 @@ def _python_jit_runner(prog, rule_name: str, db_type_name: str) -> str:
 # gen_jit_code/Triangle — simplest baseline (no tiled Cartesian)
 # -----------------------------------------------------------------------------
 
+
 def test_gen_jit_code_triangle_runner_byte_match():
   from test_integration_gen_jit_code import build_gen_jit_code
+
   actual = _python_jit_runner(
-    build_gen_jit_code(), "Triangle", "TriangleRules_DB_DeviceDB",
+    build_gen_jit_code(),
+    "Triangle",
+    "TriangleRules_DB_DeviceDB",
   )
   diff_jit_runner("gen_jit_code", "Triangle", actual)
 
@@ -58,10 +63,14 @@ def test_gen_jit_code_triangle_runner_byte_match():
 # triangle/Triangle — has tiled Cartesian leaf (3-level)
 # -----------------------------------------------------------------------------
 
+
 def test_triangle_triangle_runner_byte_match():
   from test_integration_triangle import build_triangle
+
   actual = _python_jit_runner(
-    build_triangle(), "Triangle", "TriangleRules_DB_DeviceDB",
+    build_triangle(),
+    "Triangle",
+    "TriangleRules_DB_DeviceDB",
   )
   diff_jit_runner("triangle", "Triangle", actual)
 
@@ -72,6 +81,7 @@ def test_triangle_triangle_runner_byte_match():
 # negation-pre-narrow tiled fallback — future phases will close those.
 # -----------------------------------------------------------------------------
 
+
 def _build_fn_for(stem: str):
   mod = __import__(f"test_integration_{stem}")
   for name in dir(mod):
@@ -81,8 +91,9 @@ def _build_fn_for(stem: str):
 
 
 def _db_name_from_fixture(stem: str, rule: str) -> str | None:
-  from pathlib import Path as _P
   import re as _re
+  from pathlib import Path as _P
+
   path = _P(__file__).resolve().parent / "fixtures" / "jit" / stem / f"jit_runner.{rule}.cpp"
   if not path.exists():
     return None
@@ -104,10 +115,9 @@ def test_all_runner_fixtures_byte_match():
   gen_complete_runner and byte-match against the Nim golden. Skipped
   entries are listed in RUNNER_BYTE_MATCH_SKIPS with the feature-branch
   gap each represents.'''
-  from pathlib import Path
-  from srdatalog.hir import compile_to_mir
+
   from srdatalog.codegen.batchfile import _collect_pipelines
-  import re
+  from srdatalog.hir import compile_to_mir
 
   fixture_root = Path(__file__).resolve().parent / "fixtures" / "jit"
   errors: list[str] = []
@@ -169,6 +179,7 @@ def test_all_runner_fixtures_byte_match():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   failed = 0

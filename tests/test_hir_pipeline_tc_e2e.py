@@ -6,15 +6,13 @@ This is the milestone that validates stratification + semi-naive variants
 emitter diff test hand-constructed the HIR; now we build only the DSL
 Program and let the pipeline fill in everything.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_hir
 from srdatalog.hir.emit import hir_to_obj
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -50,6 +48,7 @@ def test_tc_full_pipeline_matches_golden():
   golden_s = _canonical(golden)
   if actual_s != golden_s:
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
         golden_s.splitlines(),

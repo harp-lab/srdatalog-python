@@ -11,15 +11,16 @@ CreateFlatView, ProbeJoin, GatherColumn), the Python formats are new
 conventions; if byte-diff on those becomes necessary, add matching
 cases to src/srdatalog/mir/printer.nim first.
 '''
+
 from __future__ import annotations
 
-from srdatalog.hir.types import Version
 import srdatalog.mir.types as m
-
+from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------
 # Small helpers (mirror Nim printVarTuple / printIndex / printVer)
 # -----------------------------------------------------------------------------
+
 
 def _var_tuple(vars: list[str]) -> str:
   '''"(x y z)" — Nim uses space-separated, no commas.'''
@@ -39,6 +40,7 @@ def _ver(v: Version) -> str:
 # index-spec helpers (used by ExecutePipeline's :sources / :dests)
 # -----------------------------------------------------------------------------
 
+
 def _index_spec(node: m.MirNode) -> str:
   '''Mirror printIndexSpec in printer.nim.
 
@@ -50,9 +52,7 @@ def _index_spec(node: m.MirNode) -> str:
   if isinstance(node, m.CartesianJoin):
     return " ".join(_flatten_specs(s) for s in node.sources)
 
-  if isinstance(node, m.ColumnSource):
-    rel, ver, idx = node.rel_name, node.version, node.index
-  elif isinstance(node, m.Negation):
+  if isinstance(node, m.ColumnSource) or isinstance(node, m.Negation):
     rel, ver, idx = node.rel_name, node.version, node.index
   elif isinstance(node, m.InsertInto):
     # Dest always uses FULL index for dedup logic (matches Nim).
@@ -63,9 +63,14 @@ def _index_spec(node: m.MirNode) -> str:
     return "void"
 
   return (
-    "(index-spec :schema " + rel
-    + " :index (" + " ".join(str(c) for c in idx) + ")"
-    + " :ver " + _ver(ver) + ")"
+    "(index-spec :schema "
+    + rel
+    + " :index ("
+    + " ".join(str(c) for c in idx)
+    + ")"
+    + " :ver "
+    + _ver(ver)
+    + ")"
   )
 
 
@@ -97,6 +102,7 @@ def _index_specs_tuple(nodes: list[m.MirNode], indent: int = 0) -> str:
 # Main dispatcher
 # -----------------------------------------------------------------------------
 
+
 def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
   p = "  " * indent
 
@@ -104,20 +110,29 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
 
   if isinstance(node, m.ColumnSource):
     return (
-      p + "(column-source"
-      + " :index " + _index(node.rel_name, node.index)
-      + " :ver " + _ver(node.version)
-      + " :prefix " + _var_tuple(node.prefix_vars)
+      p
+      + "(column-source"
+      + " :index "
+      + _index(node.rel_name, node.index)
+      + " :ver "
+      + _ver(node.version)
+      + " :prefix "
+      + _var_tuple(node.prefix_vars)
       + ")"
     )
 
   if isinstance(node, m.Scan):
     return (
-      p + "(scan"
-      + " :vars " + _var_tuple(node.vars)
-      + " :index " + _index(node.rel_name, node.index)
-      + " :ver " + _ver(node.version)
-      + " :prefix " + _var_tuple(node.prefix_vars)
+      p
+      + "(scan"
+      + " :vars "
+      + _var_tuple(node.vars)
+      + " :index "
+      + _index(node.rel_name, node.index)
+      + " :ver "
+      + _ver(node.version)
+      + " :prefix "
+      + _var_tuple(node.prefix_vars)
       + ")"
     )
 
@@ -142,29 +157,36 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
     return body
 
   if isinstance(node, m.Filter):
-    return (
-      p + "(filter"
-      + " :vars " + _var_tuple(node.vars)
-      + " :code \"" + node.code + "\")"
-    )
+    return p + "(filter" + " :vars " + _var_tuple(node.vars) + " :code \"" + node.code + "\")"
 
   if isinstance(node, m.ConstantBind):
     return (
-      p + "(constant-bind"
-      + " :var " + node.var_name
-      + " :code \"" + node.code + "\""
-      + " :deps " + _var_tuple(node.deps)
+      p
+      + "(constant-bind"
+      + " :var "
+      + node.var_name
+      + " :code \""
+      + node.code
+      + "\""
+      + " :deps "
+      + _var_tuple(node.deps)
       + ")"
     )
 
   if isinstance(node, m.Aggregate):
     return (
-      p + "(aggregate"
-      + " :var " + node.result_var
-      + " :func " + node.agg_func
-      + " :index " + _index(node.rel_name, node.index)
-      + " :ver " + _ver(node.version)
-      + " :prefix " + _var_tuple(node.prefix_vars)
+      p
+      + "(aggregate"
+      + " :var "
+      + node.result_var
+      + " :func "
+      + node.agg_func
+      + " :index "
+      + _index(node.rel_name, node.index)
+      + " :ver "
+      + _ver(node.version)
+      + " :prefix "
+      + _var_tuple(node.prefix_vars)
       + ")"
     )
 
@@ -173,9 +195,12 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
     # rebuild-index style and matches the Nim printer case added
     # alongside the Python split-rule lowering.
     return (
-      p + "(create-flat-view"
-      + " :index " + _index(node.rel_name, node.index)
-      + " :ver " + _ver(node.version)
+      p
+      + "(create-flat-view"
+      + " :index "
+      + _index(node.rel_name, node.index)
+      + " :ver "
+      + _ver(node.version)
       + ")"
     )
 
@@ -220,21 +245,32 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
 
   if isinstance(node, m.Negation):
     return (
-      p + "(negation"
-      + " :schema " + node.rel_name
-      + " :ver " + _ver(node.version)
-      + " :index " + _index(node.rel_name, node.index)
-      + " :prefix " + _var_tuple(node.prefix_vars)
+      p
+      + "(negation"
+      + " :schema "
+      + node.rel_name
+      + " :ver "
+      + _ver(node.version)
+      + " :index "
+      + _index(node.rel_name, node.index)
+      + " :prefix "
+      + _var_tuple(node.prefix_vars)
       + ")"
     )
 
   if isinstance(node, m.InsertInto):
     return (
-      p + "(insert-into"
-      + " :schema " + node.rel_name
-      + " :ver " + _ver(node.version)
-      + " :dedup-index (" + " ".join(str(c) for c in node.index) + ")"
-      + " :terms " + _var_tuple(node.vars)
+      p
+      + "(insert-into"
+      + " :schema "
+      + node.rel_name
+      + " :ver "
+      + _ver(node.version)
+      + " :dedup-index ("
+      + " ".join(str(c) for c in node.index)
+      + ")"
+      + " :terms "
+      + _var_tuple(node.vars)
       + ")"
     )
 
@@ -242,53 +278,52 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
 
   if isinstance(node, m.RebuildIndex):
     return (
-      p + "(rebuild-index"
-      + " :index " + _index(node.rel_name, node.index)
-      + " :ver " + _ver(node.version)
+      p
+      + "(rebuild-index"
+      + " :index "
+      + _index(node.rel_name, node.index)
+      + " :ver "
+      + _ver(node.version)
       + ")"
     )
 
   if isinstance(node, m.ClearRelation):
-    return (
-      p + "(clear-relation"
-      + " :schema " + node.rel_name
-      + " :ver " + _ver(node.version)
-      + ")"
-    )
+    return p + "(clear-relation" + " :schema " + node.rel_name + " :ver " + _ver(node.version) + ")"
 
   if isinstance(node, m.CheckSize):
-    return (
-      p + "(check-size"
-      + " :schema " + node.rel_name
-      + " :ver " + _ver(node.version)
-      + ")"
-    )
+    return p + "(check-size" + " :schema " + node.rel_name + " :ver " + _ver(node.version) + ")"
 
   if isinstance(node, m.ComputeDelta):
     return p + "(compute-delta :schema " + node.rel_name + ")"
 
   if isinstance(node, m.ComputeDeltaIndex):
     return (
-      p + "(compute-delta-index"
-      + " :schema " + node.rel_name
-      + " :canonical-index (" + " ".join(str(c) for c in node.canonical_index) + ")"
+      p
+      + "(compute-delta-index"
+      + " :schema "
+      + node.rel_name
+      + " :canonical-index ("
+      + " ".join(str(c) for c in node.canonical_index)
+      + ")"
       + ")"
     )
 
   if isinstance(node, m.MergeIndex):
-    return (
-      p + "(merge-index :index " + _index(node.rel_name, node.index) + ")"
-    )
+    return p + "(merge-index :index " + _index(node.rel_name, node.index) + ")"
 
   if isinstance(node, m.MergeRelation):
     return p + "(merge-relation :schema " + node.rel_name + ")"
 
   if isinstance(node, m.RebuildIndexFromIndex):
     return (
-      p + "(rebuild-index-from-index"
-      + " :source " + _index(node.rel_name, node.source_index)
-      + " :target " + _index(node.rel_name, node.target_index)
-      + " :ver " + _ver(node.version)
+      p
+      + "(rebuild-index-from-index"
+      + " :source "
+      + _index(node.rel_name, node.source_index)
+      + " :target "
+      + _index(node.rel_name, node.target_index)
+      + " :ver "
+      + _ver(node.version)
       + ")"
     )
 
@@ -365,9 +400,13 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
 
   if isinstance(node, m.PostStratumReconstructInternCols):
     return (
-      p + "(post-stratum-reconstruct-intern-cols"
-      + " :rel " + node.rel_name
-      + " :canonical-index (" + " ".join(str(c) for c in node.canonical_index) + ")"
+      p
+      + "(post-stratum-reconstruct-intern-cols"
+      + " :rel "
+      + node.rel_name
+      + " :canonical-index ("
+      + " ".join(str(c) for c in node.canonical_index)
+      + ")"
       + ")"
     )
 

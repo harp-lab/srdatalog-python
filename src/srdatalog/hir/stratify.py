@@ -15,11 +15,12 @@ NOTE: Python's set iteration order depends on the hash-random seed across runs.
 To keep SCC ordering reproducible, we sort every set iteration that feeds into
 downstream ordering (dependency edges, SCC membership iteration).
 '''
+
 from __future__ import annotations
 
-from srdatalog.dsl import Rule, Atom, Negation, Filter, Let, Agg
+from srdatalog.dsl import Agg, Atom, Negation, Rule
+from srdatalog.hir.pass_ import Dialect, PassInfo, PassLevel
 from srdatalog.hir.types import HirProgram, HirStratum, RelationDecl
-from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 def _body_relations(rule: Rule) -> set[str]:
@@ -31,9 +32,7 @@ def _body_relations(rule: Rule) -> set[str]:
   for b in rule.body:
     if isinstance(b, Negation):
       out.add(b.atom.rel)
-    elif isinstance(b, Atom):
-      out.add(b.rel)
-    elif isinstance(b, Agg):
+    elif isinstance(b, Atom) or isinstance(b, Agg):
       out.add(b.rel)
     # Filter / Let: no relation reference, skip.
   return out
@@ -206,13 +205,9 @@ def stratify(rules: list[Rule], decls: list[RelationDecl]) -> HirProgram:
           HirStratum(scc_members=set(scc), is_recursive=False, stratum_rules=base_rules)
         )
       if rec_rules:
-        strata.append(
-          HirStratum(scc_members=set(scc), is_recursive=True, stratum_rules=rec_rules)
-        )
+        strata.append(HirStratum(scc_members=set(scc), is_recursive=True, stratum_rules=rec_rules))
     else:
-      strata.append(
-        HirStratum(scc_members=set(scc), is_recursive=False, stratum_rules=scc_rules)
-      )
+      strata.append(HirStratum(scc_members=set(scc), is_recursive=False, stratum_rules=scc_rules))
 
   strata = _fuse_independent_strata(strata)
   return HirProgram(strata=strata, relation_decls=decls)
@@ -222,6 +217,7 @@ def stratify(rules: list[Rule], decls: list[RelationDecl]) -> HirProgram:
 # Pass wrapper — lets the Pipeline treat stratification uniformly even though
 # it's signature-wise distinct (it's the HIR entry, not a transform).
 # -----------------------------------------------------------------------------
+
 
 class StratificationPass:
   info = PassInfo(

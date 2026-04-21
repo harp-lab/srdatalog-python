@@ -16,11 +16,11 @@ complete runner emissions, it lays out the full .cpp tree on disk.
 Set `SRDATALOG_SKIP_JIT_REGEN=1` to reuse existing files (debugging
 mode — matches Nim's behavior).
 '''
+
 from __future__ import annotations
 
 import hashlib
 import os
-from pathlib import Path
 
 # Match Nim's RULES_PER_BATCH default (jit_file.nim:30). Override via
 # env `SRDATALOG_RULES_PER_BATCH=N`.
@@ -31,6 +31,7 @@ MAX_BATCH_FILES = 16
 # -----------------------------------------------------------------------------
 # Cache directory
 # -----------------------------------------------------------------------------
+
 
 def _project_hash(project_name: str) -> str:
   '''4-hex-digit project hash — same shape as Nim's `(hash(name) and 0xFFFF).toHex(4)`.
@@ -100,14 +101,18 @@ JIT_FILE_FOOTER = """
 # JitBatchManager
 # -----------------------------------------------------------------------------
 
+
 class JitBatchManager:
   '''Shards per-rule runner code across fixed-size batch files,
   then writes them + the schema/kernel headers to the cache dir.
 
   Mirrors Nim's `JitBatchManager` in `jit_file.nim:100-270`.
   '''
+
   def __init__(
-    self, project_name: str, rules_per_batch: int = _DEFAULT_RULES_PER_BATCH,
+    self,
+    project_name: str,
+    rules_per_batch: int = _DEFAULT_RULES_PER_BATCH,
     cache_base: str | None = None,
   ):
     self.project_name = project_name
@@ -146,7 +151,9 @@ class JitBatchManager:
   # --- content generation (no I/O) ---
 
   def generate_batch_file(
-    self, batch_idx: int, extra_headers: list[str] | None = None,
+    self,
+    batch_idx: int,
+    extra_headers: list[str] | None = None,
   ) -> str:
     if batch_idx not in self.batches:
       return ""
@@ -166,9 +173,7 @@ class JitBatchManager:
       code += "// DB type alias for JitRunner type derivation\n"
       code += self.db_type_alias
       code += "\n\n"
-    code += (
-      f"// Batch {batch_idx} - {len(self.batches[batch_idx])} rules\n\n"
-    )
+    code += f"// Batch {batch_idx} - {len(self.batches[batch_idx])} rules\n\n"
     for kernel_code in self.batches[batch_idx]:
       code += kernel_code
       code += "\n"
@@ -204,7 +209,7 @@ class JitBatchManager:
     mtimes when the contents haven't changed — builds that depend on
     timestamp-based rebuild (ninja, make) won't re-run.'''
     try:
-      with open(path, "r") as f:
+      with open(path) as f:
         if f.read() == content:
           return False
     except FileNotFoundError:
@@ -230,7 +235,8 @@ class JitBatchManager:
     return path
 
   def write_batch_files(
-    self, extra_headers: list[str] | None = None,
+    self,
+    extra_headers: list[str] | None = None,
   ) -> list[str]:
     '''Write all shards + headers to the cache dir. Returns the list
     of batch file paths (headers are written but not returned — they
@@ -255,6 +261,7 @@ class JitBatchManager:
 # -----------------------------------------------------------------------------
 # One-shot project writer
 # -----------------------------------------------------------------------------
+
 
 def write_jit_project(
   project_name: str,

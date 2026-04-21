@@ -17,20 +17,19 @@ Also fixes one bug in the original: mhk's `generate_runner` duplicated
 the `setup()` forward declaration twice in the phase-method block; the
 port drops the duplicate.
 '''
+
 from __future__ import annotations
-from typing import Tuple
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
-from srdatalog.codegen.schema import SchemaDefinition
 from srdatalog.codegen.helpers import (
   CodeGenContext,
   assign_handles,
-  spec_key,
-  find_source_idx,
   emit_view_declarations,
+  find_source_idx,
+  spec_key,
 )
-
+from srdatalog.codegen.schema import SchemaDefinition
+from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------
 # Prelude
@@ -75,6 +74,7 @@ def generate_prelude(schema: SchemaDefinition, name: str) -> str:
 # -----------------------------------------------------------------------------
 # Pipeline body emission (skeleton — see module docstring)
 # -----------------------------------------------------------------------------
+
 
 def _generate_body(rest_ops: list[m.MirNode], ctx: CodeGenContext) -> str:
   '''Placeholder — per-op emitters for ColumnJoin / Filter / Negation / etc.
@@ -143,6 +143,7 @@ def generate_pipeline(pipeline: m.ExecutePipeline, ctx: CodeGenContext) -> str:
 # JitRunner struct emission
 # -----------------------------------------------------------------------------
 
+
 def _insert_source_specs_count(num_sources: int) -> str:
   return f"static constexpr std::size_t NumSources = {num_sources};\n\n"
 
@@ -163,7 +164,7 @@ def _first_dest_rel(pipeline: m.ExecutePipeline) -> str:
   return getattr(d, "rel_name", "void") or "void"
 
 
-def _first_source_rel_and_version(pipeline: m.ExecutePipeline) -> Tuple[str, Version]:
+def _first_source_rel_and_version(pipeline: m.ExecutePipeline) -> tuple[str, Version]:
   src = pipeline.source_specs[0]
   return src.rel_name, src.version
 
@@ -176,7 +177,8 @@ def _find_balanced_scan(pipeline: m.ExecutePipeline) -> m.BalancedScan | None:
 
 
 def generate_runner(
-  pipeline: m.ExecutePipeline, program_name: str,
+  pipeline: m.ExecutePipeline,
+  program_name: str,
 ) -> tuple[str, str]:
   '''Emit `struct JitRunner_<rule_name> { ... }` for one pipeline.
 
@@ -256,13 +258,21 @@ struct JitRunner_{pipeline.rule_name} {{
     spec_key_1 = bs.source1.rel_name + "_" + "".join(str(a) for a in bs.source1.index)
     spec_key_2 = bs.source2.rel_name + "_" + "".join(str(a) for a in bs.source2.index)
     src_1_idx = find_source_idx(
-      pipeline.source_specs, bs.source1.rel_name, list(bs.source1.index), None,
+      pipeline.source_specs,
+      bs.source1.rel_name,
+      list(bs.source1.index),
+      None,
     )
     src_2_idx = find_source_idx(
-      pipeline.source_specs, bs.source2.rel_name, list(bs.source2.index), None,
+      pipeline.source_specs,
+      bs.source2.rel_name,
+      list(bs.source2.index),
+      None,
     )
     if src_1_idx < 0 or src_2_idx < 0:
-      print(f"[WARNING] Balanced source not found in BalancedScan.body: src1={spec_key_1} src2={spec_key_2}")
+      print(
+        f"[WARNING] Balanced source not found in BalancedScan.body: src1={spec_key_1} src2={spec_key_2}"
+      )
     full += f'''
       // Histogram kernel for balanced work partitioning
       // Computes fanout[key] = deg1(key) * deg2(key) for prefix-sum
@@ -405,6 +415,7 @@ struct JitRunner_{pipeline.rule_name} {{
 # Top-level batchfile generator
 # -----------------------------------------------------------------------------
 
+
 def _collect_pipelines(program: m.Program) -> list[m.ExecutePipeline]:
   '''Walk a Program's FixpointPlan / ParallelGroup steps and flatten out
   every ExecutePipeline that gets a JitRunner. Reconstruct and
@@ -424,7 +435,9 @@ def _collect_pipelines(program: m.Program) -> list[m.ExecutePipeline]:
 
 
 def generate_batchfile(
-  program: m.Program, schema: SchemaDefinition, name: str,
+  program: m.Program,
+  schema: SchemaDefinition,
+  name: str,
 ) -> str:
   '''Top-level batchfile generator. Consumes our `mir_types.Program`
   (produced by `compile_to_mir`) plus the schema + program name.

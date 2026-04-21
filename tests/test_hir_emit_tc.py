@@ -6,22 +6,20 @@ Passing this test is the milestone that says "the Python HIR emitter agrees
 with Nim's on a real example." Once hit, subsequent HIR passes can be tested
 the same way: build HIR from DSL via the pass, emit, diff against golden.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation
+from srdatalog.dsl import Relation, Var
+from srdatalog.hir.emit import hir_to_obj
 from srdatalog.hir.types import (
-  Version,
   AccessPattern,
+  HirProgram,
   HirRuleVariant,
   HirStratum,
-  HirProgram,
   RelationDecl,
+  Version,
 )
-from srdatalog.hir.emit import hir_to_obj, emit_hir_json
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -148,6 +146,7 @@ def test_tc_emitter_matches_golden():
   if actual_s != golden_s:
     # Dump side-by-side for easier diagnosis
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
         golden_s.splitlines(),

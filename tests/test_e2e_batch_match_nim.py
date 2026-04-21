@@ -11,6 +11,7 @@ committed under `tests/fixtures/e2e/`. Regen with the script below
 when the runtime / Nim emit changes (and verify the new bytes still
 compile against an unchanged runtime first).
 '''
+
 import sys
 import tempfile
 from pathlib import Path
@@ -19,8 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from integration_helpers import _cpp_norm
-from srdatalog import Var, Relation, Program, build_project
 
+from srdatalog import Program, Relation, Var, build_project
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "e2e" / "TrianglePlan_jit_batch_0.cpp"
 
@@ -51,10 +52,7 @@ def test_triangle_batch_byte_matches_nim_emit():
   '''
   if not FIXTURE.exists():
     print(f"[SKIP] fixture missing: {FIXTURE}")
-    print(
-      "       To create it: copy ~/.cache/nim/jit/TrianglePlan_*/jit_batch_0.cpp "
-      f"to {FIXTURE}"
-    )
+    print(f"       To create it: copy ~/.cache/nim/jit/TrianglePlan_*/jit_batch_0.cpp to {FIXTURE}")
     return
 
   with tempfile.TemporaryDirectory() as td:
@@ -71,25 +69,31 @@ def test_triangle_batch_byte_matches_nim_emit():
     for k, (x, y) in enumerate(zip(a, g)):
       if x != y:
         print(f"First diff at char {k}")
-        print(f"  ACTUAL: {a[max(0,k-80):k+80]!r}")
-        print(f"  GOLDEN: {g[max(0,k-80):k+80]!r}")
+        print(f"  ACTUAL: {a[max(0, k - 80) : k + 80]!r}")
+        print(f"  GOLDEN: {g[max(0, k - 80) : k + 80]!r}")
         break
     raise AssertionError(
-      f"jit_batch_0.cpp differs from Nim emit "
-      f"(actual={len(a)} chars, golden={len(g)} chars)"
+      f"jit_batch_0.cpp differs from Nim emit (actual={len(a)} chars, golden={len(g)} chars)"
     )
 
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = failed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):
-    if not name.startswith("test_"): continue
+    if not name.startswith("test_"):
+      continue
     try:
-      fn(); print(f"OK  {name}"); passed += 1
+      fn()
+      print(f"OK  {name}")
+      passed += 1
     except AssertionError as e:
-      print(f"FAIL {name}"); print(str(e)[:1500]); failed += 1
+      print(f"FAIL {name}")
+      print(str(e)[:1500])
+      failed += 1
     except Exception as e:
-      print(f"ERROR {name}: {type(e).__name__}: {e}"); failed += 1
+      print(f"ERROR {name}: {type(e).__name__}: {e}")
+      failed += 1
   print(f"\n{passed} pass / {failed} fail")

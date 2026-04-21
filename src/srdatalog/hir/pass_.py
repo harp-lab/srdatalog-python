@@ -17,7 +17,9 @@ Deliberately DOES NOT port yet:
 When a new pass is ported, give it a PassInfo and register it via
 `Pipeline.add_rule_rewrite` or `Pipeline.add_hir_transform`.
 '''
+
 from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol, runtime_checkable
@@ -28,15 +30,17 @@ from srdatalog.hir.types import HirProgram, RelationDecl
 
 class PassLevel(Enum):
   '''Stage in the compilation pipeline. Mirrors Nim pass_manager.PassLevel.'''
-  RULE_REWRITE = "plRuleRewrite"       # (rules, decls) -> (rules, decls)
-  HIR_TRANSFORM = "plHirTransform"     # HirProgram -> HirProgram
-  LOWERING = "plLowering"              # HirProgram -> MirNode
-  MIR_OPTIMIZE = "plMirOptimize"       # MirNode -> MirNode
-  DIALECT_UNIFY = "plDialectUnify"     # MirNode -> MirNode (unified dialect)
+
+  RULE_REWRITE = "plRuleRewrite"  # (rules, decls) -> (rules, decls)
+  HIR_TRANSFORM = "plHirTransform"  # HirProgram -> HirProgram
+  LOWERING = "plLowering"  # HirProgram -> MirNode
+  MIR_OPTIMIZE = "plMirOptimize"  # MirNode -> MirNode
+  DIALECT_UNIFY = "plDialectUnify"  # MirNode -> MirNode (unified dialect)
 
 
 class Dialect(Enum):
   '''IR abstraction level. Mirrors Nim pass_infrastructure.Dialect.'''
+
   HIR = "HIR"
   MIR_WCOJ = "MIR_WCOJ"
   MIR_BINARY = "MIR_Binary"
@@ -47,9 +51,10 @@ class Dialect(Enum):
 @dataclass(frozen=True)
 class PassInfo:
   '''Metadata for a registered pass.'''
+
   name: str
   level: PassLevel
-  order: int                 # Lower runs first within the same level
+  order: int  # Lower runs first within the same level
   source_dialect: Dialect
   target_dialect: Dialect
 
@@ -62,6 +67,7 @@ class RuleRewritePass(Protocol):
   method. Use Protocol not ABC so existing bare functions can be adapted
   with a thin wrapper class.
   '''
+
   info: PassInfo
 
   def run(
@@ -74,6 +80,7 @@ class HirTransformPass(Protocol):
   '''HIR-level transform that runs AFTER stratification. Typically mutates
   the HirProgram in place but must return it for uniformity.
   '''
+
   info: PassInfo
 
   def run(self, hir: HirProgram) -> HirProgram: ...
@@ -105,20 +112,19 @@ class Pipeline:
   it exactly once. Rule-rewrite passes run before it; HIR transform passes
   run after. Within each category, passes run in order-ascending order.
   '''
+
   def __init__(self, verbose: bool = False) -> None:
     self.rule_rewrites: list[RuleRewritePass] = []
     self.hir_transforms: list[HirTransformPass] = []
     self.verbose = verbose
 
-  def add_rule_rewrite(self, p: RuleRewritePass) -> "Pipeline":
+  def add_rule_rewrite(self, p: RuleRewritePass) -> Pipeline:
     if p.info.level is not PassLevel.RULE_REWRITE:
-      raise ValueError(
-        f"pass {p.info.name} registered as rule rewrite but level is {p.info.level}"
-      )
+      raise ValueError(f"pass {p.info.name} registered as rule rewrite but level is {p.info.level}")
     self.rule_rewrites.append(p)
     return self
 
-  def add_hir_transform(self, p: HirTransformPass) -> "Pipeline":
+  def add_hir_transform(self, p: HirTransformPass) -> Pipeline:
     if p.info.level is not PassLevel.HIR_TRANSFORM:
       raise ValueError(
         f"pass {p.info.name} registered as hir transform but level is {p.info.level}"

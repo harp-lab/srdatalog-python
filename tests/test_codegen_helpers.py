@@ -4,25 +4,23 @@ source-index lookup, view-declaration emission).
 Mirrors the helper coverage implicit in mhk's `test_generate_batchfiles_no_template.py`
 harness, but built on our MIR node shapes.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.helpers import (
-  ViewSpec,
   CodeGenContext,
-  spec_key,
   collect_unique_view_specs,
-  find_source_idx,
   emit_view_declarations,
+  find_source_idx,
+  spec_key,
 )
-
+from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------
 # spec_key
 # -----------------------------------------------------------------------------
+
 
 def test_spec_key_single_col():
   assert spec_key("PointsTo", Version.NEW, [0]) == "PointsTo_0_NEW_VER"
@@ -40,6 +38,7 @@ def test_spec_key_three_cols():
 # CodeGenContext
 # -----------------------------------------------------------------------------
 
+
 def test_context_defaults():
   ctx = CodeGenContext(output_name="out", is_counting=True, is_jit_mode=True)
   assert ctx.output_vars == {}
@@ -50,8 +49,7 @@ def test_context_defaults():
 
 def test_context_set_output_vars_single_dest():
   ctx = CodeGenContext(output_name="out", is_counting=True, is_jit_mode=True)
-  dests = [m.InsertInto(rel_name="PointsTo", version=Version.NEW,
-                         vars=["y", "x"], index=[0, 1])]
+  dests = [m.InsertInto(rel_name="PointsTo", version=Version.NEW, vars=["y", "x"], index=[0, 1])]
   ctx.set_output_vars(dests)
   assert ctx.output_vars == {"PointsTo": "output_ctx"}
 
@@ -73,15 +71,19 @@ def test_context_set_output_vars_multi_dest():
 # collect_unique_view_specs
 # -----------------------------------------------------------------------------
 
+
 def _cs(rel, ver, idx):
   return m.ColumnSource(rel_name=rel, version=ver, index=idx)
 
 
 def test_collect_view_specs_column_join():
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("PointsTo", Version.DELTA, [0, 1]),
-    _cs("Assign", Version.FULL, [1, 0]),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("PointsTo", Version.DELTA, [0, 1]),
+      _cs("Assign", Version.FULL, [1, 0]),
+    ],
+  )
   specs = collect_unique_view_specs([cj])
   assert len(specs) == 2
   assert specs[0].rel_name == "PointsTo" and specs[0].version == Version.DELTA
@@ -92,8 +94,9 @@ def test_collect_view_specs_dedupes_across_ops():
   # Same (rel, ver, idx) appears in two ColumnJoins -> one ViewSpec
   shared = _cs("PointsTo", Version.DELTA, [0, 1])
   cj1 = m.ColumnJoin(var_name="z", sources=[shared, _cs("A", Version.FULL, [0, 1])])
-  cj2 = m.ColumnJoin(var_name="w", sources=[_cs("PointsTo", Version.DELTA, [0, 1]),
-                                              _cs("B", Version.FULL, [0, 1])])
+  cj2 = m.ColumnJoin(
+    var_name="w", sources=[_cs("PointsTo", Version.DELTA, [0, 1]), _cs("B", Version.FULL, [0, 1])]
+  )
   specs = collect_unique_view_specs([cj1, cj2])
   # PointsTo_DELTA_0_1 appears once; A_FULL and B_FULL each once
   rels = [(s.rel_name, s.version) for s in specs]
@@ -118,8 +121,9 @@ def test_collect_view_specs_negation():
 
 
 def test_collect_view_specs_aggregate():
-  agg = m.Aggregate(result_var="c", agg_func="AggCount", rel_name="R",
-                    version=Version.FULL, index=[0, 1])
+  agg = m.Aggregate(
+    result_var="c", agg_func="AggCount", rel_name="R", version=Version.FULL, index=[0, 1]
+  )
   specs = collect_unique_view_specs([agg])
   assert len(specs) == 1
   assert specs[0].rel_name == "R"
@@ -138,10 +142,13 @@ def test_collect_view_specs_balanced_scan():
 
 
 def test_collect_view_specs_cartesian_join():
-  cart = m.CartesianJoin(vars=["x", "y"], sources=[
-    _cs("R", Version.FULL, [0, 1]),
-    _cs("S", Version.FULL, [0, 1]),
-  ])
+  cart = m.CartesianJoin(
+    vars=["x", "y"],
+    sources=[
+      _cs("R", Version.FULL, [0, 1]),
+      _cs("S", Version.FULL, [0, 1]),
+    ],
+  )
   specs = collect_unique_view_specs([cart])
   assert len(specs) == 2
 
@@ -149,6 +156,7 @@ def test_collect_view_specs_cartesian_join():
 # -----------------------------------------------------------------------------
 # find_source_idx
 # -----------------------------------------------------------------------------
+
 
 def test_find_source_idx_exact_match():
   specs = [
@@ -184,23 +192,25 @@ def test_find_source_idx_skips_non_sources():
 # emit_view_declarations
 # -----------------------------------------------------------------------------
 
+
 def test_emit_view_declarations_registers_spec_keys_in_ctx():
   ep = m.ExecutePipeline(
     pipeline=[
-      m.ColumnJoin(var_name="z", sources=[
-        _cs("PointsTo", Version.DELTA, [0, 1]),
-        _cs("Assign", Version.FULL, [1, 0]),
-      ]),
-      m.InsertInto(rel_name="PointsTo", version=Version.NEW,
-                   vars=["y", "x"], index=[0, 1]),
+      m.ColumnJoin(
+        var_name="z",
+        sources=[
+          _cs("PointsTo", Version.DELTA, [0, 1]),
+          _cs("Assign", Version.FULL, [1, 0]),
+        ],
+      ),
+      m.InsertInto(rel_name="PointsTo", version=Version.NEW, vars=["y", "x"], index=[0, 1]),
     ],
     source_specs=[
       _cs("PointsTo", Version.DELTA, [0, 1]),
       _cs("Assign", Version.FULL, [1, 0]),
     ],
     dest_specs=[
-      m.InsertInto(rel_name="PointsTo", version=Version.NEW,
-                   vars=["y", "x"], index=[0, 1]),
+      m.InsertInto(rel_name="PointsTo", version=Version.NEW, vars=["y", "x"], index=[0, 1]),
     ],
     rule_name="Assign_D0",
   )
@@ -222,8 +232,10 @@ def test_emit_view_declarations_dedupes_across_multiple_joins():
   ep = m.ExecutePipeline(
     pipeline=[
       m.ColumnJoin(var_name="z", sources=[shared, _cs("A", Version.FULL, [0, 1])]),
-      m.ColumnJoin(var_name="w", sources=[_cs("PointsTo", Version.DELTA, [0, 1]),
-                                            _cs("B", Version.FULL, [0, 1])]),
+      m.ColumnJoin(
+        var_name="w",
+        sources=[_cs("PointsTo", Version.DELTA, [0, 1]), _cs("B", Version.FULL, [0, 1])],
+      ),
     ],
     source_specs=[
       _cs("PointsTo", Version.DELTA, [0, 1]),
@@ -244,6 +256,7 @@ def test_emit_view_declarations_dedupes_across_multiple_joins():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

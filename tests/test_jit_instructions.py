@@ -11,24 +11,26 @@ Covers the structural shapes emitted:
   - PositionedExtract baseline: per-source probe, valid guard, bind_vars
   - NotImplementedError guards on WS / BG / tiled / multi-view flags
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.instructions import (
-  jit_nested_column_join,
   jit_nested_cartesian_join,
+  jit_nested_column_join,
   jit_positioned_extract,
 )
+from srdatalog.hir.types import Version
 
 
 def _cs(rel, ver, idx, prefix=(), handle_start=0):
   return m.ColumnSource(
-    rel_name=rel, version=ver, index=idx,
-    prefix_vars=list(prefix), handle_start=handle_start,
+    rel_name=rel,
+    version=ver,
+    index=idx,
+    prefix_vars=list(prefix),
+    handle_start=handle_start,
   )
 
 
@@ -36,9 +38,9 @@ def _cs(rel, ver, idx, prefix=(), handle_start=0):
 # jit_nested_column_join — single source
 # ---------------------------------------------------------------------------
 
+
 def test_nested_cj_single_source_baseline():
-  cj = m.ColumnJoin(var_name="z", sources=[_cs("R", Version.FULL, [0, 1],
-                                                  handle_start=0)])
+  cj = m.ColumnJoin(var_name="z", sources=[_cs("R", Version.FULL, [0, 1], handle_start=0)])
   ctx = new_code_gen_context()
   out = jit_nested_column_join(cj, ctx, "        body();\n")
   assert "// Nested ColumnJoin (single): bind 'z' from R" in out
@@ -57,8 +59,9 @@ def test_nested_cj_single_source_baseline():
 
 
 def test_nested_cj_single_source_with_prefix_narrows_from_parent():
-  cj = m.ColumnJoin(var_name="y", sources=[_cs("R", Version.FULL, [0, 1],
-                                                  prefix=("x",), handle_start=0)])
+  cj = m.ColumnJoin(
+    var_name="y", sources=[_cs("R", Version.FULL, [0, 1], prefix=("x",), handle_start=0)]
+  )
   ctx = new_code_gen_context()
   ctx.handle_vars["0"] = "parent_h"
   ctx.view_vars["0"] = "view_R_0"
@@ -84,11 +87,15 @@ def test_nested_cj_single_source_counting_skips_unused_value():
 # jit_nested_column_join — multi source
 # ---------------------------------------------------------------------------
 
+
 def test_nested_cj_multi_source_intersection():
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("R", Version.DELTA, [0, 1], handle_start=0),
-    _cs("S", Version.FULL, [1, 0], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("R", Version.DELTA, [0, 1], handle_start=0),
+      _cs("S", Version.FULL, [1, 0], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   out = jit_nested_column_join(cj, ctx, "        body();\n")
   assert "// Nested ColumnJoin (intersection): bind 'z' from 2 sources" in out
@@ -112,13 +119,17 @@ def test_nested_cj_multi_source_intersection():
 
 
 def test_nested_cj_multi_source_handle_reuse_full_match():
-  cj = m.ColumnJoin(var_name="y", sources=[
-    _cs("R", Version.FULL, [0, 1], prefix=("x",), handle_start=0),
-    _cs("S", Version.FULL, [0, 1], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      _cs("R", Version.FULL, [0, 1], prefix=("x",), handle_start=0),
+      _cs("S", Version.FULL, [0, 1], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   # Pre-register a fully-prefixed handle for source 0
   from srdatalog.codegen.jit.context import gen_handle_state_key
+
   key = gen_handle_state_key("R", [0, 1], ["x"], "FULL_VER")
   ctx.handle_vars[key] = "existing_full_h"
   out = jit_nested_column_join(cj, ctx, "")
@@ -129,6 +140,7 @@ def test_nested_cj_multi_source_handle_reuse_full_match():
 # ---------------------------------------------------------------------------
 # jit_nested_column_join — guards
 # ---------------------------------------------------------------------------
+
 
 def test_nested_cj_ws_flag_raises_not_implemented():
   cj = m.ColumnJoin(var_name="z", sources=[_cs("R", Version.FULL, [0, 1])])
@@ -157,6 +169,7 @@ def test_nested_cj_bg_flag_raises_not_implemented():
 # ---------------------------------------------------------------------------
 # jit_nested_cartesian_join
 # ---------------------------------------------------------------------------
+
 
 def test_cart_two_sources_flat_loop_and_positions():
   cart = m.CartesianJoin(
@@ -227,6 +240,7 @@ def test_cart_ws_valid_flag_raises_not_implemented():
 # jit_positioned_extract
 # ---------------------------------------------------------------------------
 
+
 def test_positioned_extract_baseline():
   pe = m.PositionedExtract(
     sources=[
@@ -256,6 +270,7 @@ def test_positioned_extract_baseline():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

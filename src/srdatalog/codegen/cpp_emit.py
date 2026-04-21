@@ -25,16 +25,16 @@ lowering), so `emit_rebuild_index_from_index` uses a single rel_name and
 a single version; the cross-relation variant is out of scope until our
 MIR model extends to match.
 '''
+
 from __future__ import annotations
-from typing import Optional
 
 import srdatalog.mir.types as m
 from srdatalog.hir.types import Version
 
-
 # -----------------------------------------------------------------------------
 # Building blocks (pure string helpers)
 # -----------------------------------------------------------------------------
+
 
 def fact_index_str(rel_name: str, index: list[int]) -> str:
   '''`"PointsTo, 0, 1"` — the "fact index" form used inside C++ templates.'''
@@ -48,8 +48,7 @@ def index_spec_t(rel_name: str, version: Version, index: list[int]) -> str:
   '''
   idx_str = ", ".join(str(c) for c in index)
   return (
-    f"SRDatalog::mir::IndexSpecT<{rel_name}, "
-    f"std::integer_sequence<int, {idx_str}>, {version.code}>"
+    f"SRDatalog::mir::IndexSpecT<{rel_name}, std::integer_sequence<int, {idx_str}>, {version.code}>"
   )
 
 
@@ -63,6 +62,7 @@ def index_create_call(rel_name: str, version: Version, index: list[int]) -> str:
 # -----------------------------------------------------------------------------
 # Scalar / maintenance ops
 # -----------------------------------------------------------------------------
+
 
 def emit_rebuild_index(node: m.RebuildIndex) -> str:
   return (
@@ -118,15 +118,12 @@ def emit_compute_delta_index(node: m.ComputeDeltaIndex) -> str:
 
 def emit_clear_relation(node: m.ClearRelation) -> str:
   return (
-    f"SRDatalog::GPU::mir_helpers::clear_relation_fn<"
-    f"{node.rel_name}, {node.version.code}>(db);"
+    f"SRDatalog::GPU::mir_helpers::clear_relation_fn<{node.rel_name}, {node.version.code}>(db);"
   )
 
 
 def emit_merge_relation(node: m.MergeRelation) -> str:
-  return (
-    f"SRDatalog::GPU::mir_helpers::merge_relation_fn<{node.rel_name}>(db);"
-  )
+  return f"SRDatalog::GPU::mir_helpers::merge_relation_fn<{node.rel_name}>(db);"
 
 
 def emit_rebuild_index_from_index(node: m.RebuildIndexFromIndex) -> str:
@@ -137,8 +134,7 @@ def emit_rebuild_index_from_index(node: m.RebuildIndexFromIndex) -> str:
   source_spec = index_spec_t(node.rel_name, node.version, node.source_index)
   target_spec = index_spec_t(node.rel_name, node.version, node.target_index)
   return (
-    "SRDatalog::GPU::mir_helpers::rebuild_index_from_index_fn< "
-    f"{source_spec}, {target_spec} >(db);"
+    f"SRDatalog::GPU::mir_helpers::rebuild_index_from_index_fn< {source_spec}, {target_spec} >(db);"
   )
 
 
@@ -189,7 +185,7 @@ def emit(node: m.MirNode) -> str:
 def emit_orchestrator(
   node: m.MirNode,
   iter_var: int = 9999,
-  dest_stream_map: Optional[dict[str, list[int]]] = None,
+  dest_stream_map: dict[str, list[int]] | None = None,
 ) -> str:
   '''Orchestrator-level emit: prepends `_stream_pool.wait_event(...)` for
   every prior parallel-pipeline stream that wrote to this node's relation.

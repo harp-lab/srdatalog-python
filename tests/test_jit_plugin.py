@@ -1,40 +1,36 @@
 '''Tests for codegen/jit/plugin.py — DSAI default hooks + registry dispatch.'''
-import sys
-from pathlib import Path
 
+import sys
 
 from srdatalog.codegen.jit.plugin import (
-  PrefixMode,
   IndexPlugin,
-  new_default_plugin,
-  resolve_plugin,
-  register_index_plugin,
+  PrefixMode,
   get_extra_headers_for_types,
-  plugin_gen_root_handle,
-  plugin_gen_prefix,
-  plugin_gen_prefix_lower_bound,
-  plugin_gen_degree,
-  plugin_gen_valid,
-  plugin_gen_get_value_at,
-  plugin_gen_get_value,
-  plugin_gen_child,
-  plugin_gen_child_range,
-  plugin_gen_iterators,
-  plugin_view_count,
-  plugin_gen_host_view_setup,
   plugin_chained_prefix_calls,
   plugin_chained_prefix_with_last_lower_bound,
+  plugin_gen_child,
+  plugin_gen_child_range,
+  plugin_gen_degree,
+  plugin_gen_get_value,
+  plugin_gen_get_value_at,
+  plugin_gen_host_view_setup,
+  plugin_gen_iterators,
+  plugin_gen_prefix,
+  plugin_gen_prefix_lower_bound,
+  plugin_gen_root_handle,
+  plugin_gen_valid,
+  plugin_view_count,
+  register_index_plugin,
+  resolve_plugin,
 )
-
 
 # -----------------------------------------------------------------------------
 # DSAI default expressions
 # -----------------------------------------------------------------------------
 
+
 def test_dsai_root_handle():
-  assert plugin_gen_root_handle("view_Edge_0") == (
-    "HandleType(0, view_Edge_0.num_rows_, 0)"
-  )
+  assert plugin_gen_root_handle("view_Edge_0") == ("HandleType(0, view_Edge_0.num_rows_, 0)")
 
 
 def test_dsai_prefix_cooperative():
@@ -67,9 +63,7 @@ def test_dsai_degree_and_valid():
 
 
 def test_dsai_get_value_at_and_get_value():
-  assert plugin_gen_get_value_at("h", "view_R_0", "idx") == (
-    "h.get_value_at(view_R_0, idx)"
-  )
+  assert plugin_gen_get_value_at("h", "view_R_0", "idx") == ("h.get_value_at(view_R_0, idx)")
   assert plugin_gen_get_value("view_R_0", 1, "pos") == "view_R_0.get_value(1, pos)"
 
 
@@ -92,6 +86,7 @@ def test_dsai_view_count_and_host_setup():
 # -----------------------------------------------------------------------------
 # Registry + resolution
 # -----------------------------------------------------------------------------
+
 
 def test_resolve_empty_string_returns_default():
   p = resolve_plugin("")
@@ -120,6 +115,7 @@ def test_resolve_registered_plugin_exact_match():
   finally:
     # teardown so other tests don't see leaked state
     from srdatalog.codegen.jit import plugin as _p
+
     _p._PLUGIN_REGISTRY.pop("SRDatalog::GPU::Device2LevelIndex", None)
 
 
@@ -135,12 +131,14 @@ def test_get_extra_headers_dedupes_and_skips_empty():
     assert got == ["gpu/z.h", "gpu/shared.h"]
   finally:
     from srdatalog.codegen.jit import plugin as _p
+
     _p._PLUGIN_REGISTRY.pop("Z_Index", None)
 
 
 # -----------------------------------------------------------------------------
 # Chained prefix calls
 # -----------------------------------------------------------------------------
+
 
 def test_chained_prefix_empty_returns_parent():
   assert plugin_chained_prefix_calls("root_h", [], "view") == "root_h"
@@ -153,14 +151,20 @@ def test_chained_prefix_cooperative_default():
 
 def test_chained_prefix_scalar_mode_all_sequential():
   got = plugin_chained_prefix_calls(
-    "root_h", ["x", "y"], "view_R", scalar_mode=True,
+    "root_h",
+    ["x", "y"],
+    "view_R",
+    scalar_mode=True,
   )
   assert got == "root_h.prefix_seq(x, view_R).prefix_seq(y, view_R)"
 
 
 def test_chained_prefix_cartesian_bound_var_goes_sequential():
   got = plugin_chained_prefix_calls(
-    "root_h", ["x", "y"], "view_R", cartesian_bound_vars=["x"],
+    "root_h",
+    ["x", "y"],
+    "view_R",
+    cartesian_bound_vars=["x"],
   )
   # x is in cartesian bound -> sequential; y isn't -> cooperative
   assert got == "root_h.prefix_seq(x, view_R).prefix(y, tile, view_R)"
@@ -168,16 +172,18 @@ def test_chained_prefix_cartesian_bound_var_goes_sequential():
 
 def test_chained_prefix_with_last_lower_bound():
   got = plugin_chained_prefix_with_last_lower_bound(
-    "root_h", ["x", "y", "z"], "view_R",
+    "root_h",
+    ["x", "y", "z"],
+    "view_R",
   )
   assert got == (
-    "root_h.prefix(x, tile, view_R).prefix(y, tile, view_R)"
-    ".prefix_lower_bound(z, tile, view_R)"
+    "root_h.prefix(x, tile, view_R).prefix(y, tile, view_R).prefix_lower_bound(z, tile, view_R)"
   )
 
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

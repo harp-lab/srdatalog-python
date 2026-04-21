@@ -8,7 +8,9 @@ Keep field names in sync with the Nim side; the canonical emitter (hir_emit.py, 
 will translate between snake_case Python and the camelCase keys used in
 json_printer.nim's output.
 '''
+
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -25,6 +27,7 @@ class Version(Enum):
     - `.number` — numeric index Nim's template backend uses (`"0"`, `"1"`, `"2"`)
     - `.code`   — `*_VER` macro the non-template codegen emits into types
   '''
+
   FULL = "FULL"
   DELTA = "DELTA"
   NEW = "NEW"
@@ -62,12 +65,13 @@ class AccessPattern:
   Mirrors hir_types.nim AccessPattern. All fields default-initialized for ease
   of construction inside passes; the planner fills them in.
   '''
+
   rel_name: str = ""
   version: Version = Version.FULL
-  access_order: list[str] = field(default_factory=list)   # Variables in access order
-  index_cols: list[int] = field(default_factory=list)     # Column indices in access order
-  prefix_len: int = 0                                     # # bound vars at start of access_order
-  clause_idx: int = -1                                    # Original body clause index
+  access_order: list[str] = field(default_factory=list)  # Variables in access order
+  index_cols: list[int] = field(default_factory=list)  # Column indices in access order
+  prefix_len: int = 0  # # bound vars at start of access_order
+  clause_idx: int = -1  # Original body clause index
   const_args: list[tuple[int, int]] = field(default_factory=list)  # (col, const) pairs
 
 
@@ -78,6 +82,7 @@ class HirRuleVariant:
   Non-recursive rules have delta_idx == -1 and a single base variant. Recursive
   rules fan out into N variants (one delta per recursive body clause).
   '''
+
   original_rule: Rule
   delta_idx: int = -1
   clause_versions: list[Version] = field(default_factory=list)
@@ -102,6 +107,7 @@ class HirRuleVariant:
 @dataclass
 class HirStratum:
   '''An SCC + its rule variants. Mirrors HirStratum.'''
+
   scc_members: set[str] = field(default_factory=set)
   is_recursive: bool = False
   is_generated: bool = False
@@ -123,8 +129,9 @@ class RelationDecl:
   NimNode-typed fields in Nim (relname, types, semiring) are reduced to strings here.
   Python emitter must reproduce the same repr() the Nim emitter writes.
   '''
+
   rel_name: str
-  types: list[str]                # e.g. ["int", "int"]; matches NimNode.repr() output
+  types: list[str]  # e.g. ["int", "int"]; matches NimNode.repr() output
   semiring: str = "BooleanSR"
   input_file: str = ""
   print_size: bool = False
@@ -138,6 +145,7 @@ class RelationDecl:
 @dataclass
 class HirProgram:
   '''The complete HIR program. Mirrors HirProgram.'''
+
   strata: list[HirStratum] = field(default_factory=list)
   relation_decls: list[RelationDecl] = field(default_factory=list)
   global_index_map: dict[str, list[list[int]]] = field(default_factory=dict)

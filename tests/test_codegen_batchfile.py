@@ -7,20 +7,19 @@ the histogram kernel when BalancedScan is the root). A top-level
 integration test runs `compile_to_mir(build_andersen())` through
 `generate_batchfile` and asserts one JitRunner per pipeline.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
-from srdatalog.codegen.schema import FactDefinition, Pragma, SchemaDefinition
 from srdatalog.codegen.batchfile import (
+  generate_batchfile,
+  generate_pipeline,
   generate_prelude,
   generate_runner,
-  generate_pipeline,
-  generate_batchfile,
 )
 from srdatalog.codegen.helpers import CodeGenContext
+from srdatalog.codegen.schema import FactDefinition, SchemaDefinition
+from srdatalog.hir.types import Version
 
 
 def _nows(s: str) -> str:
@@ -31,14 +30,17 @@ def _nows(s: str) -> str:
 # Prelude
 # -----------------------------------------------------------------------------
 
+
 def test_generate_prelude_andersen():
-  schema = SchemaDefinition(facts=[
-    FactDefinition("AddressOf", [int, int], pragmas={"semiring": "NoProvenance"}),
-    FactDefinition("Assign", [int, int], pragmas={"semiring": "NoProvenance"}),
-    FactDefinition("Load", [int, int], pragmas={"semiring": "NoProvenance"}),
-    FactDefinition("Store", [int, int], pragmas={"semiring": "NoProvenance"}),
-    FactDefinition("PointsTo", [int, int], pragmas={"semiring": "NoProvenance"}),
-  ])
+  schema = SchemaDefinition(
+    facts=[
+      FactDefinition("AddressOf", [int, int], pragmas={"semiring": "NoProvenance"}),
+      FactDefinition("Assign", [int, int], pragmas={"semiring": "NoProvenance"}),
+      FactDefinition("Load", [int, int], pragmas={"semiring": "NoProvenance"}),
+      FactDefinition("Store", [int, int], pragmas={"semiring": "NoProvenance"}),
+      FactDefinition("PointsTo", [int, int], pragmas={"semiring": "NoProvenance"}),
+    ]
+  )
   actual = generate_prelude(schema, "Andersen")
   expected = '''
 // JIT-Generated Rule Kernel Batch
@@ -79,9 +81,9 @@ using AndersenFixpoint_DB_DeviceDB = SRDatalog::AST::SemiNaiveDatabase<AndersenF
 # generate_pipeline — state mutation on first-op dispatch
 # -----------------------------------------------------------------------------
 
+
 def _cs(rel, ver, idx, prefix=()):
-  return m.ColumnSource(rel_name=rel, version=ver, index=idx,
-                        prefix_vars=list(prefix))
+  return m.ColumnSource(rel_name=rel, version=ver, index=idx, prefix_vars=list(prefix))
 
 
 def test_pipeline_cartesian_root_sets_bound_vars():
@@ -95,15 +97,15 @@ def test_pipeline_cartesian_root_sets_bound_vars():
         ],
         var_from_source=[["x"], ["y"]],
       ),
-      m.InsertInto(rel_name="PointsTo", version=Version.NEW,
-                   vars=["y", "x"], index=[0, 1]),
+      m.InsertInto(rel_name="PointsTo", version=Version.NEW, vars=["y", "x"], index=[0, 1]),
     ],
     source_specs=[
       _cs("PointsTo", Version.DELTA, [0, 1]),
       _cs("Assign", Version.FULL, [1, 0]),
     ],
-    dest_specs=[m.InsertInto(rel_name="PointsTo", version=Version.NEW,
-                              vars=["y", "x"], index=[0, 1])],
+    dest_specs=[
+      m.InsertInto(rel_name="PointsTo", version=Version.NEW, vars=["y", "x"], index=[0, 1])
+    ],
     rule_name="Assign_D0_cart",
   )
   ctx = CodeGenContext(output_name="output_ctx", is_counting=True, is_jit_mode=True)
@@ -141,12 +143,11 @@ def test_pipeline_balanced_scan_root_sets_bound_vars():
 # generate_runner — struct scaffold
 # -----------------------------------------------------------------------------
 
+
 def _andersen_base_pipeline() -> m.ExecutePipeline:
   '''Simple Scan-rooted base pipeline: PointsTo(y,x) <- AddressOf(y,x).'''
-  scan = m.Scan(vars=["y", "x"], rel_name="AddressOf",
-                version=Version.FULL, index=[0, 1])
-  insert = m.InsertInto(rel_name="PointsTo", version=Version.NEW,
-                         vars=["y", "x"], index=[0, 1])
+  scan = m.Scan(vars=["y", "x"], rel_name="AddressOf", version=Version.FULL, index=[0, 1])
+  insert = m.InsertInto(rel_name="PointsTo", version=Version.NEW, vars=["y", "x"], index=[0, 1])
   return m.ExecutePipeline(
     pipeline=[scan, insert],
     source_specs=[scan],
@@ -180,7 +181,9 @@ def test_generate_runner_struct_scaffold():
   # Phase-method forward decls (no duplication)
   assert full.count("static LaunchParams setup(DB& db, uint32_t iteration") == 1
   assert "static void launch_count(LaunchParams& p, GPU_STREAM_T stream = 0);" in full
-  assert "static uint32_t scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream = 0);" in full
+  assert (
+    "static uint32_t scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream = 0);" in full
+  )
   assert "static void scan_only(LaunchParams& p, GPU_STREAM_T stream = 0);" in full
   assert "static uint32_t read_total(LaunchParams& p);" in full
   assert "static void launch_materialize(DB& db, LaunchParams& p, uint32_t total_count" in full
@@ -209,8 +212,7 @@ def test_generate_runner_balanced_scan_emits_histogram_kernel():
     vars1=["x"],
     vars2=["y"],
   )
-  insert = m.InsertInto(rel_name="PointsTo", version=Version.NEW,
-                         vars=["y", "x"], index=[0, 1])
+  insert = m.InsertInto(rel_name="PointsTo", version=Version.NEW, vars=["y", "x"], index=[0, 1])
   ep = m.ExecutePipeline(
     pipeline=[bs, insert],
     source_specs=[bs.source1, bs.source2],
@@ -238,17 +240,22 @@ def test_generate_runner_work_stealing_marker():
 # Top-level generate_batchfile — drive compile_to_mir output
 # -----------------------------------------------------------------------------
 
+
 def test_generate_batchfile_andersen_end_to_end():
   from test_integration_andersen import build_andersen
+
   from srdatalog.hir import compile_to_mir
+
   mir = compile_to_mir(build_andersen())
-  schema = SchemaDefinition(facts=[
-    FactDefinition("AddressOf", [int, int]),
-    FactDefinition("Assign", [int, int]),
-    FactDefinition("Load", [int, int]),
-    FactDefinition("Store", [int, int]),
-    FactDefinition("PointsTo", [int, int]),
-  ])
+  schema = SchemaDefinition(
+    facts=[
+      FactDefinition("AddressOf", [int, int]),
+      FactDefinition("Assign", [int, int]),
+      FactDefinition("Load", [int, int]),
+      FactDefinition("Store", [int, int]),
+      FactDefinition("PointsTo", [int, int]),
+    ]
+  )
   out = generate_batchfile(mir, schema, "Andersen")
 
   # Prelude wired
@@ -257,6 +264,7 @@ def test_generate_batchfile_andersen_end_to_end():
 
   # One JitRunner per ExecutePipeline in program.steps
   from srdatalog.codegen.batchfile import _collect_pipelines
+
   pipelines = _collect_pipelines(mir)
   assert len(pipelines) >= 1
   for ep in pipelines:
@@ -265,6 +273,7 @@ def test_generate_batchfile_andersen_end_to_end():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

@@ -5,24 +5,22 @@ and MIR against Nim golden. Exercises the recursive-stratum split path:
 ClearRelation temp NEW per iteration + Pipeline A + CreateFlatView temp
 NEW + Pipeline B with temp_version=NEW.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program, SPLIT
+from srdatalog.dsl import SPLIT, Program, Relation, Var
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir.emit import hir_to_obj
 from srdatalog.mir.emit import print_mir_sexpr
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def build_split_rec_program() -> Program:
   '''Mirror of fixtures/split_rec.nim.
-    R(x, y) :- Seed(x, y)                              (RBase, non-recursive)
-    R(x, z) :- R(x, y), ~Filter(y), split, Edge(y, z)  (RRec, recursive split)
+  R(x, y) :- Seed(x, y)                              (RBase, non-recursive)
+  R(x, z) :- R(x, y), ~Filter(y), split, Edge(y, z)  (RRec, recursive split)
   '''
   X, Y, Z = Var("x"), Var("y"), Var("z")
   seed = Relation("Seed", 2)
@@ -55,7 +53,7 @@ def test_recursive_split_temp_rel_synthesised():
   hir = compile_to_hir(build_split_rec_program())
   temp_decls = [d for d in hir.relation_decls if d.rel_name == "_temp_RRec"]
   assert len(temp_decls) == 1
-  assert temp_decls[0].types == ["int", "int"]   # y:int (from R col 1), x:int (R col 0)
+  assert temp_decls[0].types == ["int", "int"]  # y:int (from R col 1), x:int (R col 0)
   assert temp_decls[0].is_temp is True
 
 
@@ -70,10 +68,14 @@ def test_recursive_split_hir_byte_match():
   golden.pop("hirSExpr", None)
   if _canonical(actual) != _canonical(golden):
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
-        _canonical(golden).splitlines(), _canonical(actual).splitlines(),
-        fromfile="nim-golden", tofile="python", lineterm="",
+        _canonical(golden).splitlines(),
+        _canonical(actual).splitlines(),
+        fromfile="nim-golden",
+        tofile="python",
+        lineterm="",
       )
     )
     raise AssertionError("HIR mismatch:\n" + diff)
@@ -89,10 +91,14 @@ def test_recursive_split_mir_byte_match():
   golden = (FIXTURES / "split_rec.mir.sexpr").read_text().rstrip("\n")
   if actual != golden:
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
-        golden.splitlines(), actual.splitlines(),
-        fromfile="nim-golden", tofile="python", lineterm="",
+        golden.splitlines(),
+        actual.splitlines(),
+        fromfile="nim-golden",
+        tofile="python",
+        lineterm="",
       )
     )
     raise AssertionError("MIR mismatch:\n" + diff)

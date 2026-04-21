@@ -1,29 +1,32 @@
 '''Tests for codegen/jit/root.py — baseline root op emitters.'''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.root import (
   gen_grid_stride_loop,
-  jit_root_scan,
   jit_root_cartesian_join,
   jit_root_column_join,
+  jit_root_scan,
 )
+from srdatalog.hir.types import Version
 
 
 def _cs(rel, ver, idx, prefix=(), handle_start=0):
   return m.ColumnSource(
-    rel_name=rel, version=ver, index=idx,
-    prefix_vars=list(prefix), handle_start=handle_start,
+    rel_name=rel,
+    version=ver,
+    index=idx,
+    prefix_vars=list(prefix),
+    handle_start=handle_start,
   )
 
 
 # -----------------------------------------------------------------------------
 # gen_grid_stride_loop
 # -----------------------------------------------------------------------------
+
 
 def test_grid_stride_warp_mode():
   ctx = new_code_gen_context()
@@ -53,9 +56,9 @@ def test_grid_stride_atomic_ws():
 # jit_root_scan
 # -----------------------------------------------------------------------------
 
+
 def test_root_scan_single_var_binds_column_0():
-  sc = m.Scan(vars=["x"], rel_name="Edge",
-              version=Version.FULL, index=[0], handle_start=0)
+  sc = m.Scan(vars=["x"], rel_name="Edge", version=Version.FULL, index=[0], handle_start=0)
   ctx = new_code_gen_context()
   out = jit_root_scan(sc, ctx, "        body();\n")
 
@@ -76,8 +79,9 @@ def test_root_scan_single_var_binds_column_0():
 
 
 def test_root_scan_two_vars_bind_cols_0_and_1():
-  sc = m.Scan(vars=["y", "x"], rel_name="AddressOf",
-              version=Version.FULL, index=[0, 1], handle_start=0)
+  sc = m.Scan(
+    vars=["y", "x"], rel_name="AddressOf", version=Version.FULL, index=[0, 1], handle_start=0
+  )
   ctx = new_code_gen_context()
   out = jit_root_scan(sc, ctx, "body();\n")
 
@@ -86,8 +90,7 @@ def test_root_scan_two_vars_bind_cols_0_and_1():
 
 
 def test_root_scan_reuses_preexisting_view():
-  sc = m.Scan(vars=["x"], rel_name="R", version=Version.FULL,
-              index=[0], handle_start=5)
+  sc = m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0], handle_start=5)
   ctx = new_code_gen_context()
   ctx.view_vars["5"] = "view_R_pre"
   out = jit_root_scan(sc, ctx, "")
@@ -96,8 +99,7 @@ def test_root_scan_reuses_preexisting_view():
 
 
 def test_root_scan_counting_skips_unused_var_fetch():
-  sc = m.Scan(vars=["x"], rel_name="R", version=Version.FULL,
-              index=[0], handle_start=0)
+  sc = m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0], handle_start=0)
   ctx = new_code_gen_context()
   ctx.is_counting = True
   # body doesn't reference x -> skip get_value
@@ -106,8 +108,7 @@ def test_root_scan_counting_skips_unused_var_fetch():
 
 
 def test_root_scan_restores_bound_vars_and_indent():
-  sc = m.Scan(vars=["x", "y"], rel_name="R", version=Version.FULL,
-              index=[0, 1], handle_start=0)
+  sc = m.Scan(vars=["x", "y"], rel_name="R", version=Version.FULL, index=[0, 1], handle_start=0)
   ctx = new_code_gen_context()
   initial_indent = ctx.indent
   initial_bound = list(ctx.bound_vars)
@@ -119,6 +120,7 @@ def test_root_scan_restores_bound_vars_and_indent():
 # -----------------------------------------------------------------------------
 # jit_root_cartesian_join
 # -----------------------------------------------------------------------------
+
 
 def test_root_cart_two_sources_div_mod_decomposition():
   cart = m.CartesianJoin(
@@ -221,10 +223,14 @@ def test_root_cart_counting_skips_unused_var():
 # jit_root_column_join — single source
 # -----------------------------------------------------------------------------
 
+
 def test_root_cj_single_source_baseline():
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("Edge", Version.FULL, [0, 1], handle_start=0),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("Edge", Version.FULL, [0, 1], handle_start=0),
+    ],
+  )
   ctx = new_code_gen_context()
   out = jit_root_column_join(cj, ctx, "        body();\n")
 
@@ -243,9 +249,12 @@ def test_root_cj_single_source_baseline():
 
 
 def test_root_cj_single_counting_skips_var_fetch():
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("Edge", Version.FULL, [0, 1], handle_start=0),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("Edge", Version.FULL, [0, 1], handle_start=0),
+    ],
+  )
   ctx = new_code_gen_context()
   ctx.is_counting = True
   out = jit_root_column_join(cj, ctx, "        output.emit_direct();\n")
@@ -254,9 +263,12 @@ def test_root_cj_single_counting_skips_var_fetch():
 
 
 def test_root_cj_single_registers_handle_in_state_keys():
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("Edge", Version.FULL, [0, 1], handle_start=0),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("Edge", Version.FULL, [0, 1], handle_start=0),
+    ],
+  )
   ctx = new_code_gen_context()
   # Capture handle_vars during body via a sentinel body that peeks at ctx
   body_state: dict = {}
@@ -277,11 +289,15 @@ def test_root_cj_single_registers_handle_in_state_keys():
 # jit_root_column_join — multi source
 # -----------------------------------------------------------------------------
 
+
 def test_root_cj_multi_source_uses_root_unique_values_pattern():
-  cj = m.ColumnJoin(var_name="y", sources=[
-    _cs("R", Version.FULL, [0, 1], handle_start=0),
-    _cs("S", Version.FULL, [1, 0], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      _cs("R", Version.FULL, [0, 1], handle_start=0),
+      _cs("S", Version.FULL, [1, 0], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   out = jit_root_column_join(cj, ctx, "        body();\n")
 
@@ -307,10 +323,13 @@ def test_root_cj_multi_source_uses_root_unique_values_pattern():
 
 
 def test_root_cj_multi_restores_handle_vars_on_return():
-  cj = m.ColumnJoin(var_name="y", sources=[
-    _cs("R", Version.FULL, [0, 1], handle_start=0),
-    _cs("S", Version.FULL, [1, 0], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      _cs("R", Version.FULL, [0, 1], handle_start=0),
+      _cs("S", Version.FULL, [1, 0], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   jit_root_column_join(cj, ctx, "body();\n")
   # No numeric keys leaked
@@ -321,6 +340,7 @@ def test_root_cj_multi_restores_handle_vars_on_return():
 # -----------------------------------------------------------------------------
 # Feature-flag guards
 # -----------------------------------------------------------------------------
+
 
 def test_root_cj_rejects_ws_flag():
   cj = m.ColumnJoin(var_name="z", sources=[_cs("R", Version.FULL, [0, 1])])
@@ -341,10 +361,14 @@ def test_root_cj_bg_flag_routes_to_block_group_variant():
   search on bg_cumulative_work, per-key loop). Single-source BG falls
   back to baseline.'''
   from srdatalog.codegen.jit.root import jit_root_column_join_block_group
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("R", Version.FULL, [0, 1], handle_start=0),
-    _cs("S", Version.FULL, [0, 1], handle_start=1),
-  ])
+
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("R", Version.FULL, [0, 1], handle_start=0),
+      _cs("S", Version.FULL, [0, 1], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   out = jit_root_column_join_block_group(cj, ctx, "body();\n")
   assert "BLOCK-GROUP" in out
@@ -367,6 +391,7 @@ def test_root_cj_rejects_fan_out_explore_flag():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

@@ -8,16 +8,16 @@ as the jit_instructions / jit_root / jit_complete_runner ports land.
 Run directly:
   python3 tests/test_jit_codegen_gen_jit_code.py
 '''
+
 import sys
-from pathlib import Path
 
-
-from integration_helpers import diff_orchestrator, diff_jit_batch
+from integration_helpers import diff_jit_batch, diff_orchestrator
 from test_integration_gen_jit_code import build_gen_jit_code
-from srdatalog.hir import compile_to_mir
+
 from srdatalog.codegen.batchfile import _collect_pipelines
 from srdatalog.codegen.jit.file import gen_jit_file_content_from_execute_pipeline
 from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
+from srdatalog.hir import compile_to_mir
 
 
 def _python_orchestrator(prog, db_type_name: str = "TriangleRules_DB_DeviceDB") -> str:
@@ -28,8 +28,7 @@ def _python_orchestrator(prog, db_type_name: str = "TriangleRules_DB_DeviceDB") 
   '''
   mir = compile_to_mir(prog)
   parts = [
-    gen_step_body(node, db_type_name, is_rec, i)
-    for i, (node, is_rec) in enumerate(mir.steps)
+    gen_step_body(node, db_type_name, is_rec, i) for i, (node, is_rec) in enumerate(mir.steps)
   ]
   return "".join(parts)
 
@@ -62,6 +61,7 @@ def test_gen_jit_code_jit_batch_triangle_byte_match():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   failed = 0

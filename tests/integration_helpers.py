@@ -8,17 +8,15 @@ JIT codegen tests byte-diff C++ output against Nim fixtures in
 python/tests/fixtures/jit/<stem>/. Normalization strips whitespace so the
 fixtures survive the repo's clang-format pre-commit hook.
 '''
+
 import json
 import re
-import sys
 from pathlib import Path
-
 
 from srdatalog.dsl import Program
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir.emit import hir_to_obj
 from srdatalog.mir.emit import print_mir_sexpr
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "integration"
 JIT_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "jit"
@@ -32,10 +30,15 @@ def diff_hir(prog: Program, fixture_stem: str) -> None:
   norm = lambda d: json.dumps(d, indent=2, ensure_ascii=False)
   if norm(actual) != norm(golden):
     import difflib
+
     d = "\n".join(
       difflib.unified_diff(
-        norm(golden).splitlines(), norm(actual).splitlines(),
-        fromfile="nim", tofile="python", lineterm="", n=3,
+        norm(golden).splitlines(),
+        norm(actual).splitlines(),
+        fromfile="nim",
+        tofile="python",
+        lineterm="",
+        n=3,
       )
     )
     raise AssertionError(f"{fixture_stem} HIR mismatch:\n" + d[:4000])
@@ -47,10 +50,15 @@ def diff_mir(prog: Program, fixture_stem: str) -> None:
   golden = (FIXTURES / f"{fixture_stem}.mir.sexpr").read_text().rstrip("\n")
   if actual != golden:
     import difflib
+
     d = "\n".join(
       difflib.unified_diff(
-        golden.splitlines(), actual.splitlines(),
-        fromfile="nim", tofile="python", lineterm="", n=3,
+        golden.splitlines(),
+        actual.splitlines(),
+        fromfile="nim",
+        tofile="python",
+        lineterm="",
+        n=3,
       )
     )
     raise AssertionError(f"{fixture_stem} MIR mismatch:\n" + d[:4000])
@@ -59,6 +67,7 @@ def diff_mir(prog: Program, fixture_stem: str) -> None:
 # -----------------------------------------------------------------------------
 # JIT C++ codegen byte-diff helpers
 # -----------------------------------------------------------------------------
+
 
 def _cpp_norm(s: str) -> str:
   '''Byte-match normalization that survives clang-format reformatting.
@@ -90,10 +99,15 @@ def _cpp_norm(s: str) -> str:
 
 def _unified_cpp_diff(golden: str, actual: str, label: str, limit: int = 4000) -> str:
   import difflib
+
   return "\n".join(
     difflib.unified_diff(
-      golden.splitlines(), actual.splitlines(),
-      fromfile="nim", tofile="python", lineterm="", n=3,
+      golden.splitlines(),
+      actual.splitlines(),
+      fromfile="nim",
+      tofile="python",
+      lineterm="",
+      n=3,
     )
   )[:limit]
 
@@ -118,9 +132,7 @@ def diff_jit_batch(fixture_stem: str, rule_name: str, actual_cpp: str) -> None:
   golden = golden_path.read_text()
   if _cpp_norm(actual_cpp) != _cpp_norm(golden):
     d = _unified_cpp_diff(golden, actual_cpp, f"{fixture_stem}::{rule_name}")
-    raise AssertionError(
-      f"{fixture_stem} jit_batch.{rule_name} mismatch:\n" + d
-    )
+    raise AssertionError(f"{fixture_stem} jit_batch.{rule_name} mismatch:\n" + d)
 
 
 def diff_jit_runner(fixture_stem: str, rule_name: str, actual_cpp: str) -> None:
@@ -133,6 +145,4 @@ def diff_jit_runner(fixture_stem: str, rule_name: str, actual_cpp: str) -> None:
   golden = golden_path.read_text()
   if _cpp_norm(actual_cpp) != _cpp_norm(golden):
     d = _unified_cpp_diff(golden, actual_cpp, f"{fixture_stem}::{rule_name}")
-    raise AssertionError(
-      f"{fixture_stem} jit_runner.{rule_name} mismatch:\n" + d
-    )
+    raise AssertionError(f"{fixture_stem} jit_runner.{rule_name} mismatch:\n" + d)

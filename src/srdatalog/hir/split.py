@@ -12,11 +12,12 @@ IndexSelectionPass:
 Split metadata (split_at, temp_vars, temp_rel_name) is populated by
 JoinPlannerPass from hir_plan._plan_variant.
 '''
+
 from __future__ import annotations
 
-from srdatalog.dsl import Atom, ArgKind
+from srdatalog.dsl import ArgKind, Atom
+from srdatalog.hir.pass_ import Dialect, PassInfo, PassLevel
 from srdatalog.hir.types import HirProgram, RelationDecl
-from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 def _infer_temp_types(variant, decls: list[RelationDecl]) -> list[str]:
@@ -54,6 +55,7 @@ class TempRelSynthesisPass:
   `is_generated=True, is_temp=True`. Column types inferred from above-split
   source relations.
   '''
+
   info = PassInfo(
     name="TempRelSynthesis",
     level=PassLevel.HIR_TRANSFORM,
@@ -66,19 +68,17 @@ class TempRelSynthesisPass:
     existing = {d.rel_name for d in hir.relation_decls}
     for stratum in hir.strata:
       for v in list(stratum.base_variants) + list(stratum.recursive_variants):
-        if (
-          v.split_at >= 0
-          and v.temp_rel_name
-          and v.temp_rel_name not in existing
-        ):
+        if v.split_at >= 0 and v.temp_rel_name and v.temp_rel_name not in existing:
           types = _infer_temp_types(v, hir.relation_decls)
-          hir.relation_decls.append(RelationDecl(
-            rel_name=v.temp_rel_name,
-            types=types,
-            semiring="NoProvenance",
-            is_generated=True,
-            is_temp=True,
-          ))
+          hir.relation_decls.append(
+            RelationDecl(
+              rel_name=v.temp_rel_name,
+              types=types,
+              semiring="NoProvenance",
+              is_generated=True,
+              is_temp=True,
+            )
+          )
           existing.add(v.temp_rel_name)
     return hir
 
@@ -90,6 +90,7 @@ class TempIndexRegistrationPass:
   only affects temp rels (which weren't seen by the selection pass
   because they're head-only here).
   '''
+
   info = PassInfo(
     name="TempIndexRegistration",
     level=PassLevel.HIR_TRANSFORM,

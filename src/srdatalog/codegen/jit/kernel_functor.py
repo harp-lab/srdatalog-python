@@ -21,19 +21,21 @@ Two kinds of output:
 jit_full_kernel is the core entry: given a rule name and its MIR
 pipeline, emit the full kernel functor + inner pipeline body.
 '''
+
 from __future__ import annotations
 
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import CodeGenContext, new_code_gen_context
 from srdatalog.codegen.jit.emit_helpers import (
-  count_handles_in_pipeline, assign_handle_positions,
+  assign_handle_positions,
+  count_handles_in_pipeline,
 )
 from srdatalog.codegen.jit.pipeline import jit_pipeline
-
 
 # -----------------------------------------------------------------------------
 # Functor envelope
 # -----------------------------------------------------------------------------
+
 
 def gen_dedup_table_struct(arity: int) -> str:
   '''Emit the DedupTable struct nested inside a rule's kernel scope.
@@ -85,9 +87,7 @@ def gen_dedup_table_struct(arity: int) -> str:
   code += "      for (uint32_t p = 0; p < 128; p++) {\n"
   code += "        uint32_t s = (base + p) & (capacity - 1);\n"
   code += "        unsigned long long old = atomicCAS(&hash_slots[s], 0ULL, h);\n"
-  code += (
-    "        if (old == 0ULL) { tid_slots[s] = thread_id; return true; } // claimed\n"
-  )
+  code += "        if (old == 0ULL) { tid_slots[s] = thread_id; return true; } // claimed\n"
   code += "        if (old == h) return false; // same hash = duplicate\n"
   code += "        // old != h: collision with different tuple -> probe next\n"
   code += "      }\n"
@@ -108,14 +108,8 @@ def gen_dedup_table_struct(arity: int) -> str:
   code += "      for (uint32_t p = 0; p < 128; p++) {\n"
   code += "        uint32_t s = (base + p) & (capacity - 1);\n"
   code += "        unsigned long long stored = hash_slots[s];\n"
-  code += (
-    "        if (stored == h) return tid_slots[s] == thread_id;"
-    " // found: am I winner?\n"
-  )
-  code += (
-    "        if (stored == 0ULL) return true;"
-    " // not found -> probe overflow, emit\n"
-  )
+  code += "        if (stored == h) return tid_slots[s] == thread_id; // found: am I winner?\n"
+  code += "        if (stored == 0ULL) return true; // not found -> probe overflow, emit\n"
   code += "        // different hash -> probe next (collision resolution)\n"
   code += "      }\n"
   code += "      return true; // probe overflow -> emit\n"
@@ -125,7 +119,9 @@ def gen_dedup_table_struct(arity: int) -> str:
 
 
 def jit_functor_start(
-  rule_name: str, scalar_mode: bool = False, dedup_hash: bool = False,
+  rule_name: str,
+  scalar_mode: bool = False,
+  dedup_hash: bool = False,
 ) -> str:
   '''Open `struct Kernel_<rule> { ... operator()(...) const {`.
 
@@ -190,6 +186,7 @@ def jit_kernel_declaration(rule_name: str) -> str:
 # Full kernel emit (functor start + pipeline body + functor end)
 # -----------------------------------------------------------------------------
 
+
 def _first_dest_arity(pipeline: list[m.MirNode]) -> int:
   '''Arity of the first InsertInto's column set. Used to size the
   DedupTable's hash function (one v0...vN-1 parameter per column).'''
@@ -200,7 +197,9 @@ def _first_dest_arity(pipeline: list[m.MirNode]) -> int:
 
 
 def jit_full_kernel(
-  rule_name: str, pipeline: list[m.MirNode], ctx: CodeGenContext,
+  rule_name: str,
+  pipeline: list[m.MirNode],
+  ctx: CodeGenContext,
 ) -> str:
   '''Complete kernel functor emit — preamble banner + struct envelope +
   jit_pipeline body + envelope close. Sets `ctx.indent = 4` to match
@@ -220,7 +219,9 @@ def jit_full_kernel(
   )
   # Open struct + pre-operator() DedupTable when dedup_hash.
   header = banner + jit_functor_start(
-    rule_name, ctx.scalar_mode, dedup_hash=ctx.dedup_hash_enabled,
+    rule_name,
+    ctx.scalar_mode,
+    dedup_hash=ctx.dedup_hash_enabled,
   )
   # DedupTable struct goes INSIDE the kernel struct but BEFORE
   # operator() — Nim emits it between the constexpr decls and the
@@ -241,7 +242,7 @@ def jit_full_kernel(
     # matching Nim's placement.
     dedup_struct = gen_dedup_table_struct(arity)
     # Insert after `static constexpr int kGroupSize = ...;\n\n`
-    marker = f"static constexpr int kGroupSize = "
+    marker = "static constexpr int kGroupSize = "
     marker_pos = header.find(marker)
     if marker_pos != -1:
       newline_after = header.find("\n\n", marker_pos)
@@ -295,7 +296,9 @@ def jit_kernel_full(node: m.ExecutePipeline) -> str:
 
 
 def jit_kernel_definition(
-  rule_name: str, pipeline: list[m.MirNode], ctx: CodeGenContext,
+  rule_name: str,
+  pipeline: list[m.MirNode],
+  ctx: CodeGenContext,
 ) -> str:
   '''Out-of-line operator() definition for extern-template batch files.
   Ported structurally; we don't exercise this path yet since our

@@ -27,15 +27,21 @@ Typical usage:
     })
     prog = resolve_program_consts(build_doop_program(consts), consts)
 '''
+
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
-from typing import Iterable
 
 from srdatalog.dsl import (
-  ArgKind, Atom, ClauseArg, Conjunction, Filter, Negation, Program, Rule,
+  ArgKind,
+  Atom,
+  ClauseArg,
+  Filter,
+  Negation,
+  Program,
+  Rule,
 )
 
 
@@ -67,8 +73,7 @@ def load_meta(
     value = data[key]
     if not isinstance(value, int):
       raise TypeError(
-        f"dataset_const {name!r}: expected int value, got {type(value).__name__} "
-        f"({value!r})"
+        f"dataset_const {name!r}: expected int value, got {type(value).__name__} ({value!r})"
       )
     out[name] = value
   return out
@@ -131,9 +136,11 @@ def _rewrite_clause(clause, consts: dict[str, int]):
   if hasattr(clause, "code") and isinstance(getattr(clause, "code", None), str):
     # Generic best-effort for Let-like nodes with a `code` field.
     import dataclasses
+
     if dataclasses.is_dataclass(clause):
       return dataclasses.replace(
-        clause, code=_rewrite_cpp_code(clause.code, consts),
+        clause,
+        code=_rewrite_cpp_code(clause.code, consts),
       )
   return clause
 
@@ -142,11 +149,15 @@ def resolve_rule_consts(rule: Rule, consts: dict[str, int]) -> Rule:
   '''Rewrite a single Rule: substitute dataset consts in head, body,
   and debug_code. Returns a new Rule (dataclass is frozen).'''
   import dataclasses
+
   new_head = _rewrite_atom(rule.head, consts)
   new_body = tuple(_rewrite_clause(c, consts) for c in rule.body)
   new_debug = _rewrite_cpp_code(rule.debug_code, consts) if rule.debug_code else ""
   return dataclasses.replace(
-    rule, head=new_head, body=new_body, debug_code=new_debug,
+    rule,
+    head=new_head,
+    body=new_body,
+    debug_code=new_debug,
   )
 
 

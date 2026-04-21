@@ -12,17 +12,18 @@ was missing the tuple parens and would have raised `TypeError` the
 moment the code actually ran. Rewritten as `isinstance(op, (m.Scan,
 m.Negation, m.Aggregate))`.
 '''
+
 from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import Optional, Union
 
 import srdatalog.mir.types as m
 from srdatalog.hir.types import Version
 
-
 # -----------------------------------------------------------------------------
 # Types
 # -----------------------------------------------------------------------------
+
 
 @dataclass
 class ViewSpec:
@@ -30,6 +31,7 @@ class ViewSpec:
   `handle_idx` is the pipeline-local slot the node was assigned (carried
   over from the MIR node's `handle_start` field; -1 means unassigned).
   '''
+
   rel_name: str
   version: Version
   index: list[int]
@@ -45,6 +47,7 @@ class CodeGenContext:
   typed as an unconstrained `dict` — mhk's code stores both spec-key
   strings and integer cursor handles in it.
   '''
+
   output_name: str
   is_counting: bool
   is_jit_mode: bool
@@ -69,6 +72,7 @@ class CodeGenContext:
 # Small helpers
 # -----------------------------------------------------------------------------
 
+
 def spec_key(rel_name: str, version: Version, index: list[int]) -> str:
   '''Canonical key for a (rel, ver, idx) triple used by the view-spec
   dedupe table and by downstream handle-to-view lookups.
@@ -85,7 +89,7 @@ def assign_handles(pipeline: m.ExecutePipeline) -> m.ExecutePipeline:
   return pipeline
 
 
-def _source_rel_ver_idx(node: m.MirNode) -> Optional[tuple[str, Version, list[int]]]:
+def _source_rel_ver_idx(node: m.MirNode) -> tuple[str, Version, list[int]] | None:
   '''Pull the `(rel, ver, index)` tuple out of any source-bearing leaf.
   Returns None for non-source nodes (ColumnJoin / CartesianJoin / ...).'''
   if isinstance(node, (m.ColumnSource, m.Scan, m.Negation, m.Aggregate)):
@@ -96,6 +100,7 @@ def _source_rel_ver_idx(node: m.MirNode) -> Optional[tuple[str, Version, list[in
 # -----------------------------------------------------------------------------
 # View-spec collection
 # -----------------------------------------------------------------------------
+
 
 def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
   '''Walk pipeline body ops and extract a de-duplicated list of the
@@ -144,11 +149,12 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
 # Source lookup in ExecutePipeline.source_specs
 # -----------------------------------------------------------------------------
 
+
 def find_source_idx(
   specs: list[m.MirNode],
   rel_name: str,
   index: list[int],
-  version: Optional[Version],
+  version: Version | None,
 ) -> int:
   '''Locate a source node in a pipeline's `source_specs`. `version=None`
   ignores version when matching. Returns -1 on miss.
@@ -170,6 +176,7 @@ def find_source_idx(
 # -----------------------------------------------------------------------------
 # View declarations
 # -----------------------------------------------------------------------------
+
 
 def emit_view_declarations(pipeline: m.ExecutePipeline, ctx: CodeGenContext) -> str:
   '''Top-of-kernel view declarations: emit `using ViewType`/`HandleType`
@@ -196,7 +203,10 @@ def emit_view_declarations(pipeline: m.ExecutePipeline, ctx: CodeGenContext) -> 
     idx_str = "_".join(str(v) for v in spec.index)
     view_var = f"view_{spec.rel_name}_{idx_str}_{spec.version.name}"
     view_idx = find_source_idx(
-      pipeline.source_specs, spec.rel_name, spec.index, spec.version,
+      pipeline.source_specs,
+      spec.rel_name,
+      spec.index,
+      spec.version,
     )
     if view_idx == -1:
       # Fall back to the handle recorded on the node; warn so regressions

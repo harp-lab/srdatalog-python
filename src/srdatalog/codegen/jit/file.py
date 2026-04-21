@@ -17,14 +17,15 @@ Other procs ported:
   - JIT_COMMON_INCLUDES, JIT_FILE_FOOTER constants
   - gen_jit_file_content_from_execute_pipeline(node) — convenience
 '''
+
 from __future__ import annotations
-from typing import Sequence
+
+from collections.abc import Sequence
 
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.emit_helpers import assign_handle_positions
 from srdatalog.codegen.jit.kernel_functor import jit_full_kernel
-
 
 # -----------------------------------------------------------------------------
 # File preamble and footer (byte-identical to jit_file.nim)
@@ -66,6 +67,7 @@ JIT_FILE_FOOTER = """
 # File content generation
 # -----------------------------------------------------------------------------
 
+
 def gen_jit_file_content(
   rule_name: str,
   pipeline: list[m.MirNode],
@@ -95,10 +97,7 @@ def gen_jit_file_content(
     result += "// Explicit template instantiation\n"
     sources_tuple = "std::tuple<" + ", ".join(source_specs) + ">"
     dests_tuple = "std::tuple<" + ", ".join(dest_specs) + ">"
-    result += (
-      f"template struct JitExecutor<Kernel_{rule_name}, "
-      f"{sources_tuple}, {dests_tuple}>;\n"
-    )
+    result += f"template struct JitExecutor<Kernel_{rule_name}, {sources_tuple}, {dests_tuple}>;\n"
     result += "\n"
 
   result += JIT_FILE_FOOTER

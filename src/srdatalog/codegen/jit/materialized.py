@@ -38,17 +38,17 @@ Public API:
     Legacy in-kernel variant. Not used by Nim's live code and not
     exercised by our fixtures — ported for completeness.
 '''
+
 from __future__ import annotations
-from typing import Optional
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import CodeGenContext, ind
-
+from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------
 # Detection
 # -----------------------------------------------------------------------------
+
 
 def is_materialized_pipeline(ops: list[m.MirNode]) -> bool:
   '''True iff the pipeline contains a ProbeJoin — which switches
@@ -59,6 +59,7 @@ def is_materialized_pipeline(ops: list[m.MirNode]) -> bool:
 # -----------------------------------------------------------------------------
 # Helper kernels (fixed string, matches Nim)
 # -----------------------------------------------------------------------------
+
 
 def gen_materialized_join_helpers() -> str:
   '''Three __global__ CUDA helper kernels + comments. Embedded verbatim
@@ -133,7 +134,8 @@ __global__ void gather_column_kernel(
 # Version normalization
 # -----------------------------------------------------------------------------
 
-def _version_cpp(ver: "str | Version") -> str:
+
+def _version_cpp(ver: str | Version) -> str:
   '''Map whatever the MIR carries (string or Version) to the C++
   `*_VER` constant. Matches Nim's `case` on the stringly-typed version.
   '''
@@ -153,8 +155,11 @@ def _version_cpp(ver: "str | Version") -> str:
 # Legacy in-kernel variant (gen_materialized_join_kernel)
 # -----------------------------------------------------------------------------
 
+
 def gen_materialized_join_kernel(
-  ops: list[m.MirNode], rule_name: str, ctx: CodeGenContext,
+  ops: list[m.MirNode],
+  rule_name: str,
+  ctx: CodeGenContext,
 ) -> str:
   '''Emit in-kernel materialized-join code. Unused by Nim's live
   codegen (superseded by the host-side runner below) but ported for
@@ -163,7 +168,7 @@ def gen_materialized_join_kernel(
   i = ind(ctx)
   code = ""
 
-  scan_op: Optional[m.Scan] = None
+  scan_op: m.Scan | None = None
   probe_join_ops: list[m.ProbeJoin] = []
   gather_ops: list[m.GatherColumn] = []
   insert_ops: list[m.InsertInto] = []
@@ -190,10 +195,7 @@ def gen_materialized_join_kernel(
   scan_view_var = f"view_{scan_rel}_{scan_idx_join_under}"
   scan_idx_join_comma = ", ".join(str(c) for c in scan_op.index)
 
-  code += (
-    i + f"auto {scan_view_var} = db.get_view<{scan_rel}, "
-    f"{scan_idx_join_comma}>();\n"
-  )
+  code += i + f"auto {scan_view_var} = db.get_view<{scan_rel}, {scan_idx_join_comma}>();\n"
   code += i + f"auto {scan_rel}_size = {scan_view_var}.size();\n"
   code += i + f"if ({scan_rel}_size == 0) return;\n\n"
 
@@ -201,13 +203,8 @@ def gen_materialized_join_kernel(
   current_size_var = f"{scan_rel}_size"
 
   code += i + "// Initial row IDs are just [0, N)\n"
-  code += (
-    i + f"thrust::device_vector<uint32_t> {current_buffer_var}({current_size_var});\n"
-  )
-  code += (
-    i + f"thrust::sequence({current_buffer_var}.begin(), "
-    f"{current_buffer_var}.end());\n\n"
-  )
+  code += i + f"thrust::device_vector<uint32_t> {current_buffer_var}({current_size_var});\n"
+  code += i + f"thrust::sequence({current_buffer_var}.begin(), {current_buffer_var}.end());\n\n"
 
   # Phase 2: Probe joins
   buffer_counter = 0
@@ -219,15 +216,10 @@ def gen_materialized_join_kernel(
     probe_idx_join_under = "_".join(str(c) for c in probe_op.probe_index)
     probe_idx_join_comma = ", ".join(str(c) for c in probe_op.probe_index)
 
-    code += (
-      i + f"// Phase 2.{buffer_counter}: Probe {probe_rel} on {join_key}\n"
-    )
+    code += i + f"// Phase 2.{buffer_counter}: Probe {probe_rel} on {join_key}\n"
 
     probe_view_var = f"view_{probe_rel}_{probe_idx_join_under}"
-    code += (
-      i + f"auto {probe_view_var} = db.get_view<{probe_rel}, "
-      f"{probe_idx_join_comma}>();\n"
-    )
+    code += i + f"auto {probe_view_var} = db.get_view<{probe_rel}, {probe_idx_join_comma}>();\n"
 
     count_var = f"{output_buf}_counts"
     input_n = current_size_var
@@ -242,17 +234,12 @@ def gen_materialized_join_kernel(
     offset_var = f"{output_buf}_offsets"
     total_var = f"{output_buf}_total"
 
-    code += (
-      i + f"thrust::device_vector<uint32_t> {offset_var}({input_n} + 1);\n"
-    )
+    code += i + f"thrust::device_vector<uint32_t> {offset_var}({input_n} + 1);\n"
     code += (
       i + f"thrust::exclusive_scan({count_var}.begin(), {count_var}.end(), "
       f"{offset_var}.begin(), 0u);\n"
     )
-    code += (
-      i + f"{offset_var}[{input_n}] = {offset_var}[{input_n}-1] + "
-      f"{count_var}[{input_n}-1];\n"
-    )
+    code += i + f"{offset_var}[{input_n}] = {offset_var}[{input_n}-1] + {count_var}[{input_n}-1];\n"
     code += i + f"uint32_t {total_var} = {offset_var}[{input_n}];\n"
     code += i + f"if ({total_var} == 0) return;\n\n"
 
@@ -260,12 +247,8 @@ def gen_materialized_join_kernel(
     pair_buf_right = f"{output_buf}_right"
 
     code += i + "// Materialize row ID pairs\n"
-    code += (
-      i + f"thrust::device_vector<uint32_t> {pair_buf_left}({total_var});\n"
-    )
-    code += (
-      i + f"thrust::device_vector<uint32_t> {pair_buf_right}({total_var});\n"
-    )
+    code += i + f"thrust::device_vector<uint32_t> {pair_buf_left}({total_var});\n"
+    code += i + f"thrust::device_vector<uint32_t> {pair_buf_right}({total_var});\n"
     code += (
       i + f"probe_materialize_pairs({current_buffer_var}, {join_key}_gather, "
       f"{probe_view_var}, {offset_var}.data(), {pair_buf_left}.data(), "
@@ -284,9 +267,7 @@ def gen_materialized_join_kernel(
       output_var = gather_op.output_var
       input_buf = gather_op.input_buffer
 
-      code += (
-        i + f"thrust::device_vector<int64_t> {output_var}_gather({current_size_var});\n"
-      )
+      code += i + f"thrust::device_vector<int64_t> {output_var}_gather({current_size_var});\n"
       code += (
         i + f"gather_column<{gather_rel}, {gather_col}>({input_buf}"
         f"_right, {output_var}_gather.data());\n"
@@ -302,9 +283,7 @@ def gen_materialized_join_kernel(
       code += i + f"// Insert into {dest_rel}\n"
       code += i + f"auto {dest_rel}_dest = db.get_new<{dest_rel}>();\n"
       gather_args = ", ".join(f"{v}_gather" for v in dest_vars)
-      code += (
-        i + f"insert_gathered_tuples({dest_rel}_dest, {gather_args});\n"
-      )
+      code += i + f"insert_gathered_tuples({dest_rel}_dest, {gather_args});\n"
 
   return code
 
@@ -313,8 +292,10 @@ def gen_materialized_join_kernel(
 # Materialized runner (the main entry)
 # -----------------------------------------------------------------------------
 
+
 def gen_materialized_runner(
-  node: m.ExecutePipeline, db_type_name: str,
+  node: m.ExecutePipeline,
+  db_type_name: str,
 ) -> str:
   '''Emit a host-side Thrust executor for a materialized-join pipeline.
 
@@ -329,7 +310,7 @@ def gen_materialized_runner(
   rule_name = node.rule_name
   pipeline = list(node.pipeline)
 
-  scan_op: Optional[m.Scan] = None
+  scan_op: m.Scan | None = None
   probe_join_ops: list[m.ProbeJoin] = []
   gather_ops: list[m.GatherColumn] = []
   insert_ops: list[m.InsertInto] = []
@@ -379,9 +360,7 @@ def gen_materialized_runner(
   # Phase 1
   scan_idx_comma = ", ".join(str(c) for c in scan_op.index)
   result += "    // Phase 1: Get initial data from first relation\n"
-  result += (
-    f"    auto& rel_0 = get_relation_by_schema<{first_schema}, {first_version}>(db);\n"
-  )
+  result += f"    auto& rel_0 = get_relation_by_schema<{first_schema}, {first_version}>(db);\n"
   result += (
     f"    auto& idx_0 = rel_0.ensure_index(SRDatalog::IndexSpec{{{{{scan_idx_comma}}}}}, false);\n"
   )
@@ -409,12 +388,9 @@ def gen_materialized_runner(
     pair_left = f"left_{rel_idx}"
     pair_right = f"right_{rel_idx}"
 
+    result += f"    // Phase 2.{buffer_idx + 1}: Probe {probe_rel} on {join_key}\n"
     result += (
-      f"    // Phase 2.{buffer_idx + 1}: Probe {probe_rel} on {join_key}\n"
-    )
-    result += (
-      f"    auto& rel_{rel_idx} = get_relation_by_schema<{probe_rel}, "
-      f"{probe_version}>(db);\n"
+      f"    auto& rel_{rel_idx} = get_relation_by_schema<{probe_rel}, {probe_version}>(db);\n"
     )
     result += (
       f"    auto& idx_{rel_idx} = rel_{rel_idx}.ensure_index("
@@ -424,23 +400,17 @@ def gen_materialized_runner(
 
     # Gather join key from current rowids.
     result += f"    // Gather join key '{join_key}' from current buffer\n"
-    result += (
-      f"    thrust::device_vector<ValueType> keys_{rel_idx}(current_n);\n"
-    )
+    result += f"    thrust::device_vector<ValueType> keys_{rel_idx}(current_n);\n"
     result += "    // Access column 0 via col_data_ (col_data_ + 0 * stride_)\n"
     result += (
       f"    thrust::gather(thrust::device, {current_left_rowids}.begin(), "
       f"{current_left_rowids}.end(),\n"
     )
-    result += (
-      f"                   view_{prev_rel_idx}.col_data_, keys_{rel_idx}.begin());\n\n"
-    )
+    result += f"                   view_{prev_rel_idx}.col_data_, keys_{rel_idx}.begin());\n\n"
 
     # Count matches.
     result += "    // Count matches per input row\n"
-    result += (
-      f"    thrust::device_vector<uint32_t> counts_{rel_idx}(current_n);\n"
-    )
+    result += f"    thrust::device_vector<uint32_t> counts_{rel_idx}(current_n);\n"
     result += (
       f"    probe_count_matches({current_left_rowids}, keys_{rel_idx}, "
       f"view_{rel_idx}, counts_{rel_idx});\n\n"
@@ -448,32 +418,21 @@ def gen_materialized_runner(
 
     # Offsets.
     result += "    // Compute output offsets\n"
-    result += (
-      f"    thrust::device_vector<uint32_t> offsets_{rel_idx}(current_n);\n"
-    )
+    result += f"    thrust::device_vector<uint32_t> offsets_{rel_idx}(current_n);\n"
     result += (
       f"    uint32_t total_{rel_idx} = compute_output_offsets(counts_{rel_idx}, "
       f"offsets_{rel_idx});\n"
     )
-    result += (
-      f"    if (total_{rel_idx} == 0) {{ nvtxRangePop(); return; }}\n\n"
-    )
+    result += f"    if (total_{rel_idx} == 0) {{ nvtxRangePop(); return; }}\n\n"
 
     # Materialize pairs.
     result += "    // Materialize (left, right) row ID pairs\n"
+    result += f"    thrust::device_vector<uint32_t> {pair_left}(total_{rel_idx});\n"
+    result += f"    thrust::device_vector<uint32_t> {pair_right}(total_{rel_idx});\n"
     result += (
-      f"    thrust::device_vector<uint32_t> {pair_left}(total_{rel_idx});\n"
+      f"    probe_materialize_pairs({current_left_rowids}, keys_{rel_idx}, view_{rel_idx},\n"
     )
-    result += (
-      f"    thrust::device_vector<uint32_t> {pair_right}(total_{rel_idx});\n"
-    )
-    result += (
-      f"    probe_materialize_pairs({current_left_rowids}, keys_{rel_idx}, "
-      f"view_{rel_idx},\n"
-    )
-    result += (
-      f"                            offsets_{rel_idx}, {pair_left}, {pair_right});\n\n"
-    )
+    result += f"                            offsets_{rel_idx}, {pair_left}, {pair_right});\n\n"
 
     result += "    // Update current state\n"
     result += f"    current_n = total_{rel_idx};\n\n"
@@ -491,12 +450,8 @@ def gen_materialized_runner(
       gather_var = gather_op.output_var
       gather_rel = gather_op.rel_name
       gather_col = gather_op.column
-      result += (
-        f"    thrust::device_vector<ValueType> {gather_var}_data(current_n);\n"
-      )
-      result += (
-        f"    // Note: Gathering {gather_var} from {gather_rel} column {gather_col}\n"
-      )
+      result += f"    thrust::device_vector<ValueType> {gather_var}_data(current_n);\n"
+      result += f"    // Note: Gathering {gather_var} from {gather_rel} column {gather_col}\n"
       result += "    // Using simplified gather from last right-side row IDs\n"
       result += "    // TODO: Track which buffer corresponds to which relation\n\n"
     result += "\n"
@@ -509,26 +464,20 @@ def gen_materialized_runner(
     arity = len(dest_vars)
 
     result += f"    // Phase 4: Insert into {dest_rel}\n"
-    result += (
-      f"    auto& dest = get_relation_by_schema<{dest_rel}, NEW_VER>(db);\n"
-    )
+    result += f"    auto& dest = get_relation_by_schema<{dest_rel}, NEW_VER>(db);\n"
     result += "    size_t old_size = dest.size();\n"
     result += "    size_t new_size = old_size + current_n;\n"
     result += "    dest.resize_interned_columns(new_size);\n\n"
 
     result += "    // Gather output columns into device vectors\n"
     for col_idx, _dest_var in enumerate(dest_vars):
-      result += (
-        f"    thrust::device_vector<ValueType> out_col_{col_idx}(current_n);\n"
-      )
+      result += f"    thrust::device_vector<ValueType> out_col_{col_idx}(current_n);\n"
     result += "\n"
 
     # First output column: chain back through the left buffers to rowids_0,
     # then gather from view_0 col 0.
     if len(dest_vars) >= 1:
-      result += (
-        "    // Output column 0 (e.g. invocation): gather from view_0 col 0 via chained left row IDs\n"
-      )
+      result += "    // Output column 0 (e.g. invocation): gather from view_0 col 0 via chained left row IDs\n"
       result += "    // Chained gather: left_N -> left_N-1 -> ... -> rowids_0\n"
 
       num_probes = len(probe_join_ops)
@@ -548,9 +497,7 @@ def gen_materialized_runner(
           result += (
             "    thrust::gather(thrust::device, chained_rowids.begin(), chained_rowids.end(),\n"
           )
-          result += (
-            f"                   left_{back_idx}.begin(), chained_rowids.begin());\n"
-          )
+          result += f"                   left_{back_idx}.begin(), chained_rowids.begin());\n"
         result += (
           "    thrust::gather(thrust::device, chained_rowids.begin(), chained_rowids.end(),\n"
         )
@@ -564,12 +511,8 @@ def gen_materialized_runner(
     # Second output column: gather from last view's col 2 via right rowids.
     if len(dest_vars) >= 2:
       last_rel_idx = len(probe_join_ops)
-      result += (
-        "    // Output column 1 (e.g. toMeth): from last view via right row IDs\n"
-      )
-      result += (
-        f"    thrust::gather(thrust::device, right_{last_rel_idx}.begin(), right_{last_rel_idx}.end(),\n"
-      )
+      result += "    // Output column 1 (e.g. toMeth): from last view via right row IDs\n"
+      result += f"    thrust::gather(thrust::device, right_{last_rel_idx}.begin(), right_{last_rel_idx}.end(),\n"
       result += (
         f"                   view_{last_rel_idx}.col_data_ + 2 * view_{last_rel_idx}.stride_,\n"
       )
@@ -578,12 +521,8 @@ def gen_materialized_runner(
     # Copy gathered columns to destination.
     result += "    // Copy to destination relation columns\n"
     for col_idx, _dest_var in enumerate(dest_vars):
-      result += (
-        f"    thrust::copy(out_col_{col_idx}.begin(), out_col_{col_idx}.end(),\n"
-      )
-      result += (
-        f"                 dest.template interned_column<{col_idx}>() + old_size);\n"
-      )
+      result += f"    thrust::copy(out_col_{col_idx}.begin(), out_col_{col_idx}.end(),\n"
+      result += f"                 dest.template interned_column<{col_idx}>() + old_size);\n"
     result += "\n"
 
   result += "\n    nvtxRangePop();\n"

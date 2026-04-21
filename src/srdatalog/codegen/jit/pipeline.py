@@ -41,58 +41,67 @@ Scope (matches Phase B/C baseline):
 The WS / BG / tiled / fan-out branches will be filled in as the programs
 that exercise them come online.
 '''
+
 from __future__ import annotations
-from typing import Optional
 
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
-  CodeGenContext, ind, inc_indent, gen_unique_name, with_bound_var,
-  get_rel_index_type, gen_handle_state_key, gen_index_spec_key,
-  gen_view_var_name, NegPreNarrowInfo,
-)
-from srdatalog.codegen.jit.view_management import (
-  collect_unique_view_specs, jit_emit_view_declarations,
+  CodeGenContext,
+  NegPreNarrowInfo,
+  gen_handle_state_key,
+  gen_index_spec_key,
+  gen_unique_name,
+  gen_view_var_name,
+  get_rel_index_type,
+  inc_indent,
+  ind,
 )
 from srdatalog.codegen.jit.emit_helpers import (
-  jit_filter, jit_constant_bind, jit_insert_into,
+  jit_constant_bind,
+  jit_filter,
+  jit_insert_into,
 )
-from srdatalog.codegen.jit.scan_negation import jit_scan, jit_negation, jit_aggregate
 from srdatalog.codegen.jit.instructions import (
-  jit_nested_column_join, jit_nested_cartesian_join, jit_positioned_extract,
+  jit_nested_cartesian_join,
+  jit_nested_column_join,
+  jit_positioned_extract,
 )
 from srdatalog.codegen.jit.root import (
-  jit_root_scan, jit_root_cartesian_join, jit_root_column_join,
+  jit_root_cartesian_join,
+  jit_root_column_join,
+  jit_root_scan,
 )
-
+from srdatalog.codegen.jit.scan_negation import jit_aggregate, jit_negation, jit_scan
+from srdatalog.codegen.jit.view_management import (
+  collect_unique_view_specs,
+  jit_emit_view_declarations,
+)
 
 # -----------------------------------------------------------------------------
 # Feature-flag guards shared by the walker
 # -----------------------------------------------------------------------------
 
+
 def _reject_unsupported_flags(ctx: CodeGenContext, where: str) -> None:
   if ctx.ws_enabled:
-    raise NotImplementedError(
-      f"jit_pipeline.{where}: work-stealing branch not yet ported"
-    )
+    raise NotImplementedError(f"jit_pipeline.{where}: work-stealing branch not yet ported")
   if ctx.bg_histogram_mode:
-    raise NotImplementedError(
-      f"jit_pipeline.{where}: block-group histogram branch not yet ported"
-    )
+    raise NotImplementedError(f"jit_pipeline.{where}: block-group histogram branch not yet ported")
   # ctx.bg_enabled is now supported at the root CJ level; nested ops
   # run with bg_enabled=False (handle narrowing already restricted work
   # to this warp's first-level children — no further slicing needed).
   if ctx.is_fan_out_explore:
-    raise NotImplementedError(
-      f"jit_pipeline.{where}: fan-out explore branch not yet ported"
-    )
+    raise NotImplementedError(f"jit_pipeline.{where}: fan-out explore branch not yet ported")
 
 
 # -----------------------------------------------------------------------------
 # jit_nested_pipeline
 # -----------------------------------------------------------------------------
 
+
 def _register_negation_pre_narrow(
-  rest: list[m.MirNode], ctx: CodeGenContext,
+  rest: list[m.MirNode],
+  ctx: CodeGenContext,
 ) -> None:
   '''Scan `rest` for Negation ops; split each one's prefix vars into
   pre-Cartesian (contiguous leading prefix that are all NOT
@@ -117,14 +126,17 @@ def _register_negation_pre_narrow(
 
     if pre_vars or neg_op.const_args:
       neg_spec_key = gen_index_spec_key(
-        neg_op.rel_name, list(neg_op.index), neg_op.version.code,
+        neg_op.rel_name,
+        list(neg_op.index),
+        neg_op.version.code,
       )
       neg_view_var = ctx.view_vars.get(neg_spec_key, "")
       if not neg_view_var:
         neg_view_var = ctx.view_vars.get(str(neg_op.handle_start), "")
       if not neg_view_var:
         neg_view_var = gen_view_var_name(
-          neg_op.rel_name + "_neg", neg_op.handle_start,
+          neg_op.rel_name + "_neg",
+          neg_op.handle_start,
         )
 
       ctx.neg_pre_narrow[neg_op.handle_start] = NegPreNarrowInfo(
@@ -146,7 +158,8 @@ def _rest_is_safe_for_cartesian_product(rest: list[m.MirNode]) -> bool:
 
 
 def jit_nested_pipeline(
-  ops: list[m.MirNode], ctx: CodeGenContext,
+  ops: list[m.MirNode],
+  ctx: CodeGenContext,
 ) -> str:
   '''Recursively dispatch NESTED ops. Returns the full body text.
 
@@ -160,9 +173,12 @@ def jit_nested_pipeline(
       ctx.tiled_cartesian_ballot_done = False
       i = ind(ctx)
       return (
-        i + "    warp_local_count += _tc_active;\n"
-        + i + "  }\n"      # closes `if (_tc_active > 0) {`
-        + i + "}\n"        # closes the outer scope
+        i
+        + "    warp_local_count += _tc_active;\n"
+        + i
+        + "  }\n"  # closes `if (_tc_active > 0) {`
+        + i
+        + "}\n"  # closes the outer scope
       )
     return ""
 
@@ -183,7 +199,10 @@ def jit_nested_pipeline(
         continue
       child_prefixes = list(src.prefix_vars) + [var_name]
       state_key = gen_handle_state_key(
-        src.rel_name, list(src.index), child_prefixes, src.version.code,
+        src.rel_name,
+        list(src.index),
+        child_prefixes,
+        src.version.code,
       )
       child_var = f"ch_{src.rel_name}_{src.handle_start}_{var_name}"
       ctx.handle_vars[state_key] = child_var
@@ -199,9 +218,7 @@ def jit_nested_pipeline(
   if isinstance(op, m.CartesianJoin):
     _reject_unsupported_flags(ctx, "CartesianJoin")
     if ctx.ws_cartesian_valid_var:
-      raise NotImplementedError(
-        "jit_pipeline.CartesianJoin: ws dual-body path not yet ported"
-      )
+      raise NotImplementedError("jit_pipeline.CartesianJoin: ws dual-body path not yet ported")
 
     # Set Cartesian state BEFORE body renders so nested ops see the flag.
     previous_inside = ctx.inside_cartesian
@@ -276,7 +293,10 @@ def jit_nested_pipeline(
       ctx.tiled_cartesian_valid_var = tc_valid_name
       try:
         return jit_nested_cartesian_join(
-          op, ctx, fallback_body, tiled_body=tiled_body,
+          op,
+          ctx,
+          fallback_body,
+          tiled_body=tiled_body,
         )
       finally:
         ctx.inside_cartesian = previous_inside
@@ -323,6 +343,7 @@ def jit_nested_pipeline(
         body = jit_nested_pipeline(rest, ctx)
       finally:
         from srdatalog.codegen.jit.context import dec_indent
+
         dec_indent(ctx)
     else:
       body = jit_nested_pipeline(rest, ctx)
@@ -334,6 +355,7 @@ def jit_nested_pipeline(
 # -----------------------------------------------------------------------------
 # jit_pipeline (top-level)
 # -----------------------------------------------------------------------------
+
 
 def jit_pipeline(
   ops: list[m.MirNode],
@@ -365,7 +387,10 @@ def jit_pipeline(
       if not isinstance(src, m.ColumnSource):
         continue
       state_key = gen_handle_state_key(
-        src.rel_name, list(src.index), [root_var_name], src.version.code,
+        src.rel_name,
+        list(src.index),
+        [root_var_name],
+        src.version.code,
       )
       handle_var = f"h_{src.rel_name}_{src.handle_start}_root"
       ctx.handle_vars[state_key] = handle_var
@@ -413,6 +438,7 @@ def jit_pipeline(
   if isinstance(first_op, m.ColumnJoin):
     if ctx.bg_enabled:
       from srdatalog.codegen.jit.root import jit_root_column_join_block_group
+
       code += jit_root_column_join_block_group(first_op, ctx, body)
     else:
       code += jit_root_column_join(first_op, ctx, body)
@@ -431,9 +457,7 @@ def jit_pipeline(
   elif isinstance(first_op, m.InsertInto):
     code += jit_insert_into(first_op, ctx) + jit_nested_pipeline(rest_ops, ctx)
   elif isinstance(first_op, m.BalancedScan):
-    raise NotImplementedError(
-      "jit_pipeline: jit_root_balanced_scan not yet ported"
-    )
+    raise NotImplementedError("jit_pipeline: jit_root_balanced_scan not yet ported")
   else:
     code += f"// Unsupported root op: {type(first_op).__name__}\n"
 

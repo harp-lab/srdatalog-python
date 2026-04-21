@@ -5,16 +5,14 @@ but never constructs a moAggregate MirNode from it. Python mirrors that:
 DSL `agg(...)` round-trips through HIR but disappears from MIR. Both the
 HIR and MIR outputs byte-match the Nim golden.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program, Agg, agg, count
+from srdatalog.dsl import Agg, Program, Relation, Var, agg, count
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir.emit import hir_to_obj
 from srdatalog.mir.emit import print_mir_sexpr
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -30,6 +28,7 @@ def build_agg_program() -> Program:
 # -----------------------------------------------------------------------------
 # Unit tests on the DSL helper + analysis plumbing
 # -----------------------------------------------------------------------------
+
 
 def test_count_helper_builds_agg_clause():
   CNT, X, Y = Var("cnt"), Var("x"), Var("y")
@@ -60,6 +59,7 @@ def test_agg_helper_cpp_type_threads_through():
 
 def test_analyze_rule_counts_agg_args_and_result_var_as_positive():
   from srdatalog.hir.plan import analyze_rule
+
   hir = compile_to_hir(build_agg_program())
   # Variant's analysis should treat x, y, cnt all as vars.
   rule = hir.strata[0].base_variants[0].original_rule
@@ -87,6 +87,7 @@ def test_var_order_puts_agg_args_then_result_var():
 # End-to-end byte-match against Nim fixture
 # -----------------------------------------------------------------------------
 
+
 def _canonical(obj: dict) -> str:
   return json.dumps(obj, indent=2, ensure_ascii=False)
 
@@ -98,10 +99,14 @@ def test_agg_hir_byte_match():
   golden.pop("hirSExpr", None)
   if _canonical(actual) != _canonical(golden):
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
-        _canonical(golden).splitlines(), _canonical(actual).splitlines(),
-        fromfile="nim-golden", tofile="python", lineterm="",
+        _canonical(golden).splitlines(),
+        _canonical(actual).splitlines(),
+        fromfile="nim-golden",
+        tofile="python",
+        lineterm="",
       )
     )
     raise AssertionError("HIR mismatch:\n" + diff)
@@ -116,10 +121,14 @@ def test_agg_mir_byte_match():
   golden = (FIXTURES / "agg_test.mir.sexpr").read_text().rstrip("\n")
   if actual != golden:
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
-        golden.splitlines(), actual.splitlines(),
-        fromfile="nim-golden", tofile="python", lineterm="",
+        golden.splitlines(),
+        actual.splitlines(),
+        fromfile="nim-golden",
+        tofile="python",
+        lineterm="",
       )
     )
     raise AssertionError("MIR mismatch:\n" + diff)

@@ -1,14 +1,13 @@
-import subprocess
-from pathlib import Path
 import json
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
-from srdatalog.mir.schema import SchemaDefinition
-from srdatalog.mir.commands import MirInstructions
-from srdatalog.mir.runner import generate_runner
 from srdatalog.ffi.header import generate_extern_c
 from srdatalog.ffi.wrapper import DatalogFFI
-
+from srdatalog.mir.commands import MirInstructions
+from srdatalog.mir.runner import generate_runner
+from srdatalog.mir.schema import SchemaDefinition
 
 PRELUDE = '''
 #include "srdatalog.h"
@@ -39,10 +38,11 @@ void run(DBHandle h, size_t max_iters);
 
 '''
 
+
 @dataclass
 class SRDatalogProgram:
   '''
-  Each SRDatalog program consists of two main parts: the database schema blueprint, provided as a SchemaDefinition 
+  Each SRDatalog program consists of two main parts: the database schema blueprint, provided as a SchemaDefinition
   (which contains an array of FactDefinitions), and the instructions, which describe the Datalog operations
   performed. For compilation reasons, instructions must be passed as a MirInstructions, which contains an array of code blocks
   and necessary bookkeeping for the compilation of this code. See generate_runner and MirInstructions for generation details.
@@ -57,29 +57,40 @@ class SRDatalogProgram:
   header_loc: str | None = None
   existing_compile_type: str | None = None
 
-  def __init__(self, name:str, database:SchemaDefinition, instructions:MirInstructions):
+  def __init__(self, name: str, database: SchemaDefinition, instructions: MirInstructions):
     self.name = name
     self.database = database
     self.instructions = instructions
     self.instructions.name = self.name
 
-  def generate(self, main:str = "", include_cffi_api:bool = True) -> str:
-    ''' Returns C++ code from self.database and self.instructions. Does NOT include the contents of the .h file (see generate_header_to_file and/or HEADER).
+  def generate(self, main: str = "", include_cffi_api: bool = True) -> str:
+    '''Returns C++ code from self.database and self.instructions. Does NOT include the contents of the .h file (see generate_header_to_file and/or HEADER).
     @param main: the code to be included in the main function of the generated C++ file. This should include code for inserting test data and for running the runner (i.e. Name_Runner::run(device_db);). Use if you're planning on running as an executable (not default)
     @param include_cffi_api: whether to include the api required for CFFI functionality. If False, the generated code will not include it. Leave as True if you're planning on using open_cffi.'''
 
-    code = self.prelude + '\n'+self._generate_schema() +"\n"+self._generate_fixpoint_plans() + "\n"+self._generate_fixpoint_runner() + self._generate_main(main)
+    code = (
+      self.prelude
+      + '\n'
+      + self._generate_schema()
+      + "\n"
+      + self._generate_fixpoint_plans()
+      + "\n"
+      + self._generate_fixpoint_runner()
+      + self._generate_main(main)
+    )
     if include_cffi_api:
       code += self._generate_cffi_api()
     return code
-  
-  def generate_to_file(self, main:str = "", dest_file=None, generate_cffi:bool = True, generate_header:bool = True) -> str | None:
+
+  def generate_to_file(
+    self, main: str = "", dest_file=None, generate_cffi: bool = True, generate_header: bool = True
+  ) -> str | None:
     '''
-      Generate the C++ code to a file and return the location. The defaults will generate code suitable for compiling for CFFI. 
-      @param main: the code to be included in the main function of the generated C++ file. This can be left blank if you plan to use CFFI.
-      @param dest_file: the destination file for the generated C++ code. If None, defaults to python/output/NAME.cpp, python/output/NAME.h.
-      @param generate_cffi: whether to include the api required for CFFI functionality. Including the API will not affect the ability to compile to an executable, but is necessary for using open_cffi.
-      @param generate_header: whether to generate the header file required for CFFI functionality. Including the header will not affect the ability to compile to an executable, but is necessary for using open_cffi.
+    Generate the C++ code to a file and return the location. The defaults will generate code suitable for compiling for CFFI.
+    @param main: the code to be included in the main function of the generated C++ file. This can be left blank if you plan to use CFFI.
+    @param dest_file: the destination file for the generated C++ code. If None, defaults to python/output/NAME.cpp, python/output/NAME.h.
+    @param generate_cffi: whether to include the api required for CFFI functionality. Including the API will not affect the ability to compile to an executable, but is necessary for using open_cffi.
+    @param generate_header: whether to generate the header file required for CFFI functionality. Including the header will not affect the ability to compile to an executable, but is necessary for using open_cffi.
     '''
 
     # default path is python/output/NAME.cpp
@@ -95,7 +106,7 @@ class SRDatalogProgram:
 
     if generate_header:
       self.generate_header_to_file(dest_header_file)
-    
+
     self.source_loc = dest_file
     print(f"Successfully generated {dest_file}")
 
@@ -103,30 +114,36 @@ class SRDatalogProgram:
     command = ["clang-format", "-style=llvm", "-i", dest_file]
 
     try:
-        result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=10)
-        return dest_file
+      result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=10)
+      return dest_file
     except subprocess.CalledProcessError as e:
-        print(f"Error formatting file: {e.stderr}")
-        return None
+      print(f"Error formatting file: {e.stderr}")
+      return None
     except FileNotFoundError:
-        print("Error: clang-format executable not found. Make sure it is installed and in your PATH.")
-        return None
+      print("Error: clang-format executable not found. Make sure it is installed and in your PATH.")
+      return None
 
-
-  def set_prelude(self, prelude:str):
-    ''' Use this function to alternatively overwrite the default prelude '''
+  def set_prelude(self, prelude: str):
+    '''Use this function to alternatively overwrite the default prelude'''
     self.prelude = PRELUDE if prelude == "" else prelude
 
-
-  def compile_to_file(self, main:str="", output_filename=None, output_cpp_filename=None, compile_type="shared", clean_previous=False, timeout=60):
+  def compile_to_file(
+    self,
+    main: str = "",
+    output_filename=None,
+    output_cpp_filename=None,
+    compile_type="shared",
+    clean_previous=False,
+    timeout=60,
+  ):
     '''
-    Compile the program for either use as an executable or use with CFFI. 
+    Compile the program for either use as an executable or use with CFFI.
     @param main: the code to be included in the main function of the generated C++ file. This can be left blank if you plan to use CFFI.
     @param compile_type: either "executable" or "shared". If "executable", compiles to a binary that can be run directly. If "shared", compiles to a .so file that can be loaded with cffi.
     @param clean_previous: whether to regenerate the source file before compiling. If False, will use the existing source file at self.source_loc iff self.source_loc is not None. If True, will generate a new source file even if one already exists at self.source_loc.
     @param timeout: the timeout for the compilation process in seconds. May need to be increased for larger programs.
     @param output_filename: the destination file for the compiled binary (.so or no extension). If None, defaults to the same location as the source file.
-    @param output_cpp_filename: the destination file for the generated C++ source code, if it needs to be (re)generated. 
+    @param output_cpp_filename: the destination file for the generated C++ source code, if it needs to be (re)generated.
     '''
     if compile_type not in ["executable", "shared"]:
       print(f"Error: Invalid compile_type '{compile_type}'. Must be 'executable' or 'shared'.")
@@ -135,9 +152,9 @@ class SRDatalogProgram:
       # (re)gen cpp if necessary
       self.source_loc = self.generate_to_file(main, output_cpp_filename)
       if self.source_loc is None:
-          print("Error generating source file. Compilation aborted.")
-          return None
-    
+        print("Error generating source file. Compilation aborted.")
+        return None
+
     # determine proper output location (same as source if not given, otherwise as named)
     if output_filename is None:
       if compile_type == "shared":
@@ -152,7 +169,7 @@ class SRDatalogProgram:
     # Creates the compilation command from compile_args.json
     script_dir = str(Path(__file__).resolve().parent)
     root_dir = str(Path(__file__).resolve().parent.parent.parent)
-    args = json.load(open(script_dir+"/compile_args.json"))
+    args = json.load(open(script_dir + "/compile_args.json"))
     cmd = []
     cmd.append(args["compile_program"])
     cmd.extend(args["compile_args"])
@@ -163,25 +180,24 @@ class SRDatalogProgram:
     cmd.extend(["-o", dest_filename])
     for i in range(len(cmd)):
       cmd[i] = cmd[i].replace("{root}", root_dir)
-    print("Compiling to "+dest_filename)
+    print("Compiling to " + dest_filename)
     try:
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout)
-        if str(result.returncode) == "0":
-          print(f"Successfully compiled to {dest_filename}")
-          self.existing_compile_type = compile_type
-          self.binary_loc = dest_filename
-          return dest_filename
-        else:
-          print(f"Compilation failed with return code {result.returncode}")
-          print(f"Compiler output: {result.stdout}")
-          print(f"Compiler error output: {result.stderr}")
-          return None
+      result = subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=timeout)
+      if str(result.returncode) == "0":
+        print(f"Successfully compiled to {dest_filename}")
+        self.existing_compile_type = compile_type
+        self.binary_loc = dest_filename
+        return dest_filename
+      else:
+        print(f"Compilation failed with return code {result.returncode}")
+        print(f"Compiler output: {result.stdout}")
+        print(f"Compiler error output: {result.stderr}")
+        return None
     except subprocess.CalledProcessError as e:
-        print(f"Error compiling file: {e.stderr}")
-
+      print(f"Error compiling file: {e.stderr}")
 
   def generate_header_to_file(self, dest_file=None):
-    ''' Generate the header file required for CFFI functionality in the indicated location.'''
+    '''Generate the header file required for CFFI functionality in the indicated location.'''
     if dest_file is None:
       script_dir = Path(__file__).resolve().parent / "output"
       script_dir.mkdir(exist_ok=True)
@@ -189,24 +205,30 @@ class SRDatalogProgram:
 
     with open(dest_file, 'w') as file:
       file.write(HEADER)
-    
+
     print(f"Successfully generated header {dest_file}")
     self.header_loc = dest_file
     return dest_file
-  
 
   def open_ffi(self):
     if self.header_loc is None or self.binary_loc is None:
-      print("Error: Header file or binary file not found. Please ensure both are generated before opening FFI, i.e. by running .compile_to_file() with argument compile_type='shared'. If you've already compiled the file and don't want to recompile it, set arg recompile=False")
+      print(
+        "Error: Header file or binary file not found. Please ensure both are generated before opening FFI, i.e. by running .compile_to_file() with argument compile_type='shared'. If you've already compiled the file and don't want to recompile it, set arg recompile=False"
+      )
       return None
-    
+
     return DatalogFFI(self.header_loc, self.binary_loc)
 
-
-  def set_file_location(self, source_loc:str = None, binary_loc:str = None, header_loc:str = None, compile_type:str = None):
+  def set_file_location(
+    self,
+    source_loc: str = None,
+    binary_loc: str = None,
+    header_loc: str = None,
+    compile_type: str = None,
+  ):
     '''Use this function to set the file locations for the source, binary, and header files if you've already generated/compiled them in a previous run.
-       Useful for setting locations for using open_cffi without having to recompile the program.
-       Ensure that any passed file locations point to the intended files.'''
+    Useful for setting locations for using open_cffi without having to recompile the program.
+    Ensure that any passed file locations point to the intended files.'''
     if source_loc is not None:
       self.source_loc = source_loc
     if binary_loc is not None:
@@ -215,47 +237,51 @@ class SRDatalogProgram:
       self.header_loc = header_loc
     if compile_type is not None:
       if compile_type not in ["executable", "shared"]:
-        print(f"Error: Invalid compile_type '{compile_type}'. Must be 'executable' or 'shared'. Ensure that it matches the type of the provided binary location")
+        print(
+          f"Error: Invalid compile_type '{compile_type}'. Must be 'executable' or 'shared'. Ensure that it matches the type of the provided binary location"
+        )
       else:
         self.existing_compile_type = compile_type
 
-
   def run(self):
-    ''' A shortcut function to run a compiled executable. '''
+    '''A shortcut function to run a compiled executable.'''
     if self.binary_loc is None:
       print("Error: No compiled binary found. Please compile the program before running.")
       return None
     if self.existing_compile_type == "shared":
-      print("Warning: Running a shared library as an executable may not work as expected. Make sure to compile with compile_type='executable' if you intend to run directly.")
-    
-    try:
-        result = subprocess.run([self.binary_loc], check=True, capture_output=True, text=True)
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        print(f"Error running program: {e.stderr}")
-        return None
+      print(
+        "Warning: Running a shared library as an executable may not work as expected. Make sure to compile with compile_type='executable' if you intend to run directly."
+      )
 
+    try:
+      result = subprocess.run([self.binary_loc], check=True, capture_output=True, text=True)
+      return result.stdout
+    except subprocess.CalledProcessError as e:
+      print(f"Error running program: {e.stderr}")
+      return None
 
   def __str__(self):
     return self.generate()
-  
 
   def _generate_schema(self):
     res = str(self.database)
     relations = ", ".join(str(fact.name) for fact in self.database.facts)
     res += f"\nusing {self.name}DB = AST::Database<{relations}>;"
     res += f"\nusing {self.name}Plan_DB = AST::Database<{relations}>;"
-    res += f"\nusing namespace SRDatalog::mir::dsl;"
+    res += "\nusing namespace SRDatalog::mir::dsl;"
     return res
-  
 
   def _generate_fixpoint_runner(self):
-    return 'struct '+self.name+'_Runner {template <typename DB>\n'+generate_runner(self.name, self.instructions, self.database) +'};'
-  
+    return (
+      'struct '
+      + self.name
+      + '_Runner {template <typename DB>\n'
+      + generate_runner(self.name, self.instructions, self.database)
+      + '};'
+    )
 
   def _generate_fixpoint_plans(self):
-    return "namespace "+self.name+"_Plans {" +self.instructions.cpp()+"}"
-
+    return "namespace " + self.name + "_Plans {" + self.instructions.cpp() + "}"
 
   def _generate_main(self, main_code):
     '''If you're planning on running the program as an executable, ensure that you pass code for inserting test data AND for running the runner (i.e. Name_Runner::run(device_db);)'''
@@ -264,8 +290,6 @@ class SRDatalogProgram:
 
   def _generate_cffi_api(self):
     return generate_extern_c(self.name)
-  
-
 
 
 # Example main function:

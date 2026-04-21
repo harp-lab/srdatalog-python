@@ -12,27 +12,31 @@ middle section of the Python output (the part that corresponds to
 `@mtriangle.nim.cpp` intermediate — committed as
 `tests/fixtures/main_file/triangle_main_expected.cpp`.
 '''
+
 import sys
 from pathlib import Path
 
-
 from integration_helpers import _cpp_norm
-from srdatalog.hir import compile_to_hir, compile_to_mir
+
 from srdatalog.codegen.batchfile import _collect_pipelines
 from srdatalog.codegen.jit.complete_runner import gen_complete_runner
-from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
 from srdatalog.codegen.jit.main_file import (
-  gen_main_file_content, gen_relation_typedefs, gen_runner_struct,
   _extract_computed_relations,
+  gen_main_file_content,
+  gen_relation_typedefs,
+  gen_runner_struct,
 )
-
+from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
+from srdatalog.hir import compile_to_hir, compile_to_mir
 
 # -----------------------------------------------------------------------------
 # Smoke: relation typedefs
 # -----------------------------------------------------------------------------
 
+
 def test_gen_relation_typedefs_shape():
   from srdatalog.hir.types import RelationDecl
+
   decls = [
     RelationDecl(rel_name="Edge", types=["int", "int"], semiring="NoProvenance"),
     RelationDecl(rel_name="Path", types=["int", "int"], semiring="NoProvenance"),
@@ -52,8 +56,10 @@ def test_gen_relation_typedefs_shape():
 # _extract_computed_relations matches Nim's extractComputedRelations
 # -----------------------------------------------------------------------------
 
+
 def test_extract_computed_relations_from_triangle():
   from test_integration_triangle import build_triangle
+
   mir = compile_to_mir(build_triangle())
   # Triangle pipeline: step 0 is the recursive fixpoint, step 1 is
   # post-stratum reconstruct. step 0 should yield ["ZRel"].
@@ -66,8 +72,10 @@ def test_extract_computed_relations_from_triangle():
 # gen_runner_struct — shape checks
 # -----------------------------------------------------------------------------
 
+
 def test_runner_struct_triangle_shape():
   from test_integration_triangle import build_triangle
+
   prog = build_triangle()
   hir = compile_to_hir(prog)
   mir = compile_to_mir(prog)
@@ -77,7 +85,10 @@ def test_runner_struct_triangle_shape():
     for i, (step, is_rec) in enumerate(mir.steps)
   ]
   out = gen_runner_struct(
-    "TrianglePlan", hir.relation_decls, mir, step_bodies,
+    "TrianglePlan",
+    hir.relation_decls,
+    mir,
+    step_bodies,
   )
   assert "struct TrianglePlan_Runner {" in out
   assert "using DB = TrianglePlan_DB;" in out
@@ -94,8 +105,10 @@ def test_runner_struct_triangle_shape():
 # gen_main_file_content — full assembly
 # -----------------------------------------------------------------------------
 
+
 def test_main_file_content_triangle_assembly():
   from test_integration_triangle import build_triangle
+
   prog = build_triangle()
   hir = compile_to_hir(prog)
   mir = compile_to_mir(prog)
@@ -109,8 +122,13 @@ def test_main_file_content_triangle_assembly():
     decl, _full = gen_complete_runner(ep, "TrianglePlan_DB_DeviceDB")
     runner_decls[ep.rule_name] = decl
   out = gen_main_file_content(
-    "TrianglePlan", decls, mir, step_bodies, runner_decls,
-    cache_dir_hint="<jit-cache>", jit_batch_count=1,
+    "TrianglePlan",
+    decls,
+    mir,
+    step_bodies,
+    runner_decls,
+    cache_dir_hint="<jit-cache>",
+    jit_batch_count=1,
   )
   # Relation typedefs
   assert 'using RRel = AST::RelationSchema<decltype("RRel"_s)' in out
@@ -152,6 +170,7 @@ def test_tc_main_middle_matches_nim_extract():
     return
 
   from test_hir_mir_tc_e2e import build_tc
+
   prog = build_tc()
   hir = compile_to_hir(prog)
   mir = compile_to_mir(prog)
@@ -176,7 +195,11 @@ def test_tc_main_middle_matches_nim_extract():
     decl, _full = gen_complete_runner(ep, "TCPlan_DB_DeviceDB")
     runner_decls[ep.rule_name] = decl
   full = gen_main_file_content(
-    "TCPlan", hir.relation_decls, mir, step_bodies, runner_decls,
+    "TCPlan",
+    hir.relation_decls,
+    mir,
+    step_bodies,
+    runner_decls,
     cache_dir_hint="/home/stargazermiao/.cache/nim/jit/TCPlan_DB_2C07",
     jit_batch_count=1,
     canonical_indices=canonical,
@@ -191,13 +214,10 @@ def test_tc_main_middle_matches_nim_extract():
     for k, (x, y) in enumerate(zip(a, g)):
       if x != y:
         print(f"First diff at char {k}")
-        print(f"  ACTUAL: {a[max(0,k-80):k+80]!r}")
-        print(f"  GOLDEN: {g[max(0,k-80):k+80]!r}")
+        print(f"  ACTUAL: {a[max(0, k - 80) : k + 80]!r}")
+        print(f"  GOLDEN: {g[max(0, k - 80) : k + 80]!r}")
         break
-    raise AssertionError(
-      f"tc main-file middle mismatch "
-      f"(actual len={len(a)}, golden len={len(g)})"
-    )
+    raise AssertionError(f"tc main-file middle mismatch (actual len={len(a)}, golden len={len(g)})")
 
 
 def test_triangle_main_middle_matches_nim_extract():
@@ -211,6 +231,7 @@ def test_triangle_main_middle_matches_nim_extract():
     return
 
   from test_integration_triangle import build_triangle
+
   prog = build_triangle()
   hir = compile_to_hir(prog)
   mir = compile_to_mir(prog)
@@ -223,7 +244,11 @@ def test_triangle_main_middle_matches_nim_extract():
     decl, _full = gen_complete_runner(ep, "TrianglePlan_DB_DeviceDB")
     runner_decls[ep.rule_name] = decl
   full = gen_main_file_content(
-    "TrianglePlan", hir.relation_decls, mir, step_bodies, runner_decls,
+    "TrianglePlan",
+    hir.relation_decls,
+    mir,
+    step_bodies,
+    runner_decls,
     cache_dir_hint="/home/stargazermiao/.cache/nim/jit/TrianglePlan_DB_FC06",
     jit_batch_count=1,
   )
@@ -241,17 +266,17 @@ def test_triangle_main_middle_matches_nim_extract():
     for k, (x, y) in enumerate(zip(a, g)):
       if x != y:
         print(f"First diff at char {k}")
-        print(f"  ACTUAL: {a[max(0,k-80):k+80]!r}")
-        print(f"  GOLDEN: {g[max(0,k-80):k+80]!r}")
+        print(f"  ACTUAL: {a[max(0, k - 80) : k + 80]!r}")
+        print(f"  GOLDEN: {g[max(0, k - 80) : k + 80]!r}")
         break
     raise AssertionError(
-      f"triangle main-file middle mismatch "
-      f"(actual len={len(a)}, golden len={len(g)})"
+      f"triangle main-file middle mismatch (actual len={len(a)}, golden len={len(g)})"
     )
 
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   failed = 0

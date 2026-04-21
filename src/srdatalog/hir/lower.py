@@ -17,17 +17,18 @@ Deliberately NOT ported (no Python DSL equivalent or deferred optimization):
   - IfClause (Filter) / LetClause (ConstantBind) / AggClause handling
   - InnerPipeline / debug-hook injection
 '''
+
 from __future__ import annotations
 
-from srdatalog.dsl import Atom, Negation, Filter, Let, ArgKind
-from srdatalog.hir.types import AccessPattern, HirProgram, HirRuleVariant, HirStratum, Version
-from srdatalog.hir.index import complete_index, get_arity
 import srdatalog.mir.types as mir
+from srdatalog.dsl import ArgKind, Atom, Filter, Let
+from srdatalog.hir.index import complete_index, get_arity
+from srdatalog.hir.types import AccessPattern, HirProgram, HirRuleVariant, HirStratum, Version
 
 
 def _prefix_vars(pattern: AccessPattern) -> list[str]:
   '''Extract the prefix-length slice of access_order (bound-var prefix).'''
-  return list(pattern.access_order[:pattern.prefix_len])
+  return list(pattern.access_order[: pattern.prefix_len])
 
 
 def generate_column_source(pattern: AccessPattern) -> mir.ColumnSource:
@@ -100,13 +101,15 @@ def _lower_multi_clause_body(
         prefix = [v for v in p.access_order if v in bound_vars]
         idx = list(p.index_cols)
         pattern_computed_index[p.clause_idx] = idx
-        sources.append(mir.ColumnSource(
-          rel_name=p.rel_name,
-          version=p.version,
-          index=idx,
-          prefix_vars=prefix,
-          clause_idx=p.clause_idx,
-        ))
+        sources.append(
+          mir.ColumnSource(
+            rel_name=p.rel_name,
+            version=p.version,
+            index=idx,
+            prefix_vars=prefix,
+            clause_idx=p.clause_idx,
+          )
+        )
     if sources:
       # TODO: balanced-scan dispatch (balancedRoot/balancedSources) — Phase 4.
       ops.append(mir.ColumnJoin(var_name=jv, sources=sources))
@@ -123,8 +126,7 @@ def _lower_multi_clause_body(
         negation_only_vars.add(v)
 
   independent_vars = [
-    v for v in var_order
-    if v not in join_vars_set and v not in negation_only_vars
+    v for v in var_order if v not in join_vars_set and v not in negation_only_vars
   ]
   indep_set = set(independent_vars)
   # Wildcards (_genN) may not be in var_order but still appear in positive
@@ -134,11 +136,7 @@ def _lower_multi_clause_body(
       for arg in body.args:
         if arg.kind is ArgKind.LVAR:
           v = arg.var_name
-          if (
-            v not in join_vars_set
-            and v not in indep_set
-            and v not in negation_only_vars
-          ):
+          if v not in join_vars_set and v not in indep_set and v not in negation_only_vars:
             independent_vars.append(v)
             indep_set.add(v)
 
@@ -189,21 +187,25 @@ def _lower_multi_clause_body(
               vars_from_this.append(v)
             break
 
-      cart_sources.append(mir.ColumnSource(
-        rel_name=p.rel_name,
-        version=p.version,
-        index=computed_index,
-        prefix_vars=prefix,
-        clause_idx=p.clause_idx,
-      ))
+      cart_sources.append(
+        mir.ColumnSource(
+          rel_name=p.rel_name,
+          version=p.version,
+          index=computed_index,
+          prefix_vars=prefix,
+          clause_idx=p.clause_idx,
+        )
+      )
       var_from_source.append(vars_from_this)
 
     if cart_sources:
-      ops.append(mir.CartesianJoin(
-        vars=independent_vars,
-        sources=cart_sources,
-        var_from_source=var_from_source,
-      ))
+      ops.append(
+        mir.CartesianJoin(
+          vars=independent_vars,
+          sources=cart_sources,
+          var_from_source=var_from_source,
+        )
+      )
 
   return ops
 
@@ -211,14 +213,16 @@ def _lower_multi_clause_body(
 def _lower_negations(variant: HirRuleVariant) -> list[mir.MirNode]:
   out: list[mir.MirNode] = []
   for p in variant.negation_patterns:
-    prefix_vars = list(p.access_order[:p.prefix_len])
-    out.append(mir.Negation(
-      rel_name=p.rel_name,
-      version=p.version,
-      index=list(p.index_cols),
-      prefix_vars=prefix_vars,
-      const_args=list(p.const_args),
-    ))
+    prefix_vars = list(p.access_order[: p.prefix_len])
+    out.append(
+      mir.Negation(
+        rel_name=p.rel_name,
+        version=p.version,
+        index=list(p.index_cols),
+        prefix_vars=prefix_vars,
+        const_args=list(p.const_args),
+      )
+    )
   return out
 
 
@@ -231,9 +235,13 @@ def _lower_filter_and_let_clauses(variant: HirRuleVariant) -> list[mir.MirNode]:
     if isinstance(b, Filter):
       out.append(mir.Filter(vars=list(b.vars), code=b.code))
     elif isinstance(b, Let):
-      out.append(mir.ConstantBind(
-        var_name=b.var_name, code=b.code, deps=list(b.deps),
-      ))
+      out.append(
+        mir.ConstantBind(
+          var_name=b.var_name,
+          code=b.code,
+          deps=list(b.deps),
+        )
+      )
   return out
 
 
@@ -245,9 +253,13 @@ def _lower_above_filter_and_let(variant: HirRuleVariant) -> list[mir.MirNode]:
     if isinstance(b, Filter):
       out.append(mir.Filter(vars=list(b.vars), code=b.code))
     elif isinstance(b, Let):
-      out.append(mir.ConstantBind(
-        var_name=b.var_name, code=b.code, deps=list(b.deps),
-      ))
+      out.append(
+        mir.ConstantBind(
+          var_name=b.var_name,
+          code=b.code,
+          deps=list(b.deps),
+        )
+      )
   return out
 
 
@@ -259,9 +271,13 @@ def _lower_below_filter_and_let(variant: HirRuleVariant) -> list[mir.MirNode]:
     if isinstance(b, Filter):
       out.append(mir.Filter(vars=list(b.vars), code=b.code))
     elif isinstance(b, Let):
-      out.append(mir.ConstantBind(
-        var_name=b.var_name, code=b.code, deps=list(b.deps),
-      ))
+      out.append(
+        mir.ConstantBind(
+          var_name=b.var_name,
+          code=b.code,
+          deps=list(b.deps),
+        )
+      )
   return out
 
 
@@ -269,8 +285,10 @@ def _lower_below_filter_and_let(variant: HirRuleVariant) -> list[mir.MirNode]:
 # Split-rule lowering (Pipeline A = above-split, Pipeline B = below-split)
 # -----------------------------------------------------------------------------
 
+
 def lower_split_above(
-  variant: HirRuleVariant, stratum: HirStratum,
+  variant: HirRuleVariant,
+  stratum: HirStratum,
 ) -> list[mir.MirNode]:
   '''Mirror lowerSplitAbove in lowering.nim. Supports single-positive-clause
   above-split (Scan + negations + filter/let), which covers the negation-
@@ -279,18 +297,18 @@ def lower_split_above(
   '''
   ops: list[mir.MirNode] = []
 
-  above_patterns = [
-    p for p in variant.access_patterns if p.clause_idx < variant.split_at
-  ]
+  above_patterns = [p for p in variant.access_patterns if p.clause_idx < variant.split_at]
   if len(above_patterns) == 1:
     p = above_patterns[0]
-    ops.append(mir.Scan(
-      vars=list(p.access_order),
-      rel_name=p.rel_name,
-      version=p.version,
-      index=list(p.index_cols),
-      prefix_vars=[],
-    ))
+    ops.append(
+      mir.Scan(
+        vars=list(p.access_order),
+        rel_name=p.rel_name,
+        version=p.version,
+        index=list(p.index_cols),
+        prefix_vars=[],
+      )
+    )
   elif len(above_patterns) > 1:
     # Unsupported — caller falls back.
     return []
@@ -298,25 +316,29 @@ def lower_split_above(
   # Negations above the split.
   for p in variant.negation_patterns:
     if p.clause_idx < variant.split_at:
-      ops.append(mir.Negation(
-        rel_name=p.rel_name,
-        version=p.version,
-        index=list(p.index_cols),
-        prefix_vars=list(p.access_order[:p.prefix_len]),
-        const_args=list(p.const_args),
-      ))
+      ops.append(
+        mir.Negation(
+          rel_name=p.rel_name,
+          version=p.version,
+          index=list(p.index_cols),
+          prefix_vars=list(p.access_order[: p.prefix_len]),
+          const_args=list(p.const_args),
+        )
+      )
 
   # Filters / Lets above the split (source order).
   ops.extend(_lower_above_filter_and_let(variant))
 
   # InsertInto the temp relation (NEW_VER, identity index).
   temp_idx = list(range(len(variant.temp_vars)))
-  ops.append(mir.InsertInto(
-    rel_name=variant.temp_rel_name,
-    version=Version.NEW,
-    vars=list(variant.temp_vars),
-    index=temp_idx,
-  ))
+  ops.append(
+    mir.InsertInto(
+      rel_name=variant.temp_rel_name,
+      version=Version.NEW,
+      vars=list(variant.temp_vars),
+      index=temp_idx,
+    )
+  )
   return ops
 
 
@@ -341,18 +363,18 @@ def lower_split_below(
   temp_vars_set = set(variant.temp_vars)
 
   # Step 1: Scan temp — binds all temp vars.
-  ops.append(mir.Scan(
-    vars=list(variant.temp_vars),
-    rel_name=variant.temp_rel_name,
-    version=temp_version,
-    index=temp_idx,
-    prefix_vars=[],
-  ))
+  ops.append(
+    mir.Scan(
+      vars=list(variant.temp_vars),
+      rel_name=variant.temp_rel_name,
+      version=temp_version,
+      index=temp_idx,
+      prefix_vars=[],
+    )
+  )
 
   # Step 2: CartesianJoin for below patterns that introduce head vars.
-  below_patterns = [
-    p for p in variant.access_patterns if p.clause_idx > variant.split_at
-  ]
+  below_patterns = [p for p in variant.access_patterns if p.clause_idx > variant.split_at]
   head_vars: set[str] = set()
   for a in rule.head.args:
     if a.kind is ArgKind.LVAR:
@@ -370,33 +392,39 @@ def lower_split_below(
       if not p_vars:
         continue
       prefix = [v for v in p.access_order if v in temp_vars_set]
-      cart_sources.append(mir.ColumnSource(
-        rel_name=p.rel_name,
-        version=p.version,
-        index=list(p.index_cols),
-        prefix_vars=prefix,
-        clause_idx=p.clause_idx,
-      ))
+      cart_sources.append(
+        mir.ColumnSource(
+          rel_name=p.rel_name,
+          version=p.version,
+          index=list(p.index_cols),
+          prefix_vars=prefix,
+          clause_idx=p.clause_idx,
+        )
+      )
       cart_var_from_source.append(p_vars)
       cart_vars.extend(p_vars)
 
     if cart_vars:
-      ops.append(mir.CartesianJoin(
-        vars=cart_vars,
-        sources=cart_sources,
-        var_from_source=cart_var_from_source,
-      ))
+      ops.append(
+        mir.CartesianJoin(
+          vars=cart_vars,
+          sources=cart_sources,
+          var_from_source=cart_var_from_source,
+        )
+      )
 
   # Negations below the split.
   for p in variant.negation_patterns:
     if p.clause_idx > variant.split_at:
-      ops.append(mir.Negation(
-        rel_name=p.rel_name,
-        version=p.version,
-        index=list(p.index_cols),
-        prefix_vars=list(p.access_order[:p.prefix_len]),
-        const_args=list(p.const_args),
-      ))
+      ops.append(
+        mir.Negation(
+          rel_name=p.rel_name,
+          version=p.version,
+          index=list(p.index_cols),
+          prefix_vars=list(p.access_order[: p.prefix_len]),
+          const_args=list(p.const_args),
+        )
+      )
 
   # Filters / Lets below the split.
   ops.extend(_lower_below_filter_and_let(variant))
@@ -410,9 +438,7 @@ def lower_split_below(
   return ops
 
 
-def lower_variant_to_pipeline(
-  variant: HirRuleVariant, stratum: HirStratum
-) -> list[mir.MirNode]:
+def lower_variant_to_pipeline(variant: HirRuleVariant, stratum: HirStratum) -> list[mir.MirNode]:
   '''Lower a rule variant to an MIR pipeline.
 
   For a single-clause variant: Scan (+ Negation*) + InsertInto.
@@ -446,21 +472,15 @@ def lower_variant_to_pipeline(
 # generateSimpleMaintenance, generateLoopMaintenance in lowering.nim).
 # -----------------------------------------------------------------------------
 
+
 def generate_rebuild_indices(
   rel_name: str, indices: list[list[int]], version: Version
 ) -> list[mir.MirNode]:
-  return [
-    mir.RebuildIndex(rel_name=rel_name, version=version, index=list(idx))
-    for idx in indices
-  ]
+  return [mir.RebuildIndex(rel_name=rel_name, version=version, index=list(idx)) for idx in indices]
 
 
-def generate_merge_indices(
-  rel_name: str, indices: list[list[int]]
-) -> list[mir.MirNode]:
-  return [
-    mir.MergeIndex(rel_name=rel_name, index=list(idx)) for idx in indices
-  ]
+def generate_merge_indices(rel_name: str, indices: list[list[int]]) -> list[mir.MirNode]:
+  return [mir.MergeIndex(rel_name=rel_name, index=list(idx)) for idx in indices]
 
 
 def generate_simple_maintenance(
@@ -474,8 +494,7 @@ def generate_simple_maintenance(
   merge every index into FULL.
   '''
   assert len(canonical_index) == arity, (
-    f"canonical index for {rel_name!r} has {len(canonical_index)} cols, "
-    f"expected arity {arity}"
+    f"canonical index for {rel_name!r} has {len(canonical_index)} cols, expected arity {arity}"
   )
   ops: list[mir.MirNode] = []
   ops.append(mir.RebuildIndex(rel_name=rel_name, version=Version.NEW, index=list(canonical_index)))
@@ -484,12 +503,14 @@ def generate_simple_maintenance(
   ops.append(mir.ClearRelation(rel_name=rel_name, version=Version.NEW))
   for idx in indices:
     if list(idx) != list(canonical_index):
-      ops.append(mir.RebuildIndexFromIndex(
-        rel_name=rel_name,
-        source_index=list(canonical_index),
-        target_index=list(idx),
-        version=Version.DELTA,
-      ))
+      ops.append(
+        mir.RebuildIndexFromIndex(
+          rel_name=rel_name,
+          source_index=list(canonical_index),
+          target_index=list(idx),
+          version=Version.DELTA,
+        )
+      )
     ops.append(mir.MergeIndex(rel_name=rel_name, index=list(idx)))
   return ops
 
@@ -510,8 +531,7 @@ def generate_loop_maintenance(
   if full_needed is None:
     full_needed = set()
   assert len(canonical_index) == arity, (
-    f"canonical index for {rel_name!r} has {len(canonical_index)} cols, "
-    f"expected arity {arity}"
+    f"canonical index for {rel_name!r} has {len(canonical_index)} cols, expected arity {arity}"
   )
   ops: list[mir.MirNode] = []
   ops.append(mir.RebuildIndex(rel_name=rel_name, version=Version.NEW, index=list(canonical_index)))
@@ -523,12 +543,14 @@ def generate_loop_maintenance(
   for idx in indices:
     idx_list = list(idx)
     if idx_list != list(canonical_index):
-      ops.append(mir.RebuildIndexFromIndex(
-        rel_name=rel_name,
-        source_index=list(canonical_index),
-        target_index=idx_list,
-        version=Version.DELTA,
-      ))
+      ops.append(
+        mir.RebuildIndexFromIndex(
+          rel_name=rel_name,
+          source_index=list(canonical_index),
+          target_index=idx_list,
+          version=Version.DELTA,
+        )
+      )
     idx_t = tuple(idx_list)
     if idx_t == canon_t or idx_t in full_needed:
       ops.append(mir.MergeIndex(rel_name=rel_name, index=idx_list))
@@ -539,6 +561,7 @@ def generate_loop_maintenance(
 # Phase 3: Stratum wrapping (wrapInExecutePipeline + lowerHirToMirSteps +
 # lowerHirToMir). Mirrors the top-level pieces of lowering.nim.
 # -----------------------------------------------------------------------------
+
 
 def _extract_pipeline_sources(op: mir.MirNode, out: list[mir.MirNode]) -> None:
   '''Recursively pull source specs out of a pipeline op. Mirrors the
@@ -552,10 +575,7 @@ def _extract_pipeline_sources(op: mir.MirNode, out: list[mir.MirNode]) -> None:
   '''
   if isinstance(op, (mir.ColumnSource, mir.Scan, mir.Negation, mir.Aggregate)):
     out.append(op)
-  elif isinstance(op, mir.ColumnJoin):
-    for s in op.sources:
-      _extract_pipeline_sources(s, out)
-  elif isinstance(op, mir.CartesianJoin):
+  elif isinstance(op, mir.ColumnJoin) or isinstance(op, mir.CartesianJoin):
     for s in op.sources:
       _extract_pipeline_sources(s, out)
   elif isinstance(op, mir.BalancedScan):
@@ -647,53 +667,78 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
         if variant.original_rule.debug_code:
           # One hook per variant (matches Nim: for Store rule with 2 delta
           # variants, two inject-cpp-hook nodes are emitted).
-          inject_hooks.append(mir.InjectCppHook(
-            code=variant.original_rule.debug_code,
-            rule_name=variant.original_rule.name or "",
-          ))
+          inject_hooks.append(
+            mir.InjectCppHook(
+              code=variant.original_rule.debug_code,
+              rule_name=variant.original_rule.name or "",
+            )
+          )
         if variant.split_at >= 0 and variant.temp_rel_name:
           # Recursive split: ClearRelation temp NEW (per iteration) +
           # Pipeline A + CreateFlatView + Pipeline B consuming temp NEW.
           pipeline_a = lower_split_above(variant, stratum)
           if pipeline_a:
             temp_idx = list(range(len(variant.temp_vars)))
-            split_phase_ops.append(mir.ClearRelation(
-              rel_name=variant.temp_rel_name, version=Version.NEW,
-            ))
-            split_phase_ops.append(wrap_in_execute_pipeline(
-              pipeline_a, variant.clause_order, nvtx + "_splitA",
-            ))
-            split_phase_ops.append(mir.CreateFlatView(
-              rel_name=variant.temp_rel_name,
-              version=Version.NEW,
-              index=temp_idx,
-            ))
-            pipeline_b = lower_split_below(
-              variant, stratum, temp_version=Version.NEW,
+            split_phase_ops.append(
+              mir.ClearRelation(
+                rel_name=variant.temp_rel_name,
+                version=Version.NEW,
+              )
             )
-            split_phase_ops.append(wrap_in_execute_pipeline(
-              pipeline_b, variant.clause_order, nvtx + "_splitB",
-            ))
+            split_phase_ops.append(
+              wrap_in_execute_pipeline(
+                pipeline_a,
+                variant.clause_order,
+                nvtx + "_splitA",
+              )
+            )
+            split_phase_ops.append(
+              mir.CreateFlatView(
+                rel_name=variant.temp_rel_name,
+                version=Version.NEW,
+                index=temp_idx,
+              )
+            )
+            pipeline_b = lower_split_below(
+              variant,
+              stratum,
+              temp_version=Version.NEW,
+            )
+            split_phase_ops.append(
+              wrap_in_execute_pipeline(
+                pipeline_b,
+                variant.clause_order,
+                nvtx + "_splitB",
+              )
+            )
           else:
             pipeline = lower_variant_to_pipeline(variant, stratum)
-            parallel_ops.append(wrap_in_execute_pipeline(
-              pipeline, variant.clause_order, nvtx,
+            parallel_ops.append(
+              wrap_in_execute_pipeline(
+                pipeline,
+                variant.clause_order,
+                nvtx,
+                use_fan_out=variant.fanout,
+                work_stealing=variant.work_stealing,
+                block_group=variant.block_group,
+                count=variant.count,
+                dedup_hash=variant.dedup_hash,
+              )
+            )
+        else:
+          pipeline = lower_variant_to_pipeline(variant, stratum)
+          parallel_ops.append(
+            wrap_in_execute_pipeline(
+              pipeline,
+              variant.clause_order,
+              nvtx,
               use_fan_out=variant.fanout,
               work_stealing=variant.work_stealing,
               block_group=variant.block_group,
               count=variant.count,
               dedup_hash=variant.dedup_hash,
-            ))
-        else:
-          pipeline = lower_variant_to_pipeline(variant, stratum)
-          parallel_ops.append(wrap_in_execute_pipeline(
-            pipeline, variant.clause_order, nvtx,
-            use_fan_out=variant.fanout,
-            work_stealing=variant.work_stealing,
-            block_group=variant.block_group,
-            count=variant.count,
-            dedup_hash=variant.dedup_hash,
-          ))
+            )
+          )
 
       # Non-split parallel rules first, then split-phase ops (sequential),
       # then inject-cpp hooks (debug output after pipelines, before maint).
@@ -708,35 +753,48 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
       for rel_name in sorted(stratum.scc_members):
         if rel_name in stratum.required_indices:
           canonical_idx = stratum.canonical_index.get(
-            rel_name, stratum.required_indices[rel_name][0],
+            rel_name,
+            stratum.required_indices[rel_name][0],
           )
           arity = get_arity(rel_name, decls)
           full_needed: set[tuple[int, ...]] = set()
           for raw_idx in full_map.get(rel_name, set()):
             full_needed.add(tuple(complete_index(list(raw_idx), arity)))
-          loop_ops.extend(generate_loop_maintenance(
-            rel_name,
-            stratum.required_indices[rel_name],
-            canonical_idx,
-            arity,
-            full_needed,
-          ))
+          loop_ops.extend(
+            generate_loop_maintenance(
+              rel_name,
+              stratum.required_indices[rel_name],
+              canonical_idx,
+              arity,
+              full_needed,
+            )
+          )
 
       if loop_ops:
-        out.append((mir.FixpointPlan(
-          instructions=loop_ops,
-          schema_arities=_schema_arities(hir),
-        ), True))
+        out.append(
+          (
+            mir.FixpointPlan(
+              instructions=loop_ops,
+              schema_arities=_schema_arities(hir),
+            ),
+            True,
+          )
+        )
         for rel_name in sorted(stratum.scc_members):
           if rel_name in stratum.canonical_index:
-            out.append((mir.PostStratumReconstructInternCols(
-              rel_name=rel_name,
-              canonical_index=list(stratum.canonical_index[rel_name]),
-            ), False))
+            out.append(
+              (
+                mir.PostStratumReconstructInternCols(
+                  rel_name=rel_name,
+                  canonical_index=list(stratum.canonical_index[rel_name]),
+                ),
+                False,
+              )
+            )
 
     else:
       pipeline_ops: list[mir.MirNode] = []
-      split_phase_ops: list[mir.MirNode] = []   # split A -> CreateFlatView -> split B
+      split_phase_ops: list[mir.MirNode] = []  # split A -> CreateFlatView -> split B
       maintenance_ops: list[mir.MirNode] = []
       modified_rels: list[str] = []  # in variant-appearance order
 
@@ -747,60 +805,77 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
           # Split variant: Pipeline A -> CreateFlatView -> Pipeline B.
           pipeline_a = lower_split_above(variant, stratum)
           if pipeline_a:
-            split_phase_ops.append(wrap_in_execute_pipeline(
-              pipeline_a,
-              variant.clause_order,
-              nvtx + "_splitA",
-            ))
+            split_phase_ops.append(
+              wrap_in_execute_pipeline(
+                pipeline_a,
+                variant.clause_order,
+                nvtx + "_splitA",
+              )
+            )
             temp_idx = list(range(len(variant.temp_vars)))
-            split_phase_ops.append(mir.CreateFlatView(
-              rel_name=variant.temp_rel_name,
-              version=Version.NEW,
-              index=temp_idx,
-            ))
+            split_phase_ops.append(
+              mir.CreateFlatView(
+                rel_name=variant.temp_rel_name,
+                version=Version.NEW,
+                index=temp_idx,
+              )
+            )
             pipeline_b = lower_split_below(variant, stratum)
-            split_phase_ops.append(wrap_in_execute_pipeline(
-              pipeline_b,
-              variant.clause_order,
-              nvtx + "_splitB",
-            ))
+            split_phase_ops.append(
+              wrap_in_execute_pipeline(
+                pipeline_b,
+                variant.clause_order,
+                nvtx + "_splitB",
+              )
+            )
           else:
             # Above-split had an unsupported multi-positive shape; fall
             # back to the full unsplit pipeline.
             pipeline = lower_variant_to_pipeline(variant, stratum)
-            pipeline_ops.append(wrap_in_execute_pipeline(
-              pipeline, variant.clause_order, nvtx,
+            pipeline_ops.append(
+              wrap_in_execute_pipeline(
+                pipeline,
+                variant.clause_order,
+                nvtx,
+                use_fan_out=variant.fanout,
+                work_stealing=variant.work_stealing,
+                block_group=variant.block_group,
+                count=variant.count,
+                dedup_hash=variant.dedup_hash,
+              )
+            )
+        else:
+          pipeline = lower_variant_to_pipeline(variant, stratum)
+          pipeline_ops.append(
+            wrap_in_execute_pipeline(
+              pipeline,
+              variant.clause_order,
+              nvtx,
               use_fan_out=variant.fanout,
               work_stealing=variant.work_stealing,
               block_group=variant.block_group,
               count=variant.count,
               dedup_hash=variant.dedup_hash,
-            ))
-        else:
-          pipeline = lower_variant_to_pipeline(variant, stratum)
-          pipeline_ops.append(wrap_in_execute_pipeline(
-            pipeline, variant.clause_order, nvtx,
-            use_fan_out=variant.fanout,
-            work_stealing=variant.work_stealing,
-            block_group=variant.block_group,
-            count=variant.count,
-            dedup_hash=variant.dedup_hash,
-          ))
+            )
+          )
 
         rel_name = variant.original_rule.head.rel
         if rel_name not in modified_rels:
           modified_rels.append(rel_name)
         if rel_name in stratum.required_indices:
           canonical_idx = stratum.canonical_index.get(
-            rel_name, stratum.required_indices[rel_name][0],
+            rel_name,
+            stratum.required_indices[rel_name][0],
           )
           arity = get_arity(rel_name, decls)
-          maintenance_ops.extend(generate_simple_maintenance(
-            rel_name,
-            stratum.required_indices[rel_name],
-            canonical_idx,
-            arity,
-          ))
+          maintenance_ops.extend(
+            generate_simple_maintenance(
+              rel_name,
+              stratum.required_indices[rel_name],
+              canonical_idx,
+              arity,
+            )
+          )
 
       ops: list[mir.MirNode] = []
       # Split phase runs first (sequential; depends on temp being populated).
@@ -812,24 +887,39 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
       ops.extend(maintenance_ops)
 
       if ops:
-        out.append((mir.FixpointPlan(
-          instructions=ops,
-          schema_arities=_schema_arities(hir),
-        ), False))
+        out.append(
+          (
+            mir.FixpointPlan(
+              instructions=ops,
+              schema_arities=_schema_arities(hir),
+            ),
+            False,
+          )
+        )
         for rel_name in modified_rels:
           if rel_name in stratum.canonical_index:
-            out.append((mir.PostStratumReconstructInternCols(
-              rel_name=rel_name,
-              canonical_index=list(stratum.canonical_index[rel_name]),
-            ), False))
+            out.append(
+              (
+                mir.PostStratumReconstructInternCols(
+                  rel_name=rel_name,
+                  canonical_index=list(stratum.canonical_index[rel_name]),
+                ),
+                False,
+              )
+            )
         # Debug inject-cpp hooks for base variants are separate steps
         # after the FixpointPlan + PostStratumReconstructInternCols.
         for variant in stratum.base_variants:
           if variant.original_rule.debug_code:
-            out.append((mir.InjectCppHook(
-              code=variant.original_rule.debug_code,
-              rule_name=variant.original_rule.name or "",
-            ), False))
+            out.append(
+              (
+                mir.InjectCppHook(
+                  code=variant.original_rule.debug_code,
+                  rule_name=variant.original_rule.name or "",
+                ),
+                False,
+              )
+            )
 
   return out
 

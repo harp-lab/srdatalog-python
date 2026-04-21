@@ -5,24 +5,22 @@ HIR + MIR against the Nim golden. Exercises detect_split, compute_temp_vars,
 TempRelSynthesisPass, TempIndexRegistrationPass, lower_split_above,
 lower_split_below, and the split-aware stratum wrapping.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program, SPLIT
+from srdatalog.dsl import SPLIT, Program, Relation, Var
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir.emit import hir_to_obj
-from srdatalog.hir.plan import detect_split, compute_temp_vars
+from srdatalog.hir.plan import compute_temp_vars, detect_split
 from srdatalog.mir.emit import print_mir_sexpr
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def build_split_program() -> Program:
   '''Mirror of fixtures/split_test.nim.
-    Q(x, z) :- A(x, y), ~B(y), split, C(x, z)
+  Q(x, z) :- A(x, y), ~B(y), split, C(x, z)
   '''
   X, Y, Z = Var("x"), Var("y"), Var("z")
   a = Relation("A", 2)
@@ -36,6 +34,7 @@ def build_split_program() -> Program:
 # -----------------------------------------------------------------------------
 # Planner helpers
 # -----------------------------------------------------------------------------
+
 
 def test_detect_split_finds_marker_index():
   prog = build_split_program()
@@ -70,12 +69,13 @@ def test_variant_has_split_metadata_after_planning():
 # Temp relation + index registration
 # -----------------------------------------------------------------------------
 
+
 def test_temp_rel_decl_synthesised():
   hir = compile_to_hir(build_split_program())
   temp_decls = [d for d in hir.relation_decls if d.rel_name == "_temp_SplitTest"]
   assert len(temp_decls) == 1
   td = temp_decls[0]
-  assert td.types == ["int"]           # inferred from A's type at x's col
+  assert td.types == ["int"]  # inferred from A's type at x's col
   assert td.is_generated is True
   assert td.is_temp is True
 
@@ -91,6 +91,7 @@ def test_temp_index_registered_in_stratum():
 # End-to-end byte-match
 # -----------------------------------------------------------------------------
 
+
 def _canonical(obj: dict) -> str:
   return json.dumps(obj, indent=2, ensure_ascii=False)
 
@@ -102,10 +103,14 @@ def test_split_rule_hir_byte_match():
   golden.pop("hirSExpr", None)
   if _canonical(actual) != _canonical(golden):
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
-        _canonical(golden).splitlines(), _canonical(actual).splitlines(),
-        fromfile="nim-golden", tofile="python", lineterm="",
+        _canonical(golden).splitlines(),
+        _canonical(actual).splitlines(),
+        fromfile="nim-golden",
+        tofile="python",
+        lineterm="",
       )
     )
     raise AssertionError("HIR mismatch:\n" + diff)
@@ -117,10 +122,14 @@ def test_split_rule_mir_byte_match():
   golden = (FIXTURES / "split_test.mir.sexpr").read_text().rstrip("\n")
   if actual != golden:
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
-        golden.splitlines(), actual.splitlines(),
-        fromfile="nim-golden", tofile="python", lineterm="",
+        golden.splitlines(),
+        actual.splitlines(),
+        fromfile="nim-golden",
+        tofile="python",
+        lineterm="",
       )
     )
     raise AssertionError("MIR mismatch:\n" + diff)

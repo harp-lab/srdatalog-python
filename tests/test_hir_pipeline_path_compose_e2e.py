@@ -10,15 +10,13 @@ Stresses the planner on:
 The golden fixture is python/tests/fixtures/path_compose.hir.json,
 generated from python/tests/fixtures/path_compose.nim via srdatalog_plan.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_hir
 from srdatalog.hir.emit import hir_to_obj
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -50,12 +48,16 @@ def test_path_compose_full_pipeline_matches_golden():
   a, g = _canonical(actual), _canonical(golden)
   if a != g:
     import difflib
+
     raise AssertionError(
       "PathCompose pipeline output != golden:\n"
       + "\n".join(
         difflib.unified_diff(
-          g.splitlines(), a.splitlines(),
-          fromfile="nim-golden", tofile="python-pipeline", lineterm="",
+          g.splitlines(),
+          a.splitlines(),
+          fromfile="nim-golden",
+          tofile="python-pipeline",
+          lineterm="",
         )
       )
     )

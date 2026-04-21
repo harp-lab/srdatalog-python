@@ -8,21 +8,18 @@ Covers:
 The MIR tree is spot-checked structurally and then re-emitted through the
 S-expr printer so the concatenated output is locked against regressions.
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
-from srdatalog.hir.types import Version
+import srdatalog.mir.types as mir
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_hir
 from srdatalog.hir.lower import (
-  lower_variant_to_pipeline,
-  generate_rebuild_indices,
-  generate_merge_indices,
-  generate_simple_maintenance,
   generate_loop_maintenance,
+  generate_merge_indices,
+  generate_rebuild_indices,
+  generate_simple_maintenance,
+  lower_variant_to_pipeline,
 )
-import srdatalog.mir.types as mir
+from srdatalog.hir.types import Version
 from srdatalog.mir.emit import print_mir_sexpr
 
 
@@ -57,6 +54,7 @@ def build_path_compose() -> Program:
 # -----------------------------------------------------------------------------
 # Multi-clause lowering shape
 # -----------------------------------------------------------------------------
+
 
 def test_tc_rec_lowers_to_cj_cart_insert():
   hir = compile_to_hir(build_tc())
@@ -141,6 +139,7 @@ def test_path_compose_both_delta_variants_lower():
 # Maintenance generators
 # -----------------------------------------------------------------------------
 
+
 def test_generate_rebuild_indices_round_trip():
   ops = generate_rebuild_indices("Path", [[1, 0], [0, 1]], Version.NEW)
   assert len(ops) == 2
@@ -165,7 +164,11 @@ def test_simple_maintenance_shape_for_edge():
   # MergeIndex (no RebuildIndexFromIndex because idx == canonical).
   kinds = [type(o).__name__ for o in ops]
   assert kinds == [
-    "RebuildIndex", "CheckSize", "ComputeDeltaIndex", "ClearRelation", "MergeIndex",
+    "RebuildIndex",
+    "CheckSize",
+    "ComputeDeltaIndex",
+    "ClearRelation",
+    "MergeIndex",
   ]
   assert ops[0].version is Version.NEW
   assert ops[0].index == [0, 1]
@@ -182,10 +185,13 @@ def test_simple_maintenance_with_non_canonical_index():
   # For [0,1]: RebuildIndexFromIndex + MergeIndex.
   kinds = [type(o).__name__ for o in ops]
   assert kinds == [
-    "RebuildIndex", "CheckSize", "ComputeDeltaIndex", "ClearRelation",
-    "MergeIndex",                 # [1,0] canonical
-    "RebuildIndexFromIndex",      # [0,1] from [1,0]
-    "MergeIndex",                 # [0,1]
+    "RebuildIndex",
+    "CheckSize",
+    "ComputeDeltaIndex",
+    "ClearRelation",
+    "MergeIndex",  # [1,0] canonical
+    "RebuildIndexFromIndex",  # [0,1] from [1,0]
+    "MergeIndex",  # [0,1]
   ]
   rfi = ops[5]
   assert isinstance(rfi, mir.RebuildIndexFromIndex)
@@ -201,16 +207,20 @@ def test_loop_maintenance_shape_for_tc_path():
   always needs FULL.
   '''
   ops = generate_loop_maintenance(
-    "Path", [[1, 0]], [1, 0], arity=2, full_needed=set(),
+    "Path",
+    [[1, 0]],
+    [1, 0],
+    arity=2,
+    full_needed=set(),
   )
   kinds = [type(o).__name__ for o in ops]
   assert kinds == [
-    "RebuildIndex",          # canonical NEW
-    "ClearRelation",         # clear DELTA
+    "RebuildIndex",  # canonical NEW
+    "ClearRelation",  # clear DELTA
     "CheckSize",
     "ComputeDeltaIndex",
-    "ClearRelation",         # clear NEW
-    "MergeIndex",            # canonical [1,0] — always merged to FULL
+    "ClearRelation",  # clear NEW
+    "MergeIndex",  # canonical [1,0] — always merged to FULL
   ]
   assert ops[0].version is Version.NEW
   assert ops[1].version is Version.DELTA
@@ -222,7 +232,11 @@ def test_loop_maintenance_skips_full_merge_for_non_full_needed_non_canonical():
   but do NOT merge it into FULL (avoids maintaining a dead FULL index).
   '''
   ops = generate_loop_maintenance(
-    "R", [[0, 1], [1, 0]], [0, 1], arity=2, full_needed=set(),
+    "R",
+    [[0, 1], [1, 0]],
+    [0, 1],
+    arity=2,
+    full_needed=set(),
   )
   # Expected:
   #  RebuildIndex NEW(0,1), ClearRelation DELTA, CheckSize NEW,
@@ -232,10 +246,15 @@ def test_loop_maintenance_skips_full_merge_for_non_full_needed_non_canonical():
   #  (no MergeIndex (1,0) because FULL not needed)
   kinds = [type(o).__name__ for o in ops]
   assert kinds == [
-    "RebuildIndex", "ClearRelation", "CheckSize", "ComputeDeltaIndex",
-    "ClearRelation", "MergeIndex", "RebuildIndexFromIndex",
+    "RebuildIndex",
+    "ClearRelation",
+    "CheckSize",
+    "ComputeDeltaIndex",
+    "ClearRelation",
+    "MergeIndex",
+    "RebuildIndexFromIndex",
   ]
-  assert ops[5].index == [0, 1]        # canonical merged
+  assert ops[5].index == [0, 1]  # canonical merged
   assert ops[6].target_index == [1, 0]
 
 
@@ -244,15 +263,22 @@ def test_loop_maintenance_includes_full_merge_when_needed():
   merged too.
   '''
   ops = generate_loop_maintenance(
-    "R", [[0, 1], [1, 0]], [0, 1], arity=2, full_needed={(1, 0)},
+    "R",
+    [[0, 1], [1, 0]],
+    [0, 1],
+    arity=2,
+    full_needed={(1, 0)},
   )
   kinds = [type(o).__name__ for o in ops]
   assert kinds == [
-    "RebuildIndex", "ClearRelation", "CheckSize", "ComputeDeltaIndex",
+    "RebuildIndex",
     "ClearRelation",
-    "MergeIndex",                   # canonical (0,1)
-    "RebuildIndexFromIndex",        # DELTA rebuild for (1,0)
-    "MergeIndex",                   # (1,0) FULL merge — required
+    "CheckSize",
+    "ComputeDeltaIndex",
+    "ClearRelation",
+    "MergeIndex",  # canonical (0,1)
+    "RebuildIndexFromIndex",  # DELTA rebuild for (1,0)
+    "MergeIndex",  # (1,0) FULL merge — required
   ]
   assert ops[7].index == [1, 0]
 

@@ -1,6 +1,8 @@
 '''lsqb_triangle_count.nim -- Triangle count with `count: true`'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program
+
+from srdatalog.dsl import Program, Relation, Var
 
 
 def build_lsqb_triangle_count() -> Program:
@@ -12,9 +14,10 @@ def build_lsqb_triangle_count() -> Program:
     relations=[k_in, knows, tri],
     rules=[
       (knows(X, Y) <= k_in(X, Y)).named("KnowsLoad"),
-      (
-        tri(A, B, C) <= knows(A, B) & knows(B, C) & knows(A, C)
-      ).named("TriangleJoin").with_plan(var_order=["a", "b", "c"]).with_count(),
+      (tri(A, B, C) <= knows(A, B) & knows(B, C) & knows(A, C))
+      .named("TriangleJoin")
+      .with_plan(var_order=["a", "b", "c"])
+      .with_count(),
     ],
   )
 

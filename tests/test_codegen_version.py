@@ -4,9 +4,6 @@ Checks the `.method`, `.number`, `.code` properties added to
 `hir_types.Version`. `.value` and `.name` must still be `"FULL"` etc.
 so the MIR S-expr byte-match against Nim keeps working.
 '''
-import sys
-from pathlib import Path
-
 
 from srdatalog.hir.types import Version
 

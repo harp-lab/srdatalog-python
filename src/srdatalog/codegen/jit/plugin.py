@@ -6,21 +6,25 @@ IndexPlugin so custom index types (e.g., Device2LevelIndex used by
 polonius_test) can override behavior. The default plugin matches
 DSAI and is what every existing integration fixture uses.
 '''
+
 from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Callable, Optional
 
 
 class PrefixMode(Enum):
   '''How a prefix() / prefix_lower_bound() call is dispatched.'''
+
   COOPERATIVE = "cooperative"  # warp-wide: .prefix(key, tile, view)
-  SEQUENTIAL = "sequential"    # per-thread: .prefix_seq(key, view)
+  SEQUENTIAL = "sequential"  # per-thread: .prefix_seq(key, view)
 
 
 # -----------------------------------------------------------------------------
 # IndexPlugin
 # -----------------------------------------------------------------------------
+
 
 @dataclass
 class IndexPlugin:
@@ -29,6 +33,7 @@ class IndexPlugin:
   (`cpp_type`) and the resolver falls back to the default (DSAI) when
   no plugin is registered for a given type.
   '''
+
   name: str
   cpp_type: str
   cpp_headers: list[str] = field(default_factory=list)
@@ -36,29 +41,26 @@ class IndexPlugin:
   # Expression-level hooks — each returns a C++ expression string.
   gen_root_handle: Callable[[str], str] = lambda v: ""
   gen_prefix: Callable[[str, str, str, PrefixMode], str] = lambda h, k, v, m: ""
-  gen_prefix_lower_bound: Callable[[str, str, str, PrefixMode], str] = (
-    lambda h, k, v, m: ""
-  )
+  gen_prefix_lower_bound: Callable[[str, str, str, PrefixMode], str] = lambda h, k, v, m: ""
   gen_degree: Callable[[str], str] = lambda h: ""
   gen_valid: Callable[[str], str] = lambda h: ""
   gen_get_value_at: Callable[[str, str, str], str] = lambda h, v, i: ""
   gen_get_value: Callable[[str, int, str], str] = lambda v, c, p: ""
   gen_child: Callable[[str, str], str] = lambda h, i: ""
-  gen_child_range: Callable[[str, str, str, str, str], str] = (
-    lambda h, p, k, t, v: ""
-  )
+  gen_child_range: Callable[[str, str, str, str, str], str] = lambda h, p, k, t, v: ""
   gen_iterators: Callable[[str, str], str] = lambda h, v: ""
 
   # View-level hooks.
   view_count: Callable[[str], int] = lambda version: 1
-  gen_host_view_setup: Callable[[str, str], list[str]] = (
-    lambda idx_expr, version: [f"{idx_expr}.view()"]
-  )
+  gen_host_view_setup: Callable[[str, str], list[str]] = lambda idx_expr, version: [
+    f"{idx_expr}.view()"
+  ]
 
 
 # -----------------------------------------------------------------------------
 # Default DSAI hooks (plain, non-lambda functions for readability)
 # -----------------------------------------------------------------------------
+
 
 def _default_gen_root_handle(view_var: str) -> str:
   return f"HandleType(0, {view_var}.num_rows_, 0)"
@@ -71,7 +73,10 @@ def _default_gen_prefix(handle: str, key: str, view_var: str, mode: PrefixMode) 
 
 
 def _default_gen_prefix_lower_bound(
-  handle: str, key: str, view_var: str, mode: PrefixMode,
+  handle: str,
+  key: str,
+  view_var: str,
+  mode: PrefixMode,
 ) -> str:
   if mode is PrefixMode.COOPERATIVE:
     return f"{handle}.prefix_lower_bound({key}, tile, {view_var})"
@@ -183,21 +188,33 @@ def get_extra_headers_for_types(index_types: list[str]) -> list[str]:
 # codegen module calls into). `index_type=""` always hits the DSAI default.
 # -----------------------------------------------------------------------------
 
+
 def plugin_gen_root_handle(view_var: str, index_type: str = "") -> str:
   return resolve_plugin(index_type).gen_root_handle(view_var)
 
 
 def plugin_gen_prefix(
-  handle: str, key: str, view_var: str, mode: PrefixMode, index_type: str = "",
+  handle: str,
+  key: str,
+  view_var: str,
+  mode: PrefixMode,
+  index_type: str = "",
 ) -> str:
   return resolve_plugin(index_type).gen_prefix(handle, key, view_var, mode)
 
 
 def plugin_gen_prefix_lower_bound(
-  handle: str, key: str, view_var: str, mode: PrefixMode, index_type: str = "",
+  handle: str,
+  key: str,
+  view_var: str,
+  mode: PrefixMode,
+  index_type: str = "",
 ) -> str:
   return resolve_plugin(index_type).gen_prefix_lower_bound(
-    handle, key, view_var, mode,
+    handle,
+    key,
+    view_var,
+    mode,
   )
 
 
@@ -222,7 +239,12 @@ def plugin_gen_child(handle: str, idx: str, index_type: str = "") -> str:
 
 
 def plugin_gen_child_range(
-  handle: str, pos: str, key: str, tile: str, view_var: str, index_type: str = "",
+  handle: str,
+  pos: str,
+  key: str,
+  tile: str,
+  view_var: str,
+  index_type: str = "",
 ) -> str:
   return resolve_plugin(index_type).gen_child_range(handle, pos, key, tile, view_var)
 
@@ -236,7 +258,9 @@ def plugin_view_count(version: str, index_type: str = "") -> int:
 
 
 def plugin_gen_host_view_setup(
-  idx_expr: str, version: str, index_type: str = "",
+  idx_expr: str,
+  version: str,
+  index_type: str = "",
 ) -> list[str]:
   return resolve_plugin(index_type).gen_host_view_setup(idx_expr, version)
 
@@ -245,13 +269,35 @@ def plugin_gen_host_view_setup(
 # Chained prefix calls — handles variable-keyword sanitization + modes
 # -----------------------------------------------------------------------------
 
+
 def _sanitize_cpp_kw(name: str) -> str:
   '''Minimal sanitization — full keyword list lives in context.py; this
   shim is here to keep plugin.py self-contained for tests. context.py's
   sanitize_var_name is authoritative when imported together.'''
-  _reserved = {"int", "float", "double", "char", "bool", "long", "short", "void",
-                "for", "if", "else", "while", "return", "class", "struct", "union",
-                "template", "typename", "namespace", "new", "delete", "this"}
+  _reserved = {
+    "int",
+    "float",
+    "double",
+    "char",
+    "bool",
+    "long",
+    "short",
+    "void",
+    "for",
+    "if",
+    "else",
+    "while",
+    "return",
+    "class",
+    "struct",
+    "union",
+    "template",
+    "typename",
+    "namespace",
+    "new",
+    "delete",
+    "this",
+  }
   return name + "_val" if name in _reserved else name
 
 
@@ -280,10 +326,7 @@ def plugin_chained_prefix_calls(
   for v in prefix_vars:
     sanitized = _sanitize_cpp_kw(v)
     in_cartesian = sanitized in cartesian_bound_vars or v in cartesian_bound_vars
-    mode = (
-      PrefixMode.SEQUENTIAL if (scalar_mode or in_cartesian)
-      else PrefixMode.COOPERATIVE
-    )
+    mode = PrefixMode.SEQUENTIAL if (scalar_mode or in_cartesian) else PrefixMode.COOPERATIVE
     result = plugin.gen_prefix(result, sanitized, view_var, mode)
   return result
 
@@ -310,10 +353,7 @@ def plugin_chained_prefix_with_last_lower_bound(
   for i, v in enumerate(prefix_vars):
     sanitized = _sanitize_cpp_kw(v)
     in_cartesian = sanitized in cartesian_bound_vars or v in cartesian_bound_vars
-    mode = (
-      PrefixMode.SEQUENTIAL if (scalar_mode or in_cartesian)
-      else PrefixMode.COOPERATIVE
-    )
+    mode = PrefixMode.SEQUENTIAL if (scalar_mode or in_cartesian) else PrefixMode.COOPERATIVE
     if i == last_idx:
       result = plugin.gen_prefix_lower_bound(result, sanitized, view_var, mode)
     else:

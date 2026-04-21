@@ -25,6 +25,7 @@ Scope: baseline non-recursive emit supporting:
 Unsupported (raise NotImplementedError): work_stealing, block_group,
 dedup_hash, balanced scan, fan-out, materialized pipelines.
 '''
+
 from __future__ import annotations
 
 import srdatalog.mir.types as m
@@ -34,6 +35,9 @@ from srdatalog.codegen.jit.emit_helpers import (
   has_balanced_scan,
   has_tiled_cartesian_eligible,
 )
+from srdatalog.codegen.jit.materialized import is_materialized_pipeline
+from srdatalog.codegen.jit.pipeline import jit_pipeline
+from srdatalog.codegen.jit.plugin import plugin_view_count
 from srdatalog.codegen.jit.view_management import (
   build_root_slot_map,
   compute_total_view_count,
@@ -41,14 +45,11 @@ from srdatalog.codegen.jit.view_management import (
   register_pipeline_handles,
   source_spec_key,
 )
-from srdatalog.codegen.jit.pipeline import jit_pipeline
-from srdatalog.codegen.jit.materialized import is_materialized_pipeline
-from srdatalog.codegen.jit.plugin import plugin_view_count
-
 
 # -----------------------------------------------------------------------------
 # Source spec extraction helpers (mirror Nim's inline lambdas)
 # -----------------------------------------------------------------------------
+
 
 def _version_to_cpp(ver: str) -> str:
   v = str(ver)
@@ -115,6 +116,7 @@ def _root_is_scan(pipeline: list[m.MirNode]) -> bool:
 # Pipeline context builder — fresh ctx per kernel
 # -----------------------------------------------------------------------------
 
+
 def _make_kernel_ctx(
   source_specs: list[m.MirNode],
   pipeline: list[m.MirNode],
@@ -138,7 +140,10 @@ def _make_kernel_ctx(
   ctx.output_var_name = output_var_name
   root_slots = build_root_slot_map(source_specs, rel_index_types)
   register_pipeline_handles(
-    ctx.view_slot_offsets, pipeline, rel_index_types, root_slots,
+    ctx.view_slot_offsets,
+    pipeline,
+    rel_index_types,
+    root_slots,
   )
   return ctx
 
@@ -146,6 +151,7 @@ def _make_kernel_ctx(
 # -----------------------------------------------------------------------------
 # Kernel emitters
 # -----------------------------------------------------------------------------
+
 
 def _gen_kernel_count(
   node: m.ExecutePipeline,
@@ -167,19 +173,13 @@ def _gen_kernel_count(
   )
   code += "    __shared__ char s_views_buf[NumSources * sizeof(ViewType)];\n"
   code += "    auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);\n"
-  code += (
-    "    if (threadIdx.x < NumSources) "
-    "{ s_views[threadIdx.x] = views[threadIdx.x]; }\n"
-  )
+  code += "    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }\n"
   code += "    __syncthreads();\n"
   code += "    views = s_views;  // redirect to shared memory copy\n"
   code += "    uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;\n"
   code += "    uint32_t warp_id = thread_id / kGroupSize;\n"
   code += "    uint32_t num_warps = (gridDim.x * blockDim.x) / kGroupSize;\n"
-  code += (
-    "    uint32_t num_threads = num_warps;"
-    "  // Alias for scalar mode (kGroupSize=1)\n\n"
-  )
+  code += "    uint32_t num_threads = num_warps;  // Alias for scalar mode (kGroupSize=1)\n\n"
 
   dest_arities = [len(d.index) for d in node.dest_specs]
   if dest_arities:
@@ -188,15 +188,15 @@ def _gen_kernel_count(
       "ValueType, SR, true, Layout, OutputArity_0>;\n"
     )
   else:
-    code += (
-      "    using OutputCtx = SRDatalog::GPU::OutputContext<"
-      "ValueType, SR, true, Layout, 0>;\n"
-    )
+    code += "    using OutputCtx = SRDatalog::GPU::OutputContext<ValueType, SR, true, Layout, 0>;\n"
   code += "    OutputCtx output_ctx{nullptr, nullptr, 0, 0};\n\n"
 
   ctx = _make_kernel_ctx(
-    node.source_specs, pipeline, rel_index_types,
-    is_counting=True, output_var_name="output_ctx",
+    node.source_specs,
+    pipeline,
+    rel_index_types,
+    is_counting=True,
+    output_var_name="output_ctx",
   )
   # Primary output registered to output_ctx; secondary dests skipped in count phase.
   if node.dest_specs:
@@ -222,10 +222,7 @@ def _gen_kernel_materialize(
   '''
   dest_specs = node.dest_specs
   code = "  // Non-template kernel_materialize (concrete ViewType)\n"
-  code += (
-    "  static __global__ void __launch_bounds__(kBlockSize) "
-    "kernel_materialize(\n"
-  )
+  code += "  static __global__ void __launch_bounds__(kBlockSize) kernel_materialize(\n"
   code += "      const ViewType* __restrict__ views,\n"
   code += "      const ValueType* __restrict__ root_unique_values,\n"
   code += "      uint32_t num_unique_root_keys,\n"
@@ -245,38 +242,32 @@ def _gen_kernel_materialize(
   )
   code += "    __shared__ char s_views_buf[NumSources * sizeof(ViewType)];\n"
   code += "    auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);\n"
-  code += (
-    "    if (threadIdx.x < NumSources) "
-    "{ s_views[threadIdx.x] = views[threadIdx.x]; }\n"
-  )
+  code += "    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }\n"
   code += "    __syncthreads();\n"
   code += "    views = s_views;\n"
   code += "    uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;\n"
   code += "    uint32_t warp_id = thread_id / kGroupSize;\n"
   code += "    uint32_t num_warps = (gridDim.x * blockDim.x) / kGroupSize;\n"
-  code += (
-    "    uint32_t num_threads = num_warps;"
-    "  // Alias for scalar mode (kGroupSize=1)\n"
-  )
+  code += "    uint32_t num_threads = num_warps;  // Alias for scalar mode (kGroupSize=1)\n"
   code += "    uint32_t thread_offset = thread_offsets[thread_id];\n\n"
 
   if tiled_cartesian_eligible:
-    code += (
-      "    // Tiled Cartesian: per-warp smem tiles + coalesced write state\n"
-    )
+    code += "    // Tiled Cartesian: per-warp smem tiles + coalesced write state\n"
     code += "    constexpr int kWarpsPerBlock = kBlockSize / kGroupSize;\n"
     code += "    constexpr int kCartTileSize = 256;\n"
     code += "    __shared__ ValueType s_cart[kWarpsPerBlock][2][kCartTileSize];\n"
     code += "    uint32_t warp_in_block = threadIdx.x / kGroupSize;\n"
     code += (
-      "    uint32_t warp_write_base = tile.shfl(thread_offset, 0);"
-      "  // broadcast lane 0 offset\n"
+      "    uint32_t warp_write_base = tile.shfl(thread_offset, 0);  // broadcast lane 0 offset\n"
     )
     code += "    uint32_t warp_local_count = 0;\n\n"
 
   ctx = _make_kernel_ctx(
-    node.source_specs, pipeline, rel_index_types,
-    is_counting=False, tiled_cartesian=tiled_cartesian_eligible,
+    node.source_specs,
+    pipeline,
+    rel_index_types,
+    is_counting=False,
+    tiled_cartesian=tiled_cartesian_eligible,
   )
   for i, dest in enumerate(dest_specs):
     output_var = f"output_ctx_{i}"
@@ -327,10 +318,7 @@ def _gen_kernel_fused(
   code += "    auto single_thread = cg::tiled_partition<1>(block);\n"
   code += "    __shared__ char s_views_buf[NumSources * sizeof(ViewType)];\n"
   code += "    auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);\n"
-  code += (
-    "    if (threadIdx.x < NumSources) "
-    "{ s_views[threadIdx.x] = views[threadIdx.x]; }\n"
-  )
+  code += "    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }\n"
   code += "    __syncthreads();\n"
   code += "    views = s_views;\n"
   code += "    uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;\n"
@@ -343,8 +331,7 @@ def _gen_kernel_fused(
       f"SpeculativeOutputContext<ValueType, OutputArity_{j}, 16>;\n"
     )
     code += (
-      f"    SpecCtx_{j} output_ctx_{j}{{output_data_{j}, atomic_write_pos_{j}, "
-      "overflow_flag,\n"
+      f"    SpecCtx_{j} output_ctx_{j}{{output_data_{j}, atomic_write_pos_{j}, overflow_flag,\n"
     )
     code += (
       f"                         static_cast<uint32_t>(output_stride_{j}), "
@@ -356,8 +343,11 @@ def _gen_kernel_fused(
   # reuse the materialize pipeline body verbatim (matches Nim exactly).
   if tiled_cartesian_eligible:
     ctx = _make_kernel_ctx(
-      node.source_specs, pipeline, rel_index_types,
-      is_counting=False, tiled_cartesian=False,
+      node.source_specs,
+      pipeline,
+      rel_index_types,
+      is_counting=False,
+      tiled_cartesian=False,
     )
     for i, dest in enumerate(dest_specs):
       ctx.output_vars[dest.rel_name] = f"output_ctx_{i}"
@@ -376,8 +366,10 @@ def _gen_kernel_fused(
 # Block-group kernel variants
 # -----------------------------------------------------------------------------
 
+
 def _gen_kernel_bg_histogram(
-  node: m.ExecutePipeline, rel_index_types: dict[str, str],
+  node: m.ExecutePipeline,
+  rel_index_types: dict[str, str],
 ) -> str:
   '''Emit the BG histogram kernel — a grid-stride loop over unique keys
   that writes the per-key work estimate (product of root-source degrees)
@@ -391,16 +383,15 @@ def _gen_kernel_bg_histogram(
   # tells us which handle_start values map to root slots.
   first_op = node.pipeline[0]
   if not isinstance(first_op, m.ColumnJoin):
-    raise NotImplementedError(
-      "_gen_kernel_bg_histogram: only ColumnJoin-root pipelines supported"
-    )
+    raise NotImplementedError("_gen_kernel_bg_histogram: only ColumnJoin-root pipelines supported")
   root_sources = [s for s in first_op.sources if isinstance(s, m.ColumnSource)]
 
   # Deduplicate source specs for view declarations (same as regular
   # kernels).
   from srdatalog.codegen.jit.view_management import (
-    collect_unique_view_specs, spec_key as vs_spec_key,
+    collect_unique_view_specs,
   )
+
   mutable_pipe = list(node.pipeline)
   view_specs = collect_unique_view_specs(mutable_pipe)
 
@@ -418,10 +409,7 @@ def _gen_kernel_bg_histogram(
   code += "    auto single_thread = cg::tiled_partition<1>(block);\n"
   code += "    __shared__ char s_views_buf[NumSources * sizeof(ViewType)];\n"
   code += "    auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);\n"
-  code += (
-    "    if (threadIdx.x < NumSources) "
-    "{ s_views[threadIdx.x] = views[threadIdx.x]; }\n"
-  )
+  code += "    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }\n"
   code += "    __syncthreads();\n"
   code += "    views = s_views;\n"
   code += "    uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;\n"
@@ -434,10 +422,7 @@ def _gen_kernel_bg_histogram(
   code += "    using HandleType = ViewType::NodeHandle;\n\n"
 
   # View declarations (one per unique spec, using view slot lookup).
-  code += (
-    f"    // View declarations (deduplicated by spec, "
-    f"{len(view_specs)} unique views)\n"
-  )
+  code += f"    // View declarations (deduplicated by spec, {len(view_specs)} unique views)\n"
   # Compute view slots.
   view_slot_offsets = compute_view_slot_offsets(source_specs, rel_index_types)
   for sp in view_specs:
@@ -479,27 +464,20 @@ def _gen_kernel_bg_histogram(
         "      uint32_t bg_hhi = "
         f"{view_var}.num_rows_ - (num_unique_root_keys - bg_hist_key - 1);\n"
       )
-      code += (
-        f"      bg_hhi = (bg_hhi <= {view_var}.num_rows_) ? "
-        f"bg_hhi : {view_var}.num_rows_;\n"
-      )
-      code += (
-        f"      bg_hhi = (bg_hhi > bg_hlo) ? bg_hhi : {view_var}.num_rows_;\n"
-      )
+      code += f"      bg_hhi = (bg_hhi <= {view_var}.num_rows_) ? bg_hhi : {view_var}.num_rows_;\n"
+      code += f"      bg_hhi = (bg_hhi > bg_hlo) ? bg_hhi : {view_var}.num_rows_;\n"
       code += (
         f"      auto {handle_var} = HandleType(bg_hlo, bg_hhi, 0)"
         f".prefix(bg_hist_root_val, tile, {view_var});\n"
       )
     else:
       from srdatalog.codegen.jit.context import gen_root_handle as _gen_rh
+
       code += (
         f"      auto {handle_var} = {_gen_rh(view_var, src_index_type)}"
         f".prefix(bg_hist_root_val, tile, {view_var});\n"
       )
-    code += (
-      f"      if (!{handle_var}.valid()) {{ "
-      "bg_work_per_key[bg_hist_key] = 0; continue; }\n"
-    )
+    code += f"      if (!{handle_var}.valid()) {{ bg_work_per_key[bg_hist_key] = 0; continue; }}\n"
 
   code += "      uint64_t bg_deg = 1;\n"
   for src in root_sources:
@@ -507,9 +485,7 @@ def _gen_kernel_bg_histogram(
     rel_name = src.rel_name
     handle_var = f"h_{rel_name}_{src_idx}_root"
     code += f"      bg_deg *= {handle_var}.degree();\n"
-  code += (
-    "      if (tile.thread_rank() == 0) bg_work_per_key[bg_hist_key] = bg_deg;\n"
-  )
+  code += "      if (tile.thread_rank() == 0) bg_work_per_key[bg_hist_key] = bg_deg;\n"
   code += "    }\n"
   code += "  }\n\n"
   return code
@@ -540,10 +516,7 @@ def _gen_kernel_bg_count(
   code += "    auto single_thread = cg::tiled_partition<1>(block);\n"
   code += "    __shared__ char s_views_buf[NumSources * sizeof(ViewType)];\n"
   code += "    auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);\n"
-  code += (
-    "    if (threadIdx.x < NumSources) "
-    "{ s_views[threadIdx.x] = views[threadIdx.x]; }\n"
-  )
+  code += "    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }\n"
   code += "    __syncthreads();\n"
   code += "    views = s_views;\n"
   code += "    uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;\n"
@@ -557,15 +530,16 @@ def _gen_kernel_bg_count(
       "ValueType, SR, true, Layout, OutputArity_0>;\n"
     )
   else:
-    code += (
-      "    using OutputCtx = SRDatalog::GPU::OutputContext<"
-      "ValueType, SR, true, Layout, 0>;\n"
-    )
+    code += "    using OutputCtx = SRDatalog::GPU::OutputContext<ValueType, SR, true, Layout, 0>;\n"
   code += "    OutputCtx output_ctx{nullptr, nullptr, 0, 0};\n\n"
 
   ctx = _make_kernel_ctx(
-    node.source_specs, pipeline, rel_index_types,
-    is_counting=True, bg_enabled=True, output_var_name="output_ctx",
+    node.source_specs,
+    pipeline,
+    rel_index_types,
+    is_counting=True,
+    bg_enabled=True,
+    output_var_name="output_ctx",
   )
   if node.dest_specs:
     ctx.output_vars[node.dest_specs[0].rel_name] = "output_ctx"
@@ -584,9 +558,7 @@ def _gen_kernel_bg_materialize(
 ) -> str:
   dest_specs = node.dest_specs
   code = "  // Block-group partitioned materialize kernel\n"
-  code += (
-    "  static __global__ void __launch_bounds__(kBlockSize) kernel_bg_materialize(\n"
-  )
+  code += "  static __global__ void __launch_bounds__(kBlockSize) kernel_bg_materialize(\n"
   code += "      const ViewType* __restrict__ views,\n"
   code += "      const ValueType* __restrict__ root_unique_values,\n"
   code += "      const ValueType* __restrict__ head_root_unique_values,\n"
@@ -607,10 +579,7 @@ def _gen_kernel_bg_materialize(
   code += "    auto single_thread = cg::tiled_partition<1>(block);\n"
   code += "    __shared__ char s_views_buf[NumSources * sizeof(ViewType)];\n"
   code += "    auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);\n"
-  code += (
-    "    if (threadIdx.x < NumSources) "
-    "{ s_views[threadIdx.x] = views[threadIdx.x]; }\n"
-  )
+  code += "    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }\n"
   code += "    __syncthreads();\n"
   code += "    views = s_views;\n"
   code += "    uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;\n"
@@ -620,8 +589,12 @@ def _gen_kernel_bg_materialize(
   code += "    uint32_t thread_offset = thread_offsets[thread_id];\n\n"
 
   ctx = _make_kernel_ctx(
-    node.source_specs, pipeline, rel_index_types,
-    is_counting=False, tiled_cartesian=False, bg_enabled=True,
+    node.source_specs,
+    pipeline,
+    rel_index_types,
+    is_counting=False,
+    tiled_cartesian=False,
+    bg_enabled=True,
   )
   for i, dest in enumerate(dest_specs):
     output_var = f"output_ctx_{i}"
@@ -672,10 +645,7 @@ def _gen_kernel_bg_fused(
   code += "    auto single_thread = cg::tiled_partition<1>(block);\n"
   code += "    __shared__ char s_views_buf[NumSources * sizeof(ViewType)];\n"
   code += "    auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);\n"
-  code += (
-    "    if (threadIdx.x < NumSources) "
-    "{ s_views[threadIdx.x] = views[threadIdx.x]; }\n"
-  )
+  code += "    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }\n"
   code += "    __syncthreads();\n"
   code += "    views = s_views;\n"
   code += "    uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;\n"
@@ -688,8 +658,7 @@ def _gen_kernel_bg_fused(
       f"SpeculativeOutputContext<ValueType, OutputArity_{j}, 16>;\n"
     )
     code += (
-      f"    SpecCtx_{j} output_ctx_{j}{{output_data_{j}, atomic_write_pos_{j}, "
-      "overflow_flag,\n"
+      f"    SpecCtx_{j} output_ctx_{j}{{output_data_{j}, atomic_write_pos_{j}, overflow_flag,\n"
     )
     code += (
       f"                         static_cast<uint32_t>(output_stride_{j}), "
@@ -697,8 +666,12 @@ def _gen_kernel_bg_fused(
     )
 
   ctx = _make_kernel_ctx(
-    node.source_specs, pipeline, rel_index_types,
-    is_counting=False, tiled_cartesian=False, bg_enabled=True,
+    node.source_specs,
+    pipeline,
+    rel_index_types,
+    is_counting=False,
+    tiled_cartesian=False,
+    bg_enabled=True,
   )
   for i, dest in enumerate(dest_specs):
     ctx.output_vars[dest.rel_name] = f"output_ctx_{i}"
@@ -714,8 +687,11 @@ def _gen_kernel_bg_fused(
 # LaunchParams + forward declarations
 # -----------------------------------------------------------------------------
 
+
 def _gen_launch_params_struct(
-  num_dests: int, is_fused_eligible: bool, is_block_group: bool = False,
+  num_dests: int,
+  is_fused_eligible: bool,
+  is_block_group: bool = False,
   for_decl: bool = False,
 ) -> str:
   '''LaunchParams block — shared between `full` and `decl` emission.
@@ -738,13 +714,10 @@ def _gen_launch_params_struct(
   code += "    uint32_t num_threads = 0;\n"
   if is_block_group:
     if for_decl:
-      code += (
-        "    // Block-group state (must match JIT batch definition exactly!)\n"
-      )
+      code += "    // Block-group state (must match JIT batch definition exactly!)\n"
     else:
       code += (
-        "    // Block-group state "
-        "(raw ptr to avoid DeviceArray default ctor using wrong stream)\n"
+        "    // Block-group state (raw ptr to avoid DeviceArray default ctor using wrong stream)\n"
       )
     code += "    uint64_t* bg_cumulative_work_ptr = nullptr;\n"
     code += "    uint64_t bg_total_work = 0;\n"
@@ -766,20 +739,13 @@ def _gen_launch_params_struct(
 
 
 def _gen_method_forward_decls(
-  is_count: bool, is_fused_eligible: bool,
+  is_count: bool,
+  is_fused_eligible: bool,
 ) -> str:
   code = "  // Phase-decomposed methods for stream-parallel execution\n"
-  code += (
-    "  static LaunchParams setup(DB& db, uint32_t iteration, "
-    "GPU_STREAM_T stream = 0);\n"
-  )
-  code += (
-    "  static void launch_count(LaunchParams& p, GPU_STREAM_T stream = 0);\n"
-  )
-  code += (
-    "  static uint32_t scan_and_resize(DB& db, LaunchParams& p, "
-    "GPU_STREAM_T stream = 0);\n"
-  )
+  code += "  static LaunchParams setup(DB& db, uint32_t iteration, GPU_STREAM_T stream = 0);\n"
+  code += "  static void launch_count(LaunchParams& p, GPU_STREAM_T stream = 0);\n"
+  code += "  static uint32_t scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream = 0);\n"
   code += "  static void scan_only(LaunchParams& p, GPU_STREAM_T stream = 0);\n"
   code += "  static uint32_t read_total(LaunchParams& p);\n"
   if not is_count:
@@ -792,10 +758,7 @@ def _gen_method_forward_decls(
   code += "  static void execute(DB& db, uint32_t iteration);\n"
   if is_fused_eligible:
     code += "  static void execute_fused(DB& db, uint32_t iteration);\n"
-    code += (
-      "  static void launch_fused(DB& db, LaunchParams& p, "
-      "GPU_STREAM_T stream = 0);\n"
-    )
+    code += "  static void launch_fused(DB& db, LaunchParams& p, GPU_STREAM_T stream = 0);\n"
     code += "  static void read_fused_result(LaunchParams& p);\n"
     code += "  static inline uint32_t prev_fused_total_ = 4096;\n"
   return code
@@ -805,8 +768,12 @@ def _gen_method_forward_decls(
 # Phase method definitions (out-of-line)
 # -----------------------------------------------------------------------------
 
+
 def _gen_view_setup_for_source(
-  i: int, src: m.MirNode, views_var: str, rel_index_types: dict[str, str],
+  i: int,
+  src: m.MirNode,
+  views_var: str,
+  rel_index_types: dict[str, str],
 ) -> str:
   schema = _src_schema(src)
   ver = _src_version_cpp(src)
@@ -822,13 +789,10 @@ def _gen_view_setup_for_source(
       f"get_relation_by_schema<{schema}, DELTA_VER>(db);\n"
     )
   else:
-    code += (
-      f"    auto& rel_{i} = get_relation_by_schema<{schema}, {ver}>(db);\n"
-    )
+    code += f"    auto& rel_{i} = get_relation_by_schema<{schema}, {ver}>(db);\n"
   force_rebuild = "true" if isinstance(src, m.Negation) else "false"
   code += (
-    f"    auto& idx_{i} = rel_{i}.ensure_index(SRDatalog::IndexSpec"
-    f"{idx_str}, {force_rebuild});\n"
+    f"    auto& idx_{i} = rel_{i}.ensure_index(SRDatalog::IndexSpec{idx_str}, {force_rebuild});\n"
   )
   view_count = plugin_view_count(mir_ver, index_type)
   if view_count == 1:
@@ -856,18 +820,13 @@ def _gen_root_keys_code(
       f"get_relation_by_schema<{first_schema}, DELTA_VER>(db);\n"
     )
   else:
-    code += (
-      f"  auto& first_rel = "
-      f"get_relation_by_schema<{first_schema}, {first_version}>(db);\n"
-    )
+    code += f"  auto& first_rel = get_relation_by_schema<{first_schema}, {first_version}>(db);\n"
   code += (
-    f"  auto& first_idx = first_rel.get_index(SRDatalog::IndexSpec"
-    f"{_index_to_list(first_index)});\n"
+    f"  auto& first_idx = first_rel.get_index(SRDatalog::IndexSpec{_index_to_list(first_index)});\n"
   )
   code += f"  {prefix}num_root_keys = first_idx.root().degree();\n"
   code += (
-    f"  {prefix}num_unique_root_keys = "
-    "static_cast<uint32_t>(first_idx.num_unique_root_values());\n"
+    f"  {prefix}num_unique_root_keys = static_cast<uint32_t>(first_idx.num_unique_root_values());\n"
   )
   code += (
     f"  {prefix}root_unique_values_ptr = ({prefix}num_unique_root_keys > 0) "
@@ -877,9 +836,7 @@ def _gen_root_keys_code(
   first_index_type = rel_index_types.get(first_schema, "")
   first_view_count = plugin_view_count(first_version, first_index_type)
   if first_view_count > 1:
-    code += (
-      f"  {prefix}num_full_unique_root_keys = {prefix}num_unique_root_keys;\n"
-    )
+    code += f"  {prefix}num_full_unique_root_keys = {prefix}num_unique_root_keys;\n"
     code += (
       f"  {prefix}num_head_unique_root_keys = "
       "static_cast<uint32_t>(first_idx.head_num_unique_root_values());\n"
@@ -889,24 +846,17 @@ def _gen_root_keys_code(
       f"({prefix}num_head_unique_root_keys > 0) ? "
       "first_idx.head_root_unique_values().data() : nullptr;\n"
     )
-    code += (
-      f"  {prefix}num_unique_root_keys += {prefix}num_head_unique_root_keys;\n"
-    )
+    code += f"  {prefix}num_unique_root_keys += {prefix}num_head_unique_root_keys;\n"
     code += f"  {prefix}num_root_keys += first_idx.head().root().degree();\n"
   else:
-    code += (
-      f"  {prefix}num_full_unique_root_keys = {prefix}num_unique_root_keys;\n"
-    )
+    code += f"  {prefix}num_full_unique_root_keys = {prefix}num_unique_root_keys;\n"
   code += "\n"
   return code
 
 
 def _gen_grid_config_code(prefix: str, root_is_scan: bool) -> str:
   code = "  int num_sms = 0;\n"
-  code += (
-    "  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, "
-    "GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
-  )
+  code += "  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
   if root_is_scan:
     code += "  // Binary join: row-based iteration over ALL rows\n"
     code += (
@@ -920,16 +870,11 @@ def _gen_grid_config_code(prefix: str, root_is_scan: bool) -> str:
       "kGroupSize - 1) / kGroupSize) * kGroupSize;\n"
     )
   code += (
-    f"  {prefix}num_threads = std::max("
-    f"{prefix}num_threads, static_cast<uint32_t>(kBlockSize));\n"
+    f"  {prefix}num_threads = std::max({prefix}num_threads, static_cast<uint32_t>(kBlockSize));\n"
   )
+  code += f"  {prefix}num_blocks = ({prefix}num_threads + kBlockSize - 1) / kBlockSize;\n"
   code += (
-    f"  {prefix}num_blocks = ({prefix}num_threads + kBlockSize - 1) "
-    "/ kBlockSize;\n"
-  )
-  code += (
-    f"  {prefix}num_blocks = std::max("
-    f"{prefix}num_blocks, static_cast<uint32_t>(num_sms) * 8);\n"
+    f"  {prefix}num_blocks = std::max({prefix}num_blocks, static_cast<uint32_t>(num_sms) * 8);\n"
   )
   code += f"  {prefix}num_threads = {prefix}num_blocks * kBlockSize;\n\n"
   return code
@@ -959,12 +904,14 @@ def _gen_setup(
       code += _gen_view_setup_for_source(i, src, "p.views_vec", rel_index_types)
 
   code += _gen_root_keys_code(
-    "p.", first_schema, first_version, first_index, rel_index_types,
+    "p.",
+    first_schema,
+    first_version,
+    first_index,
+    rel_index_types,
   )
   code += "  // Copy views to device using provided stream (NOT stream 0)\n"
-  code += (
-    "  p.d_views = SRDatalog::GPU::DeviceArray<ViewType>(p.views_vec.size());\n"
-  )
+  code += "  p.d_views = SRDatalog::GPU::DeviceArray<ViewType>(p.views_vec.size());\n"
   code += (
     "  GPU_MEMCPY_ASYNC(p.d_views.data(), p.views_vec.data(), "
     "p.views_vec.size() * sizeof(ViewType), GPU_HOST_TO_DEVICE, stream);\n\n"
@@ -977,31 +924,16 @@ def _gen_setup(
     code += "  // Both thresholds must pass: enough total rows AND enough unique keys\n"
     code += "  if (p.num_root_keys >= 256 && p.num_unique_root_keys >= 32) {\n"
     code += "    // BG buffers: static rmm::device_uvector, resize only when needed\n"
-    code += (
-      "    static rmm::device_uvector<uint64_t> s_bg_wk(0, "
-      "rmm::cuda_stream_default);\n"
-    )
-    code += (
-      "    static rmm::device_uvector<uint64_t> s_bg_cw(0, "
-      "rmm::cuda_stream_default);\n"
-    )
+    code += "    static rmm::device_uvector<uint64_t> s_bg_wk(0, rmm::cuda_stream_default);\n"
+    code += "    static rmm::device_uvector<uint64_t> s_bg_cw(0, rmm::cuda_stream_default);\n"
     code += "    if (s_bg_wk.size() < p.num_unique_root_keys) {\n"
-    code += (
-      "      s_bg_wk.resize(p.num_unique_root_keys, "
-      "rmm::cuda_stream_view{stream});\n"
-    )
-    code += (
-      "      s_bg_cw.resize(p.num_unique_root_keys, "
-      "rmm::cuda_stream_view{stream});\n"
-    )
+    code += "      s_bg_wk.resize(p.num_unique_root_keys, rmm::cuda_stream_view{stream});\n"
+    code += "      s_bg_cw.resize(p.num_unique_root_keys, rmm::cuda_stream_view{stream});\n"
     code += "    }\n"
     code += "    p.bg_cumulative_work_ptr = s_bg_cw.data();\n"
     code += "    uint64_t* bg_wk_ptr = s_bg_wk.data();\n"
     code += "    int bg_num_sms = 0;\n"
-    code += (
-      "    GPU_DEVICE_GET_ATTRIBUTE(&bg_num_sms, "
-      "GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
-    )
+    code += "    GPU_DEVICE_GET_ATTRIBUTE(&bg_num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
     code += (
       "    uint32_t hist_blocks = std::max((uint32_t)"
       "((p.num_unique_root_keys + (kBlockSize / kGroupSize) - 1) / "
@@ -1035,9 +967,7 @@ def _gen_setup(
     )
     code += "    GPU_STREAM_SYNCHRONIZE(stream);\n"
     code += "    uint32_t bg_num_warps = (p.num_blocks * kBlockSize) / kGroupSize;\n"
-    code += (
-      "    // BG helps when the hottest key's work exceeds what a warp processes\n"
-    )
+    code += "    // BG helps when the hottest key's work exceeds what a warp processes\n"
     code += "    // in one grid-stride pass: total_work / num_warps.\n"
     code += "    // If max_key fits within a warp's stride batch, baseline is fine.\n"
     code += "    uint64_t bg_warp_stride_work = p.bg_total_work / bg_num_warps;\n"
@@ -1049,10 +979,7 @@ def _gen_setup(
     code += "    p.bg_num_threads = p.bg_num_blocks * kBlockSize;\n"
     code += "  }\n\n"
 
-  code += (
-    "  p.thread_counts = SRDatalog::GPU::DeviceArray<uint32_t>"
-    "(p.num_threads + 1);\n"
-  )
+  code += "  p.thread_counts = SRDatalog::GPU::DeviceArray<uint32_t>(p.num_threads + 1);\n"
   code += (
     "  cudaMemsetAsync(p.thread_counts.data(), 0, "
     "(p.num_threads + 1) * sizeof(uint32_t), stream);\n"
@@ -1064,16 +991,10 @@ def _gen_setup(
 
 
 def _gen_launch_count(runner_prefix: str, is_block_group: bool = False) -> str:
-  code = (
-    f"void {runner_prefix}::launch_count"
-    "(LaunchParams& p, GPU_STREAM_T stream) {\n"
-  )
+  code = f"void {runner_prefix}::launch_count(LaunchParams& p, GPU_STREAM_T stream) {{\n"
   code += "  if (p.num_threads == 0) return;\n"
   code += "  if (p.num_unique_root_keys == 0) {\n"
-  code += (
-    "    cudaMemsetAsync(p.thread_counts_ptr, 0, "
-    "p.num_threads * sizeof(uint32_t), stream);\n"
-  )
+  code += "    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);\n"
   code += "    return;\n"
   code += "  }\n"
   if is_block_group:
@@ -1103,12 +1024,12 @@ def _gen_launch_count(runner_prefix: str, is_block_group: bool = False) -> str:
 
 
 def _gen_scan_and_resize(
-  node: m.ExecutePipeline, runner_prefix: str,
+  node: m.ExecutePipeline,
+  runner_prefix: str,
 ) -> str:
   code = "// Phase 3: Prefix scan + readback total + resize destinations\n"
   code += (
-    f"uint32_t {runner_prefix}::scan_and_resize"
-    "(DB& db, LaunchParams& p, GPU_STREAM_T stream) {\n"
+    f"uint32_t {runner_prefix}::scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream) {{\n"
   )
   code += (
     "  thrust::exclusive_scan(rmm::exec_policy(stream), "
@@ -1123,17 +1044,9 @@ def _gen_scan_and_resize(
   code += "  GPU_STREAM_SYNCHRONIZE(stream);\n"
   code += "  if (total_count == 0) return 0;\n\n"
   for i, dest in enumerate(node.dest_specs):
-    code += (
-      f"  auto& dest_rel_{i} = "
-      f"get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
-    )
-    code += (
-      f"  p.old_size_{i} = static_cast<uint32_t>(dest_rel_{i}.size());\n"
-    )
-    code += (
-      f"  dest_rel_{i}.resize_interned_columns"
-      f"(p.old_size_{i} + total_count, stream);\n"
-    )
+    code += f"  auto& dest_rel_{i} = get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
+    code += f"  p.old_size_{i} = static_cast<uint32_t>(dest_rel_{i}.size());\n"
+    code += f"  dest_rel_{i}.resize_interned_columns(p.old_size_{i} + total_count, stream);\n"
   code += "  return total_count;\n"
   code += "}\n\n"
   return code
@@ -1141,10 +1054,7 @@ def _gen_scan_and_resize(
 
 def _gen_scan_only(runner_prefix: str) -> str:
   code = "// Phase 3a: Prefix scan only (async, no sync)\n"
-  code += (
-    f"void {runner_prefix}::scan_only"
-    "(LaunchParams& p, GPU_STREAM_T stream) {\n"
-  )
+  code += f"void {runner_prefix}::scan_only(LaunchParams& p, GPU_STREAM_T stream) {{\n"
   code += "  if (p.num_threads == 0) return;\n"
   code += (
     "  thrust::exclusive_scan(rmm::exec_policy(stream), "
@@ -1170,7 +1080,8 @@ def _gen_read_total(runner_prefix: str) -> str:
 
 
 def _gen_launch_materialize(
-  node: m.ExecutePipeline, runner_prefix: str,
+  node: m.ExecutePipeline,
+  runner_prefix: str,
 ) -> str:
   code = "// Phase 4: Launch materialize kernel on given stream (no sync)\n"
   code += (
@@ -1180,17 +1091,13 @@ def _gen_launch_materialize(
   code += "  using ProvPtrType = semiring_value_t<SR>*;\n"
   code += "  ProvPtrType prov_ptr = nullptr;\n\n"
   for i, dest in enumerate(node.dest_specs):
-    code += (
-      f"  auto& dest_rel_{i} = "
-      f"get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
-    )
+    code += f"  auto& dest_rel_{i} = get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
     code += f"  uint32_t old_size_{i} = p.old_size_{i};\n"
 
   def _baseline_launch() -> str:
     out = "  kernel_materialize<<<p.num_blocks, kBlockSize, 0, stream>>>(\n"
     out += (
-      "      p.d_views.data(), p.root_unique_values_ptr, "
-      "p.num_unique_root_keys, p.num_root_keys,\n"
+      "      p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,\n"
     )
     out += "      p.thread_counts_ptr"
     for i in range(len(node.dest_specs)):
@@ -1203,9 +1110,7 @@ def _gen_launch_materialize(
 
   if node.block_group:
     code += "\n  if (p.bg_total_work > 0) {\n"
-    code += (
-      "    kernel_bg_materialize<<<p.bg_num_blocks, kBlockSize, 0, stream>>>(\n"
-    )
+    code += "    kernel_bg_materialize<<<p.bg_num_blocks, kBlockSize, 0, stream>>>(\n"
     code += (
       "        p.d_views.data(), p.root_unique_values_ptr, "
       "p.head_root_unique_values_ptr, p.num_unique_root_keys, "
@@ -1228,31 +1133,21 @@ def _gen_launch_materialize(
 
 
 def _gen_launch_fused(
-  node: m.ExecutePipeline, runner_prefix: str,
+  node: m.ExecutePipeline,
+  runner_prefix: str,
 ) -> str:
   code = "// launch_fused: launch fused kernel on given stream (no sync)\n"
-  code += (
-    f"void {runner_prefix}::launch_fused"
-    "(DB& db, LaunchParams& p, GPU_STREAM_T stream) {\n"
-  )
+  code += f"void {runner_prefix}::launch_fused(DB& db, LaunchParams& p, GPU_STREAM_T stream) {{\n"
   code += "  if (p.num_unique_root_keys == 0) return;\n\n"
   for i, dest in enumerate(node.dest_specs):
-    code += (
-      f"  auto& dest_rel_{i} = "
-      f"get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
-    )
+    code += f"  auto& dest_rel_{i} = get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
 
   if node.block_group:
     # BG fused: compute histogram each call, launch kernel_bg_fused.
     code += "\n  // BG fused: compute histogram for block assignment (stream-ordered)\n"
     code += "  int num_sms = 0;\n"
-    code += (
-      "  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, "
-      "GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
-    )
-    code += (
-      "  static SRDatalog::GPU::DeviceArray<uint64_t> bg_work_per_key;\n"
-    )
+    code += "  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
+    code += "  static SRDatalog::GPU::DeviceArray<uint64_t> bg_work_per_key;\n"
     code += "  bg_work_per_key.resize(p.num_unique_root_keys);\n"
     code += "  {\n"
     code += (
@@ -1268,9 +1163,7 @@ def _gen_launch_fused(
       "bg_work_per_key.data());\n"
     )
     code += "  }\n"
-    code += (
-      "  static SRDatalog::GPU::DeviceArray<uint64_t> bg_cumulative_work;\n"
-    )
+    code += "  static SRDatalog::GPU::DeviceArray<uint64_t> bg_cumulative_work;\n"
     code += "  bg_cumulative_work.resize(p.num_unique_root_keys);\n"
     code += (
       "  thrust::inclusive_scan(rmm::exec_policy(stream), "
@@ -1286,9 +1179,7 @@ def _gen_launch_fused(
     code += "  if (bg_total_work == 0) return;\n"
     code += "  uint32_t bg_num_blocks = num_sms * 8;\n\n"
 
-    code += (
-      "  kernel_bg_fused<<<bg_num_blocks, kBlockSize, 0, stream>>>(\n"
-    )
+    code += "  kernel_bg_fused<<<bg_num_blocks, kBlockSize, 0, stream>>>(\n"
     code += (
       "      p.d_views.data(), p.root_unique_values_ptr, "
       "p.head_root_unique_values_ptr, p.num_unique_root_keys, "
@@ -1305,8 +1196,7 @@ def _gen_launch_fused(
   else:
     code += "  kernel_fused<<<p.num_blocks, kBlockSize, 0, stream>>>(\n"
     code += (
-      "      p.d_views.data(), p.root_unique_values_ptr, "
-      "p.num_unique_root_keys, p.num_root_keys,\n"
+      "      p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,\n"
     )
     parts = []
     for i in range(len(node.dest_specs)):
@@ -1321,7 +1211,8 @@ def _gen_launch_fused(
 
 
 def _gen_read_fused_result(
-  node: m.ExecutePipeline, runner_prefix: str,
+  node: m.ExecutePipeline,
+  runner_prefix: str,
 ) -> str:
   code = "// read_fused_result: readback fused write counts (call after device sync)\n"
   code += f"void {runner_prefix}::read_fused_result(LaunchParams& p) {{\n"
@@ -1331,18 +1222,18 @@ def _gen_read_fused_result(
       "sizeof(uint32_t), GPU_DEVICE_TO_HOST);\n"
     )
   code += "  uint32_t h_of = 0;\n"
-  code += (
-    "  GPU_MEMCPY(&h_of, p.fused_of_ptr, sizeof(uint32_t), "
-    "GPU_DEVICE_TO_HOST);\n"
-  )
+  code += "  GPU_MEMCPY(&h_of, p.fused_of_ptr, sizeof(uint32_t), GPU_DEVICE_TO_HOST);\n"
   code += "  p.fused_overflow = (h_of != 0);\n"
   code += "}\n\n"
   return code
 
 
 def _gen_execute(
-  rule_name: str, runner_prefix: str, is_count: bool,
-  is_block_group: bool = False, dest_specs: list | None = None,
+  rule_name: str,
+  runner_prefix: str,
+  is_count: bool,
+  is_block_group: bool = False,
+  dest_specs: list | None = None,
 ) -> str:
   code = "// Execute definition - calls decomposed phases sequentially\n"
   code += f"void {runner_prefix}::execute(DB& db, uint32_t iteration) {{\n"
@@ -1351,40 +1242,22 @@ def _gen_execute(
   if is_block_group and not is_count:
     # BG execute: adaptive fallback for small deltas, then 5-step BG.
     code += "  auto p = setup(db, iteration);\n"
-    code += (
-      "  if (p.num_unique_root_keys == 0) { nvtxRangePop(); return; }\n\n"
-    )
-    code += (
-      "  // Adaptive: fall back to baseline for small deltas "
-      "(histogram overhead > benefit)\n"
-    )
+    code += "  if (p.num_unique_root_keys == 0) { nvtxRangePop(); return; }\n\n"
+    code += "  // Adaptive: fall back to baseline for small deltas (histogram overhead > benefit)\n"
     code += "  constexpr uint32_t kBGAdaptiveThreshold = 256;\n"
-    code += (
-      "  if (p.num_root_keys < kBGAdaptiveThreshold || "
-      "p.num_unique_root_keys < 32) {\n"
-    )
+    code += "  if (p.num_root_keys < kBGAdaptiveThreshold || p.num_unique_root_keys < 32) {\n"
     code += "    launch_count(p, 0);\n"
     code += "    uint32_t total_count = scan_and_resize(db, p, 0);\n"
-    code += (
-      "    if (total_count == 0) { nvtxRangePop(); return; }\n"
-    )
+    code += "    if (total_count == 0) { nvtxRangePop(); return; }\n"
     code += "    launch_materialize(db, p, total_count, 0);\n"
     code += "    nvtxRangePop();\n"
     code += "    return;\n"
     code += "  }\n\n"
     code += "  int num_sms = 0;\n"
-    code += (
-      "  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, "
-      "GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n\n"
-    )
+    code += "  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n\n"
     # Step 1: histogram
-    code += (
-      "  // BG Step 1: Per-key work histogram (grid-stride, warp-reduced)\n"
-    )
-    code += (
-      "  SRDatalog::GPU::DeviceArray<uint64_t> "
-      "bg_work_per_key(p.num_unique_root_keys);\n"
-    )
+    code += "  // BG Step 1: Per-key work histogram (grid-stride, warp-reduced)\n"
+    code += "  SRDatalog::GPU::DeviceArray<uint64_t> bg_work_per_key(p.num_unique_root_keys);\n"
     code += "  {\n"
     code += (
       "    uint32_t hist_blocks = std::max((uint32_t)"
@@ -1402,10 +1275,7 @@ def _gen_execute(
     code += "  }\n\n"
     # Step 2: prefix sum
     code += "  // BG Step 2: Inclusive prefix sum on per-key work\n"
-    code += (
-      "  SRDatalog::GPU::DeviceArray<uint64_t> "
-      "bg_cumulative_work(p.num_unique_root_keys);\n"
-    )
+    code += "  SRDatalog::GPU::DeviceArray<uint64_t> bg_cumulative_work(p.num_unique_root_keys);\n"
     code += (
       "  thrust::inclusive_scan(thrust::device, bg_work_per_key.data(), "
       "bg_work_per_key.data() + p.num_unique_root_keys, "
@@ -1416,21 +1286,13 @@ def _gen_execute(
       "  GPU_MEMCPY(&p.bg_total_work, bg_cumulative_work.data() + "
       "p.num_unique_root_keys - 1, sizeof(uint64_t), GPU_DEVICE_TO_HOST);\n"
     )
-    code += (
-      "  if (p.bg_total_work == 0) { nvtxRangePop(); return; }\n\n"
-    )
+    code += "  if (p.bg_total_work == 0) { nvtxRangePop(); return; }\n\n"
     # Step 3: BG count kernel
     code += "  // BG Step 3: Block-group count kernel\n"
     code += "  p.bg_num_blocks = num_sms * 8;\n"
     code += "  p.bg_num_threads = p.bg_num_blocks * kBlockSize;\n"
-    code += (
-      "  p.thread_counts = SRDatalog::GPU::DeviceArray<uint32_t>"
-      "(p.bg_num_threads + 1);\n"
-    )
-    code += (
-      "  cudaMemset(p.thread_counts.data(), 0, "
-      "(p.bg_num_threads + 1) * sizeof(uint32_t));\n"
-    )
+    code += "  p.thread_counts = SRDatalog::GPU::DeviceArray<uint32_t>(p.bg_num_threads + 1);\n"
+    code += "  cudaMemset(p.thread_counts.data(), 0, (p.bg_num_threads + 1) * sizeof(uint32_t));\n"
     code += "  p.thread_counts_ptr = p.thread_counts.data();\n"
     code += (
       "  kernel_bg_count<<<p.bg_num_blocks, kBlockSize>>>"
@@ -1453,23 +1315,13 @@ def _gen_execute(
       "  GPU_MEMCPY(&total_count, p.thread_counts_ptr + p.bg_num_threads, "
       "sizeof(uint32_t), GPU_DEVICE_TO_HOST);\n"
     )
-    code += (
-      "  if (total_count == 0) { nvtxRangePop(); return; }\n\n"
-    )
+    code += "  if (total_count == 0) { nvtxRangePop(); return; }\n\n"
     # Resize dest + launch bg_materialize
     assert dest_specs is not None
     for i, dest in enumerate(dest_specs):
-      code += (
-        f"  auto& bg_dest_{i} = "
-        f"get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
-      )
-      code += (
-        f"  uint32_t bg_old_size_{i} = "
-        f"static_cast<uint32_t>(bg_dest_{i}.size());\n"
-      )
-      code += (
-        f"  bg_dest_{i}.resize_interned_columns(bg_old_size_{i} + total_count);\n"
-      )
+      code += f"  auto& bg_dest_{i} = get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
+      code += f"  uint32_t bg_old_size_{i} = static_cast<uint32_t>(bg_dest_{i}.size());\n"
+      code += f"  bg_dest_{i}.resize_interned_columns(bg_old_size_{i} + total_count);\n"
     code += "\n  // BG Step 5: Block-group materialize kernel\n"
     code += (
       "  kernel_bg_materialize<<<p.bg_num_blocks, kBlockSize>>>"
@@ -1509,47 +1361,31 @@ def _gen_execute(
 
 
 def _gen_execute_fused(
-  node: m.ExecutePipeline, runner_prefix: str,
+  node: m.ExecutePipeline,
+  runner_prefix: str,
 ) -> str:
   code = "// Tail-mode fused execution: single kernel, no count/scan phase\n"
   code += f"void {runner_prefix}::execute_fused(DB& db, uint32_t iteration) {{\n"
   code += "  auto p = setup(db, iteration);\n"
   code += "  if (p.num_unique_root_keys == 0) return;\n\n"
   for i, dest in enumerate(node.dest_specs):
-    code += (
-      f"  auto& dest_rel_{i} = "
-      f"get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
-    )
-    code += (
-      f"  uint32_t old_size_{i} = static_cast<uint32_t>(dest_rel_{i}.size());\n"
-    )
+    code += f"  auto& dest_rel_{i} = get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
+    code += f"  uint32_t old_size_{i} = static_cast<uint32_t>(dest_rel_{i}.size());\n"
   code += "  uint32_t capacity = prev_fused_total_;\n"
   for i in range(len(node.dest_specs)):
-    code += (
-      f"  dest_rel_{i}.resize_interned_columns(old_size_{i} + capacity);\n"
-    )
+    code += f"  dest_rel_{i}.resize_interned_columns(old_size_{i} + capacity);\n"
   code += "\n"
   for i in range(len(node.dest_specs)):
-    code += (
-      f"  static SRDatalog::GPU::DeviceArray<uint32_t> s_wp_{i}(1);\n"
-    )
-    code += (
-      f"  cudaMemsetAsync(s_wp_{i}.data(), 0, sizeof(uint32_t), 0);\n"
-    )
+    code += f"  static SRDatalog::GPU::DeviceArray<uint32_t> s_wp_{i}(1);\n"
+    code += f"  cudaMemsetAsync(s_wp_{i}.data(), 0, sizeof(uint32_t), 0);\n"
   code += "  static SRDatalog::GPU::DeviceArray<uint32_t> s_of(1);\n"
   code += "  cudaMemsetAsync(s_of.data(), 0, sizeof(uint32_t), 0);\n"
 
   if node.block_group:
     code += "\n  // BG fused: compute histogram for block assignment\n"
     code += "  int num_sms = 0;\n"
-    code += (
-      "  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, "
-      "GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
-    )
-    code += (
-      "  SRDatalog::GPU::DeviceArray<uint64_t> "
-      "bg_work_per_key(p.num_unique_root_keys);\n"
-    )
+    code += "  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
+    code += "  SRDatalog::GPU::DeviceArray<uint64_t> bg_work_per_key(p.num_unique_root_keys);\n"
     code += "  {\n"
     code += (
       "    uint32_t hist_blocks = std::max((uint32_t)"
@@ -1565,10 +1401,7 @@ def _gen_execute_fused(
     )
     code += "    cudaDeviceSynchronize();\n"
     code += "  }\n"
-    code += (
-      "  SRDatalog::GPU::DeviceArray<uint64_t> "
-      "bg_cumulative_work(p.num_unique_root_keys);\n"
-    )
+    code += "  SRDatalog::GPU::DeviceArray<uint64_t> bg_cumulative_work(p.num_unique_root_keys);\n"
     code += (
       "  thrust::inclusive_scan(thrust::device, bg_work_per_key.data(), "
       "bg_work_per_key.data() + p.num_unique_root_keys, "
@@ -1602,8 +1435,7 @@ def _gen_execute_fused(
   else:
     code += "  kernel_fused<<<p.num_blocks, kBlockSize>>>(\n"
     code += (
-      "      p.d_views.data(), p.root_unique_values_ptr, "
-      "p.num_unique_root_keys, p.num_root_keys,\n"
+      "      p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,\n"
     )
     parts = []
     for i in range(len(node.dest_specs)):
@@ -1618,18 +1450,11 @@ def _gen_execute_fused(
   code += "  uint32_t h_of = 0;\n"
   for i in range(len(node.dest_specs)):
     code += f"  uint32_t h_wp_{i} = 0;\n"
-    code += (
-      f"  GPU_MEMCPY(&h_wp_{i}, s_wp_{i}.data(), sizeof(uint32_t), "
-      "GPU_DEVICE_TO_HOST);\n"
-    )
-  code += (
-    "  GPU_MEMCPY(&h_of, s_of.data(), sizeof(uint32_t), GPU_DEVICE_TO_HOST);\n"
-  )
+    code += f"  GPU_MEMCPY(&h_wp_{i}, s_wp_{i}.data(), sizeof(uint32_t), GPU_DEVICE_TO_HOST);\n"
+  code += "  GPU_MEMCPY(&h_of, s_of.data(), sizeof(uint32_t), GPU_DEVICE_TO_HOST);\n"
   code += "  if (!h_of) {\n"
   for i in range(len(node.dest_specs)):
-    code += (
-      f"    dest_rel_{i}.resize_interned_columns(old_size_{i} + h_wp_{i});\n"
-    )
+    code += f"    dest_rel_{i}.resize_interned_columns(old_size_{i} + h_wp_{i});\n"
   code += "    uint32_t max_wp = 0;\n"
   for i in range(len(node.dest_specs)):
     code += f"    max_wp = std::max(max_wp, h_wp_{i});\n"
@@ -1650,6 +1475,7 @@ def _gen_execute_fused(
 # -----------------------------------------------------------------------------
 # Struct-wide emission (typedefs header + declaration variant)
 # -----------------------------------------------------------------------------
+
 
 def _gen_struct_type_aliases(
   rule_name: str,
@@ -1678,27 +1504,21 @@ def _gen_struct_type_aliases(
   )
   code += "  using IndexType = typename RelType::IndexTypeInst;\n"
   code += "  using ViewType = typename IndexType::NodeView;\n"
-  code += (
-    "  static constexpr auto Layout = SRDatalog::GPU::StorageLayout::SoA;\n"
-  )
+  code += "  static constexpr auto Layout = SRDatalog::GPU::StorageLayout::SoA;\n"
   code += "  static constexpr int kBlockSize = 256;\n"
   code += "  static constexpr int kGroupSize = 32;\n"
   for i, arity in enumerate(dest_arities):
     code += f"  static constexpr std::size_t OutputArity_{i} = {arity};\n"
     if i == 0:
-      code += (
-        "  static constexpr std::size_t OutputArity = OutputArity_0;"
-        "  // Legacy alias\n"
-      )
-  code += (
-    f"  static constexpr std::size_t NumSources = {total_view_count};\n\n"
-  )
+      code += "  static constexpr std::size_t OutputArity = OutputArity_0;  // Legacy alias\n"
+  code += f"  static constexpr std::size_t NumSources = {total_view_count};\n\n"
   return code
 
 
 # -----------------------------------------------------------------------------
 # Top-level entry point
 # -----------------------------------------------------------------------------
+
 
 def gen_complete_runner(
   node: m.ExecutePipeline,
@@ -1731,9 +1551,7 @@ def gen_complete_runner(
   if node.dedup_hash:
     raise NotImplementedError("gen_complete_runner: dedup_hash not yet ported")
   if has_balanced_scan(node.pipeline):
-    raise NotImplementedError(
-      "gen_complete_runner: balanced-scan runner not yet ported"
-    )
+    raise NotImplementedError("gen_complete_runner: balanced-scan runner not yet ported")
 
   rule_name = node.rule_name
   runner_prefix = f"JitRunner_{rule_name}"
@@ -1775,8 +1593,13 @@ def gen_complete_runner(
   full += "// =============================================================\n\n"
   full += f"struct {runner_prefix} {{\n"
   full += _gen_struct_type_aliases(
-    rule_name, db_type_name, first_schema, first_version,
-    node.dest_specs, dest_arities, total_view_count,
+    rule_name,
+    db_type_name,
+    first_schema,
+    first_version,
+    node.dest_specs,
+    dest_arities,
+    total_view_count,
   )
 
   full += _gen_kernel_count(node, mutable_pipe, rel_index_types)
@@ -1787,11 +1610,17 @@ def gen_complete_runner(
     # so jit_pipeline side effects on handle registration etc. fire, but
     # drops the resulting code).
     _mat_code, materialize_body = _gen_kernel_materialize(
-      node, mutable_pipe, rel_index_types, tiled_cartesian_eligible,
+      node,
+      mutable_pipe,
+      rel_index_types,
+      tiled_cartesian_eligible,
     )
   else:
     mat_code, materialize_body = _gen_kernel_materialize(
-      node, mutable_pipe, rel_index_types, tiled_cartesian_eligible,
+      node,
+      mutable_pipe,
+      rel_index_types,
+      tiled_cartesian_eligible,
     )
     full += mat_code
 
@@ -1800,8 +1629,11 @@ def gen_complete_runner(
   # `if isFusedEligible and not isBlockGroup`).
   if is_fused_eligible and not node.block_group:
     full += _gen_kernel_fused(
-      node, mutable_pipe, rel_index_types,
-      materialize_body, tiled_cartesian_eligible,
+      node,
+      mutable_pipe,
+      rel_index_types,
+      materialize_body,
+      tiled_cartesian_eligible,
     )
 
   # Block-group kernels: histogram + count + materialize + bg_fused.
@@ -1816,14 +1648,19 @@ def gen_complete_runner(
       full += _gen_kernel_bg_fused(node, mutable_pipe, rel_index_types)
 
   full += _gen_launch_params_struct(
-    len(node.dest_specs), is_fused_eligible,
+    len(node.dest_specs),
+    is_fused_eligible,
     is_block_group=node.block_group,
   )
   full += _gen_method_forward_decls(is_count, is_fused_eligible)
   full += "};\n\n"
 
   full += _gen_setup(
-    node, runner_prefix, first_schema, first_version, first_index,
+    node,
+    runner_prefix,
+    first_schema,
+    first_version,
+    first_index,
     rel_index_types,
   )
   full += _gen_launch_count(runner_prefix, is_block_group=node.block_group)
@@ -1836,8 +1673,11 @@ def gen_complete_runner(
     full += _gen_launch_fused(node, runner_prefix)
     full += _gen_read_fused_result(node, runner_prefix)
   full += _gen_execute(
-    rule_name, runner_prefix, is_count,
-    is_block_group=node.block_group, dest_specs=node.dest_specs,
+    rule_name,
+    runner_prefix,
+    is_count,
+    is_block_group=node.block_group,
+    dest_specs=node.dest_specs,
   )
   if is_fused_eligible:
     full += _gen_execute_fused(node, runner_prefix)
@@ -1850,29 +1690,37 @@ def gen_complete_runner(
   # Note: decl variant uses "OutputArity = OutputArity_0;" without
   # the "// Legacy alias" comment — matches the Nim structDecl branch.
   decl_aliases = _gen_struct_type_aliases(
-    rule_name, db_type_name, first_schema, first_version,
-    node.dest_specs, dest_arities, total_view_count,
+    rule_name,
+    db_type_name,
+    first_schema,
+    first_version,
+    node.dest_specs,
+    dest_arities,
+    total_view_count,
   )
   decl_aliases = decl_aliases.replace(
-    "static constexpr std::size_t OutputArity = OutputArity_0;"
-    "  // Legacy alias\n",
+    "static constexpr std::size_t OutputArity = OutputArity_0;  // Legacy alias\n",
     "static constexpr std::size_t OutputArity = OutputArity_0;\n",
   )
   # Decl also drops the "// Type aliases - all concrete..." comment.
   decl_aliases = decl_aliases.replace(
-    "  // Type aliases - all concrete, resolved at Nim JIT time\n", "",
+    "  // Type aliases - all concrete, resolved at Nim JIT time\n",
+    "",
   )
   decl += decl_aliases
   decl += _gen_launch_params_struct(
-    len(node.dest_specs), is_fused_eligible,
-    is_block_group=node.block_group, for_decl=True,
+    len(node.dest_specs),
+    is_fused_eligible,
+    is_block_group=node.block_group,
+    for_decl=True,
   )
   # The decl variant drops the "// State carried..." comment (matches Nim).
   decl = decl.replace("  // State carried between decomposed phases\n", "")
   decl += _gen_method_forward_decls(is_count, is_fused_eligible)
   # Drop the "// Phase-decomposed methods..." comment in decl (matches Nim).
   decl = decl.replace(
-    "  // Phase-decomposed methods for stream-parallel execution\n", "",
+    "  // Phase-decomposed methods for stream-parallel execution\n",
+    "",
   )
   # Drop the "// Non-template execute..." comment in decl (matches Nim).
   decl = decl.replace("  // Non-template execute - calls kernels directly\n", "")

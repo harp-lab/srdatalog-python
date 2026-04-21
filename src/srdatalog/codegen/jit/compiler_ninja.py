@@ -21,6 +21,7 @@ fallback (env `SRDATALOG_JIT_NO_NINJA=1` or `use_ninja=False`) for
 contributors without ninja installed or for debugging a single-TU
 compile path.
 '''
+
 from __future__ import annotations
 
 import os
@@ -30,13 +31,17 @@ import time
 from pathlib import Path
 
 from srdatalog.codegen.jit.compiler import (
-  BuildResult, CompileResult, CompilerConfig, _artifact_name, _base_cxx_flags,
+  BuildResult,
+  CompilerConfig,
+  CompileResult,
+  _artifact_name,
+  _base_cxx_flags,
 )
-
 
 # ---------------------------------------------------------------------------
 # build.ninja emission
 # ---------------------------------------------------------------------------
+
 
 def _find_srdatalog_h(config: CompilerConfig) -> str | None:
   '''Locate `srdatalog.h` on the runtime include paths.'''
@@ -123,8 +128,10 @@ def emit_build_ninja(
     else:
       pch_stub_path = os.path.join(output_dir, "_pch_stub.cu")
       with open(pch_stub_path, "w") as f:
-        f.write(f'// Auto-generated stub for split host/device PCH of srdatalog.h\n'
-                f'#include "{pch_header}"\n')
+        f.write(
+          f'// Auto-generated stub for split host/device PCH of srdatalog.h\n'
+          f'#include "{pch_header}"\n'
+        )
 
   # PCH note to caller via the returned path — can't raise because
   # callers rely on this function being pure file emission.
@@ -136,8 +143,9 @@ def emit_build_ninja(
   # compiler command becomes `ccache clang++ ...`, which is all ccache
   # needs to cache the .o file content-addressed by the source+flags.
   if use_ccache is None:
-    use_ccache = (os.environ.get("SRDATALOG_JIT_NO_CCACHE", "") != "1"
-                  and shutil.which("ccache") is not None)
+    use_ccache = (
+      os.environ.get("SRDATALOG_JIT_NO_CCACHE", "") != "1" and shutil.which("ccache") is not None
+    )
   cc_prefix = "ccache " if use_ccache else ""
 
   lines.append(f"cxx = {cc_prefix}{cxx}")
@@ -157,22 +165,15 @@ def emit_build_ninja(
     # Both use `-x cuda` so clang interprets the `.cu` stub as CUDA. The
     # `-Xclang -emit-pch` forces PCH emission for either pass.
     lines.append("rule pch_host")
-    lines.append(
-      "  command = $cxx $cxx_flags --cuda-host-only -Xclang -emit-pch "
-      "-c $in -o $out"
-    )
+    lines.append("  command = $cxx $cxx_flags --cuda-host-only -Xclang -emit-pch -c $in -o $out")
     lines.append("  description = PCH-HOST $out")
     lines.append("")
     lines.append("rule pch_device")
-    lines.append(
-      "  command = $cxx $cxx_flags --cuda-device-only -Xclang -emit-pch "
-      "-c $in -o $out"
-    )
+    lines.append("  command = $cxx $cxx_flags --cuda-device-only -Xclang -emit-pch -c $in -o $out")
     lines.append("  description = PCH-DEVICE $out")
     lines.append("")
     pch_include_clause = (
-      f" -include-pch {_ninja_escape(pch_host_obj)}"
-      f" -include-pch {_ninja_escape(pch_device_obj)}"
+      f" -include-pch {_ninja_escape(pch_host_obj)} -include-pch {_ninja_escape(pch_device_obj)}"
     )
 
   # Two compile rules:
@@ -185,10 +186,7 @@ def emit_build_ninja(
   #   `cxx`           — full two-pass CUDA compile for jit_batch_*.cpp
   #                      which host actual __global__ kernel definitions.
   lines.append("rule cxx_host_only")
-  lines.append(
-    f"  command = $cxx $cxx_flags --cuda-host-only"
-    f"{pch_include_clause} -c $in -o $out"
-  )
+  lines.append(f"  command = $cxx $cxx_flags --cuda-host-only{pch_include_clause} -c $in -o $out")
   lines.append("  description = CXX-HOST $out")
   lines.append("")
   lines.append("rule cxx")
@@ -239,8 +237,7 @@ def emit_build_ninja(
   lines.append("")
 
   lines.append(
-    f"build {_ninja_escape(artifact)}: link "
-    + " ".join(_ninja_escape(o) for o in object_paths)
+    f"build {_ninja_escape(artifact)}: link " + " ".join(_ninja_escape(o) for o in object_paths)
   )
   lines.append("")
   lines.append(f"default {_ninja_escape(artifact)}")
@@ -256,11 +253,13 @@ def emit_build_ninja(
 # Invocation
 # ---------------------------------------------------------------------------
 
+
 def _locate_ninja_binary() -> str:
   '''Prefer the `ninja` PyPI wheel's binary (installed alongside
   srdatalog), fall back to any ninja on PATH.'''
   try:
     import ninja as _ninja_pkg  # type: ignore[import-not-found]
+
     candidate = os.path.join(_ninja_pkg.BIN_DIR, "ninja")
     if os.path.isfile(candidate):
       return candidate
@@ -296,8 +295,14 @@ def compile_jit_project_ninja(
   ninja_bin = _locate_ninja_binary()
 
   jobs = config.resolved_jobs()
-  cmd = [ninja_bin, "-C", os.path.dirname(ninja_path),
-         "-f", os.path.basename(ninja_path), f"-j{jobs}"]
+  cmd = [
+    ninja_bin,
+    "-C",
+    os.path.dirname(ninja_path),
+    "-f",
+    os.path.basename(ninja_path),
+    f"-j{jobs}",
+  ]
 
   start = time.perf_counter()
   proc = subprocess.run(cmd, capture_output=True, text=True, check=False)

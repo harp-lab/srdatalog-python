@@ -7,36 +7,40 @@ FULL version gets `view_count == 2`, which triggers `for (_seg = 0;
 _seg < 2; _seg++) { ... }` segment-loop wrapping inside both
 jit_root_column_join and jit_nested_column_join.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context
 
 # Import the 2-level plugin so it registers itself.
 from srdatalog.codegen.jit.indexes import two_level  # noqa: F401
-from srdatalog.codegen.jit.plugin import (
-  plugin_view_count, resolve_plugin, plugin_gen_host_view_setup,
-)
 from srdatalog.codegen.jit.instructions import jit_nested_column_join
+from srdatalog.codegen.jit.plugin import (
+  plugin_gen_host_view_setup,
+  plugin_view_count,
+  resolve_plugin,
+)
 from srdatalog.codegen.jit.root import jit_root_column_join
-
+from srdatalog.hir.types import Version
 
 TWO_LEVEL = "SRDatalog::GPU::Device2LevelIndex"
 
 
 def _cs(rel, ver, idx, prefix=(), handle_start=0):
   return m.ColumnSource(
-    rel_name=rel, version=ver, index=idx,
-    prefix_vars=list(prefix), handle_start=handle_start,
+    rel_name=rel,
+    version=ver,
+    index=idx,
+    prefix_vars=list(prefix),
+    handle_start=handle_start,
   )
 
 
 # ---------------------------------------------------------------------------
 # Plugin registration
 # ---------------------------------------------------------------------------
+
 
 def test_two_level_plugin_registered():
   p = resolve_plugin(TWO_LEVEL)
@@ -74,10 +78,14 @@ def test_default_plugin_view_count_unchanged():
 # Nested ColumnJoin single-source + multi-view -> segment loop
 # ---------------------------------------------------------------------------
 
+
 def test_nested_cj_single_source_multi_view_opens_segment_loop():
-  cj = m.ColumnJoin(var_name="y", sources=[
-    _cs("subset", Version.FULL, [0, 1], handle_start=0),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      _cs("subset", Version.FULL, [0, 1], handle_start=0),
+    ],
+  )
   ctx = new_code_gen_context()
   ctx.rel_index_types["subset"] = TWO_LEVEL
   out = jit_nested_column_join(cj, ctx, "        body();\n")
@@ -95,9 +103,12 @@ def test_nested_cj_single_source_multi_view_opens_segment_loop():
 def test_nested_cj_single_source_non_multi_view_no_segment_loop():
   '''Sanity: without the index_type override, DSAI stays single-view
   and we don't emit the segment loop.'''
-  cj = m.ColumnJoin(var_name="y", sources=[
-    _cs("r", Version.FULL, [0, 1], handle_start=0),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      _cs("r", Version.FULL, [0, 1], handle_start=0),
+    ],
+  )
   ctx = new_code_gen_context()
   out = jit_nested_column_join(cj, ctx, "body();\n")
   assert "_seg" not in out
@@ -107,14 +118,18 @@ def test_nested_cj_single_source_non_multi_view_no_segment_loop():
 # Nested ColumnJoin multi-source: non-prefix multi-view → nested segment loops
 # ---------------------------------------------------------------------------
 
+
 def test_nested_cj_multi_source_non_prefix_multi_view_wraps_nseg():
-  cj = m.ColumnJoin(var_name="z", sources=[
-    # First source has a prefix -> stays within parent segment (no
-    # segment loop opened for it).
-    _cs("R", Version.FULL, [0, 1], prefix=("x",), handle_start=0),
-    # Second source is fresh + multi-view -> gets a segment loop.
-    _cs("subset", Version.FULL, [0, 1], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      # First source has a prefix -> stays within parent segment (no
+      # segment loop opened for it).
+      _cs("R", Version.FULL, [0, 1], prefix=("x",), handle_start=0),
+      # Second source is fresh + multi-view -> gets a segment loop.
+      _cs("subset", Version.FULL, [0, 1], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   ctx.rel_index_types["subset"] = TWO_LEVEL
   out = jit_nested_column_join(cj, ctx, "body();\n")
@@ -128,10 +143,14 @@ def test_nested_cj_multi_source_non_prefix_multi_view_wraps_nseg():
 # Root ColumnJoin single-source + multi-view
 # ---------------------------------------------------------------------------
 
+
 def test_root_cj_single_source_multi_view_opens_segment_loop():
-  cj = m.ColumnJoin(var_name="y", sources=[
-    _cs("subset", Version.FULL, [0, 1], handle_start=0),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      _cs("subset", Version.FULL, [0, 1], handle_start=0),
+    ],
+  )
   ctx = new_code_gen_context()
   ctx.rel_index_types["subset"] = TWO_LEVEL
   out = jit_root_column_join(cj, ctx, "body();\n")
@@ -144,12 +163,15 @@ def test_root_cj_multi_source_non_first_multi_view_opens_segment_loop():
   '''Non-first multi-view source in root CJ emits a `for (_seg_N)`
   loop wrapping its handle narrowing + the body. Multiple such sources
   nest, and close in reverse order at the tail.'''
-  cj = m.ColumnJoin(var_name="y", sources=[
-    # First source is single-view — uses the hinted-range path.
-    _cs("first_rel", Version.FULL, [0, 1], handle_start=0),
-    # Second source is multi-view non-first -> segment loop.
-    _cs("subset", Version.FULL, [0, 1], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      # First source is single-view — uses the hinted-range path.
+      _cs("first_rel", Version.FULL, [0, 1], handle_start=0),
+      # Second source is multi-view non-first -> segment loop.
+      _cs("subset", Version.FULL, [0, 1], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   ctx.rel_index_types["subset"] = TWO_LEVEL
   out = jit_root_column_join(cj, ctx, "body();\n")
@@ -176,11 +198,14 @@ def test_root_cj_multi_source_non_first_multi_view_opens_segment_loop():
 def test_root_cj_multi_two_non_first_multi_view_sources_nest():
   '''Two non-first multi-view sources -> two nested segment loops,
   closed in reverse order.'''
-  cj = m.ColumnJoin(var_name="y", sources=[
-    _cs("first_rel", Version.FULL, [0, 1], handle_start=0),
-    _cs("subset_a", Version.FULL, [0, 1], handle_start=1),
-    _cs("subset_b", Version.FULL, [0, 1], handle_start=2),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      _cs("first_rel", Version.FULL, [0, 1], handle_start=0),
+      _cs("subset_a", Version.FULL, [0, 1], handle_start=1),
+      _cs("subset_b", Version.FULL, [0, 1], handle_start=2),
+    ],
+  )
   ctx = new_code_gen_context()
   ctx.rel_index_types["subset_a"] = TWO_LEVEL
   ctx.rel_index_types["subset_b"] = TWO_LEVEL
@@ -197,10 +222,13 @@ def test_root_cj_multi_source_first_multi_view_works():
   '''First multi-view source is OK — the hinted-range path sits at the
   first segment via y_idx-based narrowing; no segment loop needed
   because root_unique_values already came from one specific segment.'''
-  cj = m.ColumnJoin(var_name="y", sources=[
-    _cs("subset", Version.FULL, [0, 1], handle_start=0),
-    _cs("other", Version.FULL, [0, 1], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="y",
+    sources=[
+      _cs("subset", Version.FULL, [0, 1], handle_start=0),
+      _cs("other", Version.FULL, [0, 1], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   ctx.rel_index_types["subset"] = TWO_LEVEL
   out = jit_root_column_join(cj, ctx, "body();\n")
@@ -211,6 +239,7 @@ def test_root_cj_multi_source_first_multi_view_works():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

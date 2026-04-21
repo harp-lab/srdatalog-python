@@ -13,17 +13,19 @@ relation with different index orderings are distinct views; two uses
 with the same (rel, idx, ver) share one view slot even across nested
 CJ / Cartesian handles.
 '''
+
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import (
-  CodeGenContext, ind, get_view_slot_base, gen_view_access,
+  CodeGenContext,
+  gen_view_access,
+  get_view_slot_base,
+  ind,
 )
 from srdatalog.codegen.jit.plugin import plugin_view_count
-
 
 # -----------------------------------------------------------------------------
 # Source-spec helpers
@@ -66,8 +68,10 @@ def _handle_start_of(src_spec: m.MirNode) -> int:
 # View-slot computation
 # -----------------------------------------------------------------------------
 
+
 def compute_total_view_count(
-  source_specs: list[m.MirNode], rel_index_types: dict[str, str],
+  source_specs: list[m.MirNode],
+  rel_index_types: dict[str, str],
 ) -> int:
   '''Total view slots needed for all unique sources. Nested CJ/Cart
   handles for the same (rel, version, index) share slots.
@@ -85,7 +89,8 @@ def compute_total_view_count(
 
 
 def compute_view_slot_offsets(
-  source_specs: list[m.MirNode], rel_index_types: dict[str, str],
+  source_specs: list[m.MirNode],
+  rel_index_types: dict[str, str],
 ) -> dict[int, int]:
   '''Map `handle_idx` → base slot in `views[]`.
 
@@ -127,13 +132,7 @@ def register_pipeline_handles(
         key = source_spec_key(node)
         if key in root_slots:
           offsets[node.handle_start] = root_slots[key]
-    elif isinstance(node, m.ColumnJoin):
-      for src in node.sources:
-        if isinstance(src, m.ColumnSource) and src.handle_start not in offsets:
-          key = source_spec_key(src)
-          if key in root_slots:
-            offsets[src.handle_start] = root_slots[key]
-    elif isinstance(node, m.CartesianJoin):
+    elif isinstance(node, m.ColumnJoin) or isinstance(node, m.CartesianJoin):
       for src in node.sources:
         if isinstance(src, m.ColumnSource) and src.handle_start not in offsets:
           key = source_spec_key(src)
@@ -142,7 +141,8 @@ def register_pipeline_handles(
 
 
 def build_root_slot_map(
-  source_specs: list[m.MirNode], rel_index_types: dict[str, str],
+  source_specs: list[m.MirNode],
+  rel_index_types: dict[str, str],
 ) -> dict[str, int]:
   '''Map `<relName>_<VER>_<cols>` → view-slot base for each root source.
   First occurrence wins; subsequent duplicates share the first's slot.
@@ -163,10 +163,12 @@ def build_root_slot_map(
 # ViewSpec + unique view collection
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class ViewSpec:
   '''(rel_name, index, version, handle_idx) — handle_idx is the index
   of the FIRST op that referenced this view.'''
+
   rel_name: str
   index: list[int]
   version: str
@@ -181,8 +183,12 @@ def spec_key(rel_name: str, index: list[int], version: str = "") -> str:
 
 
 def _record_spec(
-  specs: list[ViewSpec], seen: set[str], rel: str, idx: list[int],
-  ver: str, handle: int,
+  specs: list[ViewSpec],
+  seen: set[str],
+  rel: str,
+  idx: list[int],
+  ver: str,
+  handle: int,
 ) -> None:
   k = spec_key(rel, idx, ver)
   if k in seen:
@@ -200,51 +206,54 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
   specs: list[ViewSpec] = []
   seen: set[str] = set()
   for op in ops:
-    if isinstance(op, m.ColumnJoin):
+    if isinstance(op, m.ColumnJoin) or isinstance(op, m.CartesianJoin):
       for src in op.sources:
         if isinstance(src, m.ColumnSource):
           _record_spec(
-            specs, seen, src.rel_name, list(src.index),
-            src.version.code, src.handle_start,
+            specs,
+            seen,
+            src.rel_name,
+            list(src.index),
+            src.version.code,
+            src.handle_start,
           )
-    elif isinstance(op, m.CartesianJoin):
-      for src in op.sources:
-        if isinstance(src, m.ColumnSource):
-          _record_spec(
-            specs, seen, src.rel_name, list(src.index),
-            src.version.code, src.handle_start,
-          )
-    elif isinstance(op, m.Scan):
+    elif isinstance(op, m.Scan) or isinstance(op, m.Negation) or isinstance(op, m.Aggregate):
       _record_spec(
-        specs, seen, op.rel_name, list(op.index),
-        op.version.code, op.handle_start,
-      )
-    elif isinstance(op, m.Negation):
-      _record_spec(
-        specs, seen, op.rel_name, list(op.index),
-        op.version.code, op.handle_start,
-      )
-    elif isinstance(op, m.Aggregate):
-      _record_spec(
-        specs, seen, op.rel_name, list(op.index),
-        op.version.code, op.handle_start,
+        specs,
+        seen,
+        op.rel_name,
+        list(op.index),
+        op.version.code,
+        op.handle_start,
       )
     elif isinstance(op, m.BalancedScan):
       s1, s2 = op.source1, op.source2
       _record_spec(
-        specs, seen, s1.rel_name, list(s1.index),
-        s1.version.code, s1.handle_start,
+        specs,
+        seen,
+        s1.rel_name,
+        list(s1.index),
+        s1.version.code,
+        s1.handle_start,
       )
       _record_spec(
-        specs, seen, s2.rel_name, list(s2.index),
-        s2.version.code, s2.handle_start,
+        specs,
+        seen,
+        s2.rel_name,
+        list(s2.index),
+        s2.version.code,
+        s2.handle_start,
       )
     elif isinstance(op, m.PositionedExtract):
       for src in op.sources:
         if isinstance(src, m.ColumnSource):
           _record_spec(
-            specs, seen, src.rel_name, list(src.index),
-            src.version.code, src.handle_start,
+            specs,
+            seen,
+            src.rel_name,
+            list(src.index),
+            src.version.code,
+            src.handle_start,
           )
   return specs
 
@@ -252,6 +261,7 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
 # -----------------------------------------------------------------------------
 # View declaration emission
 # -----------------------------------------------------------------------------
+
 
 def jit_emit_view_declarations(
   specs: list[ViewSpec],
@@ -277,18 +287,14 @@ def jit_emit_view_declarations(
 
   if ctx.debug:
     code += (
-      i + "// View declarations (deduplicated by spec, "
-      + str(len(specs)) + " unique views)\n"
+      i + "// View declarations (deduplicated by spec, " + str(len(specs)) + " unique views)\n"
     )
 
   spec_to_view_var: list[tuple[str, str]] = []
   for sp in specs:
     key = spec_key(sp.rel_name, sp.index, sp.version)
     idx_str = "_".join(str(v) for v in sp.index)
-    view_var = (
-      f"view_{sp.rel_name}_{idx_str}"
-      + (f"_{sp.version}" if sp.version else "")
-    )
+    view_var = f"view_{sp.rel_name}_{idx_str}" + (f"_{sp.version}" if sp.version else "")
     view_idx = get_view_slot_base(ctx, sp.handle_idx)
     code += i + f"auto {view_var} = {gen_view_access(view_idx)};\n"
     spec_to_view_var.append((key, view_var))
@@ -297,7 +303,7 @@ def jit_emit_view_declarations(
   # Map every op's handle_start to its view_var so later emitters can
   # resolve handle -> view quickly.
   for op in ops:
-    if isinstance(op, m.ColumnJoin):
+    if isinstance(op, m.ColumnJoin) or isinstance(op, m.CartesianJoin):
       for src in op.sources:
         if not isinstance(src, m.ColumnSource):
           continue
@@ -306,28 +312,7 @@ def jit_emit_view_declarations(
           if kv_key == k:
             ctx.view_vars[str(src.handle_start)] = view_var
             break
-    elif isinstance(op, m.CartesianJoin):
-      for src in op.sources:
-        if not isinstance(src, m.ColumnSource):
-          continue
-        k = spec_key(src.rel_name, list(src.index), src.version.code)
-        for kv_key, view_var in spec_to_view_var:
-          if kv_key == k:
-            ctx.view_vars[str(src.handle_start)] = view_var
-            break
-    elif isinstance(op, m.Scan):
-      k = spec_key(op.rel_name, list(op.index), op.version.code)
-      for kv_key, view_var in spec_to_view_var:
-        if kv_key == k:
-          ctx.view_vars[str(op.handle_start)] = view_var
-          break
-    elif isinstance(op, m.Negation):
-      k = spec_key(op.rel_name, list(op.index), op.version.code)
-      for kv_key, view_var in spec_to_view_var:
-        if kv_key == k:
-          ctx.view_vars[str(op.handle_start)] = view_var
-          break
-    elif isinstance(op, m.Aggregate):
+    elif isinstance(op, m.Scan) or isinstance(op, m.Negation) or isinstance(op, m.Aggregate):
       k = spec_key(op.rel_name, list(op.index), op.version.code)
       for kv_key, view_var in spec_to_view_var:
         if kv_key == k:

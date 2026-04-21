@@ -5,35 +5,38 @@ jit_insert_into emission across every branch (count / materialize,
 lane-0 guard, WS coalesced, tiled Cartesian ballot, dedup-hash), and
 handle counting.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.emit_helpers import (
+  BalancedScanInfo,
+  count_handles_in_pipeline,
+  get_balanced_scan_info,
   has_balanced_scan,
   has_tiled_cartesian_eligible,
-  get_balanced_scan_info,
-  BalancedScanInfo,
-  jit_filter,
   jit_constant_bind,
+  jit_filter,
   jit_insert_into,
-  count_handles_in_pipeline,
 )
+from srdatalog.hir.types import Version
 
 
 def _cs(rel, ver, idx, prefix=(), handle_start=-1):
   return m.ColumnSource(
-    rel_name=rel, version=ver, index=idx,
-    prefix_vars=list(prefix), handle_start=handle_start,
+    rel_name=rel,
+    version=ver,
+    index=idx,
+    prefix_vars=list(prefix),
+    handle_start=handle_start,
   )
 
 
 # -----------------------------------------------------------------------------
 # Balanced-scan detection
 # -----------------------------------------------------------------------------
+
 
 def test_has_balanced_scan_when_root():
   bs = m.BalancedScan(
@@ -65,8 +68,7 @@ def test_has_tiled_cartesian_eligible_two_sources_one_var_each():
 def test_has_tiled_cartesian_not_eligible_three_sources():
   cart = m.CartesianJoin(
     vars=["x", "y", "z"],
-    sources=[_cs("R", Version.FULL, [0]), _cs("S", Version.FULL, [0]),
-              _cs("T", Version.FULL, [0])],
+    sources=[_cs("R", Version.FULL, [0]), _cs("S", Version.FULL, [0]), _cs("T", Version.FULL, [0])],
     var_from_source=[["x"], ["y"], ["z"]],
   )
   assert has_tiled_cartesian_eligible([cart]) is False
@@ -108,6 +110,7 @@ def test_get_balanced_scan_info_sentinel_when_not_root():
 # jit_filter
 # -----------------------------------------------------------------------------
 
+
 def test_filter_baseline_wraps_in_if():
   node = m.Filter(vars=["x", "y"], code="return x != y;")
   ctx = new_code_gen_context()
@@ -145,6 +148,7 @@ def test_filter_tiled_cartesian_folds_into_valid():
 # jit_constant_bind
 # -----------------------------------------------------------------------------
 
+
 def test_constant_bind_emits_auto_decl():
   node = m.ConstantBind(var_name="my_var", code="x + 1", deps=["x"])
   ctx = new_code_gen_context()
@@ -164,9 +168,13 @@ def test_constant_bind_sanitizes_keyword():
 # jit_insert_into
 # -----------------------------------------------------------------------------
 
+
 def _make_insert(rel="PointsTo", vars_=("y", "x"), idx=(0, 1)):
   return m.InsertInto(
-    rel_name=rel, version=Version.NEW, vars=list(vars_), index=list(idx),
+    rel_name=rel,
+    version=Version.NEW,
+    vars=list(vars_),
+    index=list(idx),
   )
 
 
@@ -234,9 +242,7 @@ def test_insert_materialize_ws_cartesian_emit_warp_coalesced():
   ctx.ws_cartesian_valid_var = "ws_valid"
   ctx.output_vars["PointsTo"] = "ctx0"
   out = jit_insert_into(ii, ctx)
-  assert (
-    f"ctx0.emit_warp_coalesced({ctx.tile_var}, ws_valid, y, x);" in out
-  )
+  assert f"ctx0.emit_warp_coalesced({ctx.tile_var}, ws_valid, y, x);" in out
 
 
 def test_insert_materialize_tiled_cartesian_ballot_first_and_subsequent():
@@ -285,6 +291,7 @@ def test_insert_sanitizes_keyword_vars():
 # count_handles_in_pipeline
 # -----------------------------------------------------------------------------
 
+
 def test_count_handles_empty_pipeline():
   assert count_handles_in_pipeline([]) == 0
 
@@ -311,14 +318,16 @@ def test_count_handles_across_pipeline_takes_overall_max():
   sc.handle_start = 1
   neg = m.Negation(rel_name="N", version=Version.FULL, index=[0])
   neg.handle_start = 5
-  agg = m.Aggregate(result_var="c", agg_func="AggCount", rel_name="A",
-                    version=Version.FULL, index=[0])
+  agg = m.Aggregate(
+    result_var="c", agg_func="AggCount", rel_name="A", version=Version.FULL, index=[0]
+  )
   agg.handle_start = 3
   assert count_handles_in_pipeline([sc, neg, agg]) == 6
 
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

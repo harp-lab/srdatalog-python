@@ -9,42 +9,31 @@ Full end-to-end byte-diff against a Nim-generated MIR fixture is
 deferred until a Nim-side tool can emit tc's MIR S-expr; that lands
 alongside the HIR->MIR lowering pass.
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.hir.types import Version
 import srdatalog.mir.types as m
+from srdatalog.hir.types import Version
 from srdatalog.mir.emit import print_mir_sexpr
 
 
 def test_column_source():
-  n = m.ColumnSource(rel_name="Edge", version=Version.FULL,
-                     index=[0, 1], prefix_vars=[])
-  assert print_mir_sexpr(n) == (
-    "(column-source :index (Edge 0 1) :ver FULL :prefix ())"
-  )
+  n = m.ColumnSource(rel_name="Edge", version=Version.FULL, index=[0, 1], prefix_vars=[])
+  assert print_mir_sexpr(n) == ("(column-source :index (Edge 0 1) :ver FULL :prefix ())")
 
 
 def test_column_source_with_prefix():
-  n = m.ColumnSource(rel_name="Path", version=Version.DELTA,
-                     index=[1, 0], prefix_vars=["x"])
-  assert print_mir_sexpr(n) == (
-    "(column-source :index (Path 1 0) :ver DELTA :prefix (x))"
-  )
+  n = m.ColumnSource(rel_name="Path", version=Version.DELTA, index=[1, 0], prefix_vars=["x"])
+  assert print_mir_sexpr(n) == ("(column-source :index (Path 1 0) :ver DELTA :prefix (x))")
 
 
 def test_scan():
-  n = m.Scan(vars=["x", "y"], rel_name="ArcInput", version=Version.FULL,
-             index=[0, 1], prefix_vars=[])
-  assert print_mir_sexpr(n) == (
-    "(scan :vars (x y) :index (ArcInput 0 1) :ver FULL :prefix ())"
+  n = m.Scan(
+    vars=["x", "y"], rel_name="ArcInput", version=Version.FULL, index=[0, 1], prefix_vars=[]
   )
+  assert print_mir_sexpr(n) == ("(scan :vars (x y) :index (ArcInput 0 1) :ver FULL :prefix ())")
 
 
 def test_insert_into():
-  n = m.InsertInto(rel_name="Path", version=Version.NEW,
-                   vars=["x", "z"], index=[0, 1])
+  n = m.InsertInto(rel_name="Path", version=Version.NEW, vars=["x", "z"], index=[0, 1])
   assert print_mir_sexpr(n) == (
     "(insert-into :schema Path :ver NEW :dedup-index (0 1) :terms (x z))"
   )
@@ -52,9 +41,7 @@ def test_insert_into():
 
 def test_rebuild_index():
   n = m.RebuildIndex(rel_name="Path", version=Version.FULL, index=[1, 0])
-  assert print_mir_sexpr(n) == (
-    "(rebuild-index :index (Path 1 0) :ver FULL)"
-  )
+  assert print_mir_sexpr(n) == ("(rebuild-index :index (Path 1 0) :ver FULL)")
 
 
 def test_clear_relation():
@@ -70,16 +57,12 @@ def test_check_size():
 
 
 def test_compute_delta():
-  assert print_mir_sexpr(m.ComputeDelta(rel_name="Path")) == (
-    "(compute-delta :schema Path)"
-  )
+  assert print_mir_sexpr(m.ComputeDelta(rel_name="Path")) == ("(compute-delta :schema Path)")
 
 
 def test_compute_delta_index():
   n = m.ComputeDeltaIndex(rel_name="Path", canonical_index=[1, 0])
-  assert print_mir_sexpr(n) == (
-    "(compute-delta-index :schema Path :canonical-index (1 0))"
-  )
+  assert print_mir_sexpr(n) == ("(compute-delta-index :schema Path :canonical-index (1 0))")
 
 
 def test_merge_index():
@@ -88,14 +71,13 @@ def test_merge_index():
 
 
 def test_merge_relation():
-  assert print_mir_sexpr(m.MergeRelation(rel_name="Path")) == (
-    "(merge-relation :schema Path)"
-  )
+  assert print_mir_sexpr(m.MergeRelation(rel_name="Path")) == ("(merge-relation :schema Path)")
 
 
 def test_rebuild_index_from_index():
-  n = m.RebuildIndexFromIndex(rel_name="Path", source_index=[1, 0],
-                              target_index=[0, 1], version=Version.DELTA)
+  n = m.RebuildIndexFromIndex(
+    rel_name="Path", source_index=[1, 0], target_index=[0, 1], version=Version.DELTA
+  )
   assert print_mir_sexpr(n) == (
     "(rebuild-index-from-index :source (Path 1 0) :target (Path 0 1) :ver DELTA)"
   )
@@ -103,10 +85,8 @@ def test_rebuild_index_from_index():
 
 def test_column_join_nested():
   '''ColumnJoin emits multi-line with nested source indent +2 per level.'''
-  src1 = m.ColumnSource(rel_name="Path", version=Version.DELTA,
-                        index=[1, 0], prefix_vars=[])
-  src2 = m.ColumnSource(rel_name="Edge", version=Version.FULL,
-                        index=[0, 1], prefix_vars=["y"])
+  src1 = m.ColumnSource(rel_name="Path", version=Version.DELTA, index=[1, 0], prefix_vars=[])
+  src2 = m.ColumnSource(rel_name="Edge", version=Version.FULL, index=[0, 1], prefix_vars=["y"])
   n = m.ColumnJoin(var_name="y", sources=[src1, src2])
   out = print_mir_sexpr(n)
   # Spot-check shape: header, two indented sources, closing
@@ -119,12 +99,11 @@ def test_column_join_nested():
 
 def test_execute_pipeline_shape():
   '''ExecutePipeline wraps sources/dests as (tuple ...) and inlines the body.'''
-  cs = m.ColumnSource(rel_name="Edge", version=Version.FULL,
-                      index=[0, 1], prefix_vars=[])
-  insert = m.InsertInto(rel_name="Path", version=Version.NEW,
-                        vars=["x", "y"], index=[0, 1])
-  scan = m.Scan(vars=["x", "y"], rel_name="Edge", version=Version.FULL,
-                index=[0, 1], prefix_vars=[])
+  cs = m.ColumnSource(rel_name="Edge", version=Version.FULL, index=[0, 1], prefix_vars=[])
+  insert = m.InsertInto(rel_name="Path", version=Version.NEW, vars=["x", "y"], index=[0, 1])
+  scan = m.Scan(
+    vars=["x", "y"], rel_name="Edge", version=Version.FULL, index=[0, 1], prefix_vars=[]
+  )
   ep = m.ExecutePipeline(
     pipeline=[scan, insert],
     source_specs=[cs],
@@ -149,10 +128,10 @@ def test_fixpoint_plan_and_block_and_program():
   prog = m.Program(steps=[(blk, True)])
   out = print_mir_sexpr(prog)
   assert out.startswith("(program\n")
-  assert "  (step :recursive true\n" in out      # lowercase
-  assert "        (block\n" in out               # indent+4 = 8 spaces
-  assert "          (fixpoint-plan\n" in out     # block body at +2 from block = 10
-  assert "            (compute-delta :schema Path)" in out   # fp body at +2 = 12
+  assert "  (step :recursive true\n" in out  # lowercase
+  assert "        (block\n" in out  # indent+4 = 8 spaces
+  assert "          (fixpoint-plan\n" in out  # block body at +2 from block = 10
+  assert "            (compute-delta :schema Path)" in out  # fp body at +2 = 12
   assert out.endswith(")")
 
 
@@ -191,13 +170,14 @@ def test_post_stratum_reconstruct_intern_cols():
 
 
 def test_balanced_scan_emit():
-  s1 = m.ColumnSource(rel_name="A", version=Version.FULL, index=[0, 1],
-                      prefix_vars=[])
-  s2 = m.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1],
-                      prefix_vars=[])
+  s1 = m.ColumnSource(rel_name="A", version=Version.FULL, index=[0, 1], prefix_vars=[])
+  s2 = m.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1], prefix_vars=[])
   bs = m.BalancedScan(
-    group_var="k", source1=s1, source2=s2,
-    vars1=["a"], vars2=["b"],
+    group_var="k",
+    source1=s1,
+    source2=s2,
+    vars1=["a"],
+    vars2=["b"],
   )
   out = print_mir_sexpr(bs)
   assert out.startswith("(balanced-scan :group-var k\n")
@@ -235,9 +215,7 @@ def test_aggregate_emit():
 
 def test_create_flat_view_emit():
   cfv = m.CreateFlatView(rel_name="_tmp_R", version=Version.NEW, index=[0, 1, 2])
-  assert print_mir_sexpr(cfv) == (
-    "(create-flat-view :index (_tmp_R 0 1 2) :ver NEW)"
-  )
+  assert print_mir_sexpr(cfv) == ("(create-flat-view :index (_tmp_R 0 1 2) :ver NEW)")
 
 
 def test_inner_pipeline_emit_nests_handles_and_ops():
@@ -261,20 +239,26 @@ def test_inner_pipeline_emit_nests_handles_and_ops():
 
 def test_probe_join_emit():
   pj = m.ProbeJoin(
-    probe_rel="R", probe_version=Version.FULL, probe_index=[0, 1],
-    join_key="k", input_buffer="buf0", output_buffer="buf1",
+    probe_rel="R",
+    probe_version=Version.FULL,
+    probe_index=[0, 1],
+    join_key="k",
+    input_buffer="buf0",
+    output_buffer="buf1",
   )
   assert print_mir_sexpr(pj) == (
-    "(probe-join :input-buffer buf0 :output-buffer buf1"
-    " :probe (R 0 1) :ver FULL :key k)"
+    "(probe-join :input-buffer buf0 :output-buffer buf1 :probe (R 0 1) :ver FULL :key k)"
   )
 
 
 def test_probe_join_emit_without_input_buffer():
   '''First probe in a pipeline has no input buffer — flag omitted.'''
   pj = m.ProbeJoin(
-    probe_rel="R", probe_version=Version.DELTA, probe_index=[0],
-    join_key="k", output_buffer="buf0",
+    probe_rel="R",
+    probe_version=Version.DELTA,
+    probe_index=[0],
+    join_key="k",
+    output_buffer="buf0",
   )
   out = print_mir_sexpr(pj)
   assert ":input-buffer" not in out
@@ -283,8 +267,11 @@ def test_probe_join_emit_without_input_buffer():
 
 def test_gather_column_emit():
   gc = m.GatherColumn(
-    rel_name="R", rel_version=Version.FULL, column=2,
-    output_var="z", input_buffer="buf1",
+    rel_name="R",
+    rel_version=Version.FULL,
+    column=2,
+    output_var="z",
+    input_buffer="buf1",
   )
   assert print_mir_sexpr(gc) == (
     "(gather-column :input-buffer buf1 :schema R :ver FULL :col 2 :out z)"

@@ -12,19 +12,20 @@ produces for VSCode display, and reproducing it in Python adds surface
 area with no verification value. Tests strip it from the golden fixture
 before comparing.
 '''
+
 from __future__ import annotations
+
 import json
 
-from srdatalog.dsl import Atom, Negation, Filter, Let, Agg, Split, ClauseArg, ArgKind, Rule
-from srdatalog.provenance import Provenance, ProvenanceKind
+from srdatalog.dsl import Agg, ArgKind, Atom, ClauseArg, Filter, Let, Negation, Rule, Split
 from srdatalog.hir.types import (
-  Version,
   AccessPattern,
+  HirProgram,
   HirRuleVariant,
   HirStratum,
-  HirProgram,
   RelationDecl,
 )
+from srdatalog.provenance import Provenance, ProvenanceKind
 
 
 def _arg_obj(a: ClauseArg) -> dict:
@@ -139,15 +140,11 @@ def _rule_text(rule: Rule) -> str:
       body_parts.append("(LET " + b.var_name + " := " + b.code + ")")
     elif isinstance(b, Agg):
       args = " ".join(_arg_text(a) for a in b.args)
-      body_parts.append(
-        "(AGG " + b.result_var + " := " + b.func + " (" + b.rel + " " + args + "))"
-      )
+      body_parts.append("(AGG " + b.result_var + " := " + b.func + " (" + b.rel + " " + args + "))")
     elif isinstance(b, Split):
       body_parts.append("---")
     else:
-      body_parts.append(
-        "(" + b.rel + " " + " ".join(_arg_text(x) for x in b.args) + ")"
-      )
+      body_parts.append("(" + b.rel + " " + " ".join(_arg_text(x) for x in b.args) + ")")
   return rule.name + ": " + head + " <-\n      " + ",\n      ".join(body_parts)
 
 

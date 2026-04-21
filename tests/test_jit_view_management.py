@@ -1,29 +1,31 @@
 '''Tests for codegen/jit/view_management.py.'''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.view_management import (
-  get_source_index,
-  source_spec_key,
+  ViewSpec,
+  build_root_slot_map,
+  collect_unique_view_specs,
   compute_total_view_count,
   compute_view_slot_offsets,
-  register_pipeline_handles,
-  build_root_slot_map,
-  ViewSpec,
-  spec_key,
-  collect_unique_view_specs,
+  get_source_index,
   jit_emit_view_declarations,
+  register_pipeline_handles,
+  source_spec_key,
+  spec_key,
 )
+from srdatalog.hir.types import Version
 
 
 def _cs(rel, ver, idx, handle_start=-1, prefix=()):
   return m.ColumnSource(
-    rel_name=rel, version=ver, index=idx,
-    prefix_vars=list(prefix), handle_start=handle_start,
+    rel_name=rel,
+    version=ver,
+    index=idx,
+    prefix_vars=list(prefix),
+    handle_start=handle_start,
   )
 
 
@@ -31,22 +33,21 @@ def _cs(rel, ver, idx, handle_start=-1, prefix=()):
 # Source helpers
 # -----------------------------------------------------------------------------
 
+
 def test_get_source_index_covers_all_source_kinds():
   assert get_source_index(_cs("R", Version.FULL, [0, 1])) == [0, 1]
+  assert get_source_index(m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[1, 0])) == [
+    1,
+    0,
+  ]
+  assert get_source_index(m.Negation(rel_name="R", version=Version.FULL, index=[0])) == [0]
   assert get_source_index(
-    m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[1, 0])
-  ) == [1, 0]
-  assert get_source_index(
-    m.Negation(rel_name="R", version=Version.FULL, index=[0])
-  ) == [0]
-  assert get_source_index(
-    m.Aggregate(result_var="c", agg_func="AggCount",
-                 rel_name="R", version=Version.FULL, index=[0])
+    m.Aggregate(result_var="c", agg_func="AggCount", rel_name="R", version=Version.FULL, index=[0])
   ) == [0]
   # Not a source spec -> empty
-  assert get_source_index(
-    m.InsertInto(rel_name="R", version=Version.NEW, vars=["x"], index=[0])
-  ) == []
+  assert (
+    get_source_index(m.InsertInto(rel_name="R", version=Version.NEW, vars=["x"], index=[0])) == []
+  )
 
 
 def test_source_spec_key_scan_vs_column_source_equal():
@@ -72,6 +73,7 @@ def test_source_spec_key_distinguishes_index_orderings():
 # compute_total_view_count
 # -----------------------------------------------------------------------------
 
+
 def test_total_view_count_single_source():
   assert compute_total_view_count([_cs("R", Version.FULL, [0, 1])], {}) == 1
 
@@ -96,6 +98,7 @@ def test_total_view_count_distinct_versions_count_twice():
 # -----------------------------------------------------------------------------
 # compute_view_slot_offsets
 # -----------------------------------------------------------------------------
+
 
 def test_view_slot_offsets_assigns_distinct_slots_per_unique_spec():
   specs = [
@@ -129,6 +132,7 @@ def test_view_slot_offsets_skips_negative_handle_start():
 # build_root_slot_map + register_pipeline_handles
 # -----------------------------------------------------------------------------
 
+
 def test_build_root_slot_map_first_occurrence_wins():
   specs = [
     _cs("R", Version.DELTA, [0, 1], handle_start=0),
@@ -144,10 +148,13 @@ def test_register_pipeline_handles_maps_nested_cj_handle_to_root_slot():
   offsets: dict[int, int] = {}
   root_slots = {"R_DELTA_VER_0_1": 0, "S_FULL_VER_0_1": 1}
   pipeline = [
-    m.ColumnJoin(var_name="z", sources=[
-      _cs("R", Version.DELTA, [0, 1], handle_start=7),
-      _cs("S", Version.FULL, [0, 1], handle_start=8),
-    ]),
+    m.ColumnJoin(
+      var_name="z",
+      sources=[
+        _cs("R", Version.DELTA, [0, 1], handle_start=7),
+        _cs("S", Version.FULL, [0, 1], handle_start=8),
+      ],
+    ),
   ]
   register_pipeline_handles(offsets, pipeline, {}, root_slots)
   assert offsets == {7: 0, 8: 1}
@@ -156,8 +163,7 @@ def test_register_pipeline_handles_maps_nested_cj_handle_to_root_slot():
 def test_register_pipeline_handles_does_not_overwrite_existing():
   offsets = {5: 99}
   root_slots = {"R_DELTA_VER_0_1": 0}
-  pipeline = [m.ColumnSource(rel_name="R", version=Version.DELTA,
-                              index=[0, 1], handle_start=5)]
+  pipeline = [m.ColumnSource(rel_name="R", version=Version.DELTA, index=[0, 1], handle_start=5)]
   register_pipeline_handles(offsets, pipeline, {}, root_slots)
   assert offsets[5] == 99  # untouched
 
@@ -165,6 +171,7 @@ def test_register_pipeline_handles_does_not_overwrite_existing():
 # -----------------------------------------------------------------------------
 # spec_key
 # -----------------------------------------------------------------------------
+
 
 def test_spec_key_with_and_without_version():
   assert spec_key("R", [0, 1]) == "R_0_1"
@@ -176,11 +183,15 @@ def test_spec_key_with_and_without_version():
 # collect_unique_view_specs
 # -----------------------------------------------------------------------------
 
+
 def test_collect_unique_view_specs_column_join():
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("R", Version.DELTA, [0, 1], handle_start=0),
-    _cs("S", Version.FULL, [1, 0], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("R", Version.DELTA, [0, 1], handle_start=0),
+      _cs("S", Version.FULL, [1, 0], handle_start=1),
+    ],
+  )
   specs = collect_unique_view_specs([cj])
   assert len(specs) == 2
   assert specs[0].rel_name == "R" and specs[0].version == "DELTA_VER"
@@ -189,13 +200,20 @@ def test_collect_unique_view_specs_column_join():
 
 def test_collect_unique_view_specs_dedupes_across_joins():
   shared = _cs("R", Version.DELTA, [0, 1], handle_start=0)
-  cj1 = m.ColumnJoin(var_name="z", sources=[
-    shared, _cs("A", Version.FULL, [0, 1], handle_start=1),
-  ])
-  cj2 = m.ColumnJoin(var_name="w", sources=[
-    _cs("R", Version.DELTA, [0, 1], handle_start=4),
-    _cs("B", Version.FULL, [0, 1], handle_start=5),
-  ])
+  cj1 = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      shared,
+      _cs("A", Version.FULL, [0, 1], handle_start=1),
+    ],
+  )
+  cj2 = m.ColumnJoin(
+    var_name="w",
+    sources=[
+      _cs("R", Version.DELTA, [0, 1], handle_start=4),
+      _cs("B", Version.FULL, [0, 1], handle_start=5),
+    ],
+  )
   specs = collect_unique_view_specs([cj1, cj2])
   names = [(s.rel_name, s.version) for s in specs]
   assert ("R", "DELTA_VER") in names
@@ -207,8 +225,9 @@ def test_collect_unique_view_specs_dedupes_across_joins():
 def test_collect_unique_view_specs_scan_negation_aggregate():
   scan = m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0, 1])
   neg = m.Negation(rel_name="N", version=Version.FULL, index=[0])
-  agg = m.Aggregate(result_var="c", agg_func="AggCount", rel_name="A",
-                    version=Version.FULL, index=[0])
+  agg = m.Aggregate(
+    result_var="c", agg_func="AggCount", rel_name="A", version=Version.FULL, index=[0]
+  )
   specs = collect_unique_view_specs([scan, neg, agg])
   rels = sorted(s.rel_name for s in specs)
   assert rels == ["A", "N", "R"]
@@ -219,7 +238,8 @@ def test_collect_unique_view_specs_balanced_scan_has_two_sources():
     group_var="z",
     source1=_cs("V", Version.DELTA, [0, 1], handle_start=0),
     source2=_cs("A", Version.FULL, [1, 0], handle_start=1),
-    vars1=["x"], vars2=["y"],
+    vars1=["x"],
+    vars2=["y"],
   )
   specs = collect_unique_view_specs([bs])
   assert len(specs) == 2
@@ -228,6 +248,7 @@ def test_collect_unique_view_specs_balanced_scan_has_two_sources():
 # -----------------------------------------------------------------------------
 # jit_emit_view_declarations
 # -----------------------------------------------------------------------------
+
 
 def test_jit_emit_view_declarations_empty_returns_empty():
   ctx = new_code_gen_context()
@@ -239,10 +260,13 @@ def test_jit_emit_view_declarations_basic_two_views():
     ViewSpec(rel_name="R", index=[0, 1], version="DELTA_VER", handle_idx=0),
     ViewSpec(rel_name="S", index=[1, 0], version="FULL_VER", handle_idx=1),
   ]
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("R", Version.DELTA, [0, 1], handle_start=0),
-    _cs("S", Version.FULL, [1, 0], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("R", Version.DELTA, [0, 1], handle_start=0),
+      _cs("S", Version.FULL, [1, 0], handle_start=1),
+    ],
+  )
   ctx = new_code_gen_context()
   out = jit_emit_view_declarations(specs, [cj], [], ctx)
 
@@ -274,6 +298,7 @@ def test_jit_emit_view_declarations_respects_view_slot_offsets():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

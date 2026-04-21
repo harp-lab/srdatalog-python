@@ -4,11 +4,8 @@ Verifies required_indices / canonical_index / global_index_map shape.
 These fields are NOT emitted by the current Nim JSON emitter, so we
 test them directly on the HirProgram object rather than via byte-diff.
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_hir
 
 

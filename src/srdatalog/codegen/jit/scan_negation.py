@@ -25,21 +25,30 @@ Each proc returns the full C++ string (declarations + open block +
 body + close block) — it's a continuation-passing port of the Nim
 original: the caller pre-renders the body at the next indent level.
 '''
+
 from __future__ import annotations
 
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
-  CodeGenContext, ind, inc_indent, with_bound_var, gen_unique_name,
-  get_view_slot_base, get_rel_index_type,
-  gen_view_access, gen_view_var_name, gen_root_handle, gen_valid,
-  gen_chained_prefix_calls, gen_chained_prefix_calls_seq,
-  sanitize_var_name,
+  CodeGenContext,
+  gen_chained_prefix_calls,
+  gen_chained_prefix_calls_seq,
+  gen_root_handle,
+  gen_unique_name,
+  gen_valid,
+  gen_view_access,
+  gen_view_var_name,
+  get_rel_index_type,
+  get_view_slot_base,
+  inc_indent,
+  ind,
+  with_bound_var,
 )
-
 
 # -----------------------------------------------------------------------------
 # jit_scan
 # -----------------------------------------------------------------------------
+
 
 def jit_scan(node: m.Scan, ctx: CodeGenContext, body: str) -> str:
   '''Emit a Scan: iterate the (possibly-narrowed) handle, bind one var
@@ -72,8 +81,11 @@ def jit_scan(node: m.Scan, ctx: CodeGenContext, body: str) -> str:
   if node.prefix_vars:
     narrowed_var = gen_unique_name(ctx, f"h_scan_{src_idx}")
     chained = gen_chained_prefix_calls(
-      handle_var, node.prefix_vars, view_var,
-      ctx.cartesian_bound_vars, index_type=index_type,
+      handle_var,
+      node.prefix_vars,
+      view_var,
+      ctx.cartesian_bound_vars,
+      index_type=index_type,
     )
     code += i + f"auto {narrowed_var} = {chained};\n"
     narrowed_handle = narrowed_var
@@ -100,6 +112,7 @@ def jit_scan(node: m.Scan, ctx: CodeGenContext, body: str) -> str:
   # Restore indent on the shared ctx — Nim uses a copy; we emulate by
   # dec'ing since we inc'd above.
   from srdatalog.codegen.jit.context import dec_indent
+
   dec_indent(ctx)
   code += i + "}\n"
   return code
@@ -108,6 +121,7 @@ def jit_scan(node: m.Scan, ctx: CodeGenContext, body: str) -> str:
 # -----------------------------------------------------------------------------
 # jit_negation
 # -----------------------------------------------------------------------------
+
 
 def jit_negation(node: m.Negation, ctx: CodeGenContext, body: str) -> str:
   '''Emit an anti-join: body fires only when the narrowed handle is
@@ -127,9 +141,7 @@ def jit_negation(node: m.Negation, ctx: CodeGenContext, body: str) -> str:
     )
 
   existing_view = ctx.view_vars.get(str(src_idx), "")
-  view_var = (
-    existing_view if existing_view else gen_view_var_name(rel_name + "_neg", src_idx)
-  )
+  view_var = existing_view if existing_view else gen_view_var_name(rel_name + "_neg", src_idx)
   if not existing_view:
     code += i + f"auto {view_var} = {gen_view_access(get_view_slot_base(ctx, src_idx))};\n"
 
@@ -142,13 +154,15 @@ def jit_negation(node: m.Negation, ctx: CodeGenContext, body: str) -> str:
     current_handle = info.var_name
     if ctx.debug:
       code += (
-        i + "// Using pre-narrowed handle (pre-Cartesian vars: "
-        + ", ".join(info.pre_vars) + ")\n"
+        i + "// Using pre-narrowed handle (pre-Cartesian vars: " + ", ".join(info.pre_vars) + ")\n"
       )
     if info.in_cartesian_vars:
       narrowed_var = gen_unique_name(ctx, f"h_{rel_name}_neg_{src_idx}")
       chained = gen_chained_prefix_calls_seq(
-        current_handle, info.in_cartesian_vars, info.view_var, neg_index_type,
+        current_handle,
+        info.in_cartesian_vars,
+        info.view_var,
+        neg_index_type,
       )
       code += i + f"auto {narrowed_var} = {chained};\n"
       current_handle = narrowed_var
@@ -164,13 +178,11 @@ def jit_negation(node: m.Negation, ctx: CodeGenContext, body: str) -> str:
         const_narrowed = gen_unique_name(ctx, f"h_{rel_name}_neg_const")
         if ctx.inside_cartesian:
           code += (
-            i + f"auto {const_narrowed} = {current_handle}"
-            f".prefix_seq({const_val}, {view_var});\n"
+            i + f"auto {const_narrowed} = {current_handle}.prefix_seq({const_val}, {view_var});\n"
           )
         else:
           code += (
-            i + f"auto {const_narrowed} = {current_handle}"
-            f".prefix({const_val}, tile, {view_var});\n"
+            i + f"auto {const_narrowed} = {current_handle}.prefix({const_val}, tile, {view_var});\n"
           )
         current_handle = const_narrowed
 
@@ -179,12 +191,18 @@ def jit_negation(node: m.Negation, ctx: CodeGenContext, body: str) -> str:
       narrowed_var = gen_unique_name(ctx, f"h_{rel_name}_neg_{src_idx}")
       if ctx.inside_cartesian:
         chained = gen_chained_prefix_calls_seq(
-          current_handle, node.prefix_vars, view_var, neg_index_type,
+          current_handle,
+          node.prefix_vars,
+          view_var,
+          neg_index_type,
         )
       else:
         chained = gen_chained_prefix_calls(
-          current_handle, node.prefix_vars, view_var,
-          ctx.cartesian_bound_vars, index_type=neg_index_type,
+          current_handle,
+          node.prefix_vars,
+          view_var,
+          ctx.cartesian_bound_vars,
+          index_type=neg_index_type,
         )
       code += i + f"auto {narrowed_var} = {chained};\n"
       current_handle = narrowed_var
@@ -209,6 +227,7 @@ def jit_negation(node: m.Negation, ctx: CodeGenContext, body: str) -> str:
 # jit_aggregate
 # -----------------------------------------------------------------------------
 
+
 def jit_aggregate(node: m.Aggregate, ctx: CodeGenContext, body: str) -> str:
   '''Bind `result_var = aggregate<Func>(handle, view);`, then emit body
   with result_var in scope.
@@ -220,9 +239,7 @@ def jit_aggregate(node: m.Aggregate, ctx: CodeGenContext, body: str) -> str:
   rel_name = node.rel_name
 
   if ctx.debug:
-    code += (
-      i + f"// Aggregate: {node.result_var} = {node.agg_func} from {rel_name}\n"
-    )
+    code += i + f"// Aggregate: {node.result_var} = {node.agg_func} from {rel_name}\n"
     code += (
       i + f"// MIR: (aggregate :rel {rel_name} :result {node.result_var}"
       f" :func {node.agg_func}"
@@ -230,9 +247,7 @@ def jit_aggregate(node: m.Aggregate, ctx: CodeGenContext, body: str) -> str:
     )
 
   existing_view = ctx.view_vars.get(str(src_idx), "")
-  view_var = (
-    existing_view if existing_view else gen_view_var_name(rel_name + "_agg", src_idx)
-  )
+  view_var = existing_view if existing_view else gen_view_var_name(rel_name + "_agg", src_idx)
   if not existing_view:
     code += i + f"auto {view_var} = {gen_view_access(get_view_slot_base(ctx, src_idx))};\n"
 
@@ -243,8 +258,11 @@ def jit_aggregate(node: m.Aggregate, ctx: CodeGenContext, body: str) -> str:
   if node.prefix_vars:
     narrowed_var = gen_unique_name(ctx, f"h_{rel_name}_agg_{src_idx}")
     chained = gen_chained_prefix_calls(
-      handle_var, node.prefix_vars, view_var,
-      ctx.cartesian_bound_vars, index_type=agg_index_type,
+      handle_var,
+      node.prefix_vars,
+      view_var,
+      ctx.cartesian_bound_vars,
+      index_type=agg_index_type,
     )
     code += i + f"auto {narrowed_var} = {chained};\n"
     narrowed_handle = narrowed_var
@@ -252,8 +270,7 @@ def jit_aggregate(node: m.Aggregate, ctx: CodeGenContext, body: str) -> str:
     narrowed_handle = handle_var
 
   code += (
-    i + f"auto {node.result_var} = aggregate<{node.agg_func}>"
-    f"({narrowed_handle}, {view_var});\n"
+    i + f"auto {node.result_var} = aggregate<{node.agg_func}>({narrowed_handle}, {view_var});\n"
   )
 
   # Body runs with result_var in scope — but since ctx is shared mutable

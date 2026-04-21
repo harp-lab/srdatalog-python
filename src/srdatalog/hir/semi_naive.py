@@ -13,19 +13,17 @@ Mirrors `generateVariants` in src/srdatalog/hir/semi_naive.nim.
 Negations are NOT delta candidates (only positive occurrences of SCC
 members get incrementalized).
 '''
+
 from __future__ import annotations
 
-from srdatalog.dsl import Rule, Atom
+from srdatalog.dsl import Atom, Rule
+from srdatalog.hir.pass_ import Dialect, PassInfo, PassLevel
 from srdatalog.hir.types import HirProgram, HirRuleVariant, Version
-from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 def find_scc_clause_indices(rule: Rule, scc_members: set[str]) -> list[int]:
   '''Indices of positive body clauses (Atoms) whose relation is in scc_members.'''
-  return [
-    i for i, b in enumerate(rule.body)
-    if isinstance(b, Atom) and b.rel in scc_members
-  ]
+  return [i for i, b in enumerate(rule.body) if isinstance(b, Atom) and b.rel in scc_members]
 
 
 def create_base_variant(rule: Rule) -> HirRuleVariant:
@@ -66,6 +64,7 @@ class SemiNaiveVariantPass:
   '''Pipeline wrapper. Runs right after stratify (order=100) so downstream
   HIR transforms that care about variants can assume they exist.
   '''
+
   info = PassInfo(
     name="SemiNaiveVariants",
     level=PassLevel.HIR_TRANSFORM,

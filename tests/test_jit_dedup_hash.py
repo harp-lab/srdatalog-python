@@ -8,24 +8,21 @@ When `ExecutePipeline.dedup_hash=True`, the kernel functor emit:
      `dedup_table.try_insert(thread_id, ...)` gate, then the materialize
      path uses atomicAdd for the write position.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
-from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.kernel_functor import (
   gen_dedup_table_struct,
   jit_functor_start,
-  jit_full_kernel,
   jit_kernel_full,
 )
-
+from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------
 # gen_dedup_table_struct
 # -----------------------------------------------------------------------------
+
 
 def test_dedup_struct_arity_2():
   out = gen_dedup_table_struct(2)
@@ -62,6 +59,7 @@ def test_dedup_struct_arity_3_adds_third_var():
 # jit_functor_start signature variations
 # -----------------------------------------------------------------------------
 
+
 def test_functor_start_without_dedup_no_dedup_param():
   out = jit_functor_start("R", dedup_hash=False)
   assert "DedupTable dedup_table" not in out
@@ -81,14 +79,21 @@ def test_functor_start_with_dedup_adds_param_before_output():
 # jit_full_kernel integration
 # -----------------------------------------------------------------------------
 
+
 def _simple_dedup_ep(rule_name="Dupy") -> m.ExecutePipeline:
   '''Synthetic pipeline: scan + insert with dedup_hash enabled.'''
   scan = m.Scan(
-    vars=["x", "y"], rel_name="Src",
-    version=Version.FULL, index=[0, 1], handle_start=0,
+    vars=["x", "y"],
+    rel_name="Src",
+    version=Version.FULL,
+    index=[0, 1],
+    handle_start=0,
   )
   insert = m.InsertInto(
-    rel_name="Dst", version=Version.NEW, vars=["x", "y"], index=[0, 1],
+    rel_name="Dst",
+    version=Version.NEW,
+    vars=["x", "y"],
+    index=[0, 1],
   )
   return m.ExecutePipeline(
     pipeline=[scan, insert],
@@ -116,11 +121,17 @@ def test_full_kernel_emits_dedup_table_struct_when_flag_set():
 
 def test_full_kernel_no_dedup_does_not_emit_struct():
   scan = m.Scan(
-    vars=["x"], rel_name="Src", version=Version.FULL,
-    index=[0], handle_start=0,
+    vars=["x"],
+    rel_name="Src",
+    version=Version.FULL,
+    index=[0],
+    handle_start=0,
   )
   insert = m.InsertInto(
-    rel_name="Dst", version=Version.NEW, vars=["x"], index=[0],
+    rel_name="Dst",
+    version=Version.NEW,
+    vars=["x"],
+    index=[0],
   )
   ep = m.ExecutePipeline(
     pipeline=[scan, insert],
@@ -159,6 +170,7 @@ def test_full_kernel_dedup_vars_captured_in_context():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

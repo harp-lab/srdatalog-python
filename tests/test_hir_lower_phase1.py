@@ -7,20 +7,16 @@ Runs the full HIR pipeline on tc, then lowers each single-clause variant
 
 Multi-clause variants (TCRec) raise NotImplementedError until Phase 2.
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
-from srdatalog.hir.types import Version
+import srdatalog.mir.types as mir
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_hir
 from srdatalog.hir.lower import (
   generate_column_source,
-  generate_scan,
   generate_insert_into,
   lower_variant_to_pipeline,
 )
-import srdatalog.mir.types as mir
+from srdatalog.hir.types import Version
 from srdatalog.mir.emit import print_mir_sexpr
 
 
@@ -42,7 +38,7 @@ def build_tc() -> Program:
 def test_edge_load_lowers_to_scan_plus_insert_into():
   hir = compile_to_hir(build_tc())
   stratum = hir.strata[0]
-  variant = stratum.base_variants[0]      # EdgeLoad
+  variant = stratum.base_variants[0]  # EdgeLoad
   ops = lower_variant_to_pipeline(variant, stratum)
 
   assert len(ops) == 2
@@ -79,7 +75,7 @@ def test_tc_base_uses_path_canonical_index_one_zero():
   '''
   hir = compile_to_hir(build_tc())
   stratum = hir.strata[1]
-  variant = stratum.base_variants[0]      # TCBase
+  variant = stratum.base_variants[0]  # TCBase
   ops = lower_variant_to_pipeline(variant, stratum)
 
   insert = ops[1]
@@ -107,6 +103,7 @@ def test_generate_column_source_shape():
   produces a ColumnSource with prefix_vars=[y].
   '''
   from srdatalog.hir.types import AccessPattern
+
   ap = AccessPattern(
     rel_name="Path",
     version=Version.DELTA,
@@ -125,7 +122,8 @@ def test_generate_column_source_shape():
 
 def test_generate_insert_into_const_arg_not_in_vars():
   '''If the head contains a constant, only LVars become InsertInto vars.'''
-  from srdatalog.dsl import Atom, ClauseArg, ArgKind
+  from srdatalog.dsl import ArgKind, Atom, ClauseArg
+
   head = Atom(
     rel="R",
     args=(
@@ -134,7 +132,7 @@ def test_generate_insert_into_const_arg_not_in_vars():
     ),
   )
   ins = generate_insert_into(head, canonical_index=[0, 1])
-  assert ins.vars == ["x"]          # constant not in vars
+  assert ins.vars == ["x"]  # constant not in vars
   assert ins.index == [0, 1]
   assert ins.rel_name == "R"
 

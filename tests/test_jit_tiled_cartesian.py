@@ -11,21 +11,23 @@ When a `tiled_body` is passed (the pipeline renders one with
 `tiled_cartesian_valid_var` set), both branches thread the valid
 flag through for ballot-based coalesced writes.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.instructions import jit_nested_cartesian_join
 from srdatalog.codegen.jit.pipeline import jit_nested_pipeline
+from srdatalog.hir.types import Version
 
 
 def _cs(rel, ver, idx, prefix=(), handle_start=0):
   return m.ColumnSource(
-    rel_name=rel, version=ver, index=idx,
-    prefix_vars=list(prefix), handle_start=handle_start,
+    rel_name=rel,
+    version=ver,
+    index=idx,
+    prefix_vars=list(prefix),
+    handle_start=handle_start,
   )
 
 
@@ -43,6 +45,7 @@ def _cart_2src_1var_each(rel0="R", rel1="S"):
 # -----------------------------------------------------------------------------
 # Eligibility (shape + ctx flags)
 # -----------------------------------------------------------------------------
+
 
 def test_not_eligible_without_flag_skips_tiled_branch():
   cart = _cart_2src_1var_each()
@@ -99,6 +102,7 @@ def test_not_eligible_multi_var_per_source_skips_tiled_branch():
 # Tiled emission shape (eligible + no tiled_body)
 # -----------------------------------------------------------------------------
 
+
 def test_tiled_without_tiled_body_uses_standard_body():
   cart = _cart_2src_1var_each()
   ctx = new_code_gen_context()
@@ -135,7 +139,10 @@ def test_tiled_with_tiled_body_uses_ballot_valid_flag():
   # Pipeline would set this when rendering the tiled body — simulate.
   ctx.tiled_cartesian_valid_var = "tc_valid_99"
   out = jit_nested_cartesian_join(
-    cart, ctx, "body_fallback();\n", tiled_body="body_ballot();\n",
+    cart,
+    ctx,
+    "body_fallback();\n",
+    tiled_body="body_ballot();\n",
   )
 
   # Valid-flag path in tiled branch
@@ -155,6 +162,7 @@ def test_tiled_with_tiled_body_uses_ballot_valid_flag():
 # Pipeline-level integration
 # -----------------------------------------------------------------------------
 
+
 def test_pipeline_renders_both_bodies_when_tiled_eligible():
   '''End-to-end via jit_nested_pipeline: with tiled_cartesian_enabled +
   eligible Cartesian, the pipeline renders two versions of the rest
@@ -163,7 +171,10 @@ def test_pipeline_renders_both_bodies_when_tiled_eligible():
   use the ballot-coalesced-write path — matches Nim.'''
   cart = _cart_2src_1var_each()
   insert = m.InsertInto(
-    rel_name="Out", version=Version.NEW, vars=["x", "y"], index=[0, 1],
+    rel_name="Out",
+    version=Version.NEW,
+    vars=["x", "y"],
+    index=[0, 1],
   )
   ctx = new_code_gen_context()
   ctx.tiled_cartesian_enabled = True
@@ -185,7 +196,10 @@ def test_pipeline_not_eligible_uses_standard_cartesian():
   single-body rendering (the standard flat-loop Cartesian).'''
   cart = _cart_2src_1var_each()
   insert = m.InsertInto(
-    rel_name="Out", version=Version.NEW, vars=["x", "y"], index=[0, 1],
+    rel_name="Out",
+    version=Version.NEW,
+    vars=["x", "y"],
+    index=[0, 1],
   )
   ctx = new_code_gen_context()
   # ctx.tiled_cartesian_enabled = False (default)
@@ -199,6 +213,7 @@ def test_pipeline_not_eligible_uses_standard_cartesian():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

@@ -24,12 +24,12 @@ CompilerConfig:
       cxx_flags=cuda_compile_flags(),
     )
 '''
+
 from __future__ import annotations
 
 import glob
 import os
 from pathlib import Path
-
 
 _HERE = Path(__file__).resolve().parent
 
@@ -37,6 +37,7 @@ _HERE = Path(__file__).resolve().parent
 # ---------------------------------------------------------------------------
 # Bundled runtime + vendor paths
 # ---------------------------------------------------------------------------
+
 
 def runtime_include_path() -> str:
   '''Absolute path to the bundled `generalized_datalog/` headers.
@@ -101,15 +102,13 @@ def has_vendored_deps() -> bool:
   `srdatalog populate-vendor` (or use the install hook) to fetch
   them.'''
   vendor = _HERE / "vendor"
-  return all(
-    (vendor / dep / "include").is_dir()
-    for dep in ("boost", "highway", "rmm", "spdlog")
-  )
+  return all((vendor / dep / "include").is_dir() for dep in ("boost", "highway", "rmm", "spdlog"))
 
 
 # ---------------------------------------------------------------------------
 # CUDA toolkit auto-detection
 # ---------------------------------------------------------------------------
+
 
 def find_cuda_root() -> str | None:
   '''Locate a usable CUDA toolkit. Tries (in order):
@@ -134,9 +133,7 @@ def find_cuda_root() -> str | None:
       return (-1, path)
     has_thrust_opt = os.path.isfile(
       os.path.join(path, "targets", "x86_64-linux", "include", "thrust", "optional.h")
-    ) or os.path.isfile(
-      os.path.join(path, "include", "thrust", "optional.h")
-    )
+    ) or os.path.isfile(os.path.join(path, "include", "thrust", "optional.h"))
     return (1 if has_thrust_opt else 0, path)
 
   candidates = [(_score(p), p) for p in hpc_sdk + standard]
@@ -169,8 +166,7 @@ def cuda_include_paths(cuda_root: str | None = None) -> list[str]:
   # NVIDIA HPC SDK layouts.
   parent = os.path.dirname(root)
   ver = os.path.basename(root)
-  math_libs = os.path.join(parent, "..", "math_libs", ver,
-                            "targets", "x86_64-linux", "include")
+  math_libs = os.path.join(parent, "..", "math_libs", ver, "targets", "x86_64-linux", "include")
   if os.path.isdir(math_libs):
     paths.append(math_libs)
   return [p for p in paths if os.path.isdir(p)]
@@ -188,7 +184,8 @@ def cuda_compile_flags(
     raise RuntimeError("CUDA toolkit not found")
   return [
     "-Qunused-arguments",
-    "-x", "cuda",
+    "-x",
+    "cuda",
     f"--cuda-gpu-arch={gpu_arch}",
     f"--cuda-path={root}",
   ]
@@ -209,7 +206,8 @@ def cuda_link_flags(cuda_root: str | None = None) -> list[str]:
     # doesn't include the CUDA lib dir (common on NVIDIA HPC SDK
     # installs that rely on modulefile-set envs).
     f"-Wl,-rpath,{p}"
-    for p in candidates if os.path.isdir(p)
+    for p in candidates
+    if os.path.isdir(p)
   ]
 
 

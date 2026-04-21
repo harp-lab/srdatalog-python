@@ -5,11 +5,8 @@ This test does NOT use the full HIR emitter diff because variant population
 (access patterns, var_order, etc.) is a later pass. It verifies the stratum
 structure directly.
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_hir
 from srdatalog.hir.stratify import stratify
 
@@ -71,8 +68,7 @@ def test_stratify_idempotent_across_runs():
   h1 = compile_to_hir(build_tc_program())
   h2 = compile_to_hir(build_tc_program())
   shape = lambda h: [
-    (sorted(s.scc_members), s.is_recursive, [r.name for r in s.stratum_rules])
-    for s in h.strata
+    (sorted(s.scc_members), s.is_recursive, [r.name for r in s.stratum_rules]) for s in h.strata
   ]
   assert shape(h1) == shape(h2)
 
@@ -119,6 +115,7 @@ def test_stratify_bare_function_takes_rules_and_decls():
   plug into after rule-rewrite passes run.
   '''
   from srdatalog.hir.pass_ import program_to_decls
+
   prog = build_tc_program()
   rules = list(prog.rules)
   decls = program_to_decls(prog)

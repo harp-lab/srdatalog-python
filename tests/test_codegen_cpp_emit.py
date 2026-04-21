@@ -5,29 +5,28 @@ each fixture is now built with our `mir_types` nodes (not mhk's parallel
 nt_commands dataclasses), so a single IR serves both the compiler
 pipeline and the codegen backend.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.cpp_emit import (
-  fact_index_str,
-  index_spec_t,
-  index_create_call,
   emit,
-  emit_orchestrator,
-  emit_rebuild_index,
-  emit_merge_index,
   emit_check_size,
+  emit_clear_relation,
   emit_compute_delta,
   emit_compute_delta_index,
-  emit_clear_relation,
-  emit_merge_relation,
-  emit_rebuild_index_from_index,
   emit_inject_cpp_hook,
+  emit_merge_index,
+  emit_merge_relation,
+  emit_orchestrator,
   emit_post_stratum_reconstruct,
+  emit_rebuild_index,
+  emit_rebuild_index_from_index,
+  fact_index_str,
+  index_create_call,
+  index_spec_t,
 )
+from srdatalog.hir.types import Version
 
 
 def _nows(s: str) -> str:
@@ -37,6 +36,7 @@ def _nows(s: str) -> str:
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
+
 
 def test_fact_index_str():
   assert fact_index_str("PointsTo", [0, 1]) == "PointsTo, 0, 1"
@@ -66,6 +66,7 @@ def test_index_create_call():
 # -----------------------------------------------------------------------------
 # RebuildIndex
 # -----------------------------------------------------------------------------
+
 
 def test_rebuild_index_new():
   ri = m.RebuildIndex(rel_name="PointsTo", version=Version.NEW, index=[1, 0])
@@ -101,6 +102,7 @@ def test_rebuild_index_orchestrator_with_stream_wait():
 # MergeIndex (FULL-only in our MIR)
 # -----------------------------------------------------------------------------
 
+
 def test_merge_index_points_to():
   mi = m.MergeIndex(rel_name="PointsTo", index=[1, 0])
   assert emit_merge_index(mi) == (
@@ -120,6 +122,7 @@ def test_merge_index_three_col():
 # -----------------------------------------------------------------------------
 # CheckSize / ClearRelation / MergeRelation
 # -----------------------------------------------------------------------------
+
 
 def test_check_size_new():
   cs = m.CheckSize(rel_name="PointsTo", version=Version.NEW)
@@ -160,6 +163,7 @@ def test_merge_relation():
 # ComputeDelta / ComputeDeltaIndex
 # -----------------------------------------------------------------------------
 
+
 def test_compute_delta():
   cd = m.ComputeDelta(rel_name="PointsTo", index=[0, 1])
   assert emit_compute_delta(cd) == (
@@ -195,6 +199,7 @@ def test_compute_delta_index_other_rel():
 # RebuildIndexFromIndex (same-rel same-version)
 # -----------------------------------------------------------------------------
 
+
 def test_rebuild_index_from_index_delta_swap():
   rifi = m.RebuildIndexFromIndex(
     rel_name="PointsTo",
@@ -215,6 +220,7 @@ def test_rebuild_index_from_index_delta_swap():
 # InjectCppHook / PostStratumReconstructInternCols
 # -----------------------------------------------------------------------------
 
+
 def test_inject_cpp_hook():
   ich = m.InjectCppHook(code='std::cout << "hi";')
   assert emit_inject_cpp_hook(ich) == '{std::cout << "hi";}'
@@ -231,6 +237,7 @@ def test_post_stratum_reconstruct():
 # -----------------------------------------------------------------------------
 # Dispatch
 # -----------------------------------------------------------------------------
+
 
 def test_emit_dispatches():
   assert emit(m.RebuildIndex(rel_name="R", version=Version.FULL, index=[0])) == (
@@ -252,6 +259,7 @@ def test_emit_raises_on_pipeline_node():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

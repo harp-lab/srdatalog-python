@@ -1,6 +1,8 @@
 '''sg.nim -- same-generation with filter + recursive case'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program, Filter
+
+from srdatalog.dsl import Filter, Program, Relation, Var
 
 
 def build_sg() -> Program:

@@ -15,23 +15,25 @@ Mirrors src/srdatalog/hir/join_planner.nim. Not yet ported: user-provided
 rule.plans (DSL doesn't support them), split clauses (SplitClause),
 balanced partitioning pragmas, IfClause/LetClause/AggClause handling.
 '''
+
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 
-from srdatalog.dsl import Rule, Atom, Negation, ArgKind, PlanEntry, Filter, Let, Agg, Split
-from srdatalog.hir.types import HirProgram, HirRuleVariant, AccessPattern, Version
-from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
-
+from srdatalog.dsl import Agg, ArgKind, Atom, Filter, Let, Negation, PlanEntry, Rule, Split
+from srdatalog.hir.pass_ import Dialect, PassInfo, PassLevel
+from srdatalog.hir.types import AccessPattern, HirProgram, HirRuleVariant, Version
 
 # -----------------------------------------------------------------------------
 # Rule Analysis
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class RuleAnalysis:
   vars: set[str] = field(default_factory=set)
   clause_vars: list[set[str]] = field(default_factory=list)
-  join_vars: set[str] = field(default_factory=set)       # appear in >1 POSITIVE clause
+  join_vars: set[str] = field(default_factory=set)  # appear in >1 POSITIVE clause
   head_vars: set[str] = field(default_factory=set)
 
 
@@ -80,6 +82,7 @@ def analyze_rule(rule: Rule) -> RuleAnalysis:
 # Clause ordering heuristic
 # -----------------------------------------------------------------------------
 
+
 def _clause_lvar_names(body) -> list[str]:
   '''Ordered LVar names for a body clause. Column order for Atom/Negation;
   for Filter the `vars` field (what the filter reads); for Let the single
@@ -103,10 +106,10 @@ def _clause_lvar_names(body) -> list[str]:
 
 def _get_dependencies(body) -> set[str]:
   '''Vars that must be bound before this clause is runnable.
-    - Atom, Agg: no deps (both are generators).
-    - Negation: safe-negation -> all args must be bound.
-    - Filter: every var it references.
-    - Let: every var in its `deps` list (NOT the var it binds).
+  - Atom, Agg: no deps (both are generators).
+  - Negation: safe-negation -> all args must be bound.
+  - Filter: every var it references.
+  - Let: every var in its `deps` list (NOT the var it binds).
   '''
   if isinstance(body, Negation):
     return {a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR}
@@ -119,9 +122,9 @@ def _get_dependencies(body) -> set[str]:
 
 def _get_produced_vars(body) -> set[str]:
   '''Vars newly bound by this clause.
-    - Atom: all its LVar args.
-    - Let / Agg: the single bound var (`var_name` / `result_var`).
-    - Negation / Filter: nothing.
+  - Atom: all its LVar args.
+  - Let / Agg: the single bound var (`var_name` / `result_var`).
+  - Negation / Filter: nothing.
   '''
   if isinstance(body, Atom):
     return {a.var_name for a in body.args if a.kind is ArgKind.LVAR}
@@ -134,18 +137,16 @@ def _get_produced_vars(body) -> set[str]:
 
 def compute_clause_order(rule: Rule, delta_idx: int = -1) -> list[int]:
   '''Pick body clause execution order using the Nim heuristic:
-    1. Dependency-gated runnable set (sorted by source idx for tie-breaking).
-    2. Delta clause first when runnable (for recursive variants).
-    3. Max overlap of clause vars with currently-bound vars.
+  1. Dependency-gated runnable set (sorted by source idx for tie-breaking).
+  2. Delta clause first when runnable (for recursive variants).
+  3. Max overlap of clause vars with currently-bound vars.
   '''
   bound: set[str] = set()
   scheduled: list[int] = []
   remaining: set[int] = set(range(len(rule.body)))
 
   while remaining:
-    runnable = sorted(
-      i for i in remaining if _get_dependencies(rule.body[i]) <= bound
-    )
+    runnable = sorted(i for i in remaining if _get_dependencies(rule.body[i]) <= bound)
     if not runnable:
       # Deadlock fallback (shouldn't happen for stratified DSL input, but
       # matches Nim behavior): prefer an Atom, else lowest index.
@@ -189,6 +190,7 @@ def compute_clause_order(rule: Rule, delta_idx: int = -1) -> list[int]:
 # Variable ordering heuristic
 # -----------------------------------------------------------------------------
 
+
 def compute_var_order_from_clauses(
   rule: Rule, clause_order: list[int], join_vars: set[str], delta_idx: int = -1
 ) -> list[str]:
@@ -225,6 +227,7 @@ def compute_var_order_from_clauses(
 # -----------------------------------------------------------------------------
 # Access pattern computation
 # -----------------------------------------------------------------------------
+
 
 def compute_access_pattern(
   body, version: Version, join_vars: set[str], var_order: list[str], clause_idx: int
@@ -295,6 +298,7 @@ def compute_access_pattern(
 # Derive clause order from user-provided var_order (when the plan omits it)
 # -----------------------------------------------------------------------------
 
+
 def derive_clause_order_from_var_order(
   rule: Rule, var_order: list[str], delta_idx: int = -1
 ) -> list[int]:
@@ -319,8 +323,7 @@ def derive_clause_order_from_var_order(
     if target in bound:
       continue
     candidates = [
-      idx for idx in remaining
-      if can_schedule(idx) and target in clause_vars(rule.body[idx])
+      idx for idx in remaining if can_schedule(idx) and target in clause_vars(rule.body[idx])
     ]
     if not candidates:
       continue
@@ -370,6 +373,7 @@ def derive_clause_order_from_var_order(
 # Main entry
 # -----------------------------------------------------------------------------
 
+
 def _find_plan(rule: Rule, delta_idx: int) -> PlanEntry | None:
   for p in rule.plans:
     if p.delta == delta_idx:
@@ -403,7 +407,7 @@ def compute_temp_vars(rule: Rule, split_at: int) -> list[str]:
   below_body_vars: set[str] = set()
   for i in range(split_at + 1, len(rule.body)):
     clause = rule.body[i]
-    if isinstance(clause, Atom):   # Nim only counts RelClause for belowBodyVars
+    if isinstance(clause, Atom):  # Nim only counts RelClause for belowBodyVars
       below_body_vars.update(_clause_lvar_names(clause))
 
   vars_below: set[str] = set(below_body_vars)
@@ -443,9 +447,7 @@ def _plan_variant(v: HirRuleVariant) -> None:
       clause_order = derive_clause_order_from_var_order(rule, var_order, delta_idx=d)
   else:
     clause_order = compute_clause_order(rule, delta_idx=d)
-    var_order = compute_var_order_from_clauses(
-      rule, clause_order, analysis.join_vars, delta_idx=d
-    )
+    var_order = compute_var_order_from_clauses(rule, clause_order, analysis.join_vars, delta_idx=d)
 
   # Propagate pragma flags whenever a plan is attached — the pragma
   # branch above is gated on `plan.var_order`, but pragmas like

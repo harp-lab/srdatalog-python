@@ -5,7 +5,9 @@ Mirrors src/srdatalog/provenance.nim. The HIR JSON emitter writes a
 so user-written rules and clauses keep the default `UserProvenance`
 sentinel and emit no extra JSON keys.
 '''
+
 from __future__ import annotations
+
 from dataclasses import dataclass
 from enum import Enum
 

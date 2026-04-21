@@ -12,15 +12,15 @@ reconstruct call onto the tail of the recursive runner. Both produce the
 same net C++ behavior; here we keep the steps separate so the orchestrator
 mirrors the MIR one-to-one.
 '''
+
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
-from srdatalog.codegen.schema import SchemaDefinition, Pragma
 from srdatalog.codegen import cpp_emit
-
+from srdatalog.codegen.schema import Pragma, SchemaDefinition
+from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------
 # Preamble / header blocks (verbatim from nt orchestrator)
@@ -64,6 +64,7 @@ void run(DBHandle h, size_t max_iters);
 # -----------------------------------------------------------------------------
 # Plan inspection helpers
 # -----------------------------------------------------------------------------
+
 
 def get_canonical_specs(instrs: list[m.MirNode]) -> list[tuple[str, list[int]]]:
   '''Walk `instrs` and return `(rel_name, canonical_index)` pairs — one per
@@ -134,7 +135,10 @@ def _dest_rel_name(dest: m.MirNode) -> str:
 # Pipeline source/index helpers
 # -----------------------------------------------------------------------------
 
-def _collect_source_specs(pipelines: list[m.ExecutePipeline]) -> list[tuple[str, Version, tuple[int, ...]]]:
+
+def _collect_source_specs(
+  pipelines: list[m.ExecutePipeline],
+) -> list[tuple[str, Version, tuple[int, ...]]]:
   '''Union of (rel, ver, index) specs read by any pipeline — driving the
   `mir_helpers::create_index_fn<...>` calls at the top of the runner.
   DELTA specs also pull in their FULL counterpart (DELTA dispatches to
@@ -165,6 +169,7 @@ def _collect_source_specs(pipelines: list[m.ExecutePipeline]) -> list[tuple[str,
 # Non-parallel pipeline runner (single stream, used by non-recursive strata
 # and by recursive strata with exactly one pipeline)
 # -----------------------------------------------------------------------------
+
 
 def _emit_prebuild(canon_specs: list[tuple[str, list[int]]]) -> str:
   '''`using Rel_canonical_spec_t = IndexSpec<Rel, cols, FULL_VER>;` per relation.'''
@@ -208,8 +213,7 @@ def _emit_setup_streams(pipelines: list[m.ExecutePipeline]) -> str:
   if len(pipelines) <= 1:
     return ""
   return (
-    "static SRDatalog::GPU::StreamPool _stream_pool;\n"
-    f"_stream_pool.ensure({len(pipelines)});\n\n"
+    f"static SRDatalog::GPU::StreamPool _stream_pool;\n_stream_pool.ensure({len(pipelines)});\n\n"
   )
 
 
@@ -235,7 +239,7 @@ def _emit_fixpoint_break_check(canon_specs: list[tuple[str, list[int]]]) -> str:
   return "\n".join(out) + "\n"
 
 
-def _emit_nonpipeline_op(op: m.MirNode, dest_stream_map: Optional[dict[str, list[int]]]) -> str:
+def _emit_nonpipeline_op(op: m.MirNode, dest_stream_map: dict[str, list[int]] | None) -> str:
   '''Emit a single non-pipeline op (scalar maintenance, InjectCppHook, etc.).'''
   return cpp_emit.emit_orchestrator(op, iter_var=9999, dest_stream_map=dest_stream_map)
 
@@ -243,6 +247,7 @@ def _emit_nonpipeline_op(op: m.MirNode, dest_stream_map: Optional[dict[str, list
 # -----------------------------------------------------------------------------
 # ParallelGroup 4-phase emitter (recursive, multi-pipeline case)
 # -----------------------------------------------------------------------------
+
 
 def _emit_parallel_pipelines(
   pipelines: list[m.ExecutePipeline],
@@ -377,8 +382,7 @@ def _emit_parallel_pipelines(
     )
 
     single_in_dest = [
-      i for i in idxs
-      if len(pipelines[i].dest_specs) == 1 and not pipelines[i].work_stealing
+      i for i in idxs if len(pipelines[i].dest_specs) == 1 and not pipelines[i].work_stealing
     ]
     multi_in_dest = [i for i in idxs if i not in single_in_dest]
     has_concat = rel in dest_single and len(dest_single[rel]) >= 2
@@ -434,6 +438,7 @@ def _emit_parallel_pipelines(
 # Non-parallel (single-pipeline) body emission
 # -----------------------------------------------------------------------------
 
+
 def _emit_single_pipeline_body(
   pipelines: list[m.ExecutePipeline],
   non_pipelines: list[m.MirNode],
@@ -450,6 +455,7 @@ def _emit_single_pipeline_body(
 # -----------------------------------------------------------------------------
 # Top-level step generation
 # -----------------------------------------------------------------------------
+
 
 def generate_fixpoint_runner(plan: m.FixpointPlan, is_recursive: bool) -> str:
   pipelines, non_pipelines = _split_pipelines(plan)
@@ -504,17 +510,23 @@ def generate_step(number: int, node: m.MirNode, is_recursive: bool) -> str:
 # Program driver
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class SRDatalogProgram:
   '''Pairs a compiled `mir_types.Program` with a schema and drives full
   orchestrator emission.'''
+
   name: str
   database: SchemaDefinition
   program: m.Program
 
   def generate_orchestrator(self, include_ffi: bool = True) -> str:
-    parts: list[str] = [PRELUDE, str(self.database),
-                        "\nusing namespace SRDatalog::mir::dsl;", PRELUDE_2]
+    parts: list[str] = [
+      PRELUDE,
+      str(self.database),
+      "\nusing namespace SRDatalog::mir::dsl;",
+      PRELUDE_2,
+    ]
     for i, (node, is_rec) in enumerate(self.program.steps):
       parts.append(generate_step(i, node, is_rec))
     if include_ffi:
@@ -527,10 +539,6 @@ class SRDatalogProgram:
     for f in self.database.facts:
       if Pragma.INPUT in f.pragmas:
         pragmas += (
-          f'\nSRDatalog::load_from_file<{f.name}>'
-          f'(db, root_dir + "/{f.pragmas[Pragma.INPUT]}");'
+          f'\nSRDatalog::load_from_file<{f.name}>(db, root_dir + "/{f.pragmas[Pragma.INPUT]}");'
         )
-    return (
-      "\nstatic void load_data(DB& db, std::string root_dir) {"
-      f"{pragmas}\n}}\n"
-    )
+    return f"\nstatic void load_data(DB& db, std::string root_dir) {{{pragmas}\n}}\n"

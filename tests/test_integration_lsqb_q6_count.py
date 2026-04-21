@@ -1,6 +1,8 @@
 '''lsqb_q6_count.nim -- 2-hop interest path with count pragma + filter'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program, Filter
+
+from srdatalog.dsl import Filter, Program, Relation, Var
 
 
 def build_lsqb_q6_count() -> Program:
@@ -18,12 +20,17 @@ def build_lsqb_q6_count() -> Program:
       (knows(Y, X) <= k_in(X, Y)).named("KnowsLoadRev"),
       (hi(P, T_) <= hi_in(P, T_)).named("InterestLoad"),
       (
-        path(P1, P2, P3, T) <=
-        knows(P1, P2) & knows(P2, P3) & hi(P3, T)
+        path(P1, P2, P3, T)
+        <= knows(P1, P2)
+        & knows(P2, P3)
+        & hi(P3, T)
         & Filter(vars=("p1", "p3"), code="return p1 != p3;")
-      ).named("TwoHopPath").with_plan(
+      )
+      .named("TwoHopPath")
+      .with_plan(
         var_order=["p2", "p3", "p1", "t"],
-      ).with_count(),
+      )
+      .with_count(),
     ],
   )
 

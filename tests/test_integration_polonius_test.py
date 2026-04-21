@@ -1,6 +1,8 @@
 '''polonius_test.nim -- borrow-checker analysis (~40 rules, 2 wildcards)'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program, Filter
+
+from srdatalog.dsl import Filter, Program, Relation, Var
 
 
 def build_polonius_test() -> Program:
@@ -56,148 +58,174 @@ def build_polonius_test() -> Program:
 
   return Program(
     relations=[
-      subset_base, cfg_edge, loan_issued_at, universal_region, var_used_at,
-      loan_killed_at, kps_input, var_dropped_at, drop_of_var_derefs_origin,
-      var_defined_at, child_path, path_moved_at_base, path_assigned_at_base,
-      path_accessed_at_base, path_is_var, loan_invalidated_at,
+      subset_base,
+      cfg_edge,
+      loan_issued_at,
+      universal_region,
+      var_used_at,
+      loan_killed_at,
+      kps_input,
+      var_dropped_at,
+      drop_of_var_derefs_origin,
+      var_defined_at,
+      child_path,
+      path_moved_at_base,
+      path_assigned_at_base,
+      path_accessed_at_base,
+      path_is_var,
+      loan_invalidated_at,
       use_of_var_derefs_origin,
-      subset, origin_live_on_entry, origin_contains_loan_on_entry,
-      loan_live_at, errors, placeholder_origin, subset_error,
-      known_placeholder_subset, cfg_node, var_live_on_entry,
-      var_drop_live_on_entry, vmp_init_on_exit, vmp_init_on_entry,
-      ancestor_path, path_moved_at, path_assigned_at, path_accessed_at,
-      path_begins_with_var, pmi_on_exit, pmu_on_exit, move_error,
+      subset,
+      origin_live_on_entry,
+      origin_contains_loan_on_entry,
+      loan_live_at,
+      errors,
+      placeholder_origin,
+      subset_error,
+      known_placeholder_subset,
+      cfg_node,
+      var_live_on_entry,
+      var_drop_live_on_entry,
+      vmp_init_on_exit,
+      vmp_init_on_entry,
+      ancestor_path,
+      path_moved_at,
+      path_assigned_at,
+      path_accessed_at,
+      path_begins_with_var,
+      pmi_on_exit,
+      pmu_on_exit,
+      move_error,
     ],
     rules=[
-      (subset(O1, O2, POINT) <= subset_base(O1, O2, POINT))
-        .named("subset_base_rule"),
-      (origin_contains_loan_on_entry(ORIGIN, LOAN, POINT) <=
-       loan_issued_at(LOAN, ORIGIN, POINT)
+      (subset(O1, O2, POINT) <= subset_base(O1, O2, POINT)).named("subset_base_rule"),
+      (
+        origin_contains_loan_on_entry(ORIGIN, LOAN, POINT) <= loan_issued_at(LOAN, ORIGIN, POINT)
       ).named("ocle_issued"),
-      (placeholder_origin(ORIGIN) <= universal_region(ORIGIN))
-        .named("placeholder_origin_rule"),
-      (known_placeholder_subset(X, Z) <= kps_input(X, Z))
-        .named("kps_seed"),
-      (known_placeholder_subset(X, Z) <=
-       known_placeholder_subset(X, Y) & known_placeholder_subset(Y, Z)
+      (placeholder_origin(ORIGIN) <= universal_region(ORIGIN)).named("placeholder_origin_rule"),
+      (known_placeholder_subset(X, Z) <= kps_input(X, Z)).named("kps_seed"),
+      (
+        known_placeholder_subset(X, Z)
+        <= known_placeholder_subset(X, Y) & known_placeholder_subset(Y, Z)
       ).named("kps_transitive"),
-      (subset(O1, O3, POINT) <=
-       subset(O1, O2, POINT)
-       & subset_base(O2, O3, POINT)
-       & Filter(vars=("origin1", "origin3"), code="return origin1 != origin3;")
-      ).named("subset_trans").with_plan(delta=0, work_stealing=True),
-      (subset(O1, O2, PT2) <=
-       subset(O1, O2, PT1)
-       & cfg_edge(PT1, PT2)
-       & origin_live_on_entry(O1, PT2)
-       & origin_live_on_entry(O2, PT2)
-      ).named("subset_cfg").with_plan(
-        delta=0, var_order=("point1", "point2", "origin1", "origin2")),
-      (origin_contains_loan_on_entry(O2, LOAN, POINT) <=
-       origin_contains_loan_on_entry(O1, LOAN, POINT)
-       & subset(O1, O2, POINT)
+      (
+        subset(O1, O3, POINT)
+        <= subset(O1, O2, POINT)
+        & subset_base(O2, O3, POINT)
+        & Filter(vars=("origin1", "origin3"), code="return origin1 != origin3;")
+      )
+      .named("subset_trans")
+      .with_plan(delta=0, work_stealing=True),
+      (
+        subset(O1, O2, PT2)
+        <= subset(O1, O2, PT1)
+        & cfg_edge(PT1, PT2)
+        & origin_live_on_entry(O1, PT2)
+        & origin_live_on_entry(O2, PT2)
+      )
+      .named("subset_cfg")
+      .with_plan(delta=0, var_order=("point1", "point2", "origin1", "origin2")),
+      (
+        origin_contains_loan_on_entry(O2, LOAN, POINT)
+        <= origin_contains_loan_on_entry(O1, LOAN, POINT) & subset(O1, O2, POINT)
       ).named("ocle_subset"),
-      (origin_contains_loan_on_entry(ORIGIN, LOAN, PT2) <=
-       origin_contains_loan_on_entry(ORIGIN, LOAN, PT1)
-       & cfg_edge(PT1, PT2)
-       & ~loan_killed_at(LOAN, PT1)
-       & origin_live_on_entry(ORIGIN, PT2)
+      (
+        origin_contains_loan_on_entry(ORIGIN, LOAN, PT2)
+        <= origin_contains_loan_on_entry(ORIGIN, LOAN, PT1)
+        & cfg_edge(PT1, PT2)
+        & ~loan_killed_at(LOAN, PT1)
+        & origin_live_on_entry(ORIGIN, PT2)
       ).named("ocle_cfg"),
-      (loan_live_at(LOAN, POINT) <=
-       origin_contains_loan_on_entry(ORIGIN, LOAN, POINT)
-       & origin_live_on_entry(ORIGIN, POINT)
+      (
+        loan_live_at(LOAN, POINT)
+        <= origin_contains_loan_on_entry(ORIGIN, LOAN, POINT) & origin_live_on_entry(ORIGIN, POINT)
       ).named("loan_live_at_rule"),
-      (errors(LOAN, POINT) <=
-       loan_invalidated_at(LOAN, POINT) & loan_live_at(LOAN, POINT)
-      ).named("errors_rule"),
-      (subset_error(O1, O2, POINT) <=
-       subset(O1, O2, POINT)
-       & placeholder_origin(O1)
-       & placeholder_origin(O2)
-       & ~known_placeholder_subset(O1, O2)
-       & Filter(vars=("origin1", "origin2"), code="return origin1 != origin2;")
+      (errors(LOAN, POINT) <= loan_invalidated_at(LOAN, POINT) & loan_live_at(LOAN, POINT)).named(
+        "errors_rule"
+      ),
+      (
+        subset_error(O1, O2, POINT)
+        <= subset(O1, O2, POINT)
+        & placeholder_origin(O1)
+        & placeholder_origin(O2)
+        & ~known_placeholder_subset(O1, O2)
+        & Filter(vars=("origin1", "origin2"), code="return origin1 != origin2;")
       ).named("subset_error_rule"),
-      (cfg_node(PT1) <= cfg_edge(PT1, G1))
-        .named("cfg_node_from_edge_src"),
-      (cfg_node(PT2) <= cfg_edge(G2, PT2))
-        .named("cfg_node_from_edge_dst"),
-      (origin_live_on_entry(ORIGIN, POINT) <=
-       cfg_node(POINT) & universal_region(ORIGIN)
-      ).named("ole_universal"),
-      (var_live_on_entry(VR, POINT) <= var_used_at(VR, POINT))
-        .named("vle_used"),
-      (vmp_init_on_entry(VR, PT2) <=
-       vmp_init_on_exit(VR, PT1) & cfg_edge(PT1, PT2)
-      ).named("vmpie_from_exit"),
-      (var_drop_live_on_entry(VR, POINT) <=
-       var_dropped_at(VR, POINT) & vmp_init_on_entry(VR, POINT)
+      (cfg_node(PT1) <= cfg_edge(PT1, G1)).named("cfg_node_from_edge_src"),
+      (cfg_node(PT2) <= cfg_edge(G2, PT2)).named("cfg_node_from_edge_dst"),
+      (origin_live_on_entry(ORIGIN, POINT) <= cfg_node(POINT) & universal_region(ORIGIN)).named(
+        "ole_universal"
+      ),
+      (var_live_on_entry(VR, POINT) <= var_used_at(VR, POINT)).named("vle_used"),
+      (vmp_init_on_entry(VR, PT2) <= vmp_init_on_exit(VR, PT1) & cfg_edge(PT1, PT2)).named(
+        "vmpie_from_exit"
+      ),
+      (
+        var_drop_live_on_entry(VR, POINT)
+        <= var_dropped_at(VR, POINT) & vmp_init_on_entry(VR, POINT)
       ).named("vdle_dropped"),
-      (origin_live_on_entry(ORIGIN, POINT) <=
-       var_drop_live_on_entry(VR, POINT)
-       & drop_of_var_derefs_origin(VR, ORIGIN)
+      (
+        origin_live_on_entry(ORIGIN, POINT)
+        <= var_drop_live_on_entry(VR, POINT) & drop_of_var_derefs_origin(VR, ORIGIN)
       ).named("ole_drop"),
-      (origin_live_on_entry(ORIGIN, POINT) <=
-       var_live_on_entry(VR, POINT)
-       & use_of_var_derefs_origin(VR, ORIGIN)
+      (
+        origin_live_on_entry(ORIGIN, POINT)
+        <= var_live_on_entry(VR, POINT) & use_of_var_derefs_origin(VR, ORIGIN)
       ).named("ole_use"),
-      (var_live_on_entry(VR, PT1) <=
-       var_live_on_entry(VR, PT2)
-       & cfg_edge(PT1, PT2)
-       & ~var_defined_at(VR, PT1)
+      (
+        var_live_on_entry(VR, PT1)
+        <= var_live_on_entry(VR, PT2) & cfg_edge(PT1, PT2) & ~var_defined_at(VR, PT1)
       ).named("vle_cfg"),
-      (var_drop_live_on_entry(V, SRC) <=
-       var_drop_live_on_entry(V, TGT)
-       & cfg_edge(SRC, TGT)
-       & ~var_defined_at(V, SRC)
-       & vmp_init_on_exit(V, SRC)
+      (
+        var_drop_live_on_entry(V, SRC)
+        <= var_drop_live_on_entry(V, TGT)
+        & cfg_edge(SRC, TGT)
+        & ~var_defined_at(V, SRC)
+        & vmp_init_on_exit(V, SRC)
       ).named("vdle_cfg"),
-      (ancestor_path(X, Y) <= child_path(X, Y))
-        .named("ancestor_path_base"),
-      (path_moved_at(X, Y) <= path_moved_at_base(X, Y))
-        .named("path_moved_at_base_rule"),
-      (path_assigned_at(X, Y) <= path_assigned_at_base(X, Y))
-        .named("path_assigned_at_base_rule"),
-      (path_accessed_at(X, Y) <= path_accessed_at_base(X, Y))
-        .named("path_accessed_at_base_rule"),
-      (path_begins_with_var(X, VR) <= path_is_var(X, VR))
-        .named("pbwv_base"),
-      (ancestor_path(GRAND, CHILD) <=
-       ancestor_path(PARENT, CHILD) & child_path(PARENT, GRAND)
+      (ancestor_path(X, Y) <= child_path(X, Y)).named("ancestor_path_base"),
+      (path_moved_at(X, Y) <= path_moved_at_base(X, Y)).named("path_moved_at_base_rule"),
+      (path_assigned_at(X, Y) <= path_assigned_at_base(X, Y)).named("path_assigned_at_base_rule"),
+      (path_accessed_at(X, Y) <= path_accessed_at_base(X, Y)).named("path_accessed_at_base_rule"),
+      (path_begins_with_var(X, VR) <= path_is_var(X, VR)).named("pbwv_base"),
+      (
+        ancestor_path(GRAND, CHILD) <= ancestor_path(PARENT, CHILD) & child_path(PARENT, GRAND)
       ).named("ancestor_path_trans"),
-      (path_moved_at(CHILD, POINT) <=
-       path_moved_at(PARENT, POINT) & ancestor_path(PARENT, CHILD)
+      (
+        path_moved_at(CHILD, POINT) <= path_moved_at(PARENT, POINT) & ancestor_path(PARENT, CHILD)
       ).named("path_moved_at_ancestor"),
-      (path_assigned_at(CHILD, POINT) <=
-       path_assigned_at(PARENT, POINT) & ancestor_path(PARENT, CHILD)
+      (
+        path_assigned_at(CHILD, POINT)
+        <= path_assigned_at(PARENT, POINT) & ancestor_path(PARENT, CHILD)
       ).named("path_assigned_at_ancestor"),
-      (path_accessed_at(CHILD, POINT) <=
-       path_accessed_at(PARENT, POINT) & ancestor_path(PARENT, CHILD)
+      (
+        path_accessed_at(CHILD, POINT)
+        <= path_accessed_at(PARENT, POINT) & ancestor_path(PARENT, CHILD)
       ).named("path_accessed_at_ancestor"),
-      (path_begins_with_var(CHILD, V) <=
-       path_begins_with_var(PARENT, V) & ancestor_path(PARENT, CHILD)
+      (
+        path_begins_with_var(CHILD, V)
+        <= path_begins_with_var(PARENT, V) & ancestor_path(PARENT, CHILD)
       ).named("pbwv_ancestor"),
-      (pmi_on_exit(PATH, POINT) <= path_assigned_at(PATH, POINT))
-        .named("pmioe_assigned"),
-      (pmu_on_exit(PATH, POINT) <= path_moved_at(PATH, POINT))
-        .named("pmuoe_moved"),
-      (pmi_on_exit(PATH, PT2) <=
-       pmi_on_exit(PATH, PT1)
-       & cfg_edge(PT1, PT2)
-       & ~path_moved_at(PATH, PT2)
-      ).named("pmioe_cfg").with_plan(
-        delta=0, var_order=("point1", "point2", "path")),
-      (pmu_on_exit(PATH, PT2) <=
-       pmu_on_exit(PATH, PT1)
-       & cfg_edge(PT1, PT2)
-       & ~path_assigned_at(PATH, PT2)
-      ).named("pmuoe_cfg").with_plan(
-        delta=0, var_order=("point1", "point2", "path")),
-      (vmp_init_on_exit(VR, POINT) <=
-       pmi_on_exit(PATH, POINT) & path_begins_with_var(PATH, VR)
+      (pmi_on_exit(PATH, POINT) <= path_assigned_at(PATH, POINT)).named("pmioe_assigned"),
+      (pmu_on_exit(PATH, POINT) <= path_moved_at(PATH, POINT)).named("pmuoe_moved"),
+      (
+        pmi_on_exit(PATH, PT2)
+        <= pmi_on_exit(PATH, PT1) & cfg_edge(PT1, PT2) & ~path_moved_at(PATH, PT2)
+      )
+      .named("pmioe_cfg")
+      .with_plan(delta=0, var_order=("point1", "point2", "path")),
+      (
+        pmu_on_exit(PATH, PT2)
+        <= pmu_on_exit(PATH, PT1) & cfg_edge(PT1, PT2) & ~path_assigned_at(PATH, PT2)
+      )
+      .named("pmuoe_cfg")
+      .with_plan(delta=0, var_order=("point1", "point2", "path")),
+      (
+        vmp_init_on_exit(VR, POINT) <= pmi_on_exit(PATH, POINT) & path_begins_with_var(PATH, VR)
       ).named("vmpioe_from_path"),
-      (move_error(PATH, TGT) <=
-       pmu_on_exit(PATH, SRC) & cfg_edge(SRC, TGT)
-      ).named("move_error_rule"),
+      (move_error(PATH, TGT) <= pmu_on_exit(PATH, SRC) & cfg_edge(SRC, TGT)).named(
+        "move_error_rule"
+      ),
     ],
   )
 

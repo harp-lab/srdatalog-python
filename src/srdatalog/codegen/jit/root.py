@@ -25,22 +25,36 @@ Multi-view sources (Device2LevelIndex where view_count > 1) go through
 a segment loop wrapping the join body; that path also raises
 NotImplementedError in this commit.
 '''
+
 from __future__ import annotations
 
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
-  CodeGenContext, ind, inc_indent, dec_indent, gen_unique_name,
-  with_bound_var, sanitize_var_name, get_view_slot_base, get_rel_index_type,
-  gen_view_access, gen_view_var_name, gen_handle_var_name,
-  gen_handle_state_key, gen_root_handle, gen_valid, gen_degree,
-  gen_get_value, gen_get_value_at, gen_child,
+  CodeGenContext,
+  dec_indent,
+  gen_child,
+  gen_degree,
+  gen_get_value,
+  gen_get_value_at,
+  gen_handle_state_key,
+  gen_handle_var_name,
+  gen_root_handle,
+  gen_unique_name,
+  gen_valid,
+  gen_view_access,
+  gen_view_var_name,
+  get_rel_index_type,
+  get_view_slot_base,
+  inc_indent,
+  ind,
+  sanitize_var_name,
 )
 from srdatalog.codegen.jit.plugin import plugin_view_count
-
 
 # -----------------------------------------------------------------------------
 # Grid-stride loop helper
 # -----------------------------------------------------------------------------
+
 
 def gen_grid_stride_loop(
   i: str,
@@ -61,13 +75,19 @@ def gen_grid_stride_loop(
   '''
   if use_atomic_ws:
     out = (
-      i + "// ATOMIC WS: lightweight work-stealing via per-warp atomic grab\n"
-      + i + "while (true) {\n"
-      + i + f"  uint32_t {idx_var};\n"
-      + i + f"  if (tile.thread_rank() == 0) {idx_var} "
-        f"= atomicAdd(&_d_aws_counter, 1);\n"
-      + i + f"  {idx_var} = tile.shfl({idx_var}, 0);\n"
-      + i + f"  if ({idx_var} >= {bound_var}) break;\n"
+      i
+      + "// ATOMIC WS: lightweight work-stealing via per-warp atomic grab\n"
+      + i
+      + "while (true) {\n"
+      + i
+      + f"  uint32_t {idx_var};\n"
+      + i
+      + f"  if (tile.thread_rank() == 0) {idx_var} "
+      f"= atomicAdd(&_d_aws_counter, 1);\n"
+      + i
+      + f"  {idx_var} = tile.shfl({idx_var}, 0);\n"
+      + i
+      + f"  if ({idx_var} >= {bound_var}) break;\n"
     )
     return out
 
@@ -76,15 +96,15 @@ def gen_grid_stride_loop(
   else:
     comment = i + "// WARP MODE: 32 threads cooperatively handle one row\n"
   return (
-    comment
-    + i + f"for (uint32_t {idx_var} = warp_id; {idx_var} < {bound_var}; "
-      f"{idx_var} += num_warps) {{\n"
+    comment + i + f"for (uint32_t {idx_var} = warp_id; {idx_var} < {bound_var}; "
+    f"{idx_var} += num_warps) {{\n"
   )
 
 
 # -----------------------------------------------------------------------------
 # jit_root_scan
 # -----------------------------------------------------------------------------
+
 
 def jit_root_scan(node: m.Scan, ctx: CodeGenContext, body: str) -> str:
   '''Root scan: parallel iteration over an entire relation.
@@ -109,8 +129,7 @@ def jit_root_scan(node: m.Scan, ctx: CodeGenContext, body: str) -> str:
   if ctx.debug:
     code += i + f"// Root Scan: {rel_name} binding {', '.join(var_names)}\n"
     code += (
-      i + f"// MIR: (scan :rel {rel_name} :vars ({' '.join(var_names)})"
-      f" :handle {handle_idx})\n"
+      i + f"// MIR: (scan :rel {rel_name} :vars ({' '.join(var_names)}) :handle {handle_idx})\n"
     )
 
   handle_var = gen_unique_name(ctx, "root_handle")
@@ -118,10 +137,7 @@ def jit_root_scan(node: m.Scan, ctx: CodeGenContext, body: str) -> str:
   existing_view = ctx.view_vars.get(str(handle_idx), "")
   view_var = existing_view if existing_view else gen_unique_name(ctx, "root_view")
   if not existing_view:
-    code += (
-      i + f"auto {view_var} = "
-      f"{gen_view_access(get_view_slot_base(ctx, handle_idx))};\n"
-    )
+    code += i + f"auto {view_var} = {gen_view_access(get_view_slot_base(ctx, handle_idx))};\n"
 
   index_type = get_rel_index_type(ctx, rel_name)
   code += i + f"auto {handle_var} = {gen_root_handle(view_var, index_type)};\n"
@@ -159,8 +175,11 @@ def jit_root_scan(node: m.Scan, ctx: CodeGenContext, body: str) -> str:
 # jit_root_cartesian_join
 # -----------------------------------------------------------------------------
 
+
 def jit_root_cartesian_join(
-  node: m.CartesianJoin, ctx: CodeGenContext, body: str,
+  node: m.CartesianJoin,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   '''Root CartesianJoin: parallel iteration over the product of N sources.
 
@@ -183,17 +202,11 @@ def jit_root_cartesian_join(
   i = ind(ctx)
 
   if ctx.debug:
-    code += (
-      i + f"// Root CartesianJoin: bind {', '.join(var_names)} "
-      f"from {num_sources} source(s)\n"
-    )
+    code += i + f"// Root CartesianJoin: bind {', '.join(var_names)} from {num_sources} source(s)\n"
     src_debug = ""
     for src in sources:
       src_debug += f"({src.rel_name} :handle {src.handle_start}) "
-    code += (
-      i + f"// MIR: (cartesian-join :vars ({' '.join(var_names)})"
-      f" :sources ({src_debug}))\n"
-    )
+    code += i + f"// MIR: (cartesian-join :vars ({' '.join(var_names)}) :sources ({src_debug}))\n"
 
   handle_vars: list[str] = []
   view_vars: list[str] = []
@@ -217,10 +230,7 @@ def jit_root_cartesian_join(
     degree_vars.append(deg_var)
 
     if not existing_view:
-      code += (
-        i + f"auto {view_var} = "
-        f"{gen_view_access(get_view_slot_base(ctx, h_idx))};\n"
-      )
+      code += i + f"auto {view_var} = {gen_view_access(get_view_slot_base(ctx, h_idx))};\n"
     index_type = get_rel_index_type(ctx, rel_name)
     code += i + f"auto {handle_var} = {gen_root_handle(view_var, index_type)};\n"
 
@@ -237,8 +247,7 @@ def jit_root_cartesian_join(
   for src_idx, src in enumerate(sources):
     src_index_type = get_rel_index_type(ctx, src.rel_name)
     code += (
-      i + f"uint32_t {degree_vars[src_idx]} = "
-      f"{gen_degree(handle_vars[src_idx], src_index_type)};\n"
+      i + f"uint32_t {degree_vars[src_idx]} = {gen_degree(handle_vars[src_idx], src_index_type)};\n"
     )
 
   total_var = gen_unique_name(ctx, "total")
@@ -267,9 +276,7 @@ def jit_root_cartesian_join(
       # N-source: carry `remaining` downward.
       code += ii + f"uint32_t remaining = {flat_idx_var};\n"
       for src_idx in range(num_sources - 1, -1, -1):
-        code += (
-          ii + f"uint32_t {idx_vars[src_idx]} = remaining % {degree_vars[src_idx]};\n"
-        )
+        code += ii + f"uint32_t {idx_vars[src_idx]} = remaining % {degree_vars[src_idx]};\n"
         if src_idx > 0:
           code += ii + f"remaining /= {degree_vars[src_idx]};\n"
 
@@ -310,21 +317,18 @@ def jit_root_cartesian_join(
 # jit_root_column_join — baseline (no BG, no WS, no fan-out, no multi-view)
 # -----------------------------------------------------------------------------
 
+
 def _feature_flags_disabled_for_cj(ctx: CodeGenContext) -> None:
   '''Reject every advanced feature flag the baseline CJ doesn't cover.'''
   if ctx.ws_enabled:
-    raise NotImplementedError(
-      "jit_root_column_join: work-stealing branch not yet ported"
-    )
+    raise NotImplementedError("jit_root_column_join: work-stealing branch not yet ported")
   if ctx.bg_histogram_mode:
     raise NotImplementedError(
       "jit_root_column_join: BG histogram mode not yet ported here "
       "(emitted directly by complete_runner)"
     )
   if ctx.is_fan_out_explore:
-    raise NotImplementedError(
-      "jit_root_column_join: fan-out explore branch not yet ported"
-    )
+    raise NotImplementedError("jit_root_column_join: fan-out explore branch not yet ported")
 
 
 def _source_view_count(src: m.ColumnSource, ctx: CodeGenContext) -> int:
@@ -335,7 +339,9 @@ def _source_view_count(src: m.ColumnSource, ctx: CodeGenContext) -> int:
 
 
 def jit_root_column_join(
-  node: m.ColumnJoin, ctx: CodeGenContext, body: str,
+  node: m.ColumnJoin,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   '''Root ColumnJoin — first op in a pipeline.
 
@@ -372,7 +378,9 @@ def jit_root_column_join(
 
 
 def _root_cj_single(
-  node: m.ColumnJoin, ctx: CodeGenContext, body: str,
+  node: m.ColumnJoin,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   i = ind(ctx)
   src = node.sources[0]
@@ -387,13 +395,8 @@ def _root_cj_single(
 
   code = ""
   if ctx.debug:
-    code += (
-      i + f"// Root ColumnJoin (single source): bind '{var_name}' from {rel_name}\n"
-    )
-    code += (
-      i + f"// MIR: (column-join :var {var_name}"
-      f" :sources (({rel_name} :handle {src_idx})))\n"
-    )
+    code += i + f"// Root ColumnJoin (single source): bind '{var_name}' from {rel_name}\n"
+    code += i + f"// MIR: (column-join :var {var_name} :sources (({rel_name} :handle {src_idx})))\n"
 
   if has_segment_loop:
     code += i + f"for (int _seg = 0; _seg < {view_count}; _seg++) {{\n"
@@ -457,7 +460,9 @@ def _root_cj_single(
 
 
 def _root_cj_multi(
-  node: m.ColumnJoin, ctx: CodeGenContext, body: str,
+  node: m.ColumnJoin,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   i = ind(ctx)
   sources = node.sources
@@ -474,9 +479,7 @@ def _root_cj_multi(
     src_debug = ""
     for src in sources:
       src_debug += f"({src.rel_name} :handle {src.handle_start}) "
-    code += (
-      i + f"// MIR: (column-join :var {var_name} :sources ({src_debug}))\n"
-    )
+    code += i + f"// MIR: (column-join :var {var_name} :sources ({src_debug}))\n"
 
   y_idx_var = gen_unique_name(ctx, "y_idx")
   code += gen_grid_stride_loop(i, y_idx_var, "num_unique_root_keys", ctx)
@@ -485,7 +488,7 @@ def _root_cj_multi(
   ii = ind(ctx)
   # Stash per-source metadata so the two emission phases share state.
   handle_var_names: list[str] = []
-  view_var_names: list[str] = []   # "" placeholder for deferred multi-view
+  view_var_names: list[str] = []  # "" placeholder for deferred multi-view
   src_indices: list[int] = []
   src_rel_names: list[str] = []
   src_versions: list[str] = []
@@ -521,12 +524,14 @@ def _root_cj_multi(
       if view_count > 1 and idx_ > 0:
         # Multi-view non-first source: defer handle + narrowing to the
         # segment-loop phase below.
-        segment_loop_sources.append({
-          "src_idx_pos": idx_,
-          "view_count": view_count,
-          "seg_var": f"_seg_{idx_}",
-          "base_slot": base_slot,
-        })
+        segment_loop_sources.append(
+          {
+            "src_idx_pos": idx_,
+            "view_count": view_count,
+            "seg_var": f"_seg_{idx_}",
+            "base_slot": base_slot,
+          }
+        )
         view_var_names.append("")  # placeholder, filled in inside segment loop
         continue
 
@@ -549,10 +554,7 @@ def _root_cj_multi(
           ii + f"{hint_hi} = ({hint_hi} <= {view_var}.num_rows_) ? "
           f"{hint_hi} : {view_var}.num_rows_;\n"
         )
-        code += (
-          ii + f"{hint_hi} = ({hint_hi} > {hint_lo}) ? {hint_hi} : "
-          f"{view_var}.num_rows_;\n"
-        )
+        code += ii + f"{hint_hi} = ({hint_hi} > {hint_lo}) ? {hint_hi} : {view_var}.num_rows_;\n"
         code += (
           ii + f"auto {handle_var} = HandleType({hint_lo}, {hint_hi}, 0)"
           f".prefix({root_val_var}, tile, {view_var});\n"
@@ -587,17 +589,12 @@ def _root_cj_multi(
           f" has {view_count} segments (FULL + HEAD)\n"
         )
 
-      code += (
-        seg_indent + f"for (int {seg_var} = 0; {seg_var} < {view_count}; "
-        f"{seg_var}++) {{\n"
-      )
+      code += seg_indent + f"for (int {seg_var} = 0; {seg_var} < {view_count}; {seg_var}++) {{\n"
       seg_indent += "  "
 
       # Per-segment view var declaration.
       view_var = gen_view_var_name(rel_name, src_indices[idx_])
-      code += (
-        seg_indent + f"auto {view_var} = views[{base_slot} + {seg_var}];\n"
-      )
+      code += seg_indent + f"auto {view_var} = views[{base_slot} + {seg_var}];\n"
       # Reassign the fixed view var (declared at kernel start by view
       # decls) to the current segment so nested emitters see the right
       # array, not just FULL.
@@ -628,7 +625,10 @@ def _root_cj_multi(
       rel_name = src_rel_names[idx_]
       ctx.handle_vars[str(src_idx)] = handle_var_names[idx_]
       state_key = gen_handle_state_key(
-        rel_name, list(src.index), [var_name], src_versions[idx_],
+        rel_name,
+        list(src.index),
+        [var_name],
+        src_versions[idx_],
       )
       ctx.handle_vars[state_key] = handle_var_names[idx_]
       registered_state_keys.append(state_key)
@@ -667,8 +667,11 @@ def _root_cj_multi(
 # Block-group root ColumnJoin
 # -----------------------------------------------------------------------------
 
+
 def jit_root_column_join_block_group(
-  node: m.ColumnJoin, ctx: CodeGenContext, body: str,
+  node: m.ColumnJoin,
+  ctx: CodeGenContext,
+  body: str,
 ) -> str:
   '''Root ColumnJoin with block-group work-balanced partitioning.
 
@@ -695,27 +698,18 @@ def jit_root_column_join_block_group(
   first_view_count = plugin_view_count(first_src.version.code, first_index_type)
   if first_view_count > 1:
     raise NotImplementedError(
-      "jit_root_column_join_block_group: 2-level first-source "
-      "(dual-pointer) variant not yet ported"
+      "jit_root_column_join_block_group: 2-level first-source (dual-pointer) variant not yet ported"
     )
 
   code = ""
   i = ind(ctx)
   if ctx.debug:
-    code += (
-      i + f"// Root ColumnJoin (BLOCK-GROUP): bind '{var_name}' from "
-      f"{num_sources} sources\n"
-    )
-    code += (
-      i + "// Block-group work-balanced partitioning with inner redistribution\n"
-    )
+    code += i + f"// Root ColumnJoin (BLOCK-GROUP): bind '{var_name}' from {num_sources} sources\n"
+    code += i + "// Block-group work-balanced partitioning with inner redistribution\n"
 
   # Block-level work assignment preamble (fixed template).
   code += i + "static constexpr int kWarpsPerBlock = kBlockSize / kGroupSize;\n"
-  code += (
-    i + "uint64_t bg_work_per_block = "
-    "(bg_total_work + gridDim.x - 1) / gridDim.x;\n"
-  )
+  code += i + "uint64_t bg_work_per_block = (bg_total_work + gridDim.x - 1) / gridDim.x;\n"
   code += i + "uint64_t bg_block_begin = (uint64_t)blockIdx.x * bg_work_per_block;\n"
   code += i + "uint64_t bg_block_end = bg_block_begin + bg_work_per_block;\n"
   code += i + "if (bg_block_end > bg_total_work) bg_block_end = bg_total_work;\n"
@@ -730,8 +724,7 @@ def jit_root_column_join_block_group(
   code += i + "while (bg_key_lo < bg_key_hi) {\n"
   code += i + "  uint32_t bg_mid = bg_key_lo + (bg_key_hi - bg_key_lo) / 2;\n"
   code += (
-    i + "  if (bg_cumulative_work[bg_mid] <= (uint64_t)bg_block_begin) "
-    "bg_key_lo = bg_mid + 1;\n"
+    i + "  if (bg_cumulative_work[bg_mid] <= (uint64_t)bg_block_begin) bg_key_lo = bg_mid + 1;\n"
   )
   code += i + "  else bg_key_hi = bg_mid;\n"
   code += i + "}\n\n"
@@ -793,8 +786,7 @@ def jit_root_column_join_block_group(
     src_view_count = plugin_view_count(src.version.code, src_index_type)
     if src_view_count > 1:
       raise NotImplementedError(
-        "jit_root_column_join_block_group: 2-level non-first source "
-        "not yet ported"
+        "jit_root_column_join_block_group: 2-level non-first source not yet ported"
       )
     src_base_slot = get_view_slot_base(ctx, src_idx)
     existing_view = ctx.view_vars.get(str(src_idx), "")
@@ -816,10 +808,7 @@ def jit_root_column_join_block_group(
         ii + f"{hint_hi} = ({hint_hi} <= {view_var}.num_rows_) ? "
         f"{hint_hi} : {view_var}.num_rows_;\n"
       )
-      code += (
-        ii + f"{hint_hi} = ({hint_hi} > {hint_lo}) ? {hint_hi} : "
-        f"{view_var}.num_rows_;\n"
-      )
+      code += ii + f"{hint_hi} = ({hint_hi} > {hint_lo}) ? {hint_hi} : {view_var}.num_rows_;\n"
       code += (
         ii + f"auto {handle_var} = HandleType({hint_lo}, {hint_hi}, 0)"
         f".prefix({root_val_var}, tile, {view_var});\n"
@@ -839,14 +828,11 @@ def jit_root_column_join_block_group(
   # Warp redistribution within block (row-proportional on first source).
   first_handle = handle_var_names[0]
   code += "\n"
-  code += (
-    ii + "// Distribute within-key work across warps in block (row-proportional)\n"
-  )
+  code += ii + "// Distribute within-key work across warps in block (row-proportional)\n"
   code += ii + "uint32_t bg_warp_in_block = threadIdx.x / kGroupSize;\n"
   code += ii + "uint64_t bg_key_total_work = bg_key_work_end - bg_key_work_start;\n"
   code += (
-    ii + f"uint32_t bg_deg_first = (uint32_t)({first_handle}.end() - "
-    f"{first_handle}.begin());\n"
+    ii + f"uint32_t bg_deg_first = (uint32_t)({first_handle}.end() - {first_handle}.begin());\n"
   )
   code += (
     ii + "uint32_t bg_block_row_begin = (uint32_t)"
@@ -856,28 +842,20 @@ def jit_root_column_join_block_group(
     ii + "uint32_t bg_block_row_end = (uint32_t)"
     "((bg_my_end_in_key * (uint64_t)bg_deg_first) / bg_key_total_work);\n"
   )
-  code += (
-    ii + "if (bg_my_end_in_key >= bg_key_total_work) "
-    "bg_block_row_end = bg_deg_first;\n"
-  )
+  code += ii + "if (bg_my_end_in_key >= bg_key_total_work) bg_block_row_end = bg_deg_first;\n"
   code += (
     ii + "if (bg_block_row_begin >= bg_block_row_end) { "
     "bg_remaining_begin = bg_key_work_end; continue; }\n\n"
   )
   code += ii + "uint32_t bg_rows_in_block = bg_block_row_end - bg_block_row_begin;\n"
   code += (
-    ii + "uint32_t bg_warp_row_size = "
-    "(bg_rows_in_block + kWarpsPerBlock - 1) / kWarpsPerBlock;\n"
+    ii + "uint32_t bg_warp_row_size = (bg_rows_in_block + kWarpsPerBlock - 1) / kWarpsPerBlock;\n"
   )
   code += (
-    ii + "uint32_t bg_warp_row_begin = bg_block_row_begin + "
-    "bg_warp_in_block * bg_warp_row_size;\n"
+    ii + "uint32_t bg_warp_row_begin = bg_block_row_begin + bg_warp_in_block * bg_warp_row_size;\n"
   )
   code += ii + "uint32_t bg_warp_row_end = bg_warp_row_begin + bg_warp_row_size;\n"
-  code += (
-    ii + "if (bg_warp_row_end > bg_block_row_end) "
-    "bg_warp_row_end = bg_block_row_end;\n"
-  )
+  code += ii + "if (bg_warp_row_end > bg_block_row_end) bg_warp_row_end = bg_block_row_end;\n"
   code += (
     ii + "if (bg_warp_row_begin >= bg_warp_row_end) { "
     "bg_remaining_begin = bg_key_work_end; continue; }\n\n"
@@ -888,8 +866,7 @@ def jit_root_column_join_block_group(
   code += ii + f"  auto bg_narrow_begin = {first_handle}.begin() + bg_warp_row_begin;\n"
   code += ii + f"  auto bg_narrow_end = {first_handle}.begin() + bg_warp_row_end;\n"
   code += (
-    ii + f"  {first_handle} = HandleType(bg_narrow_begin, bg_narrow_end, "
-    f"{first_handle}.depth());\n"
+    ii + f"  {first_handle} = HandleType(bg_narrow_begin, bg_narrow_end, {first_handle}.depth());\n"
   )
   code += ii + "}\n\n"
 
@@ -907,7 +884,10 @@ def jit_root_column_join_block_group(
     ctx.handle_vars[str(src.handle_start)] = handle_var_names[idx_]
     registered_numeric.append(src.handle_start)
     state_key = gen_handle_state_key(
-      src.rel_name, list(src.index), [var_name], src.version.code,
+      src.rel_name,
+      list(src.index),
+      [var_name],
+      src.version.code,
     )
     ctx.handle_vars[state_key] = handle_var_names[idx_]
     registered_keys.append(state_key)

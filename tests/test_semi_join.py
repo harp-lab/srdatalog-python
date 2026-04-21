@@ -1,18 +1,16 @@
 '''Semi-join optimization tests. Byte-diffs against the Nim fixture and
 exercises the pass logic directly.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program, Atom
+from srdatalog.dsl import Atom, Program, Relation, Var
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir.emit import hir_to_obj
 from srdatalog.mir.emit import print_mir_sexpr
-from srdatalog.rule_rewrite import optimize_semi_joins, _is_semi_join_candidate
 from srdatalog.provenance import ProvenanceKind
-
+from srdatalog.rule_rewrite import _is_semi_join_candidate, optimize_semi_joins
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -23,17 +21,14 @@ def build_semi_join_program() -> Program:
   s = Relation("S", 1)
   t = Relation("T", 2)
   main = Relation("Main", 2)
-  rule = (
-    (main(X, Z) <= r(X, Y, Z) & s(Y) & t(X, Z))
-    .named("SJTest")
-    .with_semi_join()
-  )
+  rule = (main(X, Z) <= r(X, Y, Z) & s(Y) & t(X, Z)).named("SJTest").with_semi_join()
   return Program(relations=[r, s, t, main], rules=[rule])
 
 
 # -----------------------------------------------------------------------------
 # Unit tests on the core helpers
 # -----------------------------------------------------------------------------
+
 
 def test_is_semi_join_candidate_true_for_subset():
   X, Y = Var("x"), Var("y")
@@ -62,6 +57,7 @@ def test_optimize_semi_joins_skips_when_semi_join_false():
   # Build a version without the pragma
   rule_no_sj = prog.rules[0]
   from dataclasses import replace
+
   rule_no_sj = replace(rule_no_sj, semi_join=False)
   out_rules, out_decls = optimize_semi_joins([rule_no_sj], [])
   assert out_rules == [rule_no_sj]
@@ -79,7 +75,8 @@ def test_optimize_semi_joins_skips_rules_with_two_or_fewer_clauses():
 
 def test_optimize_semi_joins_generates_expected_rel_and_prov():
   rules, decls = optimize_semi_joins(
-    list(build_semi_join_program().rules), [],
+    list(build_semi_join_program().rules),
+    [],
   )
   # Output: [_SJ_R_S_0_2_Gen, SJTest (rewritten)]
   assert len(rules) == 2
@@ -103,6 +100,7 @@ def test_optimize_semi_joins_generates_expected_rel_and_prov():
 # End-to-end byte-match against the Nim fixture
 # -----------------------------------------------------------------------------
 
+
 def _canonical(obj: dict) -> str:
   return json.dumps(obj, indent=2, ensure_ascii=False)
 
@@ -114,11 +112,14 @@ def test_semi_join_hir_byte_match():
   golden.pop("hirSExpr", None)
   if _canonical(actual) != _canonical(golden):
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
         _canonical(golden).splitlines(),
         _canonical(actual).splitlines(),
-        fromfile="nim-golden", tofile="python", lineterm="",
+        fromfile="nim-golden",
+        tofile="python",
+        lineterm="",
       )
     )
     raise AssertionError("HIR mismatch:\n" + diff)
@@ -130,10 +131,14 @@ def test_semi_join_mir_byte_match():
   golden = (FIXTURES / "semi_join.mir.sexpr").read_text().rstrip("\n")
   if actual != golden:
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
-        golden.splitlines(), actual.splitlines(),
-        fromfile="nim-golden", tofile="python", lineterm="",
+        golden.splitlines(),
+        actual.splitlines(),
+        fromfile="nim-golden",
+        tofile="python",
+        lineterm="",
       )
     )
     raise AssertionError("MIR mismatch:\n" + diff)

@@ -1,6 +1,8 @@
 '''gen_jit_code.nim -- trivial triangle from Edge'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program
+
+from srdatalog.dsl import Program, Relation, Var
 
 
 def build_gen_jit_code() -> Program:
@@ -10,9 +12,9 @@ def build_gen_jit_code() -> Program:
   return Program(
     relations=[edge, z],
     rules=[
-      (
-        z(X, Y, Z) <= edge(X, Y) & edge(Y, Z) & edge(Z, X)
-      ).named("Triangle").with_plan(var_order=["x", "y", "z"]),
+      (z(X, Y, Z) <= edge(X, Y) & edge(Y, Z) & edge(Z, X))
+      .named("Triangle")
+      .with_plan(var_order=["x", "y", "z"]),
     ],
   )
 

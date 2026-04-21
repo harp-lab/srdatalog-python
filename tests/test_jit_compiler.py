@@ -12,19 +12,17 @@ validate end-to-end compile → link → shared library. Guarded behind
 `SRDATALOG_JIT_RUN_COMPILE_TESTS=1` because many dev machines don't
 have the generalized_datalog headers to compile a real JIT project.
 '''
+
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from unittest import mock
 
-
 from srdatalog.codegen.jit.compiler import (
   BuildResult,
   CompilerConfig,
-  CompileResult,
   _base_cxx_flags,
   _build_compile_cmd,
   _build_link_cmd,
@@ -38,10 +36,10 @@ from srdatalog.codegen.jit.compiler import (
   link_shared,
 )
 
-
 # -----------------------------------------------------------------------------
 # Config + auto-detect
 # -----------------------------------------------------------------------------
+
 
 def test_base_flags_order():
   '''std → fPIC → defines → includes → extra cxx_flags — matches
@@ -109,6 +107,7 @@ def test_resolved_jobs_respects_explicit_config():
 # Command assembly
 # -----------------------------------------------------------------------------
 
+
 def test_compile_cmd_shape():
   cfg = CompilerConfig(
     cxx="clang++",
@@ -159,6 +158,7 @@ def test_link_static_drops_shared_flag():
 # Stamp cache
 # -----------------------------------------------------------------------------
 
+
 def test_stamp_digest_depends_on_source_content():
   with tempfile.TemporaryDirectory() as td:
     src = os.path.join(td, "a.cpp")
@@ -206,12 +206,13 @@ def test_check_stamp_false_on_digest_mismatch():
 # compile_cpp returns cached when stamp matches, doesn't spawn proc
 # -----------------------------------------------------------------------------
 
+
 def test_compile_cpp_cached_path_doesnt_spawn_subprocess():
   with tempfile.TemporaryDirectory() as td:
     src = os.path.join(td, "a.cpp")
     Path(src).write_text("int x;\n")
     obj = os.path.join(td, "a.o")
-    Path(obj).write_text("")                 # fake existing object
+    Path(obj).write_text("")  # fake existing object
     cfg = CompilerConfig(cxx="clang++")
     # Pre-write a matching stamp.
     cmd = _build_compile_cmd(src, obj, cfg)
@@ -232,13 +233,16 @@ def test_compile_cpp_skip_env_forces_cached():
     Path(src).write_text("int x;\n")
     obj = os.path.join(td, "a.o")
     cfg = CompilerConfig(cxx="clang++")
-    with mock.patch.dict(
-      os.environ, {"SRDATALOG_JIT_SKIP_COMPILE": "1"},
-    ):
-      with mock.patch(
+    with (
+      mock.patch.dict(
+        os.environ,
+        {"SRDATALOG_JIT_SKIP_COMPILE": "1"},
+      ),
+      mock.patch(
         "srdatalog.codegen.jit.compiler.subprocess.run",
-      ) as run_mock:
-        result = compile_cpp(src, obj, cfg)
+      ) as run_mock,
+    ):
+      result = compile_cpp(src, obj, cfg)
     assert result.cached
     assert run_mock.call_count == 0
 
@@ -253,7 +257,8 @@ def test_compile_cpp_invokes_subprocess_on_miss():
     cfg = CompilerConfig(cxx="/fake/clang++")
     fake = mock.Mock(returncode=0, stdout="", stderr="")
     with mock.patch(
-      "srdatalog.codegen.jit.compiler.subprocess.run", return_value=fake,
+      "srdatalog.codegen.jit.compiler.subprocess.run",
+      return_value=fake,
     ) as run_mock:
       # Fake "object" materializing by compile.
       Path(obj).write_text("")
@@ -275,7 +280,8 @@ def test_compile_cpp_failure_does_not_write_stamp():
     cfg = CompilerConfig(cxx="/fake/clang++")
     fake = mock.Mock(returncode=1, stdout="", stderr="bang")
     with mock.patch(
-      "srdatalog.codegen.jit.compiler.subprocess.run", return_value=fake,
+      "srdatalog.codegen.jit.compiler.subprocess.run",
+      return_value=fake,
     ):
       result = compile_cpp(src, obj, cfg)
     assert result.returncode == 1
@@ -285,6 +291,7 @@ def test_compile_cpp_failure_does_not_write_stamp():
 # -----------------------------------------------------------------------------
 # compile_jit_project — end-to-end without a real compiler
 # -----------------------------------------------------------------------------
+
 
 def test_compile_jit_project_aggregates_compile_and_link():
   '''Mock the subprocess so we exercise the full compile-all → link
@@ -302,13 +309,17 @@ def test_compile_jit_project_aggregates_compile_and_link():
       Path(p).write_text("// placeholder\n")
 
     project_result = {
-      "dir": project_dir, "main": main, "batches": batches,
-      "schema_header": "", "kernel_header": "",
+      "dir": project_dir,
+      "main": main,
+      "batches": batches,
+      "schema_header": "",
+      "kernel_header": "",
     }
     cfg = CompilerConfig(cxx="/fake/clang++", jobs=2)
 
     # Both compile AND link succeed — record calls for inspection.
     calls: list[list[str]] = []
+
     def fake_run(cmd, *args, **kwargs):
       calls.append(list(cmd))
       # Simulate output-file creation so link has something to chew.
@@ -318,7 +329,8 @@ def test_compile_jit_project_aggregates_compile_and_link():
       return mock.Mock(returncode=0, stdout="", stderr="")
 
     with mock.patch(
-      "srdatalog.codegen.jit.compiler.subprocess.run", side_effect=fake_run,
+      "srdatalog.codegen.jit.compiler.subprocess.run",
+      side_effect=fake_run,
     ):
       # Force ThreadPoolExecutor path — this test mocks out per-TU
       # subprocess.run calls; the ninja backend collapses compile into
@@ -346,20 +358,28 @@ def test_compile_jit_project_reports_compile_failure():
     batch = os.path.join(project_dir, "jit_batch_0.cpp")
     Path(batch).write_text("// batch\n")
     project_result = {
-      "dir": project_dir, "main": main, "batches": [batch],
-      "schema_header": "", "kernel_header": "",
+      "dir": project_dir,
+      "main": main,
+      "batches": [batch],
+      "schema_header": "",
+      "kernel_header": "",
     }
     cfg = CompilerConfig(cxx="/fake/clang++")
 
     # First compile succeeds, second fails.
-    outcomes = iter([
-      mock.Mock(returncode=0, stdout="", stderr=""),
-      mock.Mock(returncode=1, stdout="", stderr="broken\n"),
-    ])
+    outcomes = iter(
+      [
+        mock.Mock(returncode=0, stdout="", stderr=""),
+        mock.Mock(returncode=1, stdout="", stderr="broken\n"),
+      ]
+    )
+
     def fake_run(*a, **kw):
       return next(outcomes)
+
     with mock.patch(
-      "srdatalog.codegen.jit.compiler.subprocess.run", side_effect=fake_run,
+      "srdatalog.codegen.jit.compiler.subprocess.run",
+      side_effect=fake_run,
     ):
       result = compile_jit_project(project_result, cfg, use_ninja=False)
 
@@ -372,6 +392,7 @@ def test_compile_jit_project_reports_compile_failure():
 # -----------------------------------------------------------------------------
 # Real end-to-end smoke — only when explicitly opted in.
 # -----------------------------------------------------------------------------
+
 
 def test_real_compile_hello_world_roundtrip():
   '''Use an actual clang++/g++ to compile+link a trivial hello-world
@@ -392,8 +413,7 @@ def test_real_compile_hello_world_roundtrip():
   with tempfile.TemporaryDirectory() as td:
     src = os.path.join(td, "main.cpp")
     Path(src).write_text(
-      "#include <cstdint>\n"
-      "extern \"C\" int32_t add(int32_t a, int32_t b) { return a + b; }\n"
+      "#include <cstdint>\nextern \"C\" int32_t add(int32_t a, int32_t b) { return a + b; }\n"
     )
     obj = os.path.join(td, "main.o")
     cfg = CompilerConfig(cxx=cxx, shared=True)
@@ -410,6 +430,7 @@ def test_real_compile_hello_world_roundtrip():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   failed = 0
@@ -426,6 +447,7 @@ if __name__ == "__main__":
       failed += 1
     except Exception as e:
       import traceback
+
       print(f"ERROR {name}: {type(e).__name__}: {e}")
       traceback.print_exc()
       failed += 1

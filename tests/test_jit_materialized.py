@@ -1,32 +1,34 @@
 '''Tests for codegen/jit/materialized.py — host-side Thrust executor
 for binary-join (materialized) pipelines.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.materialized import (
-  is_materialized_pipeline,
+  _version_cpp,
   gen_materialized_join_helpers,
   gen_materialized_join_kernel,
   gen_materialized_runner,
-  _version_cpp,
+  is_materialized_pipeline,
 )
-
+from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------
 # is_materialized_pipeline
 # -----------------------------------------------------------------------------
 
+
 def test_is_materialized_pipeline_with_probe_join():
   ops = [
     m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0]),
     m.ProbeJoin(
-      probe_rel="S", probe_version=Version.FULL, probe_index=[0],
-      join_key="x", output_buffer="buf_1",
+      probe_rel="S",
+      probe_version=Version.FULL,
+      probe_index=[0],
+      join_key="x",
+      output_buffer="buf_1",
     ),
   ]
   assert is_materialized_pipeline(ops) is True
@@ -43,6 +45,7 @@ def test_is_materialized_pipeline_without_probe_join():
 # -----------------------------------------------------------------------------
 # gen_materialized_join_helpers (static string)
 # -----------------------------------------------------------------------------
+
 
 def test_helpers_contains_three_kernels():
   helpers = gen_materialized_join_helpers()
@@ -61,6 +64,7 @@ def test_helpers_uses_thrust_view_patterns():
 # _version_cpp normalizer
 # -----------------------------------------------------------------------------
 
+
 def test_version_cpp_enum():
   assert _version_cpp(Version.FULL) == "FULL_VER"
   assert _version_cpp(Version.DELTA) == "DELTA_VER"
@@ -77,6 +81,7 @@ def test_version_cpp_strings():
 # -----------------------------------------------------------------------------
 # gen_materialized_runner — missing scan fallback
 # -----------------------------------------------------------------------------
+
 
 def test_runner_errors_on_missing_scan():
   ep = m.ExecutePipeline(
@@ -97,11 +102,10 @@ def test_runner_errors_on_missing_scan():
 # gen_materialized_runner — Scan-only (no probes)
 # -----------------------------------------------------------------------------
 
+
 def test_runner_scan_only_no_probes():
-  scan = m.Scan(vars=["x"], rel_name="AddressOf",
-                version=Version.FULL, index=[0, 1])
-  insert = m.InsertInto(rel_name="PointsTo", version=Version.NEW,
-                         vars=["x"], index=[0])
+  scan = m.Scan(vars=["x"], rel_name="AddressOf", version=Version.FULL, index=[0, 1])
+  insert = m.InsertInto(rel_name="PointsTo", version=Version.NEW, vars=["x"], index=[0])
   ep = m.ExecutePipeline(
     pipeline=[scan, insert],
     source_specs=[scan],
@@ -121,17 +125,13 @@ def test_runner_scan_only_no_probes():
   assert "static void execute(DB& db, uint32_t iteration = 0) {" in out
   assert 'nvtxRangePushA("Base");' in out
   # Phase 1: initial data
-  assert (
-    "get_relation_by_schema<AddressOf, FULL_VER>(db)" in out
-  )
+  assert "get_relation_by_schema<AddressOf, FULL_VER>(db)" in out
   assert "SRDatalog::IndexSpec{{0, 1}}" in out
   assert "thrust::device_vector<uint32_t> rowids_0(n_0);" in out
   # No probe joins -> no left_/right_ buffers
   assert "left_1" not in out
   # Phase 4 insert path
-  assert (
-    "get_relation_by_schema<PointsTo, NEW_VER>(db);" in out
-  )
+  assert "get_relation_by_schema<PointsTo, NEW_VER>(db);" in out
   assert "dest.resize_interned_columns(new_size);" in out
   # No-probes chain-gather branch (uses rowids_0 directly).
   assert "thrust::gather(thrust::device, rowids_0.begin()," in out
@@ -142,19 +142,28 @@ def test_runner_scan_only_no_probes():
 # gen_materialized_runner — Scan + ProbeJoin
 # -----------------------------------------------------------------------------
 
+
 def test_runner_scan_plus_two_probes():
-  scan = m.Scan(vars=["a", "b"], rel_name="R1",
-                version=Version.FULL, index=[0, 1])
+  scan = m.Scan(vars=["a", "b"], rel_name="R1", version=Version.FULL, index=[0, 1])
   probe1 = m.ProbeJoin(
-    probe_rel="R2", probe_version=Version.FULL, probe_index=[0, 1],
-    join_key="b", output_buffer="buf_1",
+    probe_rel="R2",
+    probe_version=Version.FULL,
+    probe_index=[0, 1],
+    join_key="b",
+    output_buffer="buf_1",
   )
   probe2 = m.ProbeJoin(
-    probe_rel="R3", probe_version=Version.DELTA, probe_index=[0, 1],
-    join_key="c", output_buffer="buf_2",
+    probe_rel="R3",
+    probe_version=Version.DELTA,
+    probe_index=[0, 1],
+    join_key="c",
+    output_buffer="buf_2",
   )
   insert = m.InsertInto(
-    rel_name="Out", version=Version.NEW, vars=["a", "d"], index=[0, 1],
+    rel_name="Out",
+    version=Version.NEW,
+    vars=["a", "d"],
+    index=[0, 1],
   )
   ep = m.ExecutePipeline(
     pipeline=[scan, probe1, probe2, insert],
@@ -189,18 +198,26 @@ def test_runner_multi_probe_chained_gather_for_first_column():
   '''Two probes + 2-column dest -> Python emits the chained-gather
   block that walks left_2 -> left_1 -> rowids_0 -> view_0.col_data_
   to recover the first output column.'''
-  scan = m.Scan(vars=["a"], rel_name="R1",
-                version=Version.FULL, index=[0])
+  scan = m.Scan(vars=["a"], rel_name="R1", version=Version.FULL, index=[0])
   probe1 = m.ProbeJoin(
-    probe_rel="R2", probe_version=Version.FULL, probe_index=[0, 1],
-    join_key="a", output_buffer="buf_1",
+    probe_rel="R2",
+    probe_version=Version.FULL,
+    probe_index=[0, 1],
+    join_key="a",
+    output_buffer="buf_1",
   )
   probe2 = m.ProbeJoin(
-    probe_rel="R3", probe_version=Version.FULL, probe_index=[0, 1],
-    join_key="b", output_buffer="buf_2",
+    probe_rel="R3",
+    probe_version=Version.FULL,
+    probe_index=[0, 1],
+    join_key="b",
+    output_buffer="buf_2",
   )
   insert = m.InsertInto(
-    rel_name="Out", version=Version.NEW, vars=["a", "c"], index=[0, 1],
+    rel_name="Out",
+    version=Version.NEW,
+    vars=["a", "c"],
+    index=[0, 1],
   )
   ep = m.ExecutePipeline(
     pipeline=[scan, probe1, probe2, insert],
@@ -212,9 +229,7 @@ def test_runner_multi_probe_chained_gather_for_first_column():
 
   # Chained rowids declared + starts from the final left_ buffer
   assert "thrust::device_vector<uint32_t> chained_rowids(current_n);" in out
-  assert (
-    "thrust::copy(left_2.begin(), left_2.end(), chained_rowids.begin());" in out
-  )
+  assert "thrust::copy(left_2.begin(), left_2.end(), chained_rowids.begin());" in out
   # One walk-back step (from left_2 back through left_1)
   assert "left_1.begin(), chained_rowids.begin());" in out
   # Final gather from rowids_0 -> view_0 col_data_
@@ -232,21 +247,25 @@ def test_runner_multi_probe_chained_gather_for_first_column():
 # gen_materialized_join_kernel (legacy in-kernel variant)
 # -----------------------------------------------------------------------------
 
+
 def test_legacy_kernel_missing_scan():
   ctx = new_code_gen_context()
   out = gen_materialized_join_kernel(
     [m.InsertInto(rel_name="T", version=Version.NEW, vars=["x"], index=[0])],
-    "Busted", ctx,
+    "Busted",
+    ctx,
   )
   assert "ERROR: Materialized join requires moScan as first op" in out
 
 
 def test_legacy_kernel_scan_plus_probe():
-  scan = m.Scan(vars=["x"], rel_name="R",
-                version=Version.FULL, index=[0])
+  scan = m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0])
   probe = m.ProbeJoin(
-    probe_rel="S", probe_version=Version.FULL, probe_index=[0, 1],
-    join_key="x", output_buffer="buf_1",
+    probe_rel="S",
+    probe_version=Version.FULL,
+    probe_index=[0, 1],
+    join_key="x",
+    output_buffer="buf_1",
   )
   ctx = new_code_gen_context()
   out = gen_materialized_join_kernel([scan, probe], "InKernel", ctx)
@@ -259,6 +278,7 @@ def test_legacy_kernel_scan_plus_probe():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

@@ -3,13 +3,10 @@
 Verifies the base/delta variant layout on tc and on rules with multiple
 SCC-member body clauses.
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program
-from srdatalog.hir.types import Version
+from srdatalog.dsl import Program, Relation, Var
 from srdatalog.hir import compile_to_hir
+from srdatalog.hir.types import Version
 
 
 def build_tc_program() -> Program:

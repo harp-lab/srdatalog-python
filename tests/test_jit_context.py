@@ -1,35 +1,46 @@
 '''Tests for codegen/jit/context.py — CodeGenContext + indentation / name /
 key / plugin-dispatched expression helpers.'''
-import sys
-from pathlib import Path
 
+import sys
 
 from srdatalog.codegen.jit.context import (
   CPP_KEYWORDS,
-  sanitize_var_name,
   NegPreNarrowInfo,
   RunnerGenState,
-  CodeGenHooks,
+  dec_indent,
   default_hooks,
-  CodeGenContext,
-  new_code_gen_context,
-  ind, inc_indent, dec_indent,
-  gen_unique_name,
-  with_bound_var, is_var_bound,
-  get_rel_index_type, get_view_slot_base,
-  gen_view_access, gen_view_var_name, gen_handle_var_name,
-  gen_index_spec_key, gen_handle_state_key,
-  gen_root_handle, gen_root_handle_from_view_idx,
-  gen_degree, gen_valid, gen_get_value_at, gen_get_value,
-  gen_child, gen_child_range, gen_iterators,
-  gen_chained_prefix_calls, gen_chained_prefix_with_last_lower_bound,
+  gen_chained_prefix_calls,
   gen_chained_prefix_calls_seq,
+  gen_chained_prefix_with_last_lower_bound,
+  gen_child,
+  gen_child_range,
+  gen_degree,
+  gen_get_value,
+  gen_get_value_at,
+  gen_handle_state_key,
+  gen_handle_var_name,
+  gen_index_spec_key,
+  gen_iterators,
+  gen_root_handle,
+  gen_root_handle_from_view_idx,
+  gen_unique_name,
+  gen_valid,
+  gen_view_access,
+  gen_view_var_name,
+  get_rel_index_type,
+  get_view_slot_base,
+  inc_indent,
+  ind,
+  is_var_bound,
+  new_code_gen_context,
+  sanitize_var_name,
+  with_bound_var,
 )
-
 
 # -----------------------------------------------------------------------------
 # Sanitization
 # -----------------------------------------------------------------------------
+
 
 def test_sanitize_keyword():
   assert sanitize_var_name("int") == "int_val"
@@ -51,6 +62,7 @@ def test_cpp_keywords_cover_common_primitives():
 # -----------------------------------------------------------------------------
 # Context defaults
 # -----------------------------------------------------------------------------
+
 
 def test_new_code_gen_context_defaults():
   ctx = new_code_gen_context()
@@ -92,6 +104,7 @@ def test_default_hooks_are_no_ops():
 # Indentation
 # -----------------------------------------------------------------------------
 
+
 def test_indent_default_is_two_levels():
   ctx = new_code_gen_context()
   assert ind(ctx) == "    "  # indent=2 * 2 spaces each
@@ -116,6 +129,7 @@ def test_dec_indent_clamps_at_zero():
 # -----------------------------------------------------------------------------
 # Unique name + bound var tracking
 # -----------------------------------------------------------------------------
+
 
 def test_gen_unique_name_increments():
   ctx = new_code_gen_context()
@@ -145,9 +159,7 @@ def test_get_rel_index_type_falls_back_to_empty():
   ctx = new_code_gen_context()
   assert get_rel_index_type(ctx, "PointsTo") == ""
   ctx.rel_index_types["subset"] = "SRDatalog::GPU::Device2LevelIndex"
-  assert get_rel_index_type(ctx, "subset") == (
-    "SRDatalog::GPU::Device2LevelIndex"
-  )
+  assert get_rel_index_type(ctx, "subset") == ("SRDatalog::GPU::Device2LevelIndex")
 
 
 def test_get_view_slot_base_falls_back_to_handle_idx():
@@ -160,6 +172,7 @@ def test_get_view_slot_base_falls_back_to_handle_idx():
 # -----------------------------------------------------------------------------
 # Name / key generators
 # -----------------------------------------------------------------------------
+
 
 def test_gen_view_access():
   assert gen_view_access(0) == "views[0]"
@@ -195,7 +208,9 @@ def test_gen_handle_state_key_no_prefixes():
 
 def test_gen_handle_state_key_with_prefixes():
   got = gen_handle_state_key(
-    "MethodLookup", [2, 0, 1, 3], ["heaptype", "simplename"],
+    "MethodLookup",
+    [2, 0, 1, 3],
+    ["heaptype", "simplename"],
   )
   assert got == "MethodLookup_2_0_1_3_heaptype_simplename"
 
@@ -204,16 +219,13 @@ def test_gen_handle_state_key_with_prefixes():
 # Plugin-dispatched C++ expression helpers
 # -----------------------------------------------------------------------------
 
+
 def test_gen_root_handle_dsai_default():
-  assert gen_root_handle("view_Edge_0") == (
-    "HandleType(0, view_Edge_0.num_rows_, 0)"
-  )
+  assert gen_root_handle("view_Edge_0") == ("HandleType(0, view_Edge_0.num_rows_, 0)")
 
 
 def test_gen_root_handle_from_view_idx():
-  assert gen_root_handle_from_view_idx(2) == (
-    "HandleType(0, views[2].num_rows_, 0)"
-  )
+  assert gen_root_handle_from_view_idx(2) == ("HandleType(0, views[2].num_rows_, 0)")
 
 
 def test_gen_degree_and_valid():
@@ -228,9 +240,7 @@ def test_gen_get_value_and_get_value_at():
 
 def test_gen_child_and_child_range():
   assert gen_child("h", "i") == "h.child(i)"
-  assert gen_child_range("h", "p", "k", "tile", "v") == (
-    "h.child_range(p, k, tile, v)"
-  )
+  assert gen_child_range("h", "p", "k", "tile", "v") == ("h.child_range(p, k, tile, v)")
 
 
 def test_gen_iterators():
@@ -246,18 +256,21 @@ def test_gen_chained_prefix_calls_sanitizes_keywords():
 
 def test_gen_chained_prefix_calls_sequential_scalar_mode():
   got = gen_chained_prefix_calls(
-    "root", ["x", "y"], "view_R_0", scalar_mode=True,
+    "root",
+    ["x", "y"],
+    "view_R_0",
+    scalar_mode=True,
   )
   assert got == "root.prefix_seq(x, view_R_0).prefix_seq(y, view_R_0)"
 
 
 def test_gen_chained_prefix_with_last_lower_bound():
   got = gen_chained_prefix_with_last_lower_bound(
-    "root", ["x", "y"], "view_R_0",
+    "root",
+    ["x", "y"],
+    "view_R_0",
   )
-  assert got == (
-    "root.prefix(x, tile, view_R_0).prefix_lower_bound(y, tile, view_R_0)"
-  )
+  assert got == ("root.prefix(x, tile, view_R_0).prefix_lower_bound(y, tile, view_R_0)")
 
 
 def test_gen_chained_prefix_calls_seq_all_sequential():
@@ -268,6 +281,7 @@ def test_gen_chained_prefix_calls_seq_all_sequential():
 # -----------------------------------------------------------------------------
 # NegPreNarrowInfo + RunnerGenState defaults
 # -----------------------------------------------------------------------------
+
 
 def test_neg_pre_narrow_info_defaults():
   n = NegPreNarrowInfo()
@@ -287,6 +301,7 @@ def test_runner_gen_state_defaults():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   for name, fn in inspect.getmembers(this, inspect.isfunction):

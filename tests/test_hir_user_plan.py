@@ -4,18 +4,15 @@ Exercises `Rule.with_plan` / `Rule.with_plans`: the planner must honor
 user-provided var_order / clause_order / pragma flags rather than
 running the default heuristic.
 '''
+
 import json
-import sys
 from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program, PlanEntry
-from srdatalog.hir.types import Version
+from srdatalog.dsl import PlanEntry, Program, Relation, Var
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir.emit import hir_to_obj
 from srdatalog.hir.plan import derive_clause_order_from_var_order
 from srdatalog.mir.emit import print_mir_sexpr
-
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -31,10 +28,12 @@ def build_p_with_plan() -> Program:
   compose = (
     (p(X, Z) <= p(X, Y) & p(Y, Z))
     .named("Compose")
-    .with_plans([
-      PlanEntry(delta=0, clause_order=(0, 1), var_order=("x", "y", "z")),
-      PlanEntry(delta=1, clause_order=(1, 0), var_order=("z", "y", "x")),
-    ])
+    .with_plans(
+      [
+        PlanEntry(delta=0, clause_order=(0, 1), var_order=("x", "y", "z")),
+        PlanEntry(delta=1, clause_order=(1, 0), var_order=("z", "y", "x")),
+      ]
+    )
   )
   return Program(relations=[seed, p], rules=[base, compose])
 
@@ -43,12 +42,13 @@ def build_p_with_plan() -> Program:
 # Structural checks on the planned variants
 # -----------------------------------------------------------------------------
 
+
 def test_user_var_order_applied_to_base_variant():
   hir = compile_to_hir(build_p_with_plan())
   s0 = hir.strata[0]
   v = s0.base_variants[0]
   assert v.var_order == ["y", "x"]
-  assert v.clause_order == [0]              # derived from var_order
+  assert v.clause_order == [0]  # derived from var_order
 
 
 def test_user_full_plan_applied_to_both_delta_variants():
@@ -100,21 +100,22 @@ def test_plan_pragma_flags_propagate_to_variant():
     relations=[seed, p],
     rules=[
       (p(X, Y) <= seed(X, Y))
-        .named("Base")
-        .with_plan(var_order=["y", "x"], block_group=True, fanout=True),
+      .named("Base")
+      .with_plan(var_order=["y", "x"], block_group=True, fanout=True),
     ],
   )
   hir = compile_to_hir(prog)
   v = hir.strata[0].base_variants[0]
   assert v.block_group is True
   assert v.fanout is True
-  assert v.work_stealing is False           # default
-  assert v.dedup_hash is False              # default
+  assert v.work_stealing is False  # default
+  assert v.dedup_hash is False  # default
 
 
 # -----------------------------------------------------------------------------
 # derive_clause_order_from_var_order unit tests
 # -----------------------------------------------------------------------------
+
 
 def test_derive_clause_order_simple():
   '''For a body with [Seed(x,y)] and var_order=[y,x], clause 0 introduces
@@ -133,13 +134,14 @@ def test_derive_clause_order_two_clauses_picks_by_var_order():
   a = Relation("A", 1)
   b = Relation("B", 1)
   out = Relation("Out", 2)
-  r = (out(X, Y) <= a(X) & b(Y))
+  r = out(X, Y) <= a(X) & b(Y)
   assert derive_clause_order_from_var_order(r, ["y", "x"]) == [1, 0]
 
 
 # -----------------------------------------------------------------------------
 # End-to-end: DSL -> HIR JSON matches Nim fixture; MIR S-expr matches too.
 # -----------------------------------------------------------------------------
+
 
 def _canonical(obj: dict) -> str:
   return json.dumps(obj, indent=2, ensure_ascii=False)
@@ -152,6 +154,7 @@ def test_user_plan_hir_byte_match():
   golden.pop("hirSExpr", None)
   if _canonical(actual) != _canonical(golden):
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
         _canonical(golden).splitlines(),
@@ -170,6 +173,7 @@ def test_user_plan_mir_byte_match():
   golden = (FIXTURES / "tc_with_plan.mir.sexpr").read_text().rstrip("\n")
   if actual != golden:
     import difflib
+
     diff = "\n".join(
       difflib.unified_diff(
         golden.splitlines(),

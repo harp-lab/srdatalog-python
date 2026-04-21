@@ -1,6 +1,8 @@
 '''lsqb_q9_neg2hop.nim -- 2-hop + negation + count'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program, Filter
+
+from srdatalog.dsl import Filter, Program, Relation, Var
 
 
 def build_lsqb_q9_neg2hop() -> Program:
@@ -17,13 +19,18 @@ def build_lsqb_q9_neg2hop() -> Program:
       (knows(X, Y) <= k_in(X, Y)).named("KnowsLoad"),
       (hi(P, T_) <= hi_in(P, T_)).named("InterestLoad"),
       (
-        path(P1, P2, P3, T) <=
-        knows(P1, P2) & knows(P2, P3) & hi(P3, T)
+        path(P1, P2, P3, T)
+        <= knows(P1, P2)
+        & knows(P2, P3)
+        & hi(P3, T)
         & ~knows(P1, P3)
         & Filter(vars=("p1", "p3"), code="return p1 != p3;")
-      ).named("NegPath").with_plan(
+      )
+      .named("NegPath")
+      .with_plan(
         var_order=["p2", "p3", "p1", "t"],
-      ).with_count(),
+      )
+      .with_count(),
     ],
   )
 

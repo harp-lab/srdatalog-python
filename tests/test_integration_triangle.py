@@ -1,6 +1,8 @@
 '''triangle.nim -- ZRel(x,y,z) :- RRel(x,y), SRel(y,z,h), TRel(z,x,f)'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program
+
+from srdatalog.dsl import Program, Relation, Var
 
 
 def build_triangle() -> Program:
@@ -13,8 +15,8 @@ def build_triangle() -> Program:
     relations=[rr, sr, tr, zr],
     rules=[
       (zr(X, Y, Z) <= rr(X, Y) & sr(Y, Z, H) & tr(Z, X, F))
-        .named("Triangle")
-        .with_plan(var_order=["x", "y", "z"]),
+      .named("Triangle")
+      .with_plan(var_order=["x", "y", "z"]),
     ],
   )
 

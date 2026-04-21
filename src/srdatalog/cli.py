@@ -9,6 +9,7 @@ Installed by pyproject.toml as `srdatalog`:
 The `<program.py>` must define `program()` returning a `srdatalog.Program`
 instance. The tool imports it and runs the full pipeline.
 '''
+
 from __future__ import annotations
 
 import argparse
@@ -27,6 +28,7 @@ def _load_program(path: str, project_name: str):
     sys.exit(f"{path}: module must export a `program()` function")
   prog = mod.program()
   from srdatalog import Program
+
   if not isinstance(prog, Program):
     sys.exit(f"{path}: program() must return a srdatalog.Program")
   return prog
@@ -36,8 +38,12 @@ def _emit_project(prog, project_name: str, cache_base: str | None):
   '''Compile Program → write jit_runner/*.cpp + main.cpp tree to disk.
   Returns the `write_jit_project` result dict.'''
   from srdatalog import (
-    compile_to_hir, compile_to_mir, gen_step_body, gen_complete_runner,
-    gen_main_file_content, write_jit_project,
+    compile_to_hir,
+    compile_to_mir,
+    gen_complete_runner,
+    gen_main_file_content,
+    gen_step_body,
+    write_jit_project,
   )
   from srdatalog.codegen.batchfile import _collect_pipelines
 
@@ -46,8 +52,7 @@ def _emit_project(prog, project_name: str, cache_base: str | None):
   db_type = f"{project_name}_DB_DeviceDB"
 
   step_bodies = [
-    gen_step_body(step, db_type, is_rec, i)
-    for i, (step, is_rec) in enumerate(mir.steps)
+    gen_step_body(step, db_type, is_rec, i) for i, (step, is_rec) in enumerate(mir.steps)
   ]
   per_rule: list[tuple[str, str]] = []
   runner_decls: dict[str, str] = {}
@@ -57,8 +62,13 @@ def _emit_project(prog, project_name: str, cache_base: str | None):
     runner_decls[ep.rule_name] = decl
 
   main_cpp = gen_main_file_content(
-    project_name, hir.relation_decls, mir, step_bodies, runner_decls,
-    cache_dir_hint="<cache>", jit_batch_count=1,
+    project_name,
+    hir.relation_decls,
+    mir,
+    step_bodies,
+    runner_decls,
+    cache_dir_hint="<cache>",
+    jit_batch_count=1,
   )
   return write_jit_project(
     f"{project_name}_DB",
@@ -108,6 +118,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
   out = args.out or build.artifact
   if args.out and args.out != build.artifact:
     import shutil as _sh
+
     _sh.copy(build.artifact, args.out)
   print(f"built {out} ({build.elapsed_sec:.2f}s)")
   return 0
@@ -116,6 +127,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
 def cmd_info(args: argparse.Namespace) -> int:
   import srdatalog
   from srdatalog.runtime import runtime_include_path
+
   print(f"srdatalog  : {srdatalog.__version__}")
   print(f"python     : {sys.version.split()[0]}")
   print(f"runtime    : {runtime_include_path()}")
@@ -132,9 +144,10 @@ def main(argv: list[str] | None = None) -> int:
 
   pe = sub.add_parser("emit", help="Emit the .cpp tree (no compile).")
   pe.add_argument("program", help="Path to Python file exporting `program()` -> srdatalog.Program")
-  pe.add_argument("--project", required=True, help="Project name (used for cache dir + runner types)")
-  pe.add_argument("--cache-base", default=None,
-                  help="Override ~/.cache/srdatalog (e.g., ./build)")
+  pe.add_argument(
+    "--project", required=True, help="Project name (used for cache dir + runner types)"
+  )
+  pe.add_argument("--cache-base", default=None, help="Override ~/.cache/srdatalog (e.g., ./build)")
   pe.set_defaults(func=cmd_emit)
 
   pc = sub.add_parser("compile", help="Emit + compile to a shared library.")

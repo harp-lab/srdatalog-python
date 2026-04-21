@@ -8,15 +8,16 @@ Order (matches Nim's registerMirOptimizePass priorities):
   2. apply_prefix_source_reordering
   3. balanced_scan_pass — DEFERRED (DSL lacks balanced pragma)
 '''
+
 from __future__ import annotations
 
-from srdatalog.hir.types import Version
 import srdatalog.mir.types as mir
-
+from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------
 # Shared helpers
 # -----------------------------------------------------------------------------
+
 
 def _has_prefix(source) -> bool:
   '''Source node has a non-empty prefix. Mirrors Nim's hasPrefix.'''
@@ -32,6 +33,7 @@ def _regenerate_source_specs(ep: mir.ExecutePipeline) -> None:
   MIR source order and handles point at the wrong views.
   '''
   from srdatalog.hir.lower import _extract_pipeline_sources
+
   specs: list[mir.MirNode] = []
   for op in ep.pipeline:
     _extract_pipeline_sources(op, specs)
@@ -41,6 +43,7 @@ def _regenerate_source_specs(ep: mir.ExecutePipeline) -> None:
 # -----------------------------------------------------------------------------
 # Pass 0: insert_pre_reconstruct_rebuilds
 # -----------------------------------------------------------------------------
+
 
 def _extract_merged_indices(step: mir.MirNode, rel_name: str) -> set[tuple[int, ...]]:
   '''Indices of `rel_name` that were merged to FULL in this FixpointPlan step.'''
@@ -76,9 +79,7 @@ def _extract_modified_relations(step: mir.MirNode) -> set[str]:
   return out
 
 
-def _collect_needed_indices(
-  node: mir.MirNode, rel_name: str, out: set[tuple[int, ...]]
-) -> None:
+def _collect_needed_indices(node: mir.MirNode, rel_name: str, out: set[tuple[int, ...]]) -> None:
   '''Recursive walk collecting FULL- or DELTA-version ColumnSource index
   tuples targeting `rel_name`. DELTA dispatches through FULL on the first
   fixpoint iteration, so both count.
@@ -86,10 +87,7 @@ def _collect_needed_indices(
   if isinstance(node, mir.ColumnSource):
     if node.rel_name == rel_name and node.version in (Version.FULL, Version.DELTA):
       out.add(tuple(node.index))
-  elif isinstance(node, mir.ColumnJoin):
-    for s in node.sources:
-      _collect_needed_indices(s, rel_name, out)
-  elif isinstance(node, mir.CartesianJoin):
+  elif isinstance(node, mir.ColumnJoin) or isinstance(node, mir.CartesianJoin):
     for s in node.sources:
       _collect_needed_indices(s, rel_name, out)
   elif isinstance(node, mir.ExecutePipeline):
@@ -104,7 +102,7 @@ def _collect_needed_indices(
 
 
 def insert_pre_reconstruct_rebuilds(
-  steps: list[tuple[mir.MirNode, bool]]
+  steps: list[tuple[mir.MirNode, bool]],
 ) -> list[tuple[mir.MirNode, bool]]:
   '''After every PostStratumReconstructInternCols step, insert any
   RebuildIndex(FULL) ops for indices of this relation that subsequent
@@ -135,17 +133,23 @@ def insert_pre_reconstruct_rebuilds(
     # Sort for determinism (Nim's HashSet iteration order is hash-dependent;
     # we sort to ensure reproducible output regardless of hash seed).
     for idx in sorted(needed - merged):
-      out.append((mir.RebuildIndex(
-        rel_name=rel_name,
-        version=Version.FULL,
-        index=list(idx),
-      ), False))
+      out.append(
+        (
+          mir.RebuildIndex(
+            rel_name=rel_name,
+            version=Version.FULL,
+            index=list(idx),
+          ),
+          False,
+        )
+      )
   return out
 
 
 # -----------------------------------------------------------------------------
 # Pass 1: clause_order_reorder
 # -----------------------------------------------------------------------------
+
 
 def _position_in(clause_order: list[int], clause_idx: int) -> int:
   '''Position of clause_idx in clause_order, or len(clause_order) if absent.'''
@@ -155,9 +159,7 @@ def _position_in(clause_order: list[int], clause_idx: int) -> int:
     return len(clause_order)
 
 
-def _reorder_column_join_by_clause_order(
-  cj: mir.ColumnJoin, clause_order: list[int]
-) -> None:
+def _reorder_column_join_by_clause_order(cj: mir.ColumnJoin, clause_order: list[int]) -> None:
   if not clause_order:
     return
   cj.sources.sort(key=lambda s: _position_in(clause_order, s.clause_idx))
@@ -184,7 +186,7 @@ def _apply_clause_order_reorder(ep: mir.ExecutePipeline) -> None:
 
 
 def apply_clause_order_reordering(
-  steps: list[tuple[mir.MirNode, bool]]
+  steps: list[tuple[mir.MirNode, bool]],
 ) -> list[tuple[mir.MirNode, bool]]:
   '''Reorder every ColumnJoin/CartesianJoin's sources by the enclosing
   ExecutePipeline's clause_order. Mutates in place; returns `steps` for
@@ -207,6 +209,7 @@ def apply_clause_order_reordering(
 # -----------------------------------------------------------------------------
 # Pass 2: prefix_source_reorder
 # -----------------------------------------------------------------------------
+
 
 def _reorder_column_join_by_prefix(cj: mir.ColumnJoin) -> None:
   '''Put prefixed sources first, but only if the first source isn't
@@ -244,7 +247,7 @@ def _apply_prefix_reorder(ep: mir.ExecutePipeline) -> None:
 
 
 def apply_prefix_source_reordering(
-  steps: list[tuple[mir.MirNode, bool]]
+  steps: list[tuple[mir.MirNode, bool]],
 ) -> list[tuple[mir.MirNode, bool]]:
   '''Move prefixed sources to the front of every ColumnJoin/CartesianJoin
   (avoids "galloping from root" on unprefixed sources). Mutates in place.
@@ -267,6 +270,7 @@ def apply_prefix_source_reordering(
 # Pass 3: balanced_scan_pass
 # -----------------------------------------------------------------------------
 
+
 def _transform_balanced_pipeline(pipeline: list[mir.MirNode]) -> list[mir.MirNode]:
   '''If the first op is a BalancedScan, convert any subsequent ColumnJoin
   for one of its balanced vars into a PositionedExtract (point-lookup
@@ -282,11 +286,13 @@ def _transform_balanced_pipeline(pipeline: list[mir.MirNode]) -> list[mir.MirNod
   out: list[mir.MirNode] = [bs]
   for op in pipeline[1:]:
     if isinstance(op, mir.ColumnJoin) and op.var_name in balanced_vars:
-      out.append(mir.PositionedExtract(
-        sources=list(op.sources),
-        var_name=op.var_name,
-        bind_vars=[],
-      ))
+      out.append(
+        mir.PositionedExtract(
+          sources=list(op.sources),
+          var_name=op.var_name,
+          bind_vars=[],
+        )
+      )
     else:
       out.append(op)
   return out
@@ -300,9 +306,7 @@ def _apply_balanced_scan_pass_recursive(node: mir.MirNode) -> mir.MirNode:
     node.pipeline = _transform_balanced_pipeline(node.pipeline)
     return node
   if isinstance(node, mir.FixpointPlan):
-    node.instructions = [
-      _apply_balanced_scan_pass_recursive(instr) for instr in node.instructions
-    ]
+    node.instructions = [_apply_balanced_scan_pass_recursive(instr) for instr in node.instructions]
     return node
   if isinstance(node, mir.ParallelGroup):
     node.ops = [_apply_balanced_scan_pass_recursive(op) for op in node.ops]
@@ -311,7 +315,7 @@ def _apply_balanced_scan_pass_recursive(node: mir.MirNode) -> mir.MirNode:
 
 
 def apply_balanced_scan_pass(
-  steps: list[tuple[mir.MirNode, bool]]
+  steps: list[tuple[mir.MirNode, bool]],
 ) -> list[tuple[mir.MirNode, bool]]:
   '''Apply balanced-scan -> positioned-extract transform to every
   ExecutePipeline. No-op when the Python DSL hasn't emitted a BalancedScan
@@ -326,9 +330,8 @@ def apply_balanced_scan_pass(
 # Chain
 # -----------------------------------------------------------------------------
 
-def apply_all_mir_passes(
-  steps: list[tuple[mir.MirNode, bool]]
-) -> list[tuple[mir.MirNode, bool]]:
+
+def apply_all_mir_passes(steps: list[tuple[mir.MirNode, bool]]) -> list[tuple[mir.MirNode, bool]]:
   '''Run the ported MIR optimization passes in Nim order.'''
   steps = insert_pre_reconstruct_rebuilds(steps)
   steps = apply_clause_order_reordering(steps)

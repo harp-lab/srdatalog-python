@@ -26,6 +26,7 @@ Default include paths / link flags for `generalized_datalog` are
 supplied by `srdatalog.runtime.runtime_include_paths()` etc. — this
 module just consumes a `CompilerConfig`.
 '''
+
 from __future__ import annotations
 
 import concurrent.futures
@@ -37,10 +38,10 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
 # -----------------------------------------------------------------------------
 # Config
 # -----------------------------------------------------------------------------
+
 
 @dataclass
 class CompilerConfig:
@@ -51,7 +52,8 @@ class CompilerConfig:
   `extra_sources` is for object files / shared libs to feed into the
   final link (e.g., pre-built runtime artifacts).
   '''
-  cxx: str = ""                              # empty → auto-detect
+
+  cxx: str = ""  # empty → auto-detect
   cxx_std: str = "c++23"
   include_paths: list[str] = field(default_factory=list)
   defines: list[str] = field(default_factory=list)
@@ -59,9 +61,9 @@ class CompilerConfig:
   link_flags: list[str] = field(default_factory=list)
   libs: list[str] = field(default_factory=list)
   extra_sources: list[str] = field(default_factory=list)
-  output_dir: str = ""                       # empty → use cache dir
-  jobs: int = 0                              # 0 → env or cpu_count
-  shared: bool = True                        # shared .so vs static
+  output_dir: str = ""  # empty → use cache dir
+  jobs: int = 0  # 0 → env or cpu_count
+  shared: bool = True  # shared .so vs static
 
   def resolved_cxx(self) -> str:
     return self.cxx or _detect_cxx()
@@ -84,31 +86,32 @@ def _detect_cxx() -> str:
   for candidate in ("clang++", "g++"):
     if shutil.which(candidate):
       return candidate
-  raise RuntimeError(
-    "no C++ compiler found — set $CXX or CompilerConfig.cxx"
-  )
+  raise RuntimeError("no C++ compiler found — set $CXX or CompilerConfig.cxx")
 
 
 # -----------------------------------------------------------------------------
 # Result types
 # -----------------------------------------------------------------------------
 
+
 @dataclass
 class CompileResult:
   '''One compile invocation (source → object or link)'''
+
   command: list[str]
   output: str
   returncode: int = 0
   stdout: str = ""
   stderr: str = ""
-  cached: bool = False                       # True = skipped via stamp
+  cached: bool = False  # True = skipped via stamp
   elapsed_sec: float = 0.0
 
 
 @dataclass
 class BuildResult:
   '''Full `compile_jit_project` outcome.'''
-  artifact: str                              # path to .so (or .a)
+
+  artifact: str  # path to .so (or .a)
   compile_results: list[CompileResult] = field(default_factory=list)
   link_result: CompileResult | None = None
   elapsed_sec: float = 0.0
@@ -123,6 +126,7 @@ class BuildResult:
 # Command assembly (pure — no subprocess)
 # -----------------------------------------------------------------------------
 
+
 def _base_cxx_flags(config: CompilerConfig) -> list[str]:
   out = [f"-std={config.cxx_std}"]
   if config.shared:
@@ -136,7 +140,9 @@ def _base_cxx_flags(config: CompilerConfig) -> list[str]:
 
 
 def _build_compile_cmd(
-  source: str, output: str, config: CompilerConfig,
+  source: str,
+  output: str,
+  config: CompilerConfig,
 ) -> list[str]:
   cxx = config.resolved_cxx()
   # Flags go BEFORE the source so language switches like `-x cuda` take
@@ -146,7 +152,9 @@ def _build_compile_cmd(
 
 
 def _build_link_cmd(
-  objects: list[str], output: str, config: CompilerConfig,
+  objects: list[str],
+  output: str,
+  config: CompilerConfig,
 ) -> list[str]:
   cxx = config.resolved_cxx()
   cmd = [cxx]
@@ -163,6 +171,7 @@ def _build_link_cmd(
 # -----------------------------------------------------------------------------
 # Stamp-based cache
 # -----------------------------------------------------------------------------
+
 
 def _stamp_digest(source_path: str, argv: list[str]) -> str:
   '''Hash the source contents + the exact argv to invoke the compiler.
@@ -209,8 +218,11 @@ def _write_stamp(object_path: str, digest: str) -> None:
 # Single-file compile
 # -----------------------------------------------------------------------------
 
+
 def compile_cpp(
-  source: str, output: str, config: CompilerConfig,
+  source: str,
+  output: str,
+  config: CompilerConfig,
 ) -> CompileResult:
   '''Compile one `.cpp` → `.o`. Short-circuits via stamp cache when
   the source + argv haven't changed. Never raises on compile error
@@ -227,19 +239,28 @@ def compile_cpp(
 
   start = time.perf_counter()
   proc = subprocess.run(
-    cmd, capture_output=True, text=True, check=False,
+    cmd,
+    capture_output=True,
+    text=True,
+    check=False,
   )
   elapsed = time.perf_counter() - start
   if proc.returncode == 0:
     _write_stamp(output, digest)
   return CompileResult(
-    command=cmd, output=output, returncode=proc.returncode,
-    stdout=proc.stdout, stderr=proc.stderr, elapsed_sec=elapsed,
+    command=cmd,
+    output=output,
+    returncode=proc.returncode,
+    stdout=proc.stdout,
+    stderr=proc.stderr,
+    elapsed_sec=elapsed,
   )
 
 
 def link_shared(
-  objects: list[str], output: str, config: CompilerConfig,
+  objects: list[str],
+  output: str,
+  config: CompilerConfig,
 ) -> CompileResult:
   '''Link objects + extra_sources into a shared library.'''
   os.makedirs(os.path.dirname(output) or ".", exist_ok=True)
@@ -249,18 +270,26 @@ def link_shared(
 
   start = time.perf_counter()
   proc = subprocess.run(
-    cmd, capture_output=True, text=True, check=False,
+    cmd,
+    capture_output=True,
+    text=True,
+    check=False,
   )
   elapsed = time.perf_counter() - start
   return CompileResult(
-    command=cmd, output=output, returncode=proc.returncode,
-    stdout=proc.stdout, stderr=proc.stderr, elapsed_sec=elapsed,
+    command=cmd,
+    output=output,
+    returncode=proc.returncode,
+    stdout=proc.stdout,
+    stderr=proc.stderr,
+    elapsed_sec=elapsed,
   )
 
 
 # -----------------------------------------------------------------------------
 # Top-level: compile a Phase-7 project tree
 # -----------------------------------------------------------------------------
+
 
 def _artifact_name(project_dir: str, shared: bool) -> str:
   stem = os.path.basename(project_dir.rstrip("/"))
@@ -301,6 +330,7 @@ def compile_jit_project(
   if use_ninja:
     try:
       from srdatalog.codegen.jit.compiler_ninja import compile_jit_project_ninja
+
       return compile_jit_project_ninja(project_result, config)
     except RuntimeError as e:
       # ninja binary not found; fall through with a one-line notice.
@@ -325,7 +355,8 @@ def compile_jit_project(
     future_to_src = {}
     for src in sources:
       obj = os.path.join(
-        output_dir, Path(src).stem + ".o",
+        output_dir,
+        Path(src).stem + ".o",
       )
       objects.append(obj)
       future_to_src[pool.submit(compile_cpp, src, obj, config)] = src

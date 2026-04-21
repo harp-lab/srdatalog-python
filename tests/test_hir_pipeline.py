@@ -3,21 +3,16 @@
 Verifies that the Pipeline class registers passes correctly, runs them in
 order, and rejects misregistered passes (wrong PassLevel).
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Program, Rule
-from srdatalog.hir.types import HirProgram, RelationDecl
+from srdatalog.dsl import Program, Relation, Rule, Var
+from srdatalog.hir import compile_to_hir
 from srdatalog.hir.pass_ import (
-  Pipeline,
+  Dialect,
   PassInfo,
   PassLevel,
-  Dialect,
-  RuleRewritePass,
-  HirTransformPass,
+  Pipeline,
 )
-from srdatalog.hir import compile_to_hir
+from srdatalog.hir.types import HirProgram, RelationDecl
 
 
 def _tc() -> Program:
@@ -37,6 +32,7 @@ def _tc() -> Program:
 
 class _RecordingRewrite:
   '''Rule-rewrite that appends a tag to the trace list for ordering assertions.'''
+
   def __init__(self, tag: str, order: int, trace: list[str]):
     self.info = PassInfo(
       name=f"Record({tag})",
@@ -113,15 +109,15 @@ def test_wrong_level_registration_rejected():
 
 def test_pipeline_preserves_rule_and_decl_identity_when_empty():
   '''Empty pipeline should be equivalent to stratify(rules, decls) directly.'''
-  from srdatalog.hir.stratify import stratify
   from srdatalog.hir.pass_ import program_to_decls
+  from srdatalog.hir.stratify import stratify
+
   prog = _tc()
   bare = stratify(list(prog.rules), program_to_decls(prog))
   piped = compile_to_hir(prog)
   # Compare structural shape
   shape = lambda h: [
-    (sorted(s.scc_members), s.is_recursive, [r.name for r in s.stratum_rules])
-    for s in h.strata
+    (sorted(s.scc_members), s.is_recursive, [r.name for r in s.stratum_rules]) for s in h.strata
   ]
   assert shape(bare) == shape(piped)
 

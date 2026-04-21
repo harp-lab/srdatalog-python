@@ -29,17 +29,19 @@ ctypes serializes calls through the C ABI so concurrent calls from
 multiple Python threads are safe iff the underlying C function is.
 We don't protect against that — it's the user's shim.
 '''
+
 from __future__ import annotations
 
 import ctypes
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
-
+from typing import Any
 
 # -----------------------------------------------------------------------------
 # EntryPoint spec
 # -----------------------------------------------------------------------------
+
 
 @dataclass
 class EntryPoint:
@@ -52,6 +54,7 @@ class EntryPoint:
       / error translation. Same protocol as ctypes.Function.errcheck:
       `(result, func, arguments) -> final_result_or_raise`.
   '''
+
   name: str
   argtypes: list[Any] = field(default_factory=list)
   restype: Any = ctypes.c_int
@@ -63,15 +66,14 @@ def _apply_errcheck_default(result, func, arguments):
   Keeps the common pattern (return 0 on OK, nonzero on error) terse.
   '''
   if result != 0:
-    raise RuntimeError(
-      f"{func.__name__} returned nonzero status {result}"
-    )
+    raise RuntimeError(f"{func.__name__} returned nonzero status {result}")
   return result
 
 
 # -----------------------------------------------------------------------------
 # JitRuntime
 # -----------------------------------------------------------------------------
+
 
 class JitRuntime:
   '''Wrapper around `ctypes.CDLL` with a declared entry-point map.
@@ -89,6 +91,7 @@ class JitRuntime:
     rt.srdatalog_run(b"/data")
     n = rt.srdatalog_get_size(b"Path")
   '''
+
   def __init__(
     self,
     lib_path: str,
@@ -112,9 +115,7 @@ class JitRuntime:
     try:
       fn = getattr(self._cdll, ep.name)
     except AttributeError as e:
-      raise AttributeError(
-        f"JitRuntime: symbol {ep.name!r} not found in {self.lib_path}"
-      ) from e
+      raise AttributeError(f"JitRuntime: symbol {ep.name!r} not found in {self.lib_path}") from e
     fn.argtypes = list(ep.argtypes)
     fn.restype = ep.restype
     # errcheck semantics:
@@ -145,12 +146,13 @@ class JitRuntime:
     '''Drop the ctypes reference. Actual dlclose timing depends on
     Python's garbage collector — ctypes doesn't expose direct
     dlclose, so this is best-effort.'''
-    self._cdll = None                          # type: ignore[assignment]
+    self._cdll = None  # type: ignore[assignment]
 
 
 # -----------------------------------------------------------------------------
 # Shim template generator
 # -----------------------------------------------------------------------------
+
 
 def gen_runtime_shim_template(
   ruleset_name: str,
@@ -245,6 +247,7 @@ def gen_runtime_shim_template(
 # One-shot build + load
 # -----------------------------------------------------------------------------
 
+
 def build_and_load(
   project_result: dict[str, Any],
   entry_points: Sequence[EntryPoint],
@@ -261,7 +264,7 @@ def build_and_load(
   `required_artifact` lets the caller override the default artifact
   name (e.g. the runner library name for a well-known runtime).
   '''
-  from srdatalog.codegen.jit.compiler import compile_jit_project, CompilerConfig
+  from srdatalog.codegen.jit.compiler import CompilerConfig, compile_jit_project
 
   config = compiler_config or CompilerConfig()
   build = compile_jit_project(project_result, config)
@@ -271,14 +274,10 @@ def build_and_load(
       if r.returncode != 0:
         errors.append(f"[compile {r.output}] {r.stderr.strip() or '(no stderr)'}")
     if build.link_result and build.link_result.returncode != 0:
-      errors.append(
-        f"[link] {build.link_result.stderr.strip() or '(no stderr)'}"
-      )
+      errors.append(f"[link] {build.link_result.stderr.strip() or '(no stderr)'}")
     raise RuntimeError("build failed:\n" + "\n".join(errors))
 
   artifact = required_artifact or build.artifact
   if not artifact or not os.path.exists(artifact):
-    raise FileNotFoundError(
-      f"build succeeded but artifact missing: {artifact!r}"
-    )
+    raise FileNotFoundError(f"build succeeded but artifact missing: {artifact!r}")
   return JitRuntime(artifact, entry_points)

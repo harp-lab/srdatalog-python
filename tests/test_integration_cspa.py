@@ -1,6 +1,8 @@
 '''cspa.nim -- mutual-recursion + wildcard body args (_gen1..._gen4)'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program
+
+from srdatalog.dsl import Program, Relation, Var
 
 
 def build_cspa() -> Program:
@@ -23,21 +25,17 @@ def build_cspa() -> Program:
       (vf(X, X) <= asgn(G2, X)).named("VF_Refl2"),
       (ma(X, X) <= asgn(G3, X)).named("MA_Refl1"),
       (ma(X, X) <= asgn(X, G4)).named("MA_Refl2"),
-      (
-        vf(X, Y) <= vf(X, Z) & vf(Z, Y)
-      ).named("VF_Trans").with_plan(var_order=["z", "x", "y"]),
-      (
-        vf(X, Y) <= asgn(X, Z) & ma(Z, Y)
-      ).named("VF_Assign_MA").with_plan(var_order=["z", "x", "y"]),
-      (
-        va(X, Y) <= vf(Z, X) & vf(Z, Y)
-      ).named("VA_VF").with_plan(var_order=["z", "x", "y"]),
-      (
-        va(X, Y) <= vf(Z, X) & ma(Z, W) & vf(W, Y)
-      ).named("VA_VF_MA_VF").with_plan(var_order=["z", "w", "x", "y"]),
-      (
-        ma(X, W) <= deref(Y, X) & va(Y, Z) & deref(Z, W)
-      ).named("MA_Deref_VA").with_plan(var_order=["y", "z", "x", "w"]),
+      (vf(X, Y) <= vf(X, Z) & vf(Z, Y)).named("VF_Trans").with_plan(var_order=["z", "x", "y"]),
+      (vf(X, Y) <= asgn(X, Z) & ma(Z, Y))
+      .named("VF_Assign_MA")
+      .with_plan(var_order=["z", "x", "y"]),
+      (va(X, Y) <= vf(Z, X) & vf(Z, Y)).named("VA_VF").with_plan(var_order=["z", "x", "y"]),
+      (va(X, Y) <= vf(Z, X) & ma(Z, W) & vf(W, Y))
+      .named("VA_VF_MA_VF")
+      .with_plan(var_order=["z", "w", "x", "y"]),
+      (ma(X, W) <= deref(Y, X) & va(Y, Z) & deref(Z, W))
+      .named("MA_Deref_VA")
+      .with_plan(var_order=["y", "z", "x", "w"]),
     ],
   )
 

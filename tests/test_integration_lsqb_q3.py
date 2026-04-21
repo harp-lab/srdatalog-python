@@ -1,6 +1,8 @@
 '''lsqb_q3_triangle.nim -- 9-clause labeled triangle'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program
+
+from srdatalog.dsl import Program, Relation, Var
 
 
 def build_lsqb_q3() -> Program:
@@ -22,11 +24,19 @@ def build_lsqb_q3() -> Program:
       (il(P, C) <= il_in(P, C)).named("LocLoad"),
       (po(C, CO) <= po_in(C, CO)).named("PartOfLoad"),
       (
-        tri(P1, P2, P3) <=
-        knows(P1, P2) & knows(P2, P3) & knows(P3, P1)
-        & il(P1, C1) & il(P2, C2) & il(P3, C3)
-        & po(C1, COv) & po(C2, COv) & po(C3, COv)
-      ).named("LabeledTriangle").with_plan(
+        tri(P1, P2, P3)
+        <= knows(P1, P2)
+        & knows(P2, P3)
+        & knows(P3, P1)
+        & il(P1, C1)
+        & il(P2, C2)
+        & il(P3, C3)
+        & po(C1, COv)
+        & po(C2, COv)
+        & po(C3, COv)
+      )
+      .named("LabeledTriangle")
+      .with_plan(
         var_order=["p1", "p2", "p3", "c1", "c2", "c3", "co"],
       ),
     ],

@@ -1,6 +1,8 @@
 '''debug_triangle.nim -- simpler triangle, all arity-2 relations'''
+
 from integration_helpers import diff_hir, diff_mir
-from srdatalog.dsl import Var, Relation, Program
+
+from srdatalog.dsl import Program, Relation, Var
 
 
 def build_debug_triangle() -> Program:
@@ -13,8 +15,8 @@ def build_debug_triangle() -> Program:
     relations=[rr, sr, tr, zr],
     rules=[
       (zr(X, Y, Z) <= rr(X, Y) & sr(Y, Z) & tr(Z, X))
-        .named("TriangleDebug")
-        .with_plan(var_order=["x", "y", "z"]),
+      .named("TriangleDebug")
+      .with_plan(var_order=["x", "y", "z"]),
     ],
   )
 

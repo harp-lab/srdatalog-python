@@ -2,30 +2,36 @@
 
 These are the top-level glue that ties root + nested emitters together.
 '''
-import sys
-from pathlib import Path
 
+import sys
 
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context
-from srdatalog.codegen.jit.pipeline import jit_nested_pipeline, jit_pipeline
 from srdatalog.codegen.jit.kernel_functor import (
-  jit_functor_start, jit_functor_end, jit_kernel_declaration,
-  jit_full_kernel, jit_kernel_full,
+  jit_full_kernel,
+  jit_functor_end,
+  jit_functor_start,
+  jit_kernel_declaration,
+  jit_kernel_full,
 )
+from srdatalog.codegen.jit.pipeline import jit_nested_pipeline, jit_pipeline
+from srdatalog.hir.types import Version
 
 
 def _cs(rel, ver, idx, prefix=(), handle_start=0):
   return m.ColumnSource(
-    rel_name=rel, version=ver, index=idx,
-    prefix_vars=list(prefix), handle_start=handle_start,
+    rel_name=rel,
+    version=ver,
+    index=idx,
+    prefix_vars=list(prefix),
+    handle_start=handle_start,
   )
 
 
 # -----------------------------------------------------------------------------
 # jit_functor_start / jit_functor_end / jit_kernel_declaration
 # -----------------------------------------------------------------------------
+
 
 def test_functor_start_warp_mode():
   out = jit_functor_start("Triangle")
@@ -58,6 +64,7 @@ def test_kernel_declaration():
 # jit_nested_pipeline — empty / basic op dispatch
 # -----------------------------------------------------------------------------
 
+
 def test_nested_pipeline_empty_returns_empty():
   ctx = new_code_gen_context()
   assert jit_nested_pipeline([], ctx) == ""
@@ -75,8 +82,7 @@ def test_nested_pipeline_empty_closes_tiled_ballot_block():
 
 def test_nested_pipeline_scan_then_insert():
   ops = [
-    m.Scan(vars=["x"], rel_name="R", version=Version.FULL,
-           index=[0], handle_start=0),
+    m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0], handle_start=0),
     m.InsertInto(rel_name="S", version=Version.NEW, vars=["x"], index=[0]),
   ]
   ctx = new_code_gen_context()
@@ -112,9 +118,12 @@ def test_nested_pipeline_constant_bind_then_insert():
 def test_nested_pipeline_cj_pre_registers_child_handle_keys():
   '''Before recursing into rest, a nested ColumnJoin pre-registers child
   state keys so nested ops can find the child handles.'''
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("R", Version.FULL, [0, 1], prefix=("x",), handle_start=0),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("R", Version.FULL, [0, 1], prefix=("x",), handle_start=0),
+    ],
+  )
   insert = m.InsertInto(rel_name="S", version=Version.NEW, vars=["z"], index=[0])
   ctx = new_code_gen_context()
   # Body should see the child name ch_R_0_z
@@ -149,8 +158,9 @@ def test_nested_pipeline_cartesian_pre_narrows_following_negation():
     var_from_source=[["x"]],
   )
   # Negation uses p (not bound by cart) and x (bound by cart)
-  neg = m.Negation(rel_name="N", version=Version.FULL, index=[0, 1],
-                   prefix_vars=["p", "x"], handle_start=1)
+  neg = m.Negation(
+    rel_name="N", version=Version.FULL, index=[0, 1], prefix_vars=["p", "x"], handle_start=1
+  )
   insert = m.InsertInto(rel_name="S", version=Version.NEW, vars=["x"], index=[0])
   ctx = new_code_gen_context()
   # Pre-bind p so neg's pre_vars=["p"] is applicable
@@ -196,14 +206,14 @@ def test_nested_pipeline_rejects_ws_flag_for_cj():
 # jit_pipeline — top-level entry
 # -----------------------------------------------------------------------------
 
+
 def test_pipeline_empty_returns_empty():
   ctx = new_code_gen_context()
   assert jit_pipeline([], [], ctx) == ""
 
 
 def test_pipeline_emits_view_decls_then_root_scan():
-  sc = m.Scan(vars=["x"], rel_name="Edge", version=Version.FULL,
-              index=[0], handle_start=0)
+  sc = m.Scan(vars=["x"], rel_name="Edge", version=Version.FULL, index=[0], handle_start=0)
   insert = m.InsertInto(rel_name="R", version=Version.NEW, vars=["x"], index=[0])
   ctx = new_code_gen_context()
   out = jit_pipeline([sc, insert], [], ctx)
@@ -218,10 +228,13 @@ def test_pipeline_emits_view_decls_then_root_scan():
 
 
 def test_pipeline_root_cj_multi_preregisters_handles():
-  cj = m.ColumnJoin(var_name="z", sources=[
-    _cs("R", Version.FULL, [0, 1], handle_start=0),
-    _cs("S", Version.FULL, [1, 0], handle_start=1),
-  ])
+  cj = m.ColumnJoin(
+    var_name="z",
+    sources=[
+      _cs("R", Version.FULL, [0, 1], handle_start=0),
+      _cs("S", Version.FULL, [1, 0], handle_start=1),
+    ],
+  )
   insert = m.InsertInto(rel_name="T", version=Version.NEW, vars=["z"], index=[0])
   ctx = new_code_gen_context()
   out = jit_pipeline([cj, insert], [], ctx)
@@ -237,10 +250,10 @@ def test_pipeline_root_cj_multi_preregisters_handles():
 # jit_full_kernel / jit_kernel_full — full functor envelope
 # -----------------------------------------------------------------------------
 
+
 def test_full_kernel_wraps_pipeline_in_struct_envelope():
   '''Full kernel emit = banner + struct + pipeline body + close.'''
-  sc = m.Scan(vars=["x"], rel_name="Edge", version=Version.FULL,
-              index=[0], handle_start=0)
+  sc = m.Scan(vars=["x"], rel_name="Edge", version=Version.FULL, index=[0], handle_start=0)
   insert = m.InsertInto(rel_name="R", version=Version.NEW, vars=["x"], index=[0])
   ctx = new_code_gen_context()
   out = jit_full_kernel("MyRule", [sc, insert], ctx)
@@ -257,8 +270,7 @@ def test_full_kernel_wraps_pipeline_in_struct_envelope():
 
 
 def test_kernel_full_on_execute_pipeline_node():
-  sc = m.Scan(vars=["x"], rel_name="R", version=Version.FULL,
-              index=[0], handle_start=0)
+  sc = m.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0], handle_start=0)
   insert = m.InsertInto(rel_name="S", version=Version.NEW, vars=["x"], index=[0])
   ep = m.ExecutePipeline(
     pipeline=[sc, insert],
@@ -274,13 +286,16 @@ def test_kernel_full_on_execute_pipeline_node():
 # Goal-line probe: gen_jit_code Triangle rule through jit_full_kernel
 # -----------------------------------------------------------------------------
 
+
 def test_gen_jit_code_triangle_emits_through_full_pipeline():
   '''Not a byte-match assertion — just proves the full pipeline runs
   end-to-end on a real program without raising, and produces the key
   structural bits. The goal-line byte-match test lives separately.'''
   from test_integration_gen_jit_code import build_gen_jit_code
-  from srdatalog.hir import compile_to_mir
+
   from srdatalog.codegen.batchfile import _collect_pipelines
+  from srdatalog.hir import compile_to_mir
+
   mir = compile_to_mir(build_gen_jit_code())
   pipelines = _collect_pipelines(mir)
   assert pipelines, "gen_jit_code should produce at least one pipeline"
@@ -299,6 +314,7 @@ def test_gen_jit_code_triangle_emits_through_full_pipeline():
 
 if __name__ == "__main__":
   import inspect
+
   this = sys.modules[__name__]
   passed = 0
   failed = 0

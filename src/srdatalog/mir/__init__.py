@@ -9,6 +9,7 @@ the prefix-namespace got unwieldy. Old imports like
 No public-API symbols moved, only their module paths. Everything the
 outside world needs is still accessible via ``srdatalog.mir.<submodule>``.
 '''
+
 from __future__ import annotations
 
 # No re-exports here by design — submodule-qualified imports read

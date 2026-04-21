@@ -4,18 +4,15 @@ These verify the DSL and HIR types can be constructed and refer to each other.
 They do NOT verify the pipeline (stratification, planning, lowering, emission) —
 those tests live alongside each pass as it's ported.
 '''
-import sys
-from pathlib import Path
 
-
-from srdatalog.dsl import Var, Relation, Rule, Program, Atom, Negation, Conjunction, ArgKind
+from srdatalog.dsl import ArgKind, Atom, Negation, Program, Relation, Var
 from srdatalog.hir.types import (
-  Version,
   AccessPattern,
+  HirProgram,
   HirRuleVariant,
   HirStratum,
-  HirProgram,
   RelationDecl,
+  Version,
 )
 
 
@@ -46,7 +43,7 @@ def test_tc_dsl_construction():
 
 def test_negation_via_invert():
   '''~atom should wrap in Negation; & should still compose.'''
-  X, = (Var("X"),)
+  (X,) = (Var("X"),)
   r = Relation("R", 1)
   s = Relation("S", 1)
   # S(X) :- R(X), ~R(X)  -- nonsense but tests the operators
@@ -90,8 +87,13 @@ def test_hir_variant_links_back_to_dsl_rule():
     clause_order=[0],
   )
   variant.access_patterns.append(
-    AccessPattern(rel_name="Edge", version=Version.FULL, access_order=["X", "Y"],
-                  index_cols=[0, 1], clause_idx=0)
+    AccessPattern(
+      rel_name="Edge",
+      version=Version.FULL,
+      access_order=["X", "Y"],
+      index_cols=[0, 1],
+      clause_idx=0,
+    )
   )
   assert variant.original_rule.name == "TCBase"
   assert variant.access_patterns[0].index_cols == [0, 1]

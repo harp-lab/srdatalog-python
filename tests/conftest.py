@@ -6,6 +6,7 @@ The package under test (`srdatalog`) is resolved via the installed
 source tree (`src/srdatalog/`) through hatchling's editable-install.
 Tests refer to it as `from srdatalog.xxx import ...`.
 '''
+
 import os
 import sys
 

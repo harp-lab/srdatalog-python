@@ -15,6 +15,7 @@ codegen writes to its own JIT cache — they self-contain the schema +
 DB type alias, so the same compile flags / external deps that work
 for Nim's output work here too.
 '''
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -39,7 +40,7 @@ if TYPE_CHECKING:
 
 
 def build_project(
-  program: "Program",
+  program: Program,
   project_name: str,
   *,
   cache_base: str | None = None,
@@ -91,11 +92,7 @@ def build_project(
   # DSL exposes this via `Relation(..., index_type="...")`; HIR copies
   # it into RelationDecl.index_type; complete_runner uses it to pick
   # the C++ index template (Device2LevelIndex, DeviceLSMIndex, etc).
-  rel_index_types = {
-    d.rel_name: d.index_type
-    for d in hir.relation_decls
-    if d.index_type
-  }
+  rel_index_types = {d.rel_name: d.index_type for d in hir.relation_decls if d.index_type}
 
   # Map each non-default index type → the header that defines it.
   # Kept here (not in runtime/__init__.py) because the registration
@@ -110,8 +107,7 @@ def build_project(
   # Per-step bodies (orchestrator) + per-rule complete runner (kernel
   # struct, phase methods, execute()).
   step_bodies = [
-    gen_step_body(step, device_db, is_rec, i)
-    for i, (step, is_rec) in enumerate(mir.steps)
+    gen_step_body(step, device_db, is_rec, i) for i, (step, is_rec) in enumerate(mir.steps)
   ]
   per_rule: list[tuple[str, str]] = []
   runner_decls: dict[str, str] = {}
@@ -134,13 +130,23 @@ def build_project(
     if unity:
       # Single-TU path: srdatalog.h parses once for the whole project.
       main_cpp = gen_unity_main_file_content(
-        project_name, hir.relation_decls, mir, step_bodies, runner_decls,
-        per_rule, extra_index_headers=extra_headers,
+        project_name,
+        hir.relation_decls,
+        mir,
+        step_bodies,
+        runner_decls,
+        per_rule,
+        extra_index_headers=extra_headers,
       )
     else:
       main_cpp = gen_main_file_content(
-        project_name, hir.relation_decls, mir, step_bodies, runner_decls,
-        cache_dir_hint="<cache>", jit_batch_count=1,
+        project_name,
+        hir.relation_decls,
+        mir,
+        step_bodies,
+        runner_decls,
+        cache_dir_hint="<cache>",
+        jit_batch_count=1,
         emit_preamble=True,  # standalone TU — add #include "srdatalog.h" + namespaces
         extra_index_headers=extra_headers,
         decl_only_runner=shard_step_bodies,
@@ -164,9 +170,15 @@ def build_project(
   # compile_jit_project picks them up on its parallel compile queue.
   if shard_step_bodies and emit_main_file:
     import os
+
     for i in range(len(mir.steps)):
       shard = gen_step_shard_file(
-        project_name, hir.relation_decls, runner_decls, mir, step_bodies, i,
+        project_name,
+        hir.relation_decls,
+        runner_decls,
+        mir,
+        step_bodies,
+        i,
         extra_index_headers=extra_headers,
       )
       path = os.path.join(str(result["dir"]), f"step_body_{i}.cpp")
@@ -175,7 +187,10 @@ def build_project(
       result["batches"].append(path)
 
     run_cpp = gen_run_dispatcher_file(
-      project_name, hir.relation_decls, runner_decls, mir,
+      project_name,
+      hir.relation_decls,
+      runner_decls,
+      mir,
       extra_index_headers=extra_headers,
     )
     path = os.path.join(str(result["dir"]), "runner_dispatcher.cpp")

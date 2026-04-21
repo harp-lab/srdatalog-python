@@ -294,7 +294,7 @@ end
 
 -- Source code directory
 -- Note: Not local so it can be used in included files (xmake_tests.lua, xmake_benchmarks.lua)
-code_dir = "generalized_datalog"
+code_dir = "src/srdatalog/runtime/generalized_datalog"
 
 -- Include directories (for header files)
 add_includedirs(code_dir)

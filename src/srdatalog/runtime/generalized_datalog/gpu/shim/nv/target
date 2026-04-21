@@ -1,0 +1,7 @@
+#ifdef USE_ROCm
+// HIP/ROCm shim for nv/target - use rocThrust's implementation
+// rocThrust already provides nv/target in thrust/system/hip/detail/nv/target.h
+#include <thrust/system/hip/detail/nv/target.h>
+#else
+#include <nv/target>
+#endif

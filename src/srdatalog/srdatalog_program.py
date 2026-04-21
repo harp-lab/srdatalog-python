@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from srdatalog.mir.schema import SchemaDefinition
 from srdatalog.mir.commands import MirInstructions
 from srdatalog.mir.runner import generate_runner
-from srdatalog.ffi_header import generate_extern_c
-from srdatalog.ffi_wrapper import DatalogFFI
+from srdatalog.ffi.header import generate_extern_c
+from srdatalog.ffi.wrapper import DatalogFFI
 
 
 PRELUDE = '''

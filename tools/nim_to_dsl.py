@@ -154,6 +154,9 @@ class RuleSpec:
   heads: list[BodyAtom]                      # head atoms (usually 1, sometimes >1)
   body: list[BodyClauseT]
   plans: list[Plan] = field(default_factory=list)
+  count: bool = False                        # rule-level `count: true` pragma
+  semi_join: bool = False                    # rule-level `semi_join: true` pragma
+  var_order: list[str] = field(default_factory=list)  # rule-level `var_order: [...]`
 
 
 def _extract_rules_block(src: str) -> str:
@@ -250,10 +253,37 @@ _FILTER_CPP_RE = re.compile(
   re.DOTALL,
 )
 
+# Shorthand filter syntax: `?(v1, v2, ...) """return ...;"""` — Nim macro
+# sugar for `filter((v1, v2, ...)) {.cpp: """..."""}`. Appears in the
+# LSQB triangle variants.
+_SHORTHAND_FILTER_RE = re.compile(
+  r'^\?\(\s*([^)]*)\s*\)\s*"""(.*?)"""\s*$',
+  re.DOTALL,
+)
+
 
 def _parse_body_clause(s: str) -> "BodyClauseT":
   s = s.strip().rstrip(",").strip()
-  # Filter
+  # Split marker — partitions the rule body for pipeline-A/B splits
+  # (used by ddisasm's negation-pushdown variants).
+  if s == "split":
+    return "__SPLIT__"   # sentinel; handled in body emit
+  # Shorthand filter: `?(v1, v2) """cpp"""`
+  if s.startswith("?"):
+    m = _SHORTHAND_FILTER_RE.match(s)
+    if m:
+      vars_ = [v.strip() for v in m.group(1).split(",") if v.strip()]
+      return FilterClause(vars=vars_, code=m.group(2).strip())
+    raise ValueError(f"can't parse shorthand filter: {s!r}")
+  # Top-level `~(Rel ...)` or `!(Rel ...)` negation forms (Nim accepts both)
+  if s.startswith("~(") or s.startswith("!("):
+    inner = s[2:]
+    if inner.endswith(")"):
+      inner = inner[:-1]
+    atom = _parse_atom(inner)
+    atom.negated = True
+    return atom
+  # Parenthesised forms — atom, nested filter, or nested negation.
   if s.startswith("("):
     s_inner = s[1:].strip()
     if s_inner.endswith(")"):
@@ -265,23 +295,14 @@ def _parse_body_clause(s: str) -> "BodyClauseT":
       raw_vars = m.group(1).strip()
       vars_ = [v.strip() for v in raw_vars.split(",") if v.strip()]
       return FilterClause(vars=vars_, code=m.group(2).strip())
-    # Negation `(~rel ...)` form (rare) — or plain atom
-    if s_inner.startswith("~("):
+    # `(~rel ...)` / `(!rel ...)` form
+    if s_inner.startswith("~(") or s_inner.startswith("!("):
       inner = s_inner[2:].rstrip(")").strip()
       atom = _parse_atom(inner)
       atom.negated = True
       return atom
     # Plain atom `(Rel ...)`
-    atom = _parse_atom(s_inner)
-    return atom
-  # Top-level `~(Rel ...)` form
-  if s.startswith("~("):
-    inner = s[2:]
-    if inner.endswith(")"):
-      inner = inner[:-1]
-    atom = _parse_atom(inner)
-    atom.negated = True
-    return atom
+    return _parse_atom(s_inner)
   raise ValueError(f"unrecognized body clause: {s!r}")
 
 
@@ -291,12 +312,26 @@ _RULE_OUTER = re.compile(
 )
 
 
-def _parse_rule_pragma(body: str) -> tuple[str, list[Plan]]:
-  '''Parse `name: X, plan: [...]` from a rule pragma body.'''
+def _parse_rule_pragma(body: str) -> tuple[str, list[Plan], bool, bool, list[str]]:
+  '''Parse `name: X, plan: [...], count: true, ...` from a rule pragma body.
+  Returns `(name, plans, count, semi_join, rule_level_var_order)`.'''
   name = ""
   m = re.search(r"\bname\s*:\s*(\w+)", body)
   if m:
     name = m.group(1)
+
+  count = bool(re.search(r"\bcount\s*:\s*true\b", body))
+  semi_join = bool(re.search(r"\bsemi_join\s*:\s*true\b", body))
+
+  # Rule-level var_order (distinct from plan-entry var_order — some
+  # benchmarks tag it on the rule directly).
+  rule_var_order: list[str] = []
+  # Match `var_order: [a, b, c]` NOT inside a `plan: [(...)]` block.
+  # Heuristic: strip the plan block first, then scan for var_order.
+  stripped = re.sub(r"plan\s*:\s*\[.*?\](?=\s*[,\.]|$)", "", body, flags=re.DOTALL)
+  vm = re.search(r"\bvar_order\s*:\s*\[([^\]]*)\]", stripped)
+  if vm:
+    rule_var_order = [v.strip() for v in vm.group(1).split(",") if v.strip()]
 
   plans: list[Plan] = []
   # plan: [ (entry1), (entry2), ... ]
@@ -320,7 +355,7 @@ def _parse_rule_pragma(body: str) -> tuple[str, list[Plan]]:
       if re.search(r"\bdedup_hash\s*:\s*true", e):
         p.dedup_hash = True
       plans.append(p)
-  return name, plans
+  return name, plans, count, semi_join, rule_var_order
 
 
 def _parse_rules(block: str) -> list[RuleSpec]:
@@ -339,12 +374,19 @@ def _parse_rules(block: str) -> list[RuleSpec]:
     body_parts = _split_top_level_commas(body_raw)
     body: list[BodyClauseT] = [_parse_body_clause(p) for p in body_parts]
     # Pragma
-    name, plans = ("", [])
+    name, plans, count, semi_join, rule_var_order = ("", [], False, False, [])
     if pragma_raw is not None:
-      name, plans = _parse_rule_pragma(pragma_raw)
+      name, plans, count, semi_join, rule_var_order = _parse_rule_pragma(pragma_raw)
     if not name:
       raise ValueError(f"rule missing name pragma: {m.group(0)[:80]}")
-    rules.append(RuleSpec(name=name, heads=heads, body=body, plans=plans))
+    # If the rule has a top-level var_order (no explicit plan block),
+    # synthesize a single Plan with that var_order so codegen picks it up.
+    if rule_var_order and not plans:
+      plans = [Plan(var_order=rule_var_order)]
+    rules.append(RuleSpec(
+      name=name, heads=heads, body=body, plans=plans,
+      count=count, semi_join=semi_join, var_order=rule_var_order,
+    ))
   return rules
 
 
@@ -419,7 +461,7 @@ def _emit_plan_kwargs(p: Plan) -> str:
 
 def _emit_body_conj(body: list[BodyClauseT]) -> str:
   '''Emit a body as `A & B & C` — negations use `~A`, filters use
-  `Filter((...,), "...")`.'''
+  `Filter((...,), "...")`, the split marker becomes `SPLIT`.'''
   parts: list[str] = []
   for c in body:
     if isinstance(c, BodyAtom):
@@ -431,6 +473,8 @@ def _emit_body_conj(body: list[BodyClauseT]) -> str:
       vs = ", ".join(repr(v) for v in c.vars)
       code_escaped = c.code.replace('\\', '\\\\').replace('"', '\\"').replace("\n", " ")
       parts.append(f'Filter(({vs},), "{code_escaped}")')
+    elif c == "__SPLIT__":
+      parts.append("SPLIT")
   return " & ".join(parts)
 
 
@@ -454,6 +498,10 @@ def _emit_rule(r: RuleSpec) -> list[str]:
       for p in r.plans:
         kw = _emit_plan_kwargs(p)
         rule_expr = f"{rule_expr}.with_plan({kw})"
+    if r.count:
+      rule_expr = f"{rule_expr}.with_count()"
+    if r.semi_join:
+      rule_expr = f"{rule_expr}.with_semi_join()"
     out.append(rule_expr)
   return out
 
@@ -473,7 +521,7 @@ Do not edit manually — regenerate via:
 """''')
   out.append("from __future__ import annotations")
   out.append("")
-  out.append("from srdatalog.dsl import Filter, Program, Relation, Var")
+  out.append("from srdatalog.dsl import Filter, Program, Relation, SPLIT, Var")
   out.append("from srdatalog.dataset_const import load_meta, resolve_program_consts")
   out.append("")
   out.append("# ----- Relations ----------------------------------------------")

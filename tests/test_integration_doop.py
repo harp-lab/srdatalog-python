@@ -12,7 +12,7 @@ from pathlib import Path
 from integration_helpers import FIXTURES, diff_hir, diff_mir
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
-from doop import build_doopdb  # noqa: E402
+from doop import build_doopdb
 
 
 def build_doop():

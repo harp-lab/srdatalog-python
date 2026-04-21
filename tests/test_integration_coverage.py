@@ -45,9 +45,7 @@ def test_every_jit_fixture_has_an_integration_test():
 def test_every_integration_fixture_has_an_integration_test():
   sources = _integration_test_sources()
   orphans = [s for s in sorted(_fixture_stems_integration()) if f'"{s}"' not in sources]
-  assert not orphans, (
-    f"Integration fixtures (.hir.json/.mir.sexpr) without a test: {orphans}"
-  )
+  assert not orphans, f"Integration fixtures (.hir.json/.mir.sexpr) without a test: {orphans}"
 
 
 def test_jit_and_integration_fixture_sets_agree():

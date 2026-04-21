@@ -6,7 +6,7 @@ from pathlib import Path
 from integration_helpers import diff_hir, diff_mir
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
-from crdt import build_crdtdb_program  # noqa: E402
+from crdt import build_crdtdb_program
 
 
 def test_crdt_hir():

@@ -96,9 +96,7 @@ def _compute_sccs(rules: list[Rule], graph: dict[str, set[str]]) -> list[set[str
   return sccs
 
 
-def _merge_sccs_for_multi_head(
-  sccs: list[set[str]], rules: list[Rule]
-) -> list[set[str]]:
+def _merge_sccs_for_multi_head(sccs: list[set[str]], rules: list[Rule]) -> list[set[str]]:
   '''Union SCCs that share a multi-head rule. Mirrors
   mergeSCCsForMultiHeadRules in src/srdatalog/hir/stratification.nim.
   A rule with N>1 heads must emit all heads from a single pipeline, so

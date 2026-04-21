@@ -1,0 +1,10 @@
+#ifdef USE_ROCm
+// HIP/ROCm shim for cuda/cmath
+// On HIP, use std::cmath instead
+#include <cmath>
+// cuda/cmath provides types and functions in cuda:: namespace
+// For compatibility, we can provide namespace aliases if needed
+// Most code uses cuda::std:: types, which we've already handled in cuda_error_constants.h
+#else
+#include <cuda/cmath>
+#endif

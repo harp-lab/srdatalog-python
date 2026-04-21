@@ -26,3 +26,4 @@ venv/
 
 # xmake
 .xmake/
+vendor/

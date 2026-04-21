@@ -39,16 +39,16 @@ JIT_COMMON_INCLUDES = """\
 // Main project header - includes all necessary boost/hana, etc.
 #include "srdatalog.h"
 
-#include <cooperative_groups.h>
 #include <cstdint>
+#include <cooperative_groups.h>
 
 // JIT-specific headers (relative to generalized_datalog/)
 #include "gpu/device_sorted_array_index.h"
+#include "gpu/runtime/output_context.h"
 #include "gpu/runtime/jit/intersect_handles.h"
 #include "gpu/runtime/jit/jit_executor.h"
 #include "gpu/runtime/jit/materialized_join.h"
 #include "gpu/runtime/jit/ws_infrastructure.h"  // WCOJTask, WCOJTaskQueue, ChunkedOutputContext
-#include "gpu/runtime/output_context.h"
 #include "gpu/runtime/query.h"  // For DeviceRelationType
 
 namespace cg = cooperative_groups;

@@ -68,9 +68,10 @@ def analyze_rule(rule: Rule) -> RuleAnalysis:
     # Filter / Let: no relation args to analyze; leave cvars empty.
     r.clause_vars.append(cvars)
 
-  for arg in rule.head.args:
-    if arg.kind is ArgKind.LVAR:
-      r.head_vars.add(arg.var_name)
+  for head in rule.heads:
+    for arg in head.args:
+      if arg.kind is ArgKind.LVAR:
+        r.head_vars.add(arg.var_name)
 
   for v, c in positive_count.items():
     if c > 1:
@@ -411,10 +412,11 @@ def compute_temp_vars(rule: Rule, split_at: int) -> list[str]:
       below_body_vars.update(_clause_lvar_names(clause))
 
   vars_below: set[str] = set(below_body_vars)
-  # Also include head args
-  for a in rule.head.args:
-    if a.kind is ArgKind.LVAR:
-      vars_below.add(a.var_name)
+  # Also include head args (every head for multi-head rules)
+  for head in rule.heads:
+    for a in head.args:
+      if a.kind is ArgKind.LVAR:
+        vars_below.add(a.var_name)
   # Include negation clauses' vars from below (Nim does this)
   for i in range(split_at + 1, len(rule.body)):
     clause = rule.body[i]

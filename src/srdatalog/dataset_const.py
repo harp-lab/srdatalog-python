@@ -150,12 +150,12 @@ def resolve_rule_consts(rule: Rule, consts: dict[str, int]) -> Rule:
   and debug_code. Returns a new Rule (dataclass is frozen).'''
   import dataclasses
 
-  new_head = _rewrite_atom(rule.head, consts)
+  new_heads = tuple(_rewrite_atom(h, consts) for h in rule.heads)
   new_body = tuple(_rewrite_clause(c, consts) for c in rule.body)
   new_debug = _rewrite_cpp_code(rule.debug_code, consts) if rule.debug_code else ""
   return dataclasses.replace(
     rule,
-    head=new_head,
+    heads=new_heads,
     body=new_body,
     debug_code=new_debug,
   )

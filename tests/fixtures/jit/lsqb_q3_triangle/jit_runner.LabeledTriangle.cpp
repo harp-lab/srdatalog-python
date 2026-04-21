@@ -10,30 +10,29 @@ struct JitRunner_LabeledTriangle {
   using DestSchema = Triangle;
   using SR = NoProvenance;
   using ValueType = typename FirstSchema::intern_value_type;
-  using RelType =
-      std::decay_t<decltype(get_relation_by_schema<FirstSchema, FULL_VER>(std::declval<DB&>()))>;
+  using RelType = std::decay_t<decltype(get_relation_by_schema<FirstSchema, FULL_VER>(std::declval<DB&>()))>;
   using IndexType = typename RelType::IndexTypeInst;
   using ViewType = typename IndexType::NodeView;
   static constexpr auto Layout = SRDatalog::GPU::StorageLayout::SoA;
   static constexpr int kBlockSize = 256;
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 3;
-  static constexpr std::size_t OutputArity = OutputArity_0;  // Legacy alias
+  static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
   static constexpr std::size_t NumSources = 4;
 
   // Non-template kernel_count (concrete ViewType)
-  static __global__ void __launch_bounds__(kBlockSize)
-      kernel_count(const ViewType* __restrict__ views,
-                   const ValueType* __restrict__ root_unique_values, uint32_t num_unique_root_keys,
-                   uint32_t num_root_keys, uint32_t* __restrict__ thread_counts) {
+  static __global__ void __launch_bounds__(kBlockSize) kernel_count(
+      const ViewType* __restrict__ views,
+      const ValueType* __restrict__ root_unique_values,
+      uint32_t num_unique_root_keys,
+      uint32_t num_root_keys,
+      uint32_t* __restrict__ thread_counts) {
     auto block = cg::this_thread_block();
     auto tile = cg::tiled_partition<kGroupSize>(block);
     auto single_thread = cg::tiled_partition<1>(block);  // For per-thread search inside Cartesian
     __shared__ char s_views_buf[NumSources * sizeof(ViewType)];
     auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);
-    if (threadIdx.x < NumSources) {
-      s_views[threadIdx.x] = views[threadIdx.x];
-    }
+    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }
     __syncthreads();
     views = s_views;  // redirect to shared memory copy
     uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -44,173 +43,128 @@ struct JitRunner_LabeledTriangle {
     using OutputCtx = SRDatalog::GPU::OutputContext<ValueType, SR, true, Layout, OutputArity_0>;
     OutputCtx output_ctx{nullptr, nullptr, 0, 0};
 
-    using ViewType = std::remove_cvref_t<decltype(views[0])>;
-    using HandleType = ViewType::NodeHandle;
+        using ViewType = std::remove_cvref_t<decltype(views[0])>;
+        using HandleType = ViewType::NodeHandle;
 
-    // View declarations (deduplicated by spec, 4 unique views)
-    auto view_Knows_0_1_FULL_VER = views[0];
-    auto view_IsLocatedIn_0_1_FULL_VER = views[1];
-    auto view_Knows_1_0_FULL_VER = views[2];
-    auto view_IsPartOf_0_1_FULL_VER = views[3];
+        // View declarations (deduplicated by spec, 4 unique views)
+        auto view_Knows_0_1_FULL_VER = views[0];
+        auto view_IsLocatedIn_0_1_FULL_VER = views[1];
+        auto view_Knows_1_0_FULL_VER = views[2];
+        auto view_IsPartOf_0_1_FULL_VER = views[3];
 
-    // Root ColumnJoin (multi-source intersection): bind 'p1' from 3 sources
-    // Uses root_unique_values + prefix() pattern (like TMP)
-    // MIR: (column-join :var p1 :sources ((Knows :handle 0) (IsLocatedIn :handle 1) (Knows :handle
-    // 2) )) WARP MODE: 32 threads cooperatively handle one row
-    for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
-      auto root_val_2 = root_unique_values[y_idx_1];
+        // Root ColumnJoin (multi-source intersection): bind 'p1' from 3 sources
+        // Uses root_unique_values + prefix() pattern (like TMP)
+        // MIR: (column-join :var p1 :sources ((Knows :handle 0) (IsLocatedIn :handle 1) (Knows :handle 2) ))
+        // WARP MODE: 32 threads cooperatively handle one row
+        for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
+          auto root_val_2 = root_unique_values[y_idx_1];
 
-      uint32_t hint_lo_3 = y_idx_1;
-      uint32_t hint_hi_4 = view_Knows_0_1_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
-      hint_hi_4 = (hint_hi_4 <= view_Knows_0_1_FULL_VER.num_rows_)
-                      ? hint_hi_4
-                      : view_Knows_0_1_FULL_VER.num_rows_;
-      hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
-      auto h_Knows_0_root =
-          HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
-      if (!h_Knows_0_root.valid())
-        continue;
-      auto h_IsLocatedIn_1_root = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0)
-                                      .prefix(root_val_2, tile, view_IsLocatedIn_0_1_FULL_VER);
-      if (!h_IsLocatedIn_1_root.valid())
-        continue;
-      auto h_Knows_2_root = HandleType(0, view_Knows_1_0_FULL_VER.num_rows_, 0)
-                                .prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
-      if (!h_Knows_2_root.valid())
-        continue;
-      auto p1 = root_val_2;
-      // Nested ColumnJoin (intersection): bind 'p2' from 3 sources
-      // MIR: (column-join :var p2 :sources ((Knows :handle 3 :prefix (p1)) (Knows :handle 4 :prefix
-      // ()) (IsLocatedIn :handle 5 :prefix ()) ))
-      auto h_Knows_3_23 = h_Knows_0_root;
-      auto h_Knows_4_24 = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0);
-      auto h_IsLocatedIn_5_25 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
-      auto intersect_26 =
-          intersect_handles(tile, h_Knows_3_23.iterators(view_Knows_0_1_FULL_VER),
-                            h_Knows_4_24.iterators(view_Knows_0_1_FULL_VER),
-                            h_IsLocatedIn_5_25.iterators(view_IsLocatedIn_0_1_FULL_VER));
-      for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
-        auto p2 = it_27.value();
-        auto positions = it_27.positions();
-        auto ch_Knows_3_p2 =
-            h_Knows_3_23.child_range(positions[0], p2, tile, view_Knows_0_1_FULL_VER);
-        auto ch_Knows_4_p2 =
-            h_Knows_4_24.child_range(positions[1], p2, tile, view_Knows_0_1_FULL_VER);
-        auto ch_IsLocatedIn_5_p2 =
-            h_IsLocatedIn_5_25.child_range(positions[2], p2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          uint32_t hint_lo_3 = y_idx_1;
+          uint32_t hint_hi_4 = view_Knows_0_1_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
+          hint_hi_4 = (hint_hi_4 <= view_Knows_0_1_FULL_VER.num_rows_) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
+          hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
+          auto h_Knows_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
+          if (!h_Knows_0_root.valid()) continue;
+          auto h_IsLocatedIn_1_root = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          if (!h_IsLocatedIn_1_root.valid()) continue;
+          auto h_Knows_2_root = HandleType(0, view_Knows_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
+          if (!h_Knows_2_root.valid()) continue;
+          auto p1 = root_val_2;
+        // Nested ColumnJoin (intersection): bind 'p2' from 3 sources
+        // MIR: (column-join :var p2 :sources ((Knows :handle 3 :prefix (p1)) (Knows :handle 4 :prefix ()) (IsLocatedIn :handle 5 :prefix ()) ))
+        auto h_Knows_3_23 = h_Knows_0_root;
+        auto h_Knows_4_24 = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0);
+        auto h_IsLocatedIn_5_25 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_26 = intersect_handles(tile, h_Knows_3_23.iterators(view_Knows_0_1_FULL_VER), h_Knows_4_24.iterators(view_Knows_0_1_FULL_VER), h_IsLocatedIn_5_25.iterators(view_IsLocatedIn_0_1_FULL_VER));
+        for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
+          auto p2 = it_27.value();
+          auto positions = it_27.positions();
+          auto ch_Knows_3_p2 = h_Knows_3_23.child_range(positions[0], p2, tile, view_Knows_0_1_FULL_VER);
+          auto ch_Knows_4_p2 = h_Knows_4_24.child_range(positions[1], p2, tile, view_Knows_0_1_FULL_VER);
+          auto ch_IsLocatedIn_5_p2 = h_IsLocatedIn_5_25.child_range(positions[2], p2, tile, view_IsLocatedIn_0_1_FULL_VER);
         // Nested ColumnJoin (intersection): bind 'p3' from 3 sources
-        // MIR: (column-join :var p3 :sources ((Knows :handle 6 :prefix (p2)) (IsLocatedIn :handle 7
-        // :prefix ()) (Knows :handle 8 :prefix (p1)) ))
+        // MIR: (column-join :var p3 :sources ((Knows :handle 6 :prefix (p2)) (IsLocatedIn :handle 7 :prefix ()) (Knows :handle 8 :prefix (p1)) ))
         auto h_Knows_6_18 = ch_Knows_4_p2;
         auto h_IsLocatedIn_7_19 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
         auto h_Knows_8_20 = h_Knows_2_root;
-        auto intersect_21 =
-            intersect_handles(tile, h_Knows_6_18.iterators(view_Knows_0_1_FULL_VER),
-                              h_IsLocatedIn_7_19.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                              h_Knows_8_20.iterators(view_Knows_1_0_FULL_VER));
+        auto intersect_21 = intersect_handles(tile, h_Knows_6_18.iterators(view_Knows_0_1_FULL_VER), h_IsLocatedIn_7_19.iterators(view_IsLocatedIn_0_1_FULL_VER), h_Knows_8_20.iterators(view_Knows_1_0_FULL_VER));
         for (auto it_22 = intersect_21.begin(); it_22.valid(); it_22.next()) {
           auto p3 = it_22.value();
           auto positions = it_22.positions();
-          auto ch_Knows_6_p3 =
-              h_Knows_6_18.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
-          auto ch_IsLocatedIn_7_p3 =
-              h_IsLocatedIn_7_19.child_range(positions[1], p3, tile, view_IsLocatedIn_0_1_FULL_VER);
-          auto ch_Knows_8_p3 =
-              h_Knows_8_20.child_range(positions[2], p3, tile, view_Knows_1_0_FULL_VER);
-          // Nested ColumnJoin (intersection): bind 'c1' from 2 sources
-          // MIR: (column-join :var c1 :sources ((IsLocatedIn :handle 9 :prefix (p1)) (IsPartOf
-          // :handle 10 :prefix ()) ))
-          auto h_IsLocatedIn_9_14 = h_IsLocatedIn_1_root;
-          auto h_IsPartOf_10_15 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-          auto intersect_16 =
-              intersect_handles(tile, h_IsLocatedIn_9_14.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                                h_IsPartOf_10_15.iterators(view_IsPartOf_0_1_FULL_VER));
-          for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
-            auto c1 = it_17.value();
-            auto positions = it_17.positions();
-            auto ch_IsLocatedIn_9_c1 = h_IsLocatedIn_9_14.child_range(
-                positions[0], c1, tile, view_IsLocatedIn_0_1_FULL_VER);
-            auto ch_IsPartOf_10_c1 =
-                h_IsPartOf_10_15.child_range(positions[1], c1, tile, view_IsPartOf_0_1_FULL_VER);
-            // Nested ColumnJoin (intersection): bind 'c2' from 2 sources
-            // MIR: (column-join :var c2 :sources ((IsLocatedIn :handle 11 :prefix (p2)) (IsPartOf
-            // :handle 12 :prefix ()) ))
-            auto h_IsLocatedIn_11_10 = ch_IsLocatedIn_5_p2;
-            auto h_IsPartOf_12_11 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-            auto intersect_12 = intersect_handles(
-                tile, h_IsLocatedIn_11_10.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                h_IsPartOf_12_11.iterators(view_IsPartOf_0_1_FULL_VER));
-            for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
-              auto c2 = it_13.value();
-              auto positions = it_13.positions();
-              auto ch_IsLocatedIn_11_c2 = h_IsLocatedIn_11_10.child_range(
-                  positions[0], c2, tile, view_IsLocatedIn_0_1_FULL_VER);
-              auto ch_IsPartOf_12_c2 =
-                  h_IsPartOf_12_11.child_range(positions[1], c2, tile, view_IsPartOf_0_1_FULL_VER);
-              // Nested ColumnJoin (intersection): bind 'c3' from 2 sources
-              // MIR: (column-join :var c3 :sources ((IsLocatedIn :handle 13 :prefix (p3)) (IsPartOf
-              // :handle 14 :prefix ()) ))
-              auto h_IsLocatedIn_13_6 = ch_IsLocatedIn_7_p3;
-              auto h_IsPartOf_14_7 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-              auto intersect_8 = intersect_handles(
-                  tile, h_IsLocatedIn_13_6.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                  h_IsPartOf_14_7.iterators(view_IsPartOf_0_1_FULL_VER));
-              for (auto it_9 = intersect_8.begin(); it_9.valid(); it_9.next()) {
-                auto c3 = it_9.value();
-                auto positions = it_9.positions();
-                auto ch_IsLocatedIn_13_c3 = h_IsLocatedIn_13_6.child_range(
-                    positions[0], c3, tile, view_IsLocatedIn_0_1_FULL_VER);
-                auto ch_IsPartOf_14_c3 =
-                    h_IsPartOf_14_7.child_range(positions[1], c3, tile, view_IsPartOf_0_1_FULL_VER);
-                // Nested ColumnJoin (intersection): bind 'co' from 3 sources
-                // MIR: (column-join :var co :sources ((IsPartOf :handle 15 :prefix (c1)) (IsPartOf
-                // :handle 16 :prefix (c2)) (IsPartOf :handle 17 :prefix (c3)) ))
-                auto h_IsPartOf_15_1 = ch_IsPartOf_10_c1;
-                auto h_IsPartOf_16_2 = ch_IsPartOf_12_c2;
-                auto h_IsPartOf_17_3 = ch_IsPartOf_14_c3;
-                auto intersect_4 =
-                    intersect_handles(tile, h_IsPartOf_15_1.iterators(view_IsPartOf_0_1_FULL_VER),
-                                      h_IsPartOf_16_2.iterators(view_IsPartOf_0_1_FULL_VER),
-                                      h_IsPartOf_17_3.iterators(view_IsPartOf_0_1_FULL_VER));
-                for (auto it_5 = intersect_4.begin(); it_5.valid(); it_5.next()) {
-                  auto co = it_5.value();
-                  auto positions = it_5.positions();
-                  auto ch_IsPartOf_15_co = h_IsPartOf_15_1.child_range(positions[0], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  auto ch_IsPartOf_16_co = h_IsPartOf_16_2.child_range(positions[1], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  auto ch_IsPartOf_17_co = h_IsPartOf_17_3.child_range(positions[2], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  // Emit: Triangle(p1, p2, p3)
-                  if (tile.thread_rank() == 0)
-                    output_ctx.emit_direct();
-                }
-              }
-            }
-          }
+          auto ch_Knows_6_p3 = h_Knows_6_18.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
+          auto ch_IsLocatedIn_7_p3 = h_IsLocatedIn_7_19.child_range(positions[1], p3, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_Knows_8_p3 = h_Knows_8_20.child_range(positions[2], p3, tile, view_Knows_1_0_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c1' from 2 sources
+        // MIR: (column-join :var c1 :sources ((IsLocatedIn :handle 9 :prefix (p1)) (IsPartOf :handle 10 :prefix ()) ))
+        auto h_IsLocatedIn_9_14 = h_IsLocatedIn_1_root;
+        auto h_IsPartOf_10_15 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_16 = intersect_handles(tile, h_IsLocatedIn_9_14.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_10_15.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
+          auto c1 = it_17.value();
+          auto positions = it_17.positions();
+          auto ch_IsLocatedIn_9_c1 = h_IsLocatedIn_9_14.child_range(positions[0], c1, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_10_c1 = h_IsPartOf_10_15.child_range(positions[1], c1, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c2' from 2 sources
+        // MIR: (column-join :var c2 :sources ((IsLocatedIn :handle 11 :prefix (p2)) (IsPartOf :handle 12 :prefix ()) ))
+        auto h_IsLocatedIn_11_10 = ch_IsLocatedIn_5_p2;
+        auto h_IsPartOf_12_11 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_12 = intersect_handles(tile, h_IsLocatedIn_11_10.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_12_11.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+          auto c2 = it_13.value();
+          auto positions = it_13.positions();
+          auto ch_IsLocatedIn_11_c2 = h_IsLocatedIn_11_10.child_range(positions[0], c2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_12_c2 = h_IsPartOf_12_11.child_range(positions[1], c2, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c3' from 2 sources
+        // MIR: (column-join :var c3 :sources ((IsLocatedIn :handle 13 :prefix (p3)) (IsPartOf :handle 14 :prefix ()) ))
+        auto h_IsLocatedIn_13_6 = ch_IsLocatedIn_7_p3;
+        auto h_IsPartOf_14_7 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_8 = intersect_handles(tile, h_IsLocatedIn_13_6.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_14_7.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_9 = intersect_8.begin(); it_9.valid(); it_9.next()) {
+          auto c3 = it_9.value();
+          auto positions = it_9.positions();
+          auto ch_IsLocatedIn_13_c3 = h_IsLocatedIn_13_6.child_range(positions[0], c3, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_14_c3 = h_IsPartOf_14_7.child_range(positions[1], c3, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'co' from 3 sources
+        // MIR: (column-join :var co :sources ((IsPartOf :handle 15 :prefix (c1)) (IsPartOf :handle 16 :prefix (c2)) (IsPartOf :handle 17 :prefix (c3)) ))
+        auto h_IsPartOf_15_1 = ch_IsPartOf_10_c1;
+        auto h_IsPartOf_16_2 = ch_IsPartOf_12_c2;
+        auto h_IsPartOf_17_3 = ch_IsPartOf_14_c3;
+        auto intersect_4 = intersect_handles(tile, h_IsPartOf_15_1.iterators(view_IsPartOf_0_1_FULL_VER), h_IsPartOf_16_2.iterators(view_IsPartOf_0_1_FULL_VER), h_IsPartOf_17_3.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_5 = intersect_4.begin(); it_5.valid(); it_5.next()) {
+          auto co = it_5.value();
+          auto positions = it_5.positions();
+          auto ch_IsPartOf_15_co = h_IsPartOf_15_1.child_range(positions[0], co, tile, view_IsPartOf_0_1_FULL_VER);
+          auto ch_IsPartOf_16_co = h_IsPartOf_16_2.child_range(positions[1], co, tile, view_IsPartOf_0_1_FULL_VER);
+          auto ch_IsPartOf_17_co = h_IsPartOf_17_3.child_range(positions[2], co, tile, view_IsPartOf_0_1_FULL_VER);
+        // Emit: Triangle(p1, p2, p3)
+        if (tile.thread_rank() == 0) output_ctx.emit_direct();
         }
-      }
-    }
+        }
+        }
+        }
+        }
+        }
+        }
     thread_counts[thread_id] = output_ctx.count();
   }
 
   // Non-template kernel_materialize (concrete ViewType)
-  static __global__ void __launch_bounds__(kBlockSize)
-      kernel_materialize(const ViewType* __restrict__ views,
-                         const ValueType* __restrict__ root_unique_values,
-                         uint32_t num_unique_root_keys, uint32_t num_root_keys,
-                         const uint32_t* __restrict__ thread_offsets,
-                         ValueType* __restrict__ output_data_0,
-                         semiring_value_t<SR>* __restrict__ output_prov_0,
-                         std::size_t output_stride_0, uint32_t old_size_0) {
+  static __global__ void __launch_bounds__(kBlockSize) kernel_materialize(
+      const ViewType* __restrict__ views,
+      const ValueType* __restrict__ root_unique_values,
+      uint32_t num_unique_root_keys,
+      uint32_t num_root_keys,
+      const uint32_t* __restrict__ thread_offsets,
+      ValueType* __restrict__ output_data_0,
+      semiring_value_t<SR>* __restrict__ output_prov_0,
+      std::size_t output_stride_0,
+      uint32_t old_size_0) {
     auto block = cg::this_thread_block();
     auto tile = cg::tiled_partition<kGroupSize>(block);
     auto single_thread = cg::tiled_partition<1>(block);  // For per-thread search inside Cartesian
     __shared__ char s_views_buf[NumSources * sizeof(ViewType)];
     auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);
-    if (threadIdx.x < NumSources) {
-      s_views[threadIdx.x] = views[threadIdx.x];
-    }
+    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }
     __syncthreads();
     views = s_views;
     uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -220,174 +174,130 @@ struct JitRunner_LabeledTriangle {
     uint32_t thread_offset = thread_offsets[thread_id];
 
     using OutputCtx_0 = SRDatalog::GPU::OutputContext<ValueType, SR, false, Layout, OutputArity_0>;
-    OutputCtx_0 output_ctx_0{output_data_0, output_prov_0, output_stride_0,
-                             old_size_0 + thread_offset};
+    OutputCtx_0 output_ctx_0{output_data_0, output_prov_0, output_stride_0, old_size_0 + thread_offset};
 
-    using ViewType = std::remove_cvref_t<decltype(views[0])>;
-    using HandleType = ViewType::NodeHandle;
+        using ViewType = std::remove_cvref_t<decltype(views[0])>;
+        using HandleType = ViewType::NodeHandle;
 
-    // View declarations (deduplicated by spec, 4 unique views)
-    auto view_Knows_0_1_FULL_VER = views[0];
-    auto view_IsLocatedIn_0_1_FULL_VER = views[1];
-    auto view_Knows_1_0_FULL_VER = views[2];
-    auto view_IsPartOf_0_1_FULL_VER = views[3];
+        // View declarations (deduplicated by spec, 4 unique views)
+        auto view_Knows_0_1_FULL_VER = views[0];
+        auto view_IsLocatedIn_0_1_FULL_VER = views[1];
+        auto view_Knows_1_0_FULL_VER = views[2];
+        auto view_IsPartOf_0_1_FULL_VER = views[3];
 
-    // Root ColumnJoin (multi-source intersection): bind 'p1' from 3 sources
-    // Uses root_unique_values + prefix() pattern (like TMP)
-    // MIR: (column-join :var p1 :sources ((Knows :handle 0) (IsLocatedIn :handle 1) (Knows :handle
-    // 2) )) WARP MODE: 32 threads cooperatively handle one row
-    for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
-      auto root_val_2 = root_unique_values[y_idx_1];
+        // Root ColumnJoin (multi-source intersection): bind 'p1' from 3 sources
+        // Uses root_unique_values + prefix() pattern (like TMP)
+        // MIR: (column-join :var p1 :sources ((Knows :handle 0) (IsLocatedIn :handle 1) (Knows :handle 2) ))
+        // WARP MODE: 32 threads cooperatively handle one row
+        for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
+          auto root_val_2 = root_unique_values[y_idx_1];
 
-      uint32_t hint_lo_3 = y_idx_1;
-      uint32_t hint_hi_4 = view_Knows_0_1_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
-      hint_hi_4 = (hint_hi_4 <= view_Knows_0_1_FULL_VER.num_rows_)
-                      ? hint_hi_4
-                      : view_Knows_0_1_FULL_VER.num_rows_;
-      hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
-      auto h_Knows_0_root =
-          HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
-      if (!h_Knows_0_root.valid())
-        continue;
-      auto h_IsLocatedIn_1_root = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0)
-                                      .prefix(root_val_2, tile, view_IsLocatedIn_0_1_FULL_VER);
-      if (!h_IsLocatedIn_1_root.valid())
-        continue;
-      auto h_Knows_2_root = HandleType(0, view_Knows_1_0_FULL_VER.num_rows_, 0)
-                                .prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
-      if (!h_Knows_2_root.valid())
-        continue;
-      auto p1 = root_val_2;
-      // Nested ColumnJoin (intersection): bind 'p2' from 3 sources
-      // MIR: (column-join :var p2 :sources ((Knows :handle 3 :prefix (p1)) (Knows :handle 4 :prefix
-      // ()) (IsLocatedIn :handle 5 :prefix ()) ))
-      auto h_Knows_3_23 = h_Knows_0_root;
-      auto h_Knows_4_24 = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0);
-      auto h_IsLocatedIn_5_25 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
-      auto intersect_26 =
-          intersect_handles(tile, h_Knows_3_23.iterators(view_Knows_0_1_FULL_VER),
-                            h_Knows_4_24.iterators(view_Knows_0_1_FULL_VER),
-                            h_IsLocatedIn_5_25.iterators(view_IsLocatedIn_0_1_FULL_VER));
-      for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
-        auto p2 = it_27.value();
-        auto positions = it_27.positions();
-        auto ch_Knows_3_p2 =
-            h_Knows_3_23.child_range(positions[0], p2, tile, view_Knows_0_1_FULL_VER);
-        auto ch_Knows_4_p2 =
-            h_Knows_4_24.child_range(positions[1], p2, tile, view_Knows_0_1_FULL_VER);
-        auto ch_IsLocatedIn_5_p2 =
-            h_IsLocatedIn_5_25.child_range(positions[2], p2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          uint32_t hint_lo_3 = y_idx_1;
+          uint32_t hint_hi_4 = view_Knows_0_1_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
+          hint_hi_4 = (hint_hi_4 <= view_Knows_0_1_FULL_VER.num_rows_) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
+          hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
+          auto h_Knows_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
+          if (!h_Knows_0_root.valid()) continue;
+          auto h_IsLocatedIn_1_root = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          if (!h_IsLocatedIn_1_root.valid()) continue;
+          auto h_Knows_2_root = HandleType(0, view_Knows_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
+          if (!h_Knows_2_root.valid()) continue;
+          auto p1 = root_val_2;
+        // Nested ColumnJoin (intersection): bind 'p2' from 3 sources
+        // MIR: (column-join :var p2 :sources ((Knows :handle 3 :prefix (p1)) (Knows :handle 4 :prefix ()) (IsLocatedIn :handle 5 :prefix ()) ))
+        auto h_Knows_3_23 = h_Knows_0_root;
+        auto h_Knows_4_24 = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0);
+        auto h_IsLocatedIn_5_25 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_26 = intersect_handles(tile, h_Knows_3_23.iterators(view_Knows_0_1_FULL_VER), h_Knows_4_24.iterators(view_Knows_0_1_FULL_VER), h_IsLocatedIn_5_25.iterators(view_IsLocatedIn_0_1_FULL_VER));
+        for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
+          auto p2 = it_27.value();
+          auto positions = it_27.positions();
+          auto ch_Knows_3_p2 = h_Knows_3_23.child_range(positions[0], p2, tile, view_Knows_0_1_FULL_VER);
+          auto ch_Knows_4_p2 = h_Knows_4_24.child_range(positions[1], p2, tile, view_Knows_0_1_FULL_VER);
+          auto ch_IsLocatedIn_5_p2 = h_IsLocatedIn_5_25.child_range(positions[2], p2, tile, view_IsLocatedIn_0_1_FULL_VER);
         // Nested ColumnJoin (intersection): bind 'p3' from 3 sources
-        // MIR: (column-join :var p3 :sources ((Knows :handle 6 :prefix (p2)) (IsLocatedIn :handle 7
-        // :prefix ()) (Knows :handle 8 :prefix (p1)) ))
+        // MIR: (column-join :var p3 :sources ((Knows :handle 6 :prefix (p2)) (IsLocatedIn :handle 7 :prefix ()) (Knows :handle 8 :prefix (p1)) ))
         auto h_Knows_6_18 = ch_Knows_4_p2;
         auto h_IsLocatedIn_7_19 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
         auto h_Knows_8_20 = h_Knows_2_root;
-        auto intersect_21 =
-            intersect_handles(tile, h_Knows_6_18.iterators(view_Knows_0_1_FULL_VER),
-                              h_IsLocatedIn_7_19.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                              h_Knows_8_20.iterators(view_Knows_1_0_FULL_VER));
+        auto intersect_21 = intersect_handles(tile, h_Knows_6_18.iterators(view_Knows_0_1_FULL_VER), h_IsLocatedIn_7_19.iterators(view_IsLocatedIn_0_1_FULL_VER), h_Knows_8_20.iterators(view_Knows_1_0_FULL_VER));
         for (auto it_22 = intersect_21.begin(); it_22.valid(); it_22.next()) {
           auto p3 = it_22.value();
           auto positions = it_22.positions();
-          auto ch_Knows_6_p3 =
-              h_Knows_6_18.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
-          auto ch_IsLocatedIn_7_p3 =
-              h_IsLocatedIn_7_19.child_range(positions[1], p3, tile, view_IsLocatedIn_0_1_FULL_VER);
-          auto ch_Knows_8_p3 =
-              h_Knows_8_20.child_range(positions[2], p3, tile, view_Knows_1_0_FULL_VER);
-          // Nested ColumnJoin (intersection): bind 'c1' from 2 sources
-          // MIR: (column-join :var c1 :sources ((IsLocatedIn :handle 9 :prefix (p1)) (IsPartOf
-          // :handle 10 :prefix ()) ))
-          auto h_IsLocatedIn_9_14 = h_IsLocatedIn_1_root;
-          auto h_IsPartOf_10_15 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-          auto intersect_16 =
-              intersect_handles(tile, h_IsLocatedIn_9_14.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                                h_IsPartOf_10_15.iterators(view_IsPartOf_0_1_FULL_VER));
-          for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
-            auto c1 = it_17.value();
-            auto positions = it_17.positions();
-            auto ch_IsLocatedIn_9_c1 = h_IsLocatedIn_9_14.child_range(
-                positions[0], c1, tile, view_IsLocatedIn_0_1_FULL_VER);
-            auto ch_IsPartOf_10_c1 =
-                h_IsPartOf_10_15.child_range(positions[1], c1, tile, view_IsPartOf_0_1_FULL_VER);
-            // Nested ColumnJoin (intersection): bind 'c2' from 2 sources
-            // MIR: (column-join :var c2 :sources ((IsLocatedIn :handle 11 :prefix (p2)) (IsPartOf
-            // :handle 12 :prefix ()) ))
-            auto h_IsLocatedIn_11_10 = ch_IsLocatedIn_5_p2;
-            auto h_IsPartOf_12_11 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-            auto intersect_12 = intersect_handles(
-                tile, h_IsLocatedIn_11_10.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                h_IsPartOf_12_11.iterators(view_IsPartOf_0_1_FULL_VER));
-            for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
-              auto c2 = it_13.value();
-              auto positions = it_13.positions();
-              auto ch_IsLocatedIn_11_c2 = h_IsLocatedIn_11_10.child_range(
-                  positions[0], c2, tile, view_IsLocatedIn_0_1_FULL_VER);
-              auto ch_IsPartOf_12_c2 =
-                  h_IsPartOf_12_11.child_range(positions[1], c2, tile, view_IsPartOf_0_1_FULL_VER);
-              // Nested ColumnJoin (intersection): bind 'c3' from 2 sources
-              // MIR: (column-join :var c3 :sources ((IsLocatedIn :handle 13 :prefix (p3)) (IsPartOf
-              // :handle 14 :prefix ()) ))
-              auto h_IsLocatedIn_13_6 = ch_IsLocatedIn_7_p3;
-              auto h_IsPartOf_14_7 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-              auto intersect_8 = intersect_handles(
-                  tile, h_IsLocatedIn_13_6.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                  h_IsPartOf_14_7.iterators(view_IsPartOf_0_1_FULL_VER));
-              for (auto it_9 = intersect_8.begin(); it_9.valid(); it_9.next()) {
-                auto c3 = it_9.value();
-                auto positions = it_9.positions();
-                auto ch_IsLocatedIn_13_c3 = h_IsLocatedIn_13_6.child_range(
-                    positions[0], c3, tile, view_IsLocatedIn_0_1_FULL_VER);
-                auto ch_IsPartOf_14_c3 =
-                    h_IsPartOf_14_7.child_range(positions[1], c3, tile, view_IsPartOf_0_1_FULL_VER);
-                // Nested ColumnJoin (intersection): bind 'co' from 3 sources
-                // MIR: (column-join :var co :sources ((IsPartOf :handle 15 :prefix (c1)) (IsPartOf
-                // :handle 16 :prefix (c2)) (IsPartOf :handle 17 :prefix (c3)) ))
-                auto h_IsPartOf_15_1 = ch_IsPartOf_10_c1;
-                auto h_IsPartOf_16_2 = ch_IsPartOf_12_c2;
-                auto h_IsPartOf_17_3 = ch_IsPartOf_14_c3;
-                auto intersect_4 =
-                    intersect_handles(tile, h_IsPartOf_15_1.iterators(view_IsPartOf_0_1_FULL_VER),
-                                      h_IsPartOf_16_2.iterators(view_IsPartOf_0_1_FULL_VER),
-                                      h_IsPartOf_17_3.iterators(view_IsPartOf_0_1_FULL_VER));
-                for (auto it_5 = intersect_4.begin(); it_5.valid(); it_5.next()) {
-                  auto co = it_5.value();
-                  auto positions = it_5.positions();
-                  auto ch_IsPartOf_15_co = h_IsPartOf_15_1.child_range(positions[0], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  auto ch_IsPartOf_16_co = h_IsPartOf_16_2.child_range(positions[1], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  auto ch_IsPartOf_17_co = h_IsPartOf_17_3.child_range(positions[2], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  // Emit: Triangle(p1, p2, p3)
-                  if (tile.thread_rank() == 0)
-                    output_ctx_0.emit_direct(p1, p2, p3);
-                }
-              }
-            }
-          }
+          auto ch_Knows_6_p3 = h_Knows_6_18.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
+          auto ch_IsLocatedIn_7_p3 = h_IsLocatedIn_7_19.child_range(positions[1], p3, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_Knows_8_p3 = h_Knows_8_20.child_range(positions[2], p3, tile, view_Knows_1_0_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c1' from 2 sources
+        // MIR: (column-join :var c1 :sources ((IsLocatedIn :handle 9 :prefix (p1)) (IsPartOf :handle 10 :prefix ()) ))
+        auto h_IsLocatedIn_9_14 = h_IsLocatedIn_1_root;
+        auto h_IsPartOf_10_15 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_16 = intersect_handles(tile, h_IsLocatedIn_9_14.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_10_15.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
+          auto c1 = it_17.value();
+          auto positions = it_17.positions();
+          auto ch_IsLocatedIn_9_c1 = h_IsLocatedIn_9_14.child_range(positions[0], c1, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_10_c1 = h_IsPartOf_10_15.child_range(positions[1], c1, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c2' from 2 sources
+        // MIR: (column-join :var c2 :sources ((IsLocatedIn :handle 11 :prefix (p2)) (IsPartOf :handle 12 :prefix ()) ))
+        auto h_IsLocatedIn_11_10 = ch_IsLocatedIn_5_p2;
+        auto h_IsPartOf_12_11 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_12 = intersect_handles(tile, h_IsLocatedIn_11_10.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_12_11.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+          auto c2 = it_13.value();
+          auto positions = it_13.positions();
+          auto ch_IsLocatedIn_11_c2 = h_IsLocatedIn_11_10.child_range(positions[0], c2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_12_c2 = h_IsPartOf_12_11.child_range(positions[1], c2, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c3' from 2 sources
+        // MIR: (column-join :var c3 :sources ((IsLocatedIn :handle 13 :prefix (p3)) (IsPartOf :handle 14 :prefix ()) ))
+        auto h_IsLocatedIn_13_6 = ch_IsLocatedIn_7_p3;
+        auto h_IsPartOf_14_7 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_8 = intersect_handles(tile, h_IsLocatedIn_13_6.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_14_7.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_9 = intersect_8.begin(); it_9.valid(); it_9.next()) {
+          auto c3 = it_9.value();
+          auto positions = it_9.positions();
+          auto ch_IsLocatedIn_13_c3 = h_IsLocatedIn_13_6.child_range(positions[0], c3, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_14_c3 = h_IsPartOf_14_7.child_range(positions[1], c3, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'co' from 3 sources
+        // MIR: (column-join :var co :sources ((IsPartOf :handle 15 :prefix (c1)) (IsPartOf :handle 16 :prefix (c2)) (IsPartOf :handle 17 :prefix (c3)) ))
+        auto h_IsPartOf_15_1 = ch_IsPartOf_10_c1;
+        auto h_IsPartOf_16_2 = ch_IsPartOf_12_c2;
+        auto h_IsPartOf_17_3 = ch_IsPartOf_14_c3;
+        auto intersect_4 = intersect_handles(tile, h_IsPartOf_15_1.iterators(view_IsPartOf_0_1_FULL_VER), h_IsPartOf_16_2.iterators(view_IsPartOf_0_1_FULL_VER), h_IsPartOf_17_3.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_5 = intersect_4.begin(); it_5.valid(); it_5.next()) {
+          auto co = it_5.value();
+          auto positions = it_5.positions();
+          auto ch_IsPartOf_15_co = h_IsPartOf_15_1.child_range(positions[0], co, tile, view_IsPartOf_0_1_FULL_VER);
+          auto ch_IsPartOf_16_co = h_IsPartOf_16_2.child_range(positions[1], co, tile, view_IsPartOf_0_1_FULL_VER);
+          auto ch_IsPartOf_17_co = h_IsPartOf_17_3.child_range(positions[2], co, tile, view_IsPartOf_0_1_FULL_VER);
+        // Emit: Triangle(p1, p2, p3)
+        if (tile.thread_rank() == 0) output_ctx_0.emit_direct(p1, p2, p3);
         }
-      }
-    }
+        }
+        }
+        }
+        }
+        }
+        }
   }
 
   // Fused kernel: single-pass join with atomic output (tail mode)
-  static __global__ void __launch_bounds__(kBlockSize)
-      kernel_fused(const ViewType* __restrict__ views,
-                   const ValueType* __restrict__ root_unique_values, uint32_t num_unique_root_keys,
-                   uint32_t num_root_keys, ValueType* __restrict__ output_data_0,
-                   std::size_t output_stride_0, uint32_t old_size_0,
-                   uint32_t* __restrict__ atomic_write_pos_0, uint32_t capacity,
-                   uint32_t* __restrict__ overflow_flag) {
+  static __global__ void __launch_bounds__(kBlockSize) kernel_fused(
+      const ViewType* __restrict__ views,
+      const ValueType* __restrict__ root_unique_values,
+      uint32_t num_unique_root_keys,
+      uint32_t num_root_keys,
+      ValueType* __restrict__ output_data_0,
+      std::size_t output_stride_0,
+      uint32_t old_size_0,
+      uint32_t* __restrict__ atomic_write_pos_0,
+      uint32_t capacity,
+      uint32_t* __restrict__ overflow_flag) {
     auto block = cg::this_thread_block();
     auto tile = cg::tiled_partition<kGroupSize>(block);
     auto single_thread = cg::tiled_partition<1>(block);
     __shared__ char s_views_buf[NumSources * sizeof(ViewType)];
     auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);
-    if (threadIdx.x < NumSources) {
-      s_views[threadIdx.x] = views[threadIdx.x];
-    }
+    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }
     __syncthreads();
     views = s_views;
     uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -395,159 +305,112 @@ struct JitRunner_LabeledTriangle {
     uint32_t num_warps = (gridDim.x * blockDim.x) / kGroupSize;
     uint32_t num_threads = num_warps;
 
-    using SpecCtx_0 =
-        SRDatalog::GPU::JIT::WS::SpeculativeOutputContext<ValueType, OutputArity_0, 16>;
-    SpecCtx_0 output_ctx_0{output_data_0, atomic_write_pos_0,
-                           overflow_flag, static_cast<uint32_t>(output_stride_0),
-                           old_size_0,    capacity};
+    using SpecCtx_0 = SRDatalog::GPU::JIT::WS::SpeculativeOutputContext<ValueType, OutputArity_0, 16>;
+    SpecCtx_0 output_ctx_0{output_data_0, atomic_write_pos_0, overflow_flag,
+                         static_cast<uint32_t>(output_stride_0), old_size_0, capacity};
 
-    using ViewType = std::remove_cvref_t<decltype(views[0])>;
-    using HandleType = ViewType::NodeHandle;
+        using ViewType = std::remove_cvref_t<decltype(views[0])>;
+        using HandleType = ViewType::NodeHandle;
 
-    // View declarations (deduplicated by spec, 4 unique views)
-    auto view_Knows_0_1_FULL_VER = views[0];
-    auto view_IsLocatedIn_0_1_FULL_VER = views[1];
-    auto view_Knows_1_0_FULL_VER = views[2];
-    auto view_IsPartOf_0_1_FULL_VER = views[3];
+        // View declarations (deduplicated by spec, 4 unique views)
+        auto view_Knows_0_1_FULL_VER = views[0];
+        auto view_IsLocatedIn_0_1_FULL_VER = views[1];
+        auto view_Knows_1_0_FULL_VER = views[2];
+        auto view_IsPartOf_0_1_FULL_VER = views[3];
 
-    // Root ColumnJoin (multi-source intersection): bind 'p1' from 3 sources
-    // Uses root_unique_values + prefix() pattern (like TMP)
-    // MIR: (column-join :var p1 :sources ((Knows :handle 0) (IsLocatedIn :handle 1) (Knows :handle
-    // 2) )) WARP MODE: 32 threads cooperatively handle one row
-    for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
-      auto root_val_2 = root_unique_values[y_idx_1];
+        // Root ColumnJoin (multi-source intersection): bind 'p1' from 3 sources
+        // Uses root_unique_values + prefix() pattern (like TMP)
+        // MIR: (column-join :var p1 :sources ((Knows :handle 0) (IsLocatedIn :handle 1) (Knows :handle 2) ))
+        // WARP MODE: 32 threads cooperatively handle one row
+        for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
+          auto root_val_2 = root_unique_values[y_idx_1];
 
-      uint32_t hint_lo_3 = y_idx_1;
-      uint32_t hint_hi_4 = view_Knows_0_1_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
-      hint_hi_4 = (hint_hi_4 <= view_Knows_0_1_FULL_VER.num_rows_)
-                      ? hint_hi_4
-                      : view_Knows_0_1_FULL_VER.num_rows_;
-      hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
-      auto h_Knows_0_root =
-          HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
-      if (!h_Knows_0_root.valid())
-        continue;
-      auto h_IsLocatedIn_1_root = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0)
-                                      .prefix(root_val_2, tile, view_IsLocatedIn_0_1_FULL_VER);
-      if (!h_IsLocatedIn_1_root.valid())
-        continue;
-      auto h_Knows_2_root = HandleType(0, view_Knows_1_0_FULL_VER.num_rows_, 0)
-                                .prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
-      if (!h_Knows_2_root.valid())
-        continue;
-      auto p1 = root_val_2;
-      // Nested ColumnJoin (intersection): bind 'p2' from 3 sources
-      // MIR: (column-join :var p2 :sources ((Knows :handle 3 :prefix (p1)) (Knows :handle 4 :prefix
-      // ()) (IsLocatedIn :handle 5 :prefix ()) ))
-      auto h_Knows_3_23 = h_Knows_0_root;
-      auto h_Knows_4_24 = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0);
-      auto h_IsLocatedIn_5_25 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
-      auto intersect_26 =
-          intersect_handles(tile, h_Knows_3_23.iterators(view_Knows_0_1_FULL_VER),
-                            h_Knows_4_24.iterators(view_Knows_0_1_FULL_VER),
-                            h_IsLocatedIn_5_25.iterators(view_IsLocatedIn_0_1_FULL_VER));
-      for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
-        auto p2 = it_27.value();
-        auto positions = it_27.positions();
-        auto ch_Knows_3_p2 =
-            h_Knows_3_23.child_range(positions[0], p2, tile, view_Knows_0_1_FULL_VER);
-        auto ch_Knows_4_p2 =
-            h_Knows_4_24.child_range(positions[1], p2, tile, view_Knows_0_1_FULL_VER);
-        auto ch_IsLocatedIn_5_p2 =
-            h_IsLocatedIn_5_25.child_range(positions[2], p2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          uint32_t hint_lo_3 = y_idx_1;
+          uint32_t hint_hi_4 = view_Knows_0_1_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
+          hint_hi_4 = (hint_hi_4 <= view_Knows_0_1_FULL_VER.num_rows_) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
+          hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_0_1_FULL_VER.num_rows_;
+          auto h_Knows_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
+          if (!h_Knows_0_root.valid()) continue;
+          auto h_IsLocatedIn_1_root = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          if (!h_IsLocatedIn_1_root.valid()) continue;
+          auto h_Knows_2_root = HandleType(0, view_Knows_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
+          if (!h_Knows_2_root.valid()) continue;
+          auto p1 = root_val_2;
+        // Nested ColumnJoin (intersection): bind 'p2' from 3 sources
+        // MIR: (column-join :var p2 :sources ((Knows :handle 3 :prefix (p1)) (Knows :handle 4 :prefix ()) (IsLocatedIn :handle 5 :prefix ()) ))
+        auto h_Knows_3_23 = h_Knows_0_root;
+        auto h_Knows_4_24 = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0);
+        auto h_IsLocatedIn_5_25 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_26 = intersect_handles(tile, h_Knows_3_23.iterators(view_Knows_0_1_FULL_VER), h_Knows_4_24.iterators(view_Knows_0_1_FULL_VER), h_IsLocatedIn_5_25.iterators(view_IsLocatedIn_0_1_FULL_VER));
+        for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
+          auto p2 = it_27.value();
+          auto positions = it_27.positions();
+          auto ch_Knows_3_p2 = h_Knows_3_23.child_range(positions[0], p2, tile, view_Knows_0_1_FULL_VER);
+          auto ch_Knows_4_p2 = h_Knows_4_24.child_range(positions[1], p2, tile, view_Knows_0_1_FULL_VER);
+          auto ch_IsLocatedIn_5_p2 = h_IsLocatedIn_5_25.child_range(positions[2], p2, tile, view_IsLocatedIn_0_1_FULL_VER);
         // Nested ColumnJoin (intersection): bind 'p3' from 3 sources
-        // MIR: (column-join :var p3 :sources ((Knows :handle 6 :prefix (p2)) (IsLocatedIn :handle 7
-        // :prefix ()) (Knows :handle 8 :prefix (p1)) ))
+        // MIR: (column-join :var p3 :sources ((Knows :handle 6 :prefix (p2)) (IsLocatedIn :handle 7 :prefix ()) (Knows :handle 8 :prefix (p1)) ))
         auto h_Knows_6_18 = ch_Knows_4_p2;
         auto h_IsLocatedIn_7_19 = HandleType(0, view_IsLocatedIn_0_1_FULL_VER.num_rows_, 0);
         auto h_Knows_8_20 = h_Knows_2_root;
-        auto intersect_21 =
-            intersect_handles(tile, h_Knows_6_18.iterators(view_Knows_0_1_FULL_VER),
-                              h_IsLocatedIn_7_19.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                              h_Knows_8_20.iterators(view_Knows_1_0_FULL_VER));
+        auto intersect_21 = intersect_handles(tile, h_Knows_6_18.iterators(view_Knows_0_1_FULL_VER), h_IsLocatedIn_7_19.iterators(view_IsLocatedIn_0_1_FULL_VER), h_Knows_8_20.iterators(view_Knows_1_0_FULL_VER));
         for (auto it_22 = intersect_21.begin(); it_22.valid(); it_22.next()) {
           auto p3 = it_22.value();
           auto positions = it_22.positions();
-          auto ch_Knows_6_p3 =
-              h_Knows_6_18.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
-          auto ch_IsLocatedIn_7_p3 =
-              h_IsLocatedIn_7_19.child_range(positions[1], p3, tile, view_IsLocatedIn_0_1_FULL_VER);
-          auto ch_Knows_8_p3 =
-              h_Knows_8_20.child_range(positions[2], p3, tile, view_Knows_1_0_FULL_VER);
-          // Nested ColumnJoin (intersection): bind 'c1' from 2 sources
-          // MIR: (column-join :var c1 :sources ((IsLocatedIn :handle 9 :prefix (p1)) (IsPartOf
-          // :handle 10 :prefix ()) ))
-          auto h_IsLocatedIn_9_14 = h_IsLocatedIn_1_root;
-          auto h_IsPartOf_10_15 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-          auto intersect_16 =
-              intersect_handles(tile, h_IsLocatedIn_9_14.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                                h_IsPartOf_10_15.iterators(view_IsPartOf_0_1_FULL_VER));
-          for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
-            auto c1 = it_17.value();
-            auto positions = it_17.positions();
-            auto ch_IsLocatedIn_9_c1 = h_IsLocatedIn_9_14.child_range(
-                positions[0], c1, tile, view_IsLocatedIn_0_1_FULL_VER);
-            auto ch_IsPartOf_10_c1 =
-                h_IsPartOf_10_15.child_range(positions[1], c1, tile, view_IsPartOf_0_1_FULL_VER);
-            // Nested ColumnJoin (intersection): bind 'c2' from 2 sources
-            // MIR: (column-join :var c2 :sources ((IsLocatedIn :handle 11 :prefix (p2)) (IsPartOf
-            // :handle 12 :prefix ()) ))
-            auto h_IsLocatedIn_11_10 = ch_IsLocatedIn_5_p2;
-            auto h_IsPartOf_12_11 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-            auto intersect_12 = intersect_handles(
-                tile, h_IsLocatedIn_11_10.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                h_IsPartOf_12_11.iterators(view_IsPartOf_0_1_FULL_VER));
-            for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
-              auto c2 = it_13.value();
-              auto positions = it_13.positions();
-              auto ch_IsLocatedIn_11_c2 = h_IsLocatedIn_11_10.child_range(
-                  positions[0], c2, tile, view_IsLocatedIn_0_1_FULL_VER);
-              auto ch_IsPartOf_12_c2 =
-                  h_IsPartOf_12_11.child_range(positions[1], c2, tile, view_IsPartOf_0_1_FULL_VER);
-              // Nested ColumnJoin (intersection): bind 'c3' from 2 sources
-              // MIR: (column-join :var c3 :sources ((IsLocatedIn :handle 13 :prefix (p3)) (IsPartOf
-              // :handle 14 :prefix ()) ))
-              auto h_IsLocatedIn_13_6 = ch_IsLocatedIn_7_p3;
-              auto h_IsPartOf_14_7 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
-              auto intersect_8 = intersect_handles(
-                  tile, h_IsLocatedIn_13_6.iterators(view_IsLocatedIn_0_1_FULL_VER),
-                  h_IsPartOf_14_7.iterators(view_IsPartOf_0_1_FULL_VER));
-              for (auto it_9 = intersect_8.begin(); it_9.valid(); it_9.next()) {
-                auto c3 = it_9.value();
-                auto positions = it_9.positions();
-                auto ch_IsLocatedIn_13_c3 = h_IsLocatedIn_13_6.child_range(
-                    positions[0], c3, tile, view_IsLocatedIn_0_1_FULL_VER);
-                auto ch_IsPartOf_14_c3 =
-                    h_IsPartOf_14_7.child_range(positions[1], c3, tile, view_IsPartOf_0_1_FULL_VER);
-                // Nested ColumnJoin (intersection): bind 'co' from 3 sources
-                // MIR: (column-join :var co :sources ((IsPartOf :handle 15 :prefix (c1)) (IsPartOf
-                // :handle 16 :prefix (c2)) (IsPartOf :handle 17 :prefix (c3)) ))
-                auto h_IsPartOf_15_1 = ch_IsPartOf_10_c1;
-                auto h_IsPartOf_16_2 = ch_IsPartOf_12_c2;
-                auto h_IsPartOf_17_3 = ch_IsPartOf_14_c3;
-                auto intersect_4 =
-                    intersect_handles(tile, h_IsPartOf_15_1.iterators(view_IsPartOf_0_1_FULL_VER),
-                                      h_IsPartOf_16_2.iterators(view_IsPartOf_0_1_FULL_VER),
-                                      h_IsPartOf_17_3.iterators(view_IsPartOf_0_1_FULL_VER));
-                for (auto it_5 = intersect_4.begin(); it_5.valid(); it_5.next()) {
-                  auto co = it_5.value();
-                  auto positions = it_5.positions();
-                  auto ch_IsPartOf_15_co = h_IsPartOf_15_1.child_range(positions[0], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  auto ch_IsPartOf_16_co = h_IsPartOf_16_2.child_range(positions[1], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  auto ch_IsPartOf_17_co = h_IsPartOf_17_3.child_range(positions[2], co, tile,
-                                                                       view_IsPartOf_0_1_FULL_VER);
-                  // Emit: Triangle(p1, p2, p3)
-                  if (tile.thread_rank() == 0)
-                    output_ctx_0.emit_direct(p1, p2, p3);
-                }
-              }
-            }
-          }
+          auto ch_Knows_6_p3 = h_Knows_6_18.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
+          auto ch_IsLocatedIn_7_p3 = h_IsLocatedIn_7_19.child_range(positions[1], p3, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_Knows_8_p3 = h_Knows_8_20.child_range(positions[2], p3, tile, view_Knows_1_0_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c1' from 2 sources
+        // MIR: (column-join :var c1 :sources ((IsLocatedIn :handle 9 :prefix (p1)) (IsPartOf :handle 10 :prefix ()) ))
+        auto h_IsLocatedIn_9_14 = h_IsLocatedIn_1_root;
+        auto h_IsPartOf_10_15 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_16 = intersect_handles(tile, h_IsLocatedIn_9_14.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_10_15.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
+          auto c1 = it_17.value();
+          auto positions = it_17.positions();
+          auto ch_IsLocatedIn_9_c1 = h_IsLocatedIn_9_14.child_range(positions[0], c1, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_10_c1 = h_IsPartOf_10_15.child_range(positions[1], c1, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c2' from 2 sources
+        // MIR: (column-join :var c2 :sources ((IsLocatedIn :handle 11 :prefix (p2)) (IsPartOf :handle 12 :prefix ()) ))
+        auto h_IsLocatedIn_11_10 = ch_IsLocatedIn_5_p2;
+        auto h_IsPartOf_12_11 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_12 = intersect_handles(tile, h_IsLocatedIn_11_10.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_12_11.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+          auto c2 = it_13.value();
+          auto positions = it_13.positions();
+          auto ch_IsLocatedIn_11_c2 = h_IsLocatedIn_11_10.child_range(positions[0], c2, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_12_c2 = h_IsPartOf_12_11.child_range(positions[1], c2, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'c3' from 2 sources
+        // MIR: (column-join :var c3 :sources ((IsLocatedIn :handle 13 :prefix (p3)) (IsPartOf :handle 14 :prefix ()) ))
+        auto h_IsLocatedIn_13_6 = ch_IsLocatedIn_7_p3;
+        auto h_IsPartOf_14_7 = HandleType(0, view_IsPartOf_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_8 = intersect_handles(tile, h_IsLocatedIn_13_6.iterators(view_IsLocatedIn_0_1_FULL_VER), h_IsPartOf_14_7.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_9 = intersect_8.begin(); it_9.valid(); it_9.next()) {
+          auto c3 = it_9.value();
+          auto positions = it_9.positions();
+          auto ch_IsLocatedIn_13_c3 = h_IsLocatedIn_13_6.child_range(positions[0], c3, tile, view_IsLocatedIn_0_1_FULL_VER);
+          auto ch_IsPartOf_14_c3 = h_IsPartOf_14_7.child_range(positions[1], c3, tile, view_IsPartOf_0_1_FULL_VER);
+        // Nested ColumnJoin (intersection): bind 'co' from 3 sources
+        // MIR: (column-join :var co :sources ((IsPartOf :handle 15 :prefix (c1)) (IsPartOf :handle 16 :prefix (c2)) (IsPartOf :handle 17 :prefix (c3)) ))
+        auto h_IsPartOf_15_1 = ch_IsPartOf_10_c1;
+        auto h_IsPartOf_16_2 = ch_IsPartOf_12_c2;
+        auto h_IsPartOf_17_3 = ch_IsPartOf_14_c3;
+        auto intersect_4 = intersect_handles(tile, h_IsPartOf_15_1.iterators(view_IsPartOf_0_1_FULL_VER), h_IsPartOf_16_2.iterators(view_IsPartOf_0_1_FULL_VER), h_IsPartOf_17_3.iterators(view_IsPartOf_0_1_FULL_VER));
+        for (auto it_5 = intersect_4.begin(); it_5.valid(); it_5.next()) {
+          auto co = it_5.value();
+          auto positions = it_5.positions();
+          auto ch_IsPartOf_15_co = h_IsPartOf_15_1.child_range(positions[0], co, tile, view_IsPartOf_0_1_FULL_VER);
+          auto ch_IsPartOf_16_co = h_IsPartOf_16_2.child_range(positions[1], co, tile, view_IsPartOf_0_1_FULL_VER);
+          auto ch_IsPartOf_17_co = h_IsPartOf_17_3.child_range(positions[2], co, tile, view_IsPartOf_0_1_FULL_VER);
+        // Emit: Triangle(p1, p2, p3)
+        if (tile.thread_rank() == 0) output_ctx_0.emit_direct(p1, p2, p3);
         }
-      }
-    }
+        }
+        }
+        }
+        }
+        }
+        }
     output_ctx_0.flush();
   }
 
@@ -580,8 +443,7 @@ struct JitRunner_LabeledTriangle {
   static uint32_t scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream = 0);
   static void scan_only(LaunchParams& p, GPU_STREAM_T stream = 0);
   static uint32_t read_total(LaunchParams& p);
-  static void launch_materialize(DB& db, LaunchParams& p, uint32_t total_count,
-                                 GPU_STREAM_T stream = 0);
+  static void launch_materialize(DB& db, LaunchParams& p, uint32_t total_count, GPU_STREAM_T stream = 0);
 
   // Non-template execute - calls kernels directly
   static void execute(DB& db, uint32_t iteration);
@@ -592,8 +454,7 @@ struct JitRunner_LabeledTriangle {
 };
 
 // Phase 1: Setup views and compute grid config
-JitRunner_LabeledTriangle::LaunchParams JitRunner_LabeledTriangle::setup(DB& db, uint32_t iteration,
-                                                                         GPU_STREAM_T stream) {
+JitRunner_LabeledTriangle::LaunchParams JitRunner_LabeledTriangle::setup(DB& db, uint32_t iteration, GPU_STREAM_T stream) {
   LaunchParams p;
   p.views_vec.reserve(NumSources);
 
@@ -630,14 +491,12 @@ JitRunner_LabeledTriangle::LaunchParams JitRunner_LabeledTriangle::setup(DB& db,
   auto& first_idx = first_rel.get_index(SRDatalog::IndexSpec{{0, 1}});
   p.num_root_keys = first_idx.root().degree();
   p.num_unique_root_keys = static_cast<uint32_t>(first_idx.num_unique_root_values());
-  p.root_unique_values_ptr =
-      (p.num_unique_root_keys > 0) ? first_idx.root_unique_values().data() : nullptr;
+  p.root_unique_values_ptr = (p.num_unique_root_keys > 0) ? first_idx.root_unique_values().data() : nullptr;
   p.num_full_unique_root_keys = p.num_unique_root_keys;
 
   // Copy views to device using provided stream (NOT stream 0)
   p.d_views = SRDatalog::GPU::DeviceArray<ViewType>(p.views_vec.size());
-  GPU_MEMCPY_ASYNC(p.d_views.data(), p.views_vec.data(), p.views_vec.size() * sizeof(ViewType),
-                   GPU_HOST_TO_DEVICE, stream);
+  GPU_MEMCPY_ASYNC(p.d_views.data(), p.views_vec.data(), p.views_vec.size() * sizeof(ViewType), GPU_HOST_TO_DEVICE, stream);
 
   int num_sms = 0;
   GPU_DEVICE_GET_ATTRIBUTE(&num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);
@@ -655,28 +514,18 @@ JitRunner_LabeledTriangle::LaunchParams JitRunner_LabeledTriangle::setup(DB& db,
 }
 
 void JitRunner_LabeledTriangle::launch_count(LaunchParams& p, GPU_STREAM_T stream) {
-  if (p.num_threads == 0)
-    return;
-  if (p.num_unique_root_keys == 0) {
-    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);
-    return;
-  }
-  kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>(p.d_views.data(), p.root_unique_values_ptr,
-                                                        p.num_unique_root_keys, p.num_root_keys,
-                                                        p.thread_counts_ptr);
+  if (p.num_threads == 0) return;
+  if (p.num_unique_root_keys == 0) { cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream); return; }
+  kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>(p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys, p.thread_counts_ptr);
 }
 
 // Phase 3: Prefix scan + readback total + resize destinations
 uint32_t JitRunner_LabeledTriangle::scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream) {
-  thrust::exclusive_scan(rmm::exec_policy(stream), p.thread_counts_ptr,
-                         p.thread_counts_ptr + p.num_threads + 1, p.thread_counts_ptr, 0,
-                         thrust::plus<uint32_t>());
+  thrust::exclusive_scan(rmm::exec_policy(stream), p.thread_counts_ptr, p.thread_counts_ptr + p.num_threads + 1, p.thread_counts_ptr, 0, thrust::plus<uint32_t>());
   uint32_t total_count = 0;
-  GPU_MEMCPY_ASYNC(&total_count, p.thread_counts_ptr + p.num_threads, sizeof(uint32_t),
-                   GPU_DEVICE_TO_HOST, stream);
+  GPU_MEMCPY_ASYNC(&total_count, p.thread_counts_ptr + p.num_threads, sizeof(uint32_t), GPU_DEVICE_TO_HOST, stream);
   GPU_STREAM_SYNCHRONIZE(stream);
-  if (total_count == 0)
-    return 0;
+  if (total_count == 0) return 0;
 
   auto& dest_rel_0 = get_relation_by_schema<Triangle, NEW_VER>(db);
   p.old_size_0 = static_cast<uint32_t>(dest_rel_0.size());
@@ -686,26 +535,20 @@ uint32_t JitRunner_LabeledTriangle::scan_and_resize(DB& db, LaunchParams& p, GPU
 
 // Phase 3a: Prefix scan only (async, no sync)
 void JitRunner_LabeledTriangle::scan_only(LaunchParams& p, GPU_STREAM_T stream) {
-  if (p.num_threads == 0)
-    return;
-  thrust::exclusive_scan(rmm::exec_policy(stream), p.thread_counts_ptr,
-                         p.thread_counts_ptr + p.num_threads + 1, p.thread_counts_ptr, 0,
-                         thrust::plus<uint32_t>());
+  if (p.num_threads == 0) return;
+  thrust::exclusive_scan(rmm::exec_policy(stream), p.thread_counts_ptr, p.thread_counts_ptr + p.num_threads + 1, p.thread_counts_ptr, 0, thrust::plus<uint32_t>());
 }
 
 // Phase 3b: Read total count (call after device sync)
 uint32_t JitRunner_LabeledTriangle::read_total(LaunchParams& p) {
-  if (p.num_threads == 0)
-    return 0;
+  if (p.num_threads == 0) return 0;
   uint32_t total_count = 0;
-  GPU_MEMCPY(&total_count, p.thread_counts_ptr + p.num_threads, sizeof(uint32_t),
-             GPU_DEVICE_TO_HOST);
+  GPU_MEMCPY(&total_count, p.thread_counts_ptr + p.num_threads, sizeof(uint32_t), GPU_DEVICE_TO_HOST);
   return total_count;
 }
 
 // Phase 4: Launch materialize kernel on given stream (no sync)
-void JitRunner_LabeledTriangle::launch_materialize(DB& db, LaunchParams& p, uint32_t total_count,
-                                                   GPU_STREAM_T stream) {
+void JitRunner_LabeledTriangle::launch_materialize(DB& db, LaunchParams& p, uint32_t total_count, GPU_STREAM_T stream) {
   using ProvPtrType = semiring_value_t<SR>*;
   ProvPtrType prov_ptr = nullptr;
 
@@ -713,20 +556,19 @@ void JitRunner_LabeledTriangle::launch_materialize(DB& db, LaunchParams& p, uint
   uint32_t old_size_0 = p.old_size_0;
   kernel_materialize<<<p.num_blocks, kBlockSize, 0, stream>>>(
       p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,
-      p.thread_counts_ptr, dest_rel_0.template interned_column<0>(), prov_ptr,
-      dest_rel_0.interned_stride(), old_size_0);
+      p.thread_counts_ptr,
+      dest_rel_0.template interned_column<0>(), prov_ptr, dest_rel_0.interned_stride(), old_size_0);
 }
 
 // launch_fused: launch fused kernel on given stream (no sync)
 void JitRunner_LabeledTriangle::launch_fused(DB& db, LaunchParams& p, GPU_STREAM_T stream) {
-  if (p.num_unique_root_keys == 0)
-    return;
+  if (p.num_unique_root_keys == 0) return;
 
   auto& dest_rel_0 = get_relation_by_schema<Triangle, NEW_VER>(db);
   kernel_fused<<<p.num_blocks, kBlockSize, 0, stream>>>(
       p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,
-      dest_rel_0.template interned_column<0>(), dest_rel_0.interned_stride(), p.old_size_0,
-      p.fused_wp_ptr_0, p.fused_capacity, p.fused_of_ptr);
+      dest_rel_0.template interned_column<0>(), dest_rel_0.interned_stride(), p.old_size_0, p.fused_wp_ptr_0,
+      p.fused_capacity, p.fused_of_ptr);
 }
 
 // read_fused_result: readback fused write counts (call after device sync)
@@ -744,10 +586,7 @@ void JitRunner_LabeledTriangle::execute(DB& db, uint32_t iteration) {
   auto p = setup(db, iteration);
   launch_count(p, 0);
   uint32_t total_count = scan_and_resize(db, p, 0);
-  if (total_count == 0) {
-    nvtxRangePop();
-    return;
-  }
+  if (total_count == 0) { nvtxRangePop(); return; }
 
   launch_materialize(db, p, total_count, 0);
   nvtxRangePop();
@@ -756,8 +595,7 @@ void JitRunner_LabeledTriangle::execute(DB& db, uint32_t iteration) {
 // Tail-mode fused execution: single kernel, no count/scan phase
 void JitRunner_LabeledTriangle::execute_fused(DB& db, uint32_t iteration) {
   auto p = setup(db, iteration);
-  if (p.num_unique_root_keys == 0)
-    return;
+  if (p.num_unique_root_keys == 0) return;
 
   auto& dest_rel_0 = get_relation_by_schema<Triangle, NEW_VER>(db);
   uint32_t old_size_0 = static_cast<uint32_t>(dest_rel_0.size());
@@ -770,8 +608,8 @@ void JitRunner_LabeledTriangle::execute_fused(DB& db, uint32_t iteration) {
   cudaMemsetAsync(s_of.data(), 0, sizeof(uint32_t), 0);
   kernel_fused<<<p.num_blocks, kBlockSize>>>(
       p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,
-      dest_rel_0.template interned_column<0>(), dest_rel_0.interned_stride(), old_size_0,
-      s_wp_0.data(), capacity, s_of.data());
+      dest_rel_0.template interned_column<0>(), dest_rel_0.interned_stride(), old_size_0, s_wp_0.data(),
+      capacity, s_of.data());
   GPU_DEVICE_SYNCHRONIZE();
   uint32_t h_of = 0;
   uint32_t h_wp_0 = 0;
@@ -790,3 +628,4 @@ void JitRunner_LabeledTriangle::execute_fused(DB& db, uint32_t iteration) {
     execute(db, iteration);
   }
 }
+

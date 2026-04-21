@@ -187,46 +187,12 @@ def _canon_plan_py(entry) -> dict[str, Any]:
 def _canon_rule_py(rule) -> dict[str, Any]:
   return {
     "name": rule.name,
-    "heads": [_canon_atom_py(rule.head)],  # Python DSL is single-head per Rule
+    "heads": [_canon_atom_py(h) for h in rule.heads],
     "body": [_canon_body_clause_py(c) for c in rule.body],
     "plans": [_canon_plan_py(p) for p in rule.plans],
     "count": rule.count,
     "semi_join": rule.semi_join,
   }
-
-
-def _normalize_py_multi_head(rules_py: list) -> list:
-  '''Python-DSL multi-head rules are split by the translator into
-  `<name>_h0`, `<name>_h1` single-head clones. Undo that for
-  comparison so each Nim multi-head rule matches a *group* of
-  single-head Python rules.
-  '''
-  out = []
-  buf: dict[str, list] = {}
-  for r in rules_py:
-    name = r["name"]
-    # Match `X_h<digits>` suffix.
-    import re
-
-    m = re.match(r"^(.*)_h(\d+)$", name)
-    if m:
-      base = m.group(1)
-      buf.setdefault(base, []).append(r)
-    else:
-      out.append(r)
-  for base, group in buf.items():
-    merged = dict(group[0])
-    merged["name"] = base
-    merged["heads"] = [h for g in group for h in g["heads"]]
-    # Body, plans, count, semi_join must all match across clones.
-    for g in group[1:]:
-      if g["body"] != merged["body"] or g["plans"] != merged["plans"]:
-        raise AssertionError(
-          f"Multi-head clones for {base!r} have divergent body/plan — "
-          f"this indicates an earlier bug."
-        )
-    out.append(merged)
-  return out
 
 
 # ---------------------------------------------------------------------------
@@ -285,7 +251,6 @@ def validate_one(mod_name: str, nim_path: Path, meta_json: str | None) -> list[s
   # Canonicalize both sides.
   nim_canon = [_canon_rule_nim(r) for r in nim_rules]
   py_canon = [_canon_rule_py(r) for r in prog.rules]
-  py_canon = _normalize_py_multi_head(py_canon)
 
   errors = _compare_rules(nim_canon, py_canon, mod_name)
   # Also verify relation-count parity (relations don't have structural

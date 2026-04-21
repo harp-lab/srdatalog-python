@@ -1,49 +1,33 @@
-template <typename DB>
-static void step_0(DB& db, std::size_t max_iterations) {
-  // Build output indexes
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, NEW_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, NEW_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, NEW_VER>>(db, 0);
+  template <typename DB>
+  static void step_0(DB& db, std::size_t max_iterations) {
+    // Build output indexes
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, NEW_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, NEW_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, NEW_VER>>(db, 0);
 
-  using HasReply_canonical_spec_t =
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>;
-  using HasLiker_canonical_spec_t =
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>;
-  using Case1_canonical_spec_t =
-      SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, FULL_VER>;
-  bool _tail_mode = false;
+    using HasReply_canonical_spec_t = SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>;
+    using HasLiker_canonical_spec_t = SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>;
+    using Case1_canonical_spec_t = SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, FULL_VER>;
+    bool _tail_mode = false;
 
-  static SRDatalog::GPU::StreamPool _stream_pool;
-  _stream_pool.ensure(3);
+    static SRDatalog::GPU::StreamPool _stream_pool;
+    _stream_pool.ensure(3);
 
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  if (_tail_mode) {
-    JitRunner_MarkHasReply::execute_fused(db, 0);
-    JitRunner_MarkHasLiker::execute_fused(db, 0);
-    JitRunner_Case1Both::execute_fused(db, 0);
-  } else {
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    if (_tail_mode) {
+      JitRunner_MarkHasReply::execute_fused(db, 0);
+      JitRunner_MarkHasLiker::execute_fused(db, 0);
+      JitRunner_Case1Both::execute_fused(db, 0);
+    } else {
     // === ParallelGroup (stream-parallel, 3 rules, shared dests) ===
     {
       nvtxRangePushA("join_pipeline");
@@ -79,8 +63,7 @@ static void step_0(DB& db, std::size_t max_iterations) {
         uint32_t sum_HasLiker = total_1;
         auto& dest_HasLiker = get_relation_by_schema<HasLiker, NEW_VER>(db);
         uint32_t base_offset_HasLiker = static_cast<uint32_t>(dest_HasLiker.size());
-        if (sum_HasLiker > 0)
-          dest_HasLiker.resize_interned_columns(base_offset_HasLiker + sum_HasLiker);
+        if (sum_HasLiker > 0) dest_HasLiker.resize_interned_columns(base_offset_HasLiker + sum_HasLiker);
         uint32_t running_offset_HasLiker = base_offset_HasLiker;
         p_1.old_size_0 = running_offset_HasLiker;
         running_offset_HasLiker += total_1;
@@ -89,151 +72,104 @@ static void step_0(DB& db, std::size_t max_iterations) {
         uint32_t sum_HasReply = total_0;
         auto& dest_HasReply = get_relation_by_schema<HasReply, NEW_VER>(db);
         uint32_t base_offset_HasReply = static_cast<uint32_t>(dest_HasReply.size());
-        if (sum_HasReply > 0)
-          dest_HasReply.resize_interned_columns(base_offset_HasReply + sum_HasReply);
+        if (sum_HasReply > 0) dest_HasReply.resize_interned_columns(base_offset_HasReply + sum_HasReply);
         uint32_t running_offset_HasReply = base_offset_HasReply;
         p_0.old_size_0 = running_offset_HasReply;
         running_offset_HasReply += total_0;
       }
 
-      if (total_0 > 0)
-        JitRunner_MarkHasReply::launch_materialize(db, p_0, total_0, _stream_pool.get(0));
-      if (total_1 > 0)
-        JitRunner_MarkHasLiker::launch_materialize(db, p_1, total_1, _stream_pool.get(1));
+      if (total_0 > 0) JitRunner_MarkHasReply::launch_materialize(db, p_0, total_0, _stream_pool.get(0));
+      if (total_1 > 0) JitRunner_MarkHasLiker::launch_materialize(db, p_1, total_1, _stream_pool.get(1));
       // skip materialize for count_only rule Case1Both
       _stream_pool.record_event(0);
       _stream_pool.record_event(1);
       _stream_pool.record_event(2);
       nvtxRangePop();  // join_pipeline
     }
+    }
+    SRDatalog::GPU::mir_helpers::rebuild_index_fn<SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, NEW_VER>>(db);
+    SRDatalog::GPU::mir_helpers::check_size_fn<HasReply, NEW_VER, HasReply_canonical_spec_t>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::compute_delta_index_fn<SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, NEW_VER>, SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>, SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, DELTA_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::clear_relation_fn<HasReply, NEW_VER>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::merge_index_fn<SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::rebuild_index_fn<SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, NEW_VER>>(db);
+    SRDatalog::GPU::mir_helpers::check_size_fn<HasLiker, NEW_VER, HasLiker_canonical_spec_t>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::compute_delta_index_fn<SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, NEW_VER>, SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>, SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, DELTA_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::clear_relation_fn<HasLiker, NEW_VER>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::merge_index_fn<SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::rebuild_index_fn<SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, NEW_VER>>(db);
+    SRDatalog::GPU::mir_helpers::check_size_fn<Case1, NEW_VER, Case1_canonical_spec_t>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::compute_delta_index_fn<SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, NEW_VER>, SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, FULL_VER>, SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, DELTA_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::clear_relation_fn<Case1, NEW_VER>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::merge_index_fn<SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, FULL_VER>>(db);
+    nvtxRangePop();  // merge
   }
-  SRDatalog::GPU::mir_helpers::rebuild_index_fn<
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, NEW_VER>>(db);
-  SRDatalog::GPU::mir_helpers::check_size_fn<HasReply, NEW_VER, HasReply_canonical_spec_t>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::compute_delta_index_fn<
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, NEW_VER>,
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>,
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, DELTA_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::clear_relation_fn<HasReply, NEW_VER>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::merge_index_fn<
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::rebuild_index_fn<
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, NEW_VER>>(db);
-  SRDatalog::GPU::mir_helpers::check_size_fn<HasLiker, NEW_VER, HasLiker_canonical_spec_t>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::compute_delta_index_fn<
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, NEW_VER>,
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>,
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, DELTA_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::clear_relation_fn<HasLiker, NEW_VER>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::merge_index_fn<
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::rebuild_index_fn<
-      SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, NEW_VER>>(db);
-  SRDatalog::GPU::mir_helpers::check_size_fn<Case1, NEW_VER, Case1_canonical_spec_t>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::compute_delta_index_fn<
-      SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, NEW_VER>,
-      SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, FULL_VER>,
-      SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, DELTA_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::clear_relation_fn<Case1, NEW_VER>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::merge_index_fn<
-      SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, FULL_VER>>(db);
-  nvtxRangePop();  // merge
-}
-template <typename DB>
-static void step_1(DB& db, std::size_t max_iterations) {
-  mir_helpers::reconstruct_fn<
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db);
-  GPU_DEVICE_SYNCHRONIZE();
-}
-template <typename DB>
-static void step_2(DB& db, std::size_t max_iterations) {
-  mir_helpers::reconstruct_fn<
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db);
-  GPU_DEVICE_SYNCHRONIZE();
-}
-template <typename DB>
-static void step_3(DB& db, std::size_t max_iterations) {
-  mir_helpers::reconstruct_fn<
-      SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, FULL_VER>>(db);
-  GPU_DEVICE_SYNCHRONIZE();
-}
-template <typename DB>
-static void step_4(DB& db, std::size_t max_iterations) {
-  // Build output indexes
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, NEW_VER>>(db, 0);
+  template <typename DB>
+  static void step_1(DB& db, std::size_t max_iterations) {
+    mir_helpers::reconstruct_fn<SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db);
+    GPU_DEVICE_SYNCHRONIZE();
+  }
+  template <typename DB>
+  static void step_2(DB& db, std::size_t max_iterations) {
+    mir_helpers::reconstruct_fn<SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db);
+    GPU_DEVICE_SYNCHRONIZE();
+  }
+  template <typename DB>
+  static void step_3(DB& db, std::size_t max_iterations) {
+    mir_helpers::reconstruct_fn<SRDatalog::mir::IndexSpecT<Case1, std::integer_sequence<int, 0, 1, 2, 3, 4>, FULL_VER>>(db);
+    GPU_DEVICE_SYNCHRONIZE();
+  }
+  template <typename DB>
+  static void step_4(DB& db, std::size_t max_iterations) {
+    // Build output indexes
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, NEW_VER>>(db, 0);
 
-  using Case2_canonical_spec_t =
-      SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>;
-  using Case3_canonical_spec_t =
-      SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>;
-  using Case4_canonical_spec_t =
-      SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, FULL_VER>;
-  bool _tail_mode = false;
+    using Case2_canonical_spec_t = SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>;
+    using Case3_canonical_spec_t = SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>;
+    using Case4_canonical_spec_t = SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, FULL_VER>;
+    bool _tail_mode = false;
 
-  static SRDatalog::GPU::StreamPool _stream_pool;
-  _stream_pool.ensure(3);
+    static SRDatalog::GPU::StreamPool _stream_pool;
+    _stream_pool.ensure(3);
 
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
-  mir_helpers::create_index_fn<
-      SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
-  if (_tail_mode) {
-    JitRunner_Case2ReplyOnly::execute_fused(db, 0);
-    JitRunner_Case3LikeOnly::execute_fused(db, 0);
-    JitRunner_Case4Neither::execute_fused(db, 0);
-  } else {
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasTag, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
+    if (_tail_mode) {
+      JitRunner_Case2ReplyOnly::execute_fused(db, 0);
+      JitRunner_Case3LikeOnly::execute_fused(db, 0);
+      JitRunner_Case4Neither::execute_fused(db, 0);
+    } else {
     // === ParallelGroup (stream-parallel, 3 rules, shared dests) ===
     {
       nvtxRangePushA("join_pipeline");
@@ -280,65 +216,47 @@ static void step_4(DB& db, std::size_t max_iterations) {
       _stream_pool.record_event(2);
       nvtxRangePop();  // join_pipeline
     }
+    }
+    SRDatalog::GPU::mir_helpers::rebuild_index_fn<SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>>(db);
+    SRDatalog::GPU::mir_helpers::check_size_fn<Case2, NEW_VER, Case2_canonical_spec_t>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::compute_delta_index_fn<SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>, SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>, SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, DELTA_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::clear_relation_fn<Case2, NEW_VER>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::merge_index_fn<SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::rebuild_index_fn<SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>>(db);
+    SRDatalog::GPU::mir_helpers::check_size_fn<Case3, NEW_VER, Case3_canonical_spec_t>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::compute_delta_index_fn<SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>, SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>, SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, DELTA_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::clear_relation_fn<Case3, NEW_VER>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::merge_index_fn<SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::rebuild_index_fn<SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, NEW_VER>>(db);
+    SRDatalog::GPU::mir_helpers::check_size_fn<Case4, NEW_VER, Case4_canonical_spec_t>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::compute_delta_index_fn<SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, NEW_VER>, SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, FULL_VER>, SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, DELTA_VER>>(db);
+    nvtxRangePop();  // merge
+    SRDatalog::GPU::mir_helpers::clear_relation_fn<Case4, NEW_VER>(db);
+    nvtxRangePushA("merge");
+    SRDatalog::GPU::mir_helpers::merge_index_fn<SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db);
+    nvtxRangePop();  // merge
   }
-  SRDatalog::GPU::mir_helpers::rebuild_index_fn<
-      SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>>(db);
-  SRDatalog::GPU::mir_helpers::check_size_fn<Case2, NEW_VER, Case2_canonical_spec_t>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::compute_delta_index_fn<
-      SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>,
-      SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>,
-      SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, DELTA_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::clear_relation_fn<Case2, NEW_VER>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::merge_index_fn<
-      SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::rebuild_index_fn<
-      SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>>(db);
-  SRDatalog::GPU::mir_helpers::check_size_fn<Case3, NEW_VER, Case3_canonical_spec_t>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::compute_delta_index_fn<
-      SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, NEW_VER>,
-      SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>,
-      SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, DELTA_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::clear_relation_fn<Case3, NEW_VER>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::merge_index_fn<
-      SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::rebuild_index_fn<
-      SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, NEW_VER>>(db);
-  SRDatalog::GPU::mir_helpers::check_size_fn<Case4, NEW_VER, Case4_canonical_spec_t>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::compute_delta_index_fn<
-      SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, NEW_VER>,
-      SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, FULL_VER>,
-      SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, DELTA_VER>>(db);
-  nvtxRangePop();  // merge
-  SRDatalog::GPU::mir_helpers::clear_relation_fn<Case4, NEW_VER>(db);
-  nvtxRangePushA("merge");
-  SRDatalog::GPU::mir_helpers::merge_index_fn<
-      SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db);
-  nvtxRangePop();  // merge
-}
-template <typename DB>
-static void step_5(DB& db, std::size_t max_iterations) {
-  mir_helpers::reconstruct_fn<
-      SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>>(db);
-  GPU_DEVICE_SYNCHRONIZE();
-}
-template <typename DB>
-static void step_6(DB& db, std::size_t max_iterations) {
-  mir_helpers::reconstruct_fn<
-      SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>>(db);
-  GPU_DEVICE_SYNCHRONIZE();
-}
-template <typename DB>
-static void step_7(DB& db, std::size_t max_iterations) {
-  mir_helpers::reconstruct_fn<
-      SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db);
-  GPU_DEVICE_SYNCHRONIZE();
-}
+  template <typename DB>
+  static void step_5(DB& db, std::size_t max_iterations) {
+    mir_helpers::reconstruct_fn<SRDatalog::mir::IndexSpecT<Case2, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>>(db);
+    GPU_DEVICE_SYNCHRONIZE();
+  }
+  template <typename DB>
+  static void step_6(DB& db, std::size_t max_iterations) {
+    mir_helpers::reconstruct_fn<SRDatalog::mir::IndexSpecT<Case3, std::integer_sequence<int, 0, 1, 2, 3>, FULL_VER>>(db);
+    GPU_DEVICE_SYNCHRONIZE();
+  }
+  template <typename DB>
+  static void step_7(DB& db, std::size_t max_iterations) {
+    mir_helpers::reconstruct_fn<SRDatalog::mir::IndexSpecT<Case4, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db);
+    GPU_DEVICE_SYNCHRONIZE();
+  }

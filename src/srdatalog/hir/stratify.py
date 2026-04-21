@@ -39,14 +39,14 @@ def _body_relations(rule: Rule) -> set[str]:
 
 
 def _build_dep_graph(rules: list[Rule]) -> dict[str, set[str]]:
-  '''head_rel -> set of body rels (only IDBs: rels that appear as some rule's head).'''
-  idbs: set[str] = {r.head.rel for r in rules}
+  '''head_rel -> set of body rels (only IDBs: rels that appear as some rule's head).
+  Multi-head rules contribute every head_rel -> body-rels edge.'''
+  idbs: set[str] = {h.rel for r in rules for h in r.heads}
   graph: dict[str, set[str]] = {rel: set() for rel in idbs}
   for r in rules:
-    head = r.head.rel
-    for b_rel in _body_relations(r):
-      if b_rel in idbs:
-        graph[head].add(b_rel)
+    body_idbs = {b for b in _body_relations(r) if b in idbs}
+    for h in r.heads:
+      graph[h.rel] |= body_idbs
   return graph
 
 
@@ -87,12 +87,57 @@ def _compute_sccs(rules: list[Rule], graph: dict[str, set[str]]) -> list[set[str
 
   seen: set[str] = set()
   for r in rules:
-    name = r.head.rel
-    if name in graph and name not in seen:
-      seen.add(name)
-      if name not in index:
-        strongconnect(name)
+    for h in r.heads:
+      name = h.rel
+      if name in graph and name not in seen:
+        seen.add(name)
+        if name not in index:
+          strongconnect(name)
   return sccs
+
+
+def _merge_sccs_for_multi_head(
+  sccs: list[set[str]], rules: list[Rule]
+) -> list[set[str]]:
+  '''Union SCCs that share a multi-head rule. Mirrors
+  mergeSCCsForMultiHeadRules in src/srdatalog/hir/stratification.nim.
+  A rule with N>1 heads must emit all heads from a single pipeline, so
+  every head-rel's SCC is fused into one.
+  '''
+  rel_to_scc: dict[str, int] = {}
+  for i, scc in enumerate(sccs):
+    for rel in scc:
+      rel_to_scc[rel] = i
+
+  parent = list(range(len(sccs)))
+
+  def find(x: int) -> int:
+    while parent[x] != x:
+      parent[x] = parent[parent[x]]
+      x = parent[x]
+    return x
+
+  def union(a: int, b: int) -> None:
+    ra, rb = find(a), find(b)
+    if ra != rb:
+      parent[ra] = rb
+
+  for rule in rules:
+    if len(rule.heads) > 1:
+      head_sccs = [rel_to_scc[h.rel] for h in rule.heads if h.rel in rel_to_scc]
+      for i in range(1, len(head_sccs)):
+        union(head_sccs[0], head_sccs[i])
+
+  # Rebuild, preserving original order by first-occurrence of each root.
+  merged: dict[int, set[str]] = {}
+  root_order: list[int] = []
+  for i, scc in enumerate(sccs):
+    root = find(i)
+    if root not in merged:
+      merged[root] = set()
+      root_order.append(root)
+    merged[root] |= scc
+  return [merged[r] for r in root_order]
 
 
 def _is_recursive_scc(scc: set[str], graph: dict[str, set[str]]) -> bool:
@@ -105,7 +150,7 @@ def _is_recursive_scc(scc: set[str], graph: dict[str, set[str]]) -> bool:
 
 
 def _rules_for_scc(rules: list[Rule], scc: set[str]) -> list[Rule]:
-  return [r for r in rules if r.head.rel in scc]
+  return [r for r in rules if any(h.rel in scc for h in r.heads)]
 
 
 def _split_base_rec(scc_rules: list[Rule], scc: set[str]) -> tuple[list[Rule], list[Rule]]:
@@ -189,9 +234,7 @@ def stratify(rules: list[Rule], decls: list[RelationDecl]) -> HirProgram:
   '''
   graph = _build_dep_graph(rules)
   sccs = _compute_sccs(rules, graph)
-  # Nim also applies a multi-head-rule SCC merge step here. Our DSL has single
-  # heads only (Rule.head is a single Atom), so the merge is structurally inert
-  # and is omitted. Re-add if multi-head rules become supported.
+  sccs = _merge_sccs_for_multi_head(sccs, rules)
 
   strata: list[HirStratum] = []
   for scc in sccs:

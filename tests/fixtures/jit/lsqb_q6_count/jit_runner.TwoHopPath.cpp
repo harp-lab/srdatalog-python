@@ -10,30 +10,29 @@ struct JitRunner_TwoHopPath {
   using DestSchema = Path;
   using SR = NoProvenance;
   using ValueType = typename FirstSchema::intern_value_type;
-  using RelType =
-      std::decay_t<decltype(get_relation_by_schema<FirstSchema, FULL_VER>(std::declval<DB&>()))>;
+  using RelType = std::decay_t<decltype(get_relation_by_schema<FirstSchema, FULL_VER>(std::declval<DB&>()))>;
   using IndexType = typename RelType::IndexTypeInst;
   using ViewType = typename IndexType::NodeView;
   static constexpr auto Layout = SRDatalog::GPU::StorageLayout::SoA;
   static constexpr int kBlockSize = 256;
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 4;
-  static constexpr std::size_t OutputArity = OutputArity_0;  // Legacy alias
+  static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
   static constexpr std::size_t NumSources = 3;
 
   // Non-template kernel_count (concrete ViewType)
-  static __global__ void __launch_bounds__(kBlockSize)
-      kernel_count(const ViewType* __restrict__ views,
-                   const ValueType* __restrict__ root_unique_values, uint32_t num_unique_root_keys,
-                   uint32_t num_root_keys, uint32_t* __restrict__ thread_counts) {
+  static __global__ void __launch_bounds__(kBlockSize) kernel_count(
+      const ViewType* __restrict__ views,
+      const ValueType* __restrict__ root_unique_values,
+      uint32_t num_unique_root_keys,
+      uint32_t num_root_keys,
+      uint32_t* __restrict__ thread_counts) {
     auto block = cg::this_thread_block();
     auto tile = cg::tiled_partition<kGroupSize>(block);
     auto single_thread = cg::tiled_partition<1>(block);  // For per-thread search inside Cartesian
     __shared__ char s_views_buf[NumSources * sizeof(ViewType)];
     auto* s_views = reinterpret_cast<ViewType*>(s_views_buf);
-    if (threadIdx.x < NumSources) {
-      s_views[threadIdx.x] = views[threadIdx.x];
-    }
+    if (threadIdx.x < NumSources) { s_views[threadIdx.x] = views[threadIdx.x]; }
     __syncthreads();
     views = s_views;  // redirect to shared memory copy
     uint32_t thread_id = (blockIdx.x * blockDim.x) + threadIdx.x;
@@ -44,68 +43,54 @@ struct JitRunner_TwoHopPath {
     using OutputCtx = SRDatalog::GPU::OutputContext<ValueType, SR, true, Layout, OutputArity_0>;
     OutputCtx output_ctx{nullptr, nullptr, 0, 0};
 
-    using ViewType = std::remove_cvref_t<decltype(views[0])>;
-    using HandleType = ViewType::NodeHandle;
+        using ViewType = std::remove_cvref_t<decltype(views[0])>;
+        using HandleType = ViewType::NodeHandle;
 
-    // View declarations (deduplicated by spec, 3 unique views)
-    auto view_Knows_1_0_FULL_VER = views[0];
-    auto view_Knows_0_1_FULL_VER = views[1];
-    auto view_HasInterest_0_1_FULL_VER = views[2];
+        // View declarations (deduplicated by spec, 3 unique views)
+        auto view_Knows_1_0_FULL_VER = views[0];
+        auto view_Knows_0_1_FULL_VER = views[1];
+        auto view_HasInterest_0_1_FULL_VER = views[2];
 
-    // Root ColumnJoin (multi-source intersection): bind 'p2' from 2 sources
-    // Uses root_unique_values + prefix() pattern (like TMP)
-    // MIR: (column-join :var p2 :sources ((Knows :handle 0) (Knows :handle 1) ))
-    // WARP MODE: 32 threads cooperatively handle one row
-    for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
-      auto root_val_2 = root_unique_values[y_idx_1];
+        // Root ColumnJoin (multi-source intersection): bind 'p2' from 2 sources
+        // Uses root_unique_values + prefix() pattern (like TMP)
+        // MIR: (column-join :var p2 :sources ((Knows :handle 0) (Knows :handle 1) ))
+        // WARP MODE: 32 threads cooperatively handle one row
+        for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
+          auto root_val_2 = root_unique_values[y_idx_1];
 
-      uint32_t hint_lo_3 = y_idx_1;
-      uint32_t hint_hi_4 = view_Knows_1_0_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
-      hint_hi_4 = (hint_hi_4 <= view_Knows_1_0_FULL_VER.num_rows_)
-                      ? hint_hi_4
-                      : view_Knows_1_0_FULL_VER.num_rows_;
-      hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_1_0_FULL_VER.num_rows_;
-      auto h_Knows_0_root =
-          HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
-      if (!h_Knows_0_root.valid())
-        continue;
-      auto h_Knows_1_root = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0)
-                                .prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
-      if (!h_Knows_1_root.valid())
-        continue;
-      auto p2 = root_val_2;
-      // Nested ColumnJoin (intersection): bind 'p3' from 2 sources
-      // MIR: (column-join :var p3 :sources ((Knows :handle 2 :prefix (p2)) (HasInterest :handle 3
-      // :prefix ()) ))
-      auto h_Knows_2_12 = h_Knows_1_root;
-      auto h_HasInterest_3_13 = HandleType(0, view_HasInterest_0_1_FULL_VER.num_rows_, 0);
-      auto intersect_14 =
-          intersect_handles(tile, h_Knows_2_12.iterators(view_Knows_0_1_FULL_VER),
-                            h_HasInterest_3_13.iterators(view_HasInterest_0_1_FULL_VER));
-      for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
-        auto p3 = it_15.value();
-        auto positions = it_15.positions();
-        auto ch_Knows_2_p3 =
-            h_Knows_2_12.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
-        auto ch_HasInterest_3_p3 =
-            h_HasInterest_3_13.child_range(positions[1], p3, tile, view_HasInterest_0_1_FULL_VER);
+          uint32_t hint_lo_3 = y_idx_1;
+          uint32_t hint_hi_4 = view_Knows_1_0_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
+          hint_hi_4 = (hint_hi_4 <= view_Knows_1_0_FULL_VER.num_rows_) ? hint_hi_4 : view_Knows_1_0_FULL_VER.num_rows_;
+          hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_1_0_FULL_VER.num_rows_;
+          auto h_Knows_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
+          if (!h_Knows_0_root.valid()) continue;
+          auto h_Knows_1_root = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
+          if (!h_Knows_1_root.valid()) continue;
+          auto p2 = root_val_2;
+        // Nested ColumnJoin (intersection): bind 'p3' from 2 sources
+        // MIR: (column-join :var p3 :sources ((Knows :handle 2 :prefix (p2)) (HasInterest :handle 3 :prefix ()) ))
+        auto h_Knows_2_12 = h_Knows_1_root;
+        auto h_HasInterest_3_13 = HandleType(0, view_HasInterest_0_1_FULL_VER.num_rows_, 0);
+        auto intersect_14 = intersect_handles(tile, h_Knows_2_12.iterators(view_Knows_0_1_FULL_VER), h_HasInterest_3_13.iterators(view_HasInterest_0_1_FULL_VER));
+        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+          auto p3 = it_15.value();
+          auto positions = it_15.positions();
+          auto ch_Knows_2_p3 = h_Knows_2_12.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
+          auto ch_HasInterest_3_p3 = h_HasInterest_3_13.child_range(positions[1], p3, tile, view_HasInterest_0_1_FULL_VER);
         // Nested CartesianJoin: bind p1, t from 2 source(s)
-        // MIR: (cartesian-join :vars (p1 t) :sources ((Knows :handle 4 :prefix (p2)) (HasInterest
-        // :handle 5 :prefix (p3)) ))
+        // MIR: (cartesian-join :vars (p1 t) :sources ((Knows :handle 4 :prefix (p2)) (HasInterest :handle 5 :prefix (p3)) ))
         uint32_t lane_1 = tile.thread_rank();
         uint32_t group_size_2 = tile.size();
 
-        auto h_Knows_4_4 = h_Knows_0_root;             // reusing narrowed handle
+        auto h_Knows_4_4 = h_Knows_0_root;  // reusing narrowed handle
         auto h_HasInterest_5_6 = ch_HasInterest_3_p3;  // reusing narrowed handle
 
-        if (!h_Knows_4_4.valid() || !h_HasInterest_5_6.valid())
-          continue;
+        if (!h_Knows_4_4.valid() || !h_HasInterest_5_6.valid()) continue;
 
         uint32_t degree_3 = h_Knows_4_4.degree();
         uint32_t degree_5 = h_HasInterest_5_6.degree();
         uint32_t total_7 = degree_3 * degree_5;
-        if (total_7 == 0)
-          continue;
+        if (total_7 == 0) continue;
 
         for (uint32_t flat_idx_8 = lane_1; flat_idx_8 < total_7; flat_idx_8 += group_size_2) {
           const bool major_is_1_11 = (degree_5 >= degree_3);
@@ -121,13 +106,13 @@ struct JitRunner_TwoHopPath {
           auto p1 = view_Knows_1_0_FULL_VER.get_value(1, h_Knows_4_4.begin() + idx0_9);
           auto t = view_HasInterest_0_1_FULL_VER.get_value(1, h_HasInterest_5_6.begin() + idx1_10);
 
-          if (p1 != p3) {
-            // Emit: Path(p1, p2, p3, t)
-            output_ctx.emit_direct();
-          }
+        if (p1 != p3) {
+        // Emit: Path(p1, p2, p3, t)
+        output_ctx.emit_direct();
         }
-      }
-    }
+        }
+        }
+        }
     thread_counts[thread_id] = output_ctx.count();
   }
 
@@ -159,8 +144,7 @@ struct JitRunner_TwoHopPath {
 };
 
 // Phase 1: Setup views and compute grid config
-JitRunner_TwoHopPath::LaunchParams JitRunner_TwoHopPath::setup(DB& db, uint32_t iteration,
-                                                               GPU_STREAM_T stream) {
+JitRunner_TwoHopPath::LaunchParams JitRunner_TwoHopPath::setup(DB& db, uint32_t iteration, GPU_STREAM_T stream) {
   LaunchParams p;
   p.views_vec.reserve(NumSources);
 
@@ -190,14 +174,12 @@ JitRunner_TwoHopPath::LaunchParams JitRunner_TwoHopPath::setup(DB& db, uint32_t 
   auto& first_idx = first_rel.get_index(SRDatalog::IndexSpec{{1, 0}});
   p.num_root_keys = first_idx.root().degree();
   p.num_unique_root_keys = static_cast<uint32_t>(first_idx.num_unique_root_values());
-  p.root_unique_values_ptr =
-      (p.num_unique_root_keys > 0) ? first_idx.root_unique_values().data() : nullptr;
+  p.root_unique_values_ptr = (p.num_unique_root_keys > 0) ? first_idx.root_unique_values().data() : nullptr;
   p.num_full_unique_root_keys = p.num_unique_root_keys;
 
   // Copy views to device using provided stream (NOT stream 0)
   p.d_views = SRDatalog::GPU::DeviceArray<ViewType>(p.views_vec.size());
-  GPU_MEMCPY_ASYNC(p.d_views.data(), p.views_vec.data(), p.views_vec.size() * sizeof(ViewType),
-                   GPU_HOST_TO_DEVICE, stream);
+  GPU_MEMCPY_ASYNC(p.d_views.data(), p.views_vec.data(), p.views_vec.size() * sizeof(ViewType), GPU_HOST_TO_DEVICE, stream);
 
   int num_sms = 0;
   GPU_DEVICE_GET_ATTRIBUTE(&num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);
@@ -215,28 +197,18 @@ JitRunner_TwoHopPath::LaunchParams JitRunner_TwoHopPath::setup(DB& db, uint32_t 
 }
 
 void JitRunner_TwoHopPath::launch_count(LaunchParams& p, GPU_STREAM_T stream) {
-  if (p.num_threads == 0)
-    return;
-  if (p.num_unique_root_keys == 0) {
-    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);
-    return;
-  }
-  kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>(p.d_views.data(), p.root_unique_values_ptr,
-                                                        p.num_unique_root_keys, p.num_root_keys,
-                                                        p.thread_counts_ptr);
+  if (p.num_threads == 0) return;
+  if (p.num_unique_root_keys == 0) { cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream); return; }
+  kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>(p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys, p.thread_counts_ptr);
 }
 
 // Phase 3: Prefix scan + readback total + resize destinations
 uint32_t JitRunner_TwoHopPath::scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream) {
-  thrust::exclusive_scan(rmm::exec_policy(stream), p.thread_counts_ptr,
-                         p.thread_counts_ptr + p.num_threads + 1, p.thread_counts_ptr, 0,
-                         thrust::plus<uint32_t>());
+  thrust::exclusive_scan(rmm::exec_policy(stream), p.thread_counts_ptr, p.thread_counts_ptr + p.num_threads + 1, p.thread_counts_ptr, 0, thrust::plus<uint32_t>());
   uint32_t total_count = 0;
-  GPU_MEMCPY_ASYNC(&total_count, p.thread_counts_ptr + p.num_threads, sizeof(uint32_t),
-                   GPU_DEVICE_TO_HOST, stream);
+  GPU_MEMCPY_ASYNC(&total_count, p.thread_counts_ptr + p.num_threads, sizeof(uint32_t), GPU_DEVICE_TO_HOST, stream);
   GPU_STREAM_SYNCHRONIZE(stream);
-  if (total_count == 0)
-    return 0;
+  if (total_count == 0) return 0;
 
   auto& dest_rel_0 = get_relation_by_schema<Path, NEW_VER>(db);
   p.old_size_0 = static_cast<uint32_t>(dest_rel_0.size());
@@ -246,20 +218,15 @@ uint32_t JitRunner_TwoHopPath::scan_and_resize(DB& db, LaunchParams& p, GPU_STRE
 
 // Phase 3a: Prefix scan only (async, no sync)
 void JitRunner_TwoHopPath::scan_only(LaunchParams& p, GPU_STREAM_T stream) {
-  if (p.num_threads == 0)
-    return;
-  thrust::exclusive_scan(rmm::exec_policy(stream), p.thread_counts_ptr,
-                         p.thread_counts_ptr + p.num_threads + 1, p.thread_counts_ptr, 0,
-                         thrust::plus<uint32_t>());
+  if (p.num_threads == 0) return;
+  thrust::exclusive_scan(rmm::exec_policy(stream), p.thread_counts_ptr, p.thread_counts_ptr + p.num_threads + 1, p.thread_counts_ptr, 0, thrust::plus<uint32_t>());
 }
 
 // Phase 3b: Read total count (call after device sync)
 uint32_t JitRunner_TwoHopPath::read_total(LaunchParams& p) {
-  if (p.num_threads == 0)
-    return 0;
+  if (p.num_threads == 0) return 0;
   uint32_t total_count = 0;
-  GPU_MEMCPY(&total_count, p.thread_counts_ptr + p.num_threads, sizeof(uint32_t),
-             GPU_DEVICE_TO_HOST);
+  GPU_MEMCPY(&total_count, p.thread_counts_ptr + p.num_threads, sizeof(uint32_t), GPU_DEVICE_TO_HOST);
   return total_count;
 }
 
@@ -272,10 +239,8 @@ void JitRunner_TwoHopPath::execute(DB& db, uint32_t iteration) {
   scan_only(p, 0);
   GPU_STREAM_SYNCHRONIZE(0);
   uint32_t total_count = read_total(p);
-  if (total_count == 0) {
-    nvtxRangePop();
-    return;
-  }
+  if (total_count == 0) { nvtxRangePop(); return; }
 
   nvtxRangePop();
 }
+

@@ -160,6 +160,7 @@ class RuleSpec:
   count: bool = False  # rule-level `count: true` pragma
   semi_join: bool = False  # rule-level `semi_join: true` pragma
   var_order: list[str] = field(default_factory=list)  # rule-level `var_order: [...]`
+  inject_cpp: str = ""  # rule-level `inject_cpp: """..."""` pragma body
 
 
 def _extract_rules_block(src: str) -> str:
@@ -316,9 +317,9 @@ _RULE_OUTER = re.compile(
 )
 
 
-def _parse_rule_pragma(body: str) -> tuple[str, list[Plan], bool, bool, list[str]]:
+def _parse_rule_pragma(body: str) -> tuple[str, list[Plan], bool, bool, list[str], str]:
   '''Parse `name: X, plan: [...], count: true, ...` from a rule pragma body.
-  Returns `(name, plans, count, semi_join, rule_level_var_order)`.'''
+  Returns `(name, plans, count, semi_join, rule_level_var_order, inject_cpp)`.'''
   name = ""
   m = re.search(r"\bname\s*:\s*(\w+)", body)
   if m:
@@ -326,6 +327,11 @@ def _parse_rule_pragma(body: str) -> tuple[str, list[Plan], bool, bool, list[str
 
   count = bool(re.search(r"\bcount\s*:\s*true\b", body))
   semi_join = bool(re.search(r"\bsemi_join\s*:\s*true\b", body))
+
+  inject_cpp = ""
+  im = re.search(r'\binject_cpp\s*:\s*"""(.*?)"""', body, re.DOTALL)
+  if im:
+    inject_cpp = im.group(1)
 
   # Rule-level var_order (distinct from plan-entry var_order — some
   # benchmarks tag it on the rule directly).
@@ -374,7 +380,7 @@ def _parse_rule_pragma(body: str) -> tuple[str, list[Plan], bool, bool, list[str
       if re.search(r"\bdedup_hash\s*:\s*true", e):
         p.dedup_hash = True
       plans.append(p)
-  return name, plans, count, semi_join, rule_var_order
+  return name, plans, count, semi_join, rule_var_order, inject_cpp
 
 
 def _parse_rules(block: str) -> list[RuleSpec]:
@@ -393,9 +399,16 @@ def _parse_rules(block: str) -> list[RuleSpec]:
     body_parts = _split_top_level_commas(body_raw)
     body: list[BodyClauseT] = [_parse_body_clause(p) for p in body_parts]
     # Pragma
-    name, plans, count, semi_join, rule_var_order = ("", [], False, False, [])
+    name, plans, count, semi_join, rule_var_order, inject_cpp = (
+      "",
+      [],
+      False,
+      False,
+      [],
+      "",
+    )
     if pragma_raw is not None:
-      name, plans, count, semi_join, rule_var_order = _parse_rule_pragma(pragma_raw)
+      name, plans, count, semi_join, rule_var_order, inject_cpp = _parse_rule_pragma(pragma_raw)
     if not name:
       raise ValueError(f"rule missing name pragma: {m.group(0)[:80]}")
     # If the rule has a top-level var_order (no explicit plan block),
@@ -411,6 +424,7 @@ def _parse_rules(block: str) -> list[RuleSpec]:
         count=count,
         semi_join=semi_join,
         var_order=rule_var_order,
+        inject_cpp=inject_cpp,
       )
     )
   return rules
@@ -508,31 +522,32 @@ def _emit_body_conj(body: list[BodyClauseT]) -> str:
 
 
 def _emit_rule(r: RuleSpec) -> list[str]:
-  '''Emit one or more Python-DSL rule expressions.
+  '''Emit one Python-DSL rule expression.
 
-  Multi-head rules are split into `len(heads)` single-head rules
-  with identical bodies and names `<name>_h0`, `<name>_h1`, ... —
-  the Python DSL/HIR pipeline is single-head; the codegen layer
-  supports multi-head but the intermediate stages don't surface it.
-  Semantically equivalent (same outputs) but misses join-sharing
-  optimization that Nim's multi-head does natively.
+  Single-head: `(head <= body).named(...)`.
+  Multi-head:  `((h0 | h1 | h2) <= body).named(...)` — the DSL `|`
+  operator composes atoms into a HeadGroup, producing one Rule whose
+  `heads` carries all atoms. Mirrors Nim's `Rule.head: seq[HeadClause]`
+  and lowers to one pipeline with N insert-intos.
   '''
   body_str = _emit_body_conj(r.body)
-  out: list[str] = []
-  for i, head in enumerate(r.heads):
-    head_str = _emit_atom(head)
-    name = r.name if len(r.heads) == 1 else f"{r.name}_h{i}"
-    rule_expr = f"({head_str} <= {body_str}).named({name!r})"
-    if r.plans:
-      for p in r.plans:
-        kw = _emit_plan_kwargs(p)
-        rule_expr = f"{rule_expr}.with_plan({kw})"
-    if r.count:
-      rule_expr = f"{rule_expr}.with_count()"
-    if r.semi_join:
-      rule_expr = f"{rule_expr}.with_semi_join()"
-    out.append(rule_expr)
-  return out
+  if len(r.heads) == 1:
+    head_str = _emit_atom(r.heads[0])
+  else:
+    head_str = "(" + " | ".join(_emit_atom(h) for h in r.heads) + ")"
+  rule_expr = f"({head_str} <= {body_str}).named({r.name!r})"
+  if r.plans:
+    for p in r.plans:
+      kw = _emit_plan_kwargs(p)
+      rule_expr = f"{rule_expr}.with_plan({kw})"
+  if r.count:
+    rule_expr = f"{rule_expr}.with_count()"
+  if r.semi_join:
+    rule_expr = f"{rule_expr}.with_semi_join()"
+  if r.inject_cpp:
+    code = r.inject_cpp.replace('"""', '\\"\\"\\"')
+    rule_expr = f'{rule_expr}.with_inject_cpp("""{code}""")'
+  return [rule_expr]
 
 
 def _emit_program(

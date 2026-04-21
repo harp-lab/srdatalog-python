@@ -99,13 +99,13 @@ def _body_obj(clause) -> dict:
 
 
 def _rule_obj(rule: Rule) -> dict:
-  '''Mirrors toJson(Rule). Head is emitted as a single-element list to
-  match the Nim side's seq[HeadClause]. Emits `"provenance": {...}`
+  '''Mirrors toJson(Rule). `head` is a list of one or more HeadClause
+  objects — matches Nim's `seq[HeadClause]`. Emits `"provenance": {...}`
   ONLY for compiler-generated rules.
   '''
   out: dict = {
     "name": rule.name,
-    "head": [_head_obj(rule.head)],
+    "head": [_head_obj(h) for h in rule.heads],
     "body": [_body_obj(b) for b in rule.body],
   }
   if rule.prov.kind is ProvenanceKind.COMPILER_GEN:
@@ -125,8 +125,11 @@ def _arg_text(a: ClauseArg) -> str:
 
 
 def _rule_text(rule: Rule) -> str:
-  '''Mirrors ruleToText. Format: "<name>: <head> <-\n      <body1>,\n      <body2>".'''
-  head = "(" + rule.head.rel + " " + " ".join(_arg_text(a) for a in rule.head.args) + ")"
+  '''Mirrors ruleToText. Format: "<name>: <head> <-\n      <body1>,\n      <body2>".
+  Multi-head rules emit all heads space-joined.'''
+  head = " ".join(
+    "(" + h.rel + " " + " ".join(_arg_text(a) for a in h.args) + ")" for h in rule.heads
+  )
   body_parts: list[str] = []
   for b in rule.body:
     if isinstance(b, Negation):

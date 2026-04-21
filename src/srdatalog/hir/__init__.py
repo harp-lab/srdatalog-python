@@ -28,9 +28,15 @@ def default_pipeline(verbose: bool = False) -> Pipeline:
   from srdatalog.hir.plan import JoinPlannerPass
   from srdatalog.hir.semi_naive import SemiNaiveVariantPass
   from srdatalog.hir.split import TempIndexRegistrationPass, TempRelSynthesisPass
-  from srdatalog.rule_rewrite import ConstantRewritePass, HeadConstantRewritePass, SemiJoinPass
+  from srdatalog.rule_rewrite import (
+    ConstantRewritePass,
+    HeadConstantRewritePass,
+    SemiJoinPass,
+    WildcardRewritePass,
+  )
 
   p = Pipeline(verbose=verbose)
+  p.add_rule_rewrite(WildcardRewritePass())
   p.add_rule_rewrite(ConstantRewritePass())
   p.add_rule_rewrite(HeadConstantRewritePass())
   p.add_rule_rewrite(SemiJoinPass())

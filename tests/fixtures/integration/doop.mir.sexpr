@@ -1,0 +1,2686 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 12 independent ops
+                (execute-pipeline :rule isType_Class
+                  :sources (tuple
+                    (index-spec :schema ClassType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isType :index (0) :ver FULL))
+                    (scan :vars (class) :index (ClassType 0) :ver FULL :prefix ())
+                    (insert-into :schema isType :ver NEW :dedup-index (0) :terms (class))
+                )
+                (execute-pipeline :rule isType_Array
+                  :sources (tuple
+                    (index-spec :schema ArrayType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isType :index (0) :ver FULL))
+                    (scan :vars (arr) :index (ArrayType 0) :ver FULL :prefix ())
+                    (insert-into :schema isType :ver NEW :dedup-index (0) :terms (arr))
+                )
+                (execute-pipeline :rule isType_Interface
+                  :sources (tuple
+                    (index-spec :schema InterfaceType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isType :index (0) :ver FULL))
+                    (scan :vars (iface) :index (InterfaceType 0) :ver FULL :prefix ())
+                    (insert-into :schema isType :ver NEW :dedup-index (0) :terms (iface))
+                )
+                (execute-pipeline :rule isType_AppClass
+                  :sources (tuple
+                    (index-spec :schema ApplicationClass :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isType :index (0) :ver FULL))
+                    (scan :vars (t) :index (ApplicationClass 0) :ver FULL :prefix ())
+                    (insert-into :schema isType :ver NEW :dedup-index (0) :terms (t))
+                )
+                (execute-pipeline :rule isRefType_Class
+                  :sources (tuple
+                    (index-spec :schema ClassType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isReferenceType :index (0) :ver FULL))
+                    (scan :vars (class) :index (ClassType 0) :ver FULL :prefix ())
+                    (insert-into :schema isReferenceType :ver NEW :dedup-index (0) :terms (class))
+                )
+                (execute-pipeline :rule isRefType_Array
+                  :sources (tuple
+                    (index-spec :schema ArrayType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isReferenceType :index (0) :ver FULL))
+                    (scan :vars (arr) :index (ArrayType 0) :ver FULL :prefix ())
+                    (insert-into :schema isReferenceType :ver NEW :dedup-index (0) :terms (arr))
+                )
+                (execute-pipeline :rule isRefType_Interface
+                  :sources (tuple
+                    (index-spec :schema InterfaceType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isReferenceType :index (0) :ver FULL))
+                    (scan :vars (iface) :index (InterfaceType 0) :ver FULL :prefix ())
+                    (insert-into :schema isReferenceType :ver NEW :dedup-index (0) :terms (iface))
+                )
+                (execute-pipeline :rule isRefType_AppClass
+                  :sources (tuple
+                    (index-spec :schema ApplicationClass :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isReferenceType :index (0) :ver FULL))
+                    (scan :vars (t) :index (ApplicationClass 0) :ver FULL :prefix ())
+                    (insert-into :schema isReferenceType :ver NEW :dedup-index (0) :terms (t))
+                )
+                (execute-pipeline :rule isClassType
+                  :sources (tuple
+                    (index-spec :schema ClassType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isClassType_IDB :index (0) :ver FULL))
+                    (scan :vars (class) :index (ClassType 0) :ver FULL :prefix ())
+                    (insert-into :schema isClassType_IDB :ver NEW :dedup-index (0) :terms (class))
+                )
+                (execute-pipeline :rule isArrayType
+                  :sources (tuple
+                    (index-spec :schema ArrayType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isArrayType_IDB :index (0) :ver FULL))
+                    (scan :vars (arr) :index (ArrayType 0) :ver FULL :prefix ())
+                    (insert-into :schema isArrayType_IDB :ver NEW :dedup-index (0) :terms (arr))
+                )
+                (execute-pipeline :rule isInterfaceType
+                  :sources (tuple
+                    (index-spec :schema InterfaceType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema isInterfaceType_IDB :index (0) :ver FULL))
+                    (scan :vars (iface) :index (InterfaceType 0) :ver FULL :prefix ())
+                    (insert-into :schema isInterfaceType_IDB :ver NEW :dedup-index (0) :terms (iface))
+                )
+                (execute-pipeline :rule DirectSubclass
+                  :sources (tuple
+                    (index-spec :schema DirectSuperclass :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema DirectSubclass :index (0 1) :ver FULL))
+                    (scan :vars (a c) :index (DirectSuperclass 0 1) :ver FULL :prefix ())
+                    (insert-into :schema DirectSubclass :ver NEW :dedup-index (0 1) :terms (a c))
+                )
+            )
+            (rebuild-index :index (isType 0) :ver NEW)
+            (check-size :schema isType :ver NEW)
+            (compute-delta-index :schema isType :canonical-index (0))
+            (clear-relation :schema isType :ver NEW)
+            (merge-index :index (isType 0))
+            (rebuild-index :index (isType 0) :ver NEW)
+            (check-size :schema isType :ver NEW)
+            (compute-delta-index :schema isType :canonical-index (0))
+            (clear-relation :schema isType :ver NEW)
+            (merge-index :index (isType 0))
+            (rebuild-index :index (isType 0) :ver NEW)
+            (check-size :schema isType :ver NEW)
+            (compute-delta-index :schema isType :canonical-index (0))
+            (clear-relation :schema isType :ver NEW)
+            (merge-index :index (isType 0))
+            (rebuild-index :index (isType 0) :ver NEW)
+            (check-size :schema isType :ver NEW)
+            (compute-delta-index :schema isType :canonical-index (0))
+            (clear-relation :schema isType :ver NEW)
+            (merge-index :index (isType 0))
+            (rebuild-index :index (isReferenceType 0) :ver NEW)
+            (check-size :schema isReferenceType :ver NEW)
+            (compute-delta-index :schema isReferenceType :canonical-index (0))
+            (clear-relation :schema isReferenceType :ver NEW)
+            (merge-index :index (isReferenceType 0))
+            (rebuild-index :index (isReferenceType 0) :ver NEW)
+            (check-size :schema isReferenceType :ver NEW)
+            (compute-delta-index :schema isReferenceType :canonical-index (0))
+            (clear-relation :schema isReferenceType :ver NEW)
+            (merge-index :index (isReferenceType 0))
+            (rebuild-index :index (isReferenceType 0) :ver NEW)
+            (check-size :schema isReferenceType :ver NEW)
+            (compute-delta-index :schema isReferenceType :canonical-index (0))
+            (clear-relation :schema isReferenceType :ver NEW)
+            (merge-index :index (isReferenceType 0))
+            (rebuild-index :index (isReferenceType 0) :ver NEW)
+            (check-size :schema isReferenceType :ver NEW)
+            (compute-delta-index :schema isReferenceType :canonical-index (0))
+            (clear-relation :schema isReferenceType :ver NEW)
+            (merge-index :index (isReferenceType 0))
+            (rebuild-index :index (isClassType_IDB 0) :ver NEW)
+            (check-size :schema isClassType_IDB :ver NEW)
+            (compute-delta-index :schema isClassType_IDB :canonical-index (0))
+            (clear-relation :schema isClassType_IDB :ver NEW)
+            (merge-index :index (isClassType_IDB 0))
+            (rebuild-index :index (isArrayType_IDB 0) :ver NEW)
+            (check-size :schema isArrayType_IDB :ver NEW)
+            (compute-delta-index :schema isArrayType_IDB :canonical-index (0))
+            (clear-relation :schema isArrayType_IDB :ver NEW)
+            (merge-index :index (isArrayType_IDB 0))
+            (rebuild-index :index (isInterfaceType_IDB 0) :ver NEW)
+            (check-size :schema isInterfaceType_IDB :ver NEW)
+            (compute-delta-index :schema isInterfaceType_IDB :canonical-index (0))
+            (clear-relation :schema isInterfaceType_IDB :ver NEW)
+            (merge-index :index (isInterfaceType_IDB 0))
+            (rebuild-index :index (DirectSubclass 0 1) :ver NEW)
+            (check-size :schema DirectSubclass :ver NEW)
+            (compute-delta-index :schema DirectSubclass :canonical-index (0 1))
+            (clear-relation :schema DirectSubclass :ver NEW)
+            (merge-index :index (DirectSubclass 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel isType :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel isReferenceType :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel isClassType_IDB :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel isArrayType_IDB :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel isInterfaceType_IDB :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel DirectSubclass :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule Superinterface_Base
+              :sources (tuple
+                (index-spec :schema DirectSuperinterface :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Superinterface :index (1 0) :ver FULL))
+                (scan :vars (c k) :index (DirectSuperinterface 0 1) :ver FULL :prefix ())
+                (insert-into :schema Superinterface :ver NEW :dedup-index (1 0) :terms (k c))
+            )
+            (rebuild-index :index (Superinterface 1 0) :ver NEW)
+            (check-size :schema Superinterface :ver NEW)
+            (compute-delta-index :schema Superinterface :canonical-index (1 0))
+            (clear-relation :schema Superinterface :ver NEW)
+            (merge-index :index (Superinterface 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Superinterface :canonical-index (1 0))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule Superinterface_Trans_D0
+                  :sources (tuple
+                    (index-spec :schema Superinterface :index (1 0) :ver DELTA)
+                    (index-spec :schema DirectSuperinterface :index (1 0) :ver FULL)
+                    (index-spec :schema Superinterface :index (1 0) :ver DELTA)
+                    (index-spec :schema DirectSuperinterface :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Superinterface :index (1 0) :ver FULL))
+                    (column-join :var b
+                      :sources (
+                        (column-source :index (Superinterface 1 0) :ver DELTA :prefix ())
+                        (column-source :index (DirectSuperinterface 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (k c) :var-from-source ((k) (c))
+                      :sources (
+                        (column-source :index (Superinterface 1 0) :ver DELTA :prefix (b))
+                        (column-source :index (DirectSuperinterface 1 0) :ver FULL :prefix (b))
+                      ))
+                    (insert-into :schema Superinterface :ver NEW :dedup-index (1 0) :terms (k c))
+                )
+                (execute-pipeline :rule Superinterface_Inherit_D0
+                  :sources (tuple
+                    (index-spec :schema Superinterface :index (1 0) :ver DELTA)
+                    (index-spec :schema DirectSuperclass :index (1 0) :ver FULL)
+                    (index-spec :schema Superinterface :index (1 0) :ver DELTA)
+                    (index-spec :schema DirectSuperclass :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Superinterface :index (1 0) :ver FULL))
+                    (column-join :var b
+                      :sources (
+                        (column-source :index (Superinterface 1 0) :ver DELTA :prefix ())
+                        (column-source :index (DirectSuperclass 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (k c) :var-from-source ((k) (c))
+                      :sources (
+                        (column-source :index (Superinterface 1 0) :ver DELTA :prefix (b))
+                        (column-source :index (DirectSuperclass 1 0) :ver FULL :prefix (b))
+                      ))
+                    (insert-into :schema Superinterface :ver NEW :dedup-index (1 0) :terms (k c))
+                )
+            )
+            (rebuild-index :index (Superinterface 1 0) :ver NEW)
+            (clear-relation :schema Superinterface :ver DELTA)
+            (check-size :schema Superinterface :ver NEW)
+            (compute-delta-index :schema Superinterface :canonical-index (1 0))
+            (clear-relation :schema Superinterface :ver NEW)
+            (merge-index :index (Superinterface 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Superinterface :canonical-index (1 0))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 4 independent ops
+                (execute-pipeline :rule MethodImplemented
+                  :sources (tuple
+                    (index-spec :schema Method_SimpleName :index (0 1) :ver FULL)
+                    (index-spec :schema Method_Descriptor :index (0 1) :ver FULL)
+                    (index-spec :schema Method_DeclaringType :index (0 1) :ver FULL)
+                    (index-spec :schema Method_SimpleName :index (0 1) :ver FULL)
+                    (index-spec :schema Method_Descriptor :index (0 1) :ver FULL)
+                    (index-spec :schema Method_DeclaringType :index (0 1) :ver FULL)
+                    (index-spec :schema Method_Modifier :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MethodImplemented :index (0 1 2 3) :ver FULL))
+                    (column-join :var meth
+                      :sources (
+                        (column-source :index (Method_SimpleName 0 1) :ver FULL :prefix ())
+                        (column-source :index (Method_Descriptor 0 1) :ver FULL :prefix ())
+                        (column-source :index (Method_DeclaringType 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (simplename descriptor mtype) :var-from-source ((simplename) (descriptor) (mtype))
+                      :sources (
+                        (column-source :index (Method_SimpleName 0 1) :ver FULL :prefix (meth))
+                        (column-source :index (Method_Descriptor 0 1) :ver FULL :prefix (meth))
+                        (column-source :index (Method_DeclaringType 0 1) :ver FULL :prefix (meth))
+                      ))
+                    (negation :schema Method_Modifier :ver FULL :index (Method_Modifier 0 1) :prefix (meth))
+                    (insert-into :schema MethodImplemented :ver NEW :dedup-index (0 1 2 3) :terms (simplename descriptor mtype meth))
+                )
+                (execute-pipeline :rule MainMethodDecl_Base
+                  :sources (tuple
+                    (index-spec :schema MainClass :index (0) :ver FULL)
+                    (index-spec :schema Method_DeclaringType :index (1 0) :ver FULL)
+                    (index-spec :schema Method_DeclaringType :index (1 0) :ver FULL)
+                    (index-spec :schema Method_SimpleName :index (0 1) :ver FULL)
+                    (index-spec :schema Method_Descriptor :index (0 1) :ver FULL)
+                    (index-spec :schema Method_Modifier :index (1 0) :ver FULL)
+                    (index-spec :schema Method_Modifier :index (1 0) :ver FULL)
+                    (index-spec :schema Method_SimpleName :index (0 1) :ver FULL)
+                    (index-spec :schema Method_Descriptor :index (0 1) :ver FULL)
+                    (index-spec :schema Method_Modifier :index (1 0) :ver FULL)
+                    (index-spec :schema Method_Modifier :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MainMethodDeclaration :index (0) :ver FULL))
+                    (column-join :var mtype
+                      :sources (
+                        (column-source :index (MainClass 0) :ver FULL :prefix ())
+                        (column-source :index (Method_DeclaringType 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var meth
+                      :sources (
+                        (column-source :index (Method_DeclaringType 1 0) :ver FULL :prefix (mtype))
+                        (column-source :index (Method_SimpleName 0 1) :ver FULL :prefix ())
+                        (column-source :index (Method_Descriptor 0 1) :ver FULL :prefix ())
+                        (column-source :index (Method_Modifier 1 0) :ver FULL :prefix ())
+                        (column-source :index (Method_Modifier 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (_c0 _c1 _c2 _c3) :var-from-source ((_c0) (_c1) (_c2) (_c3))
+                      :sources (
+                        (column-source :index (Method_SimpleName 0 1) :ver FULL :prefix (meth))
+                        (column-source :index (Method_Descriptor 0 1) :ver FULL :prefix (meth))
+                        (column-source :index (Method_Modifier 1 0) :ver FULL :prefix (meth))
+                        (column-source :index (Method_Modifier 1 0) :ver FULL :prefix (meth))
+                      ))
+                    (filter :vars (_c0) :code "return _c0 == 1004;")
+                    (filter :vars (_c1) :code "return _c1 == 1005;")
+                    (filter :vars (_c2) :code "return _c2 == 1002;")
+                    (filter :vars (_c3) :code "return _c3 == 1003;")
+                    (filter :vars (meth) :code "return meth != 1011 && meth != 1012 && meth != 1013;")
+                    (insert-into :schema MainMethodDeclaration :ver NEW :dedup-index (0) :terms (meth))
+                )
+                (execute-pipeline :rule MIBase_Virtual
+                  :sources (tuple
+                    (index-spec :schema VirtualMethodInvocation_Base :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MethodInvocation_Base :index (0 1) :ver FULL))
+                    (scan :vars (inv base) :index (VirtualMethodInvocation_Base 0 1) :ver FULL :prefix ())
+                    (insert-into :schema MethodInvocation_Base :ver NEW :dedup-index (0 1) :terms (inv base))
+                )
+                (execute-pipeline :rule MIBase_Special
+                  :sources (tuple
+                    (index-spec :schema SpecialMethodInvocation_Base :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MethodInvocation_Base :index (0 1) :ver FULL))
+                    (scan :vars (inv base) :index (SpecialMethodInvocation_Base 0 1) :ver FULL :prefix ())
+                    (insert-into :schema MethodInvocation_Base :ver NEW :dedup-index (0 1) :terms (inv base))
+                )
+            )
+            (rebuild-index :index (MethodImplemented 0 1 2 3) :ver NEW)
+            (check-size :schema MethodImplemented :ver NEW)
+            (compute-delta-index :schema MethodImplemented :canonical-index (0 1 2 3))
+            (clear-relation :schema MethodImplemented :ver NEW)
+            (merge-index :index (MethodImplemented 0 1 2 3))
+            (rebuild-index :index (MainMethodDeclaration 0) :ver NEW)
+            (check-size :schema MainMethodDeclaration :ver NEW)
+            (compute-delta-index :schema MainMethodDeclaration :canonical-index (0))
+            (clear-relation :schema MainMethodDeclaration :ver NEW)
+            (merge-index :index (MainMethodDeclaration 0))
+            (rebuild-index :index (MethodInvocation_Base 0 1) :ver NEW)
+            (check-size :schema MethodInvocation_Base :ver NEW)
+            (compute-delta-index :schema MethodInvocation_Base :canonical-index (0 1))
+            (clear-relation :schema MethodInvocation_Base :ver NEW)
+            (merge-index :index (MethodInvocation_Base 0 1))
+            (rebuild-index :index (MethodInvocation_Base 0 1) :ver NEW)
+            (check-size :schema MethodInvocation_Base :ver NEW)
+            (compute-delta-index :schema MethodInvocation_Base :canonical-index (0 1))
+            (clear-relation :schema MethodInvocation_Base :ver NEW)
+            (merge-index :index (MethodInvocation_Base 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel MethodImplemented :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel MainMethodDeclaration :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel MethodInvocation_Base :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule Subclass_Base
+              :sources (tuple
+                (index-spec :schema DirectSubclass :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Subclass :index (0 1) :ver FULL))
+                (scan :vars (a c) :index (DirectSubclass 0 1) :ver FULL :prefix ())
+                (insert-into :schema Subclass :ver NEW :dedup-index (0 1) :terms (c a))
+            )
+            (rebuild-index :index (Subclass 0 1) :ver NEW)
+            (check-size :schema Subclass :ver NEW)
+            (compute-delta-index :schema Subclass :canonical-index (0 1))
+            (clear-relation :schema Subclass :ver NEW)
+            (merge-index :index (Subclass 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Subclass :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule Subclass_Trans_D0
+              :sources (tuple
+                (index-spec :schema Subclass :index (0 1) :ver DELTA)
+                (index-spec :schema DirectSubclass :index (0 1) :ver FULL)
+                (index-spec :schema Subclass :index (0 1) :ver DELTA)
+                (index-spec :schema DirectSubclass :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Subclass :index (0 1) :ver FULL))
+                (column-join :var b
+                  :sources (
+                    (column-source :index (Subclass 0 1) :ver DELTA :prefix ())
+                    (column-source :index (DirectSubclass 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (a c) :var-from-source ((a) (c))
+                  :sources (
+                    (column-source :index (Subclass 0 1) :ver DELTA :prefix (b))
+                    (column-source :index (DirectSubclass 0 1) :ver FULL :prefix (b))
+                  ))
+                (insert-into :schema Subclass :ver NEW :dedup-index (0 1) :terms (c a))
+            )
+            (rebuild-index :index (Subclass 0 1) :ver NEW)
+            (clear-relation :schema Subclass :ver DELTA)
+            (check-size :schema Subclass :ver NEW)
+            (compute-delta-index :schema Subclass :canonical-index (0 1))
+            (clear-relation :schema Subclass :ver NEW)
+            (merge-index :index (Subclass 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Subclass :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule Superclass
+              :sources (tuple
+                (index-spec :schema Subclass :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Superclass :index (0 1) :ver FULL))
+                (scan :vars (a c) :index (Subclass 0 1) :ver FULL :prefix ())
+                (insert-into :schema Superclass :ver NEW :dedup-index (0 1) :terms (c a))
+            )
+            (rebuild-index :index (Superclass 0 1) :ver NEW)
+            (check-size :schema Superclass :ver NEW)
+            (compute-delta-index :schema Superclass :canonical-index (0 1))
+            (clear-relation :schema Superclass :ver NEW)
+            (merge-index :index (Superclass 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Superclass :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 10 independent ops
+                (execute-pipeline :rule SubtypeOf_Refl_Class
+                  :sources (tuple
+                    (index-spec :schema isClassType_IDB :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (scan :vars (s) :index (isClassType_IDB 0) :ver FULL :prefix ())
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s s))
+                )
+                (execute-pipeline :rule SubtypeOf_Refl_Type
+                  :sources (tuple
+                    (index-spec :schema isType :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (scan :vars (t) :index (isType 0) :ver FULL :prefix ())
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (t t))
+                )
+                (execute-pipeline :rule SubtypeOf_Refl_Interface
+                  :sources (tuple
+                    (index-spec :schema isInterfaceType_IDB :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (scan :vars (s) :index (isInterfaceType_IDB 0) :ver FULL :prefix ())
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s s))
+                )
+                (execute-pipeline :rule SubtypeOf_Subclass
+                  :sources (tuple
+                    (index-spec :schema Subclass :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (scan :vars (t s) :index (Subclass 0 1) :ver FULL :prefix ())
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s t))
+                )
+                (execute-pipeline :rule SubtypeOf_Class_Iface
+                  :sources (tuple
+                    (index-spec :schema isClassType_IDB :index (0) :ver FULL)
+                    (index-spec :schema Superinterface :index (1 0) :ver FULL)
+                    (index-spec :schema Superinterface :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (column-join :var s
+                      :sources (
+                        (column-source :index (isClassType_IDB 0) :ver FULL :prefix ())
+                        (column-source :index (Superinterface 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (t) :var-from-source ((t))
+                      :sources (
+                        (column-source :index (Superinterface 1 0) :ver FULL :prefix (s))
+                      ))
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s t))
+                )
+                (execute-pipeline :rule SubtypeOf_Iface_Iface
+                  :sources (tuple
+                    (index-spec :schema isInterfaceType_IDB :index (0) :ver FULL)
+                    (index-spec :schema Superinterface :index (1 0) :ver FULL)
+                    (index-spec :schema Superinterface :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (column-join :var s
+                      :sources (
+                        (column-source :index (isInterfaceType_IDB 0) :ver FULL :prefix ())
+                        (column-source :index (Superinterface 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (t) :var-from-source ((t))
+                      :sources (
+                        (column-source :index (Superinterface 1 0) :ver FULL :prefix (s))
+                      ))
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s t))
+                )
+                (execute-pipeline :rule SubtypeOf_Iface_Object
+                  :sources (tuple
+                    (index-spec :schema isInterfaceType_IDB :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (scan :vars (s) :index (isInterfaceType_IDB 0) :ver FULL :prefix ())
+                    (constant-bind :var _hc0 :code "1006" :deps ())
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s _hc0))
+                )
+                (execute-pipeline :rule SubtypeOf_Array_Object
+                  :sources (tuple
+                    (index-spec :schema isArrayType_IDB :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (scan :vars (s) :index (isArrayType_IDB 0) :ver FULL :prefix ())
+                    (constant-bind :var _hc1 :code "1006" :deps ())
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s _hc1))
+                )
+                (execute-pipeline :rule SubtypeOf_Array_Cloneable
+                  :sources (tuple
+                    (index-spec :schema isArrayType_IDB :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (scan :vars (s) :index (isArrayType_IDB 0) :ver FULL :prefix ())
+                    (constant-bind :var _hc2 :code "1007" :deps ())
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s _hc2))
+                )
+                (execute-pipeline :rule SubtypeOf_Array_Serializable
+                  :sources (tuple
+                    (index-spec :schema isArrayType_IDB :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                    (scan :vars (s) :index (isArrayType_IDB 0) :ver FULL :prefix ())
+                    (constant-bind :var _hc3 :code "1008" :deps ())
+                    (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s _hc3))
+                )
+            )
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel SubtypeOf :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule SubtypeOf_Array_D0
+              :sources (tuple
+                (index-spec :schema SubtypeOf :index (0 1) :ver DELTA)
+                (index-spec :schema ComponentType :index (1 0) :ver FULL)
+                (index-spec :schema isReferenceType :index (0) :ver FULL)
+                (index-spec :schema SubtypeOf :index (0 1) :ver DELTA)
+                (index-spec :schema ComponentType :index (1 0) :ver FULL)
+                (index-spec :schema isReferenceType :index (0) :ver FULL)
+                (index-spec :schema ComponentType :index (1 0) :ver FULL)
+                (index-spec :schema ComponentType :index (1 0) :ver FULL))
+              :dests (tuple
+                (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                (column-join :var sc
+                  :sources (
+                    (column-source :index (SubtypeOf 0 1) :ver DELTA :prefix ())
+                    (column-source :index (ComponentType 1 0) :ver FULL :prefix ())
+                    (column-source :index (isReferenceType 0) :ver FULL :prefix ())
+                  ))
+                (column-join :var tc
+                  :sources (
+                    (column-source :index (SubtypeOf 0 1) :ver DELTA :prefix (sc))
+                    (column-source :index (ComponentType 1 0) :ver FULL :prefix ())
+                    (column-source :index (isReferenceType 0) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (s t) :var-from-source ((s) (t))
+                  :sources (
+                    (column-source :index (ComponentType 1 0) :ver FULL :prefix (sc))
+                    (column-source :index (ComponentType 1 0) :ver FULL :prefix (tc))
+                  ))
+                (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s t))
+            )
+            (rebuild-index :index (SubtypeOf 0 1) :ver NEW)
+            (clear-relation :schema SubtypeOf :ver DELTA)
+            (check-size :schema SubtypeOf :ver NEW)
+            (compute-delta-index :schema SubtypeOf :canonical-index (0 1))
+            (clear-relation :schema SubtypeOf :ver NEW)
+            (merge-index :index (SubtypeOf 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel SubtypeOf :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule SupertypeOf
+                  :sources (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SupertypeOf :index (0 1) :ver FULL))
+                    (scan :vars (t s) :index (SubtypeOf 0 1) :ver FULL :prefix ())
+                    (insert-into :schema SupertypeOf :ver NEW :dedup-index (0 1) :terms (s t))
+                )
+                (execute-pipeline :rule SubtypeOfDiff_Base
+                  :sources (tuple
+                    (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema SubtypeOfDifferent :index (0 1) :ver FULL))
+                    (scan :vars (s t) :index (SubtypeOf 0 1) :ver FULL :prefix ())
+                    (filter :vars (s t) :code "return s != t;")
+                    (insert-into :schema SubtypeOfDifferent :ver NEW :dedup-index (0 1) :terms (s t))
+                )
+            )
+            (rebuild-index :index (SupertypeOf 0 1) :ver NEW)
+            (check-size :schema SupertypeOf :ver NEW)
+            (compute-delta-index :schema SupertypeOf :canonical-index (0 1))
+            (clear-relation :schema SupertypeOf :ver NEW)
+            (merge-index :index (SupertypeOf 0 1))
+            (rebuild-index-from-index :source (SupertypeOf 0 1) :target (SupertypeOf 1 0) :ver DELTA)
+            (merge-index :index (SupertypeOf 1 0))
+            (rebuild-index :index (SubtypeOfDifferent 0 1) :ver NEW)
+            (check-size :schema SubtypeOfDifferent :ver NEW)
+            (compute-delta-index :schema SubtypeOfDifferent :canonical-index (0 1))
+            (clear-relation :schema SubtypeOfDifferent :ver NEW)
+            (merge-index :index (SubtypeOfDifferent 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel SupertypeOf :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel SubtypeOfDifferent :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule MethodLookup_Base
+              :sources (tuple
+                (index-spec :schema MethodImplemented :index (0 1 2 3) :ver FULL))
+              :dests (tuple
+                (index-spec :schema MethodLookup :index (2 0 1 3) :ver FULL))
+                (scan :vars (simplename descriptor mtype meth) :index (MethodImplemented 0 1 2 3) :ver FULL :prefix ())
+                (insert-into :schema MethodLookup :ver NEW :dedup-index (2 0 1 3) :terms (simplename descriptor mtype meth))
+            )
+            (rebuild-index :index (MethodLookup 2 0 1 3) :ver NEW)
+            (check-size :schema MethodLookup :ver NEW)
+            (compute-delta-index :schema MethodLookup :canonical-index (2 0 1 3))
+            (clear-relation :schema MethodLookup :ver NEW)
+            (merge-index :index (MethodLookup 2 0 1 3))
+            (rebuild-index-from-index :source (MethodLookup 2 0 1 3) :target (MethodLookup 2 3 0 1) :ver DELTA)
+            (merge-index :index (MethodLookup 2 3 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel MethodLookup :canonical-index (2 0 1 3))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule MethodLookup_Super_D1
+                  :sources (tuple
+                    (index-spec :schema MethodLookup :index (2 0 1 3) :ver DELTA)
+                    (index-spec :schema DirectSuperclass :index (1 0) :ver FULL)
+                    (index-spec :schema MethodLookup :index (2 0 1 3) :ver DELTA)
+                    (index-spec :schema DirectSuperclass :index (1 0) :ver FULL)
+                    (index-spec :schema MethodImplemented :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MethodLookup :index (2 0 1 3) :ver FULL))
+                    (column-join :var supertype
+                      :sources (
+                        (column-source :index (MethodLookup 2 0 1 3) :ver DELTA :prefix ())
+                        (column-source :index (DirectSuperclass 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (simplename descriptor meth mtype) :var-from-source ((simplename descriptor meth) (mtype))
+                      :sources (
+                        (column-source :index (MethodLookup 2 0 1 3) :ver DELTA :prefix (supertype))
+                        (column-source :index (DirectSuperclass 1 0) :ver FULL :prefix (supertype))
+                      ))
+                    (negation :schema MethodImplemented :ver FULL :index (MethodImplemented 0 1 2 3) :prefix (simplename descriptor mtype))
+                    (insert-into :schema MethodLookup :ver NEW :dedup-index (2 0 1 3) :terms (simplename descriptor mtype meth))
+                )
+                (execute-pipeline :rule MethodLookup_Iface_D1
+                  :sources (tuple
+                    (index-spec :schema MethodLookup :index (2 0 1 3) :ver DELTA)
+                    (index-spec :schema DirectSuperinterface :index (1 0) :ver FULL)
+                    (index-spec :schema MethodLookup :index (2 0 1 3) :ver DELTA)
+                    (index-spec :schema DirectSuperinterface :index (1 0) :ver FULL)
+                    (index-spec :schema MethodImplemented :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MethodLookup :index (2 0 1 3) :ver FULL))
+                    (column-join :var supertype
+                      :sources (
+                        (column-source :index (MethodLookup 2 0 1 3) :ver DELTA :prefix ())
+                        (column-source :index (DirectSuperinterface 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (simplename descriptor meth mtype) :var-from-source ((simplename descriptor meth) (mtype))
+                      :sources (
+                        (column-source :index (MethodLookup 2 0 1 3) :ver DELTA :prefix (supertype))
+                        (column-source :index (DirectSuperinterface 1 0) :ver FULL :prefix (supertype))
+                      ))
+                    (negation :schema MethodImplemented :ver FULL :index (MethodImplemented 0 1 2 3) :prefix (simplename descriptor mtype))
+                    (insert-into :schema MethodLookup :ver NEW :dedup-index (2 0 1 3) :terms (simplename descriptor mtype meth))
+                )
+            )
+            (rebuild-index :index (MethodLookup 2 0 1 3) :ver NEW)
+            (clear-relation :schema MethodLookup :ver DELTA)
+            (check-size :schema MethodLookup :ver NEW)
+            (compute-delta-index :schema MethodLookup :canonical-index (2 0 1 3))
+            (clear-relation :schema MethodLookup :ver NEW)
+            (merge-index :index (MethodLookup 2 0 1 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel MethodLookup :canonical-index (2 0 1 3))
+  )
+  (step :recursive false
+        (rebuild-index :index (MethodLookup 2 3 0 1) :ver FULL)
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 3 independent ops
+                (execute-pipeline :rule ClassInitializer
+                  :sources (tuple
+                    (index-spec :schema MethodImplemented :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ClassInitializer :index (0 1) :ver FULL))
+                    (scan :vars (_c4 _c5 mtype meth) :index (MethodImplemented 0 1 2 3) :ver FULL :prefix ())
+                    (filter :vars (_c4 _c5) :code "return _c4 == 1009 && _c5 == 1010;")
+                    (insert-into :schema ClassInitializer :ver NEW :dedup-index (0 1) :terms (mtype meth))
+                )
+                (execute-pipeline :rule IsCastableToString_rule
+                  :sources (tuple
+                    (index-spec :schema SupertypeOf :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema IsCastableToString :index (0) :ver FULL))
+                    (scan :vars (casttype _c8) :index (SupertypeOf 0 1) :ver FULL :prefix ())
+                    (filter :vars (_c8) :code "return _c8 == 1014;")
+                    (insert-into :schema IsCastableToString :ver NEW :dedup-index (0) :terms (casttype))
+                )
+                (execute-pipeline :rule IsStringHeap_rule
+                  :sources (tuple
+                    (index-spec :schema HeapAllocation_Type :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema IsStringHeap :index (0) :ver FULL))
+                    (scan :vars (heap _c7) :index (HeapAllocation_Type 0 1) :ver FULL :prefix ())
+                    (filter :vars (_c7) :code "return _c7 == 1014;")
+                    (insert-into :schema IsStringHeap :ver NEW :dedup-index (0) :terms (heap))
+                )
+            )
+            (rebuild-index :index (ClassInitializer 0 1) :ver NEW)
+            (check-size :schema ClassInitializer :ver NEW)
+            (compute-delta-index :schema ClassInitializer :canonical-index (0 1))
+            (clear-relation :schema ClassInitializer :ver NEW)
+            (merge-index :index (ClassInitializer 0 1))
+            (rebuild-index :index (IsCastableToString 0) :ver NEW)
+            (check-size :schema IsCastableToString :ver NEW)
+            (compute-delta-index :schema IsCastableToString :canonical-index (0))
+            (clear-relation :schema IsCastableToString :ver NEW)
+            (merge-index :index (IsCastableToString 0))
+            (rebuild-index :index (IsStringHeap 0) :ver NEW)
+            (check-size :schema IsStringHeap :ver NEW)
+            (compute-delta-index :schema IsStringHeap :canonical-index (0))
+            (clear-relation :schema IsStringHeap :ver NEW)
+            (merge-index :index (IsStringHeap 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ClassInitializer :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel IsCastableToString :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel IsStringHeap :canonical-index (0))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 8 independent ops
+                (execute-pipeline :rule Precompute0
+                  :sources (tuple
+                    (index-spec :schema AssignCast :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema SupertypeOf :index (0 1) :ver FULL)
+                    (index-spec :schema SupertypeOf :index (0 1) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema AssignCast :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema CastTo :index (2 0 3 1) :ver FULL))
+                    (column-join :var casttype
+                      :sources (
+                        (column-source :index (AssignCast 0 1 2 3) :ver FULL :prefix ())
+                        (column-source :index (SupertypeOf 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var heaptype
+                      :sources (
+                        (column-source :index (SupertypeOf 0 1) :ver FULL :prefix (casttype))
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (frm to inmeth heap) :var-from-source ((frm to inmeth) (heap))
+                      :sources (
+                        (column-source :index (AssignCast 0 1 2 3) :ver FULL :prefix (casttype))
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (heaptype))
+                      ))
+                    (filter :vars (heaptype) :code "return heaptype != 1014;")
+                    (insert-into :schema CastTo :ver NEW :dedup-index (2 0 3 1) :terms (frm to inmeth heap))
+                )
+                (execute-pipeline :rule Precompute0_String
+                  :sources (tuple
+                    (index-spec :schema AssignCast :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema IsCastableToString :index (0) :ver FULL)
+                    (index-spec :schema AssignCast :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema IsStringHeap :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema CastTo :index (2 0 3 1) :ver FULL))
+                    (column-join :var casttype
+                      :sources (
+                        (column-source :index (AssignCast 0 1 2 3) :ver FULL :prefix ())
+                        (column-source :index (IsCastableToString 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (frm to inmeth heap) :var-from-source ((frm to inmeth) (heap))
+                      :sources (
+                        (column-source :index (AssignCast 0 1 2 3) :ver FULL :prefix (casttype))
+                        (column-source :index (IsStringHeap 0) :ver FULL :prefix ())
+                      ))
+                    (insert-into :schema CastTo :ver NEW :dedup-index (2 0 3 1) :terms (frm to inmeth heap))
+                )
+                (execute-pipeline :rule Precompute1
+                  :sources (tuple
+                    (index-spec :schema MethodLookup :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema MethodLookup :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema ThisVar :index (0 1) :ver FULL)
+                    (index-spec :schema MethodLookup :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema ThisVar :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema HeapHelper :index (0 1 4 2 3) :ver FULL))
+                    (column-join :var heaptype
+                      :sources (
+                        (column-source :index (MethodLookup 2 3 0 1) :ver FULL :prefix ())
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var toMeth
+                      :sources (
+                        (column-source :index (MethodLookup 2 3 0 1) :ver FULL :prefix (heaptype))
+                        (column-source :index (ThisVar 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (simplename descriptor heap thisP) :var-from-source ((simplename descriptor) (heap) (thisP))
+                      :sources (
+                        (column-source :index (MethodLookup 2 3 0 1) :ver FULL :prefix (heaptype toMeth))
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (heaptype))
+                        (column-source :index (ThisVar 0 1) :ver FULL :prefix (toMeth))
+                      ))
+                    (insert-into :schema HeapHelper :ver NEW :dedup-index (0 1 4 2 3) :terms (simplename descriptor toMeth thisP heap))
+                )
+                (execute-pipeline :rule Precompute1b
+                  :sources (tuple
+                    (index-spec :schema MethodLookup :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema MethodLookup :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema HeapHelperNoThis :index (0 1 3 2) :ver FULL))
+                    (column-join :var heaptype
+                      :sources (
+                        (column-source :index (MethodLookup 2 3 0 1) :ver FULL :prefix ())
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (toMeth simplename descriptor heap) :var-from-source ((toMeth simplename descriptor) (heap))
+                      :sources (
+                        (column-source :index (MethodLookup 2 3 0 1) :ver FULL :prefix (heaptype))
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (heaptype))
+                      ))
+                    (insert-into :schema HeapHelperNoThis :ver NEW :dedup-index (0 1 3 2) :terms (simplename descriptor toMeth heap))
+                )
+                (execute-pipeline :rule Precompute2
+                  :sources (tuple
+                    (index-spec :schema VirtualMethodInvocation_Base :index (0 1) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation_SimpleName :index (0 1) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation_Descriptor :index (0 1) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation_Base :index (0 1) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation_SimpleName :index (0 1) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation_Descriptor :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation_Base 0 1) :ver FULL :prefix ())
+                        (column-source :index (VirtualMethodInvocation_SimpleName 0 1) :ver FULL :prefix ())
+                        (column-source :index (VirtualMethodInvocation_Descriptor 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (base simplename descriptor) :var-from-source ((base) (simplename) (descriptor))
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation_Base 0 1) :ver FULL :prefix (invocation))
+                        (column-source :index (VirtualMethodInvocation_SimpleName 0 1) :ver FULL :prefix (invocation))
+                        (column-source :index (VirtualMethodInvocation_Descriptor 0 1) :ver FULL :prefix (invocation))
+                      ))
+                    (insert-into :schema VirtualMethodInvocation :ver NEW :dedup-index (0 1 2 3) :terms (invocation base simplename descriptor))
+                )
+                (execute-pipeline :rule HeapAllocHelper
+                  :sources (tuple
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema SupertypeOf :index (1 0) :ver FULL)
+                    (index-spec :schema SupertypeOf :index (1 0) :ver FULL)
+                    (index-spec :schema ComponentType :index (1 0) :ver FULL)
+                    (index-spec :schema ComponentType :index (1 0) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema HeapAllocSuperType :index (0 1) :ver FULL))
+                    (column-join :var heaptype
+                      :sources (
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix ())
+                        (column-source :index (SupertypeOf 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var comptype
+                      :sources (
+                        (column-source :index (SupertypeOf 1 0) :ver FULL :prefix (heaptype))
+                        (column-source :index (ComponentType 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheaptype
+                      :sources (
+                        (column-source :index (ComponentType 1 0) :ver FULL :prefix (comptype))
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap baseheap) :var-from-source ((heap) (baseheap))
+                      :sources (
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (heaptype))
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (baseheaptype))
+                      ))
+                    (filter :vars (baseheaptype) :code "return baseheaptype != 1016;")
+                    (insert-into :schema HeapAllocSuperType :ver NEW :dedup-index (0 1) :terms (heap baseheap))
+                )
+                (execute-pipeline :rule IsObjectArrayHeap_rule
+                  :sources (tuple
+                    (index-spec :schema HeapAllocation_Type :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema IsObjectArrayHeap :index (0) :ver FULL))
+                    (scan :vars (baseheap _c6) :index (HeapAllocation_Type 0 1) :ver FULL :prefix ())
+                    (filter :vars (_c6) :code "return _c6 == 1016;")
+                    (insert-into :schema IsObjectArrayHeap :ver NEW :dedup-index (0) :terms (baseheap))
+                )
+                (execute-pipeline :rule ArrayTypeCompatPrecompute
+                  :sources (tuple
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema ComponentType :index (0 1) :ver FULL)
+                    (index-spec :schema ComponentType :index (0 1) :ver FULL)
+                    (index-spec :schema SupertypeOf :index (1 0) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (1 0) :ver FULL)
+                    (index-spec :schema SupertypeOf :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ArrayTypeCompat :index (0 1) :ver FULL))
+                    (column-join :var baseheaptype
+                      :sources (
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix ())
+                        (column-source :index (ComponentType 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var basecomptype
+                      :sources (
+                        (column-source :index (ComponentType 0 1) :ver FULL :prefix (baseheaptype))
+                        (column-source :index (SupertypeOf 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (vtype baseheap) :var-from-source ((baseheap) (vtype))
+                      :sources (
+                        (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (baseheaptype))
+                        (column-source :index (SupertypeOf 1 0) :ver FULL :prefix (basecomptype))
+                      ))
+                    (insert-into :schema ArrayTypeCompat :ver NEW :dedup-index (0 1) :terms (baseheap vtype))
+                )
+            )
+            (rebuild-index :index (CastTo 2 0 3 1) :ver NEW)
+            (check-size :schema CastTo :ver NEW)
+            (compute-delta-index :schema CastTo :canonical-index (2 0 3 1))
+            (clear-relation :schema CastTo :ver NEW)
+            (merge-index :index (CastTo 2 0 3 1))
+            (rebuild-index-from-index :source (CastTo 2 0 3 1) :target (CastTo 3 0 2 1) :ver DELTA)
+            (merge-index :index (CastTo 3 0 2 1))
+            (rebuild-index :index (CastTo 2 0 3 1) :ver NEW)
+            (check-size :schema CastTo :ver NEW)
+            (compute-delta-index :schema CastTo :canonical-index (2 0 3 1))
+            (clear-relation :schema CastTo :ver NEW)
+            (merge-index :index (CastTo 2 0 3 1))
+            (rebuild-index-from-index :source (CastTo 2 0 3 1) :target (CastTo 3 0 2 1) :ver DELTA)
+            (merge-index :index (CastTo 3 0 2 1))
+            (rebuild-index :index (HeapHelper 0 1 4 2 3) :ver NEW)
+            (check-size :schema HeapHelper :ver NEW)
+            (compute-delta-index :schema HeapHelper :canonical-index (0 1 4 2 3))
+            (clear-relation :schema HeapHelper :ver NEW)
+            (merge-index :index (HeapHelper 0 1 4 2 3))
+            (rebuild-index-from-index :source (HeapHelper 0 1 4 2 3) :target (HeapHelper 4 0 1 2 3) :ver DELTA)
+            (merge-index :index (HeapHelper 4 0 1 2 3))
+            (rebuild-index :index (HeapHelperNoThis 0 1 3 2) :ver NEW)
+            (check-size :schema HeapHelperNoThis :ver NEW)
+            (compute-delta-index :schema HeapHelperNoThis :canonical-index (0 1 3 2))
+            (clear-relation :schema HeapHelperNoThis :ver NEW)
+            (merge-index :index (HeapHelperNoThis 0 1 3 2))
+            (rebuild-index-from-index :source (HeapHelperNoThis 0 1 3 2) :target (HeapHelperNoThis 3 0 1 2) :ver DELTA)
+            (merge-index :index (HeapHelperNoThis 3 0 1 2))
+            (rebuild-index :index (VirtualMethodInvocation 0 1 2 3) :ver NEW)
+            (check-size :schema VirtualMethodInvocation :ver NEW)
+            (compute-delta-index :schema VirtualMethodInvocation :canonical-index (0 1 2 3))
+            (clear-relation :schema VirtualMethodInvocation :ver NEW)
+            (merge-index :index (VirtualMethodInvocation 0 1 2 3))
+            (rebuild-index-from-index :source (VirtualMethodInvocation 0 1 2 3) :target (VirtualMethodInvocation 1 0 2 3) :ver DELTA)
+            (merge-index :index (VirtualMethodInvocation 1 0 2 3))
+            (rebuild-index :index (HeapAllocSuperType 0 1) :ver NEW)
+            (check-size :schema HeapAllocSuperType :ver NEW)
+            (compute-delta-index :schema HeapAllocSuperType :canonical-index (0 1))
+            (clear-relation :schema HeapAllocSuperType :ver NEW)
+            (merge-index :index (HeapAllocSuperType 0 1))
+            (rebuild-index-from-index :source (HeapAllocSuperType 0 1) :target (HeapAllocSuperType 1 0) :ver DELTA)
+            (merge-index :index (HeapAllocSuperType 1 0))
+            (rebuild-index :index (IsObjectArrayHeap 0) :ver NEW)
+            (check-size :schema IsObjectArrayHeap :ver NEW)
+            (compute-delta-index :schema IsObjectArrayHeap :canonical-index (0))
+            (clear-relation :schema IsObjectArrayHeap :ver NEW)
+            (merge-index :index (IsObjectArrayHeap 0))
+            (rebuild-index :index (ArrayTypeCompat 0 1) :ver NEW)
+            (check-size :schema ArrayTypeCompat :ver NEW)
+            (compute-delta-index :schema ArrayTypeCompat :canonical-index (0 1))
+            (clear-relation :schema ArrayTypeCompat :ver NEW)
+            (merge-index :index (ArrayTypeCompat 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel CastTo :canonical-index (2 0 3 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HeapHelper :canonical-index (0 1 4 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HeapHelperNoThis :canonical-index (0 1 3 2))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel VirtualMethodInvocation :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HeapAllocSuperType :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel IsObjectArrayHeap :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ArrayTypeCompat :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule InitClass_Main
+                  :sources (tuple
+                    (index-spec :schema MainMethodDeclaration :index (0) :ver FULL)
+                    (index-spec :schema Method_DeclaringType :index (0 1) :ver FULL)
+                    (index-spec :schema Method_DeclaringType :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver FULL))
+                    (column-join :var meth
+                      :sources (
+                        (column-source :index (MainMethodDeclaration 0) :ver FULL :prefix ())
+                        (column-source :index (Method_DeclaringType 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (classD) :var-from-source ((classD))
+                      :sources (
+                        (column-source :index (Method_DeclaringType 0 1) :ver FULL :prefix (meth))
+                      ))
+                    (insert-into :schema InitializedClass :ver NEW :dedup-index (0) :terms (classD))
+                )
+                (execute-pipeline :rule Reachable_Main
+                  :sources (tuple
+                    (index-spec :schema MainMethodDeclaration :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Reachable :index (0) :ver FULL))
+                    (scan :vars (meth) :index (MainMethodDeclaration 0) :ver FULL :prefix ())
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (meth))
+                )
+            )
+            (rebuild-index :index (InitializedClass 0) :ver NEW)
+            (check-size :schema InitializedClass :ver NEW)
+            (compute-delta-index :schema InitializedClass :canonical-index (0))
+            (clear-relation :schema InitializedClass :ver NEW)
+            (merge-index :index (InitializedClass 0))
+            (rebuild-index :index (Reachable 0) :ver NEW)
+            (check-size :schema Reachable :ver NEW)
+            (compute-delta-index :schema Reachable :canonical-index (0))
+            (clear-relation :schema Reachable :ver NEW)
+            (merge-index :index (Reachable 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel InitializedClass :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Reachable :canonical-index (0))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 45 independent ops
+                (execute-pipeline :rule InitClass_Super_D0
+                  :sources (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver DELTA)
+                    (index-spec :schema DirectSuperclass :index (0 1) :ver FULL)
+                    (index-spec :schema DirectSuperclass :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver FULL))
+                    (column-join :var classD
+                      :sources (
+                        (column-source :index (InitializedClass 0) :ver DELTA :prefix ())
+                        (column-source :index (DirectSuperclass 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (superclass) :var-from-source ((superclass))
+                      :sources (
+                        (column-source :index (DirectSuperclass 0 1) :ver FULL :prefix (classD))
+                      ))
+                    (insert-into :schema InitializedClass :ver NEW :dedup-index (0) :terms (superclass))
+                )
+                (execute-pipeline :rule InitClass_Iface_D0
+                  :sources (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver DELTA)
+                    (index-spec :schema DirectSuperinterface :index (0 1) :ver FULL)
+                    (index-spec :schema DirectSuperinterface :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver FULL))
+                    (column-join :var classOrIface
+                      :sources (
+                        (column-source :index (InitializedClass 0) :ver DELTA :prefix ())
+                        (column-source :index (DirectSuperinterface 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (superiface) :var-from-source ((superiface))
+                      :sources (
+                        (column-source :index (DirectSuperinterface 0 1) :ver FULL :prefix (classOrIface))
+                      ))
+                    (insert-into :schema InitializedClass :ver NEW :dedup-index (0) :terms (superiface))
+                )
+                (execute-pipeline :rule InitClass_Heap_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema AssignHeapAllocation :index (2 0 1) :ver FULL)
+                    (index-spec :schema AssignHeapAllocation :index (2 0 1) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (0 1) :ver FULL)
+                    (index-spec :schema AssignHeapAllocation :index (2 0 1) :ver FULL)
+                    (index-spec :schema HeapAllocation_Type :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (AssignHeapAllocation 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (AssignHeapAllocation 2 0 1) :ver FULL :prefix (inmeth))
+                        (column-source :index (HeapAllocation_Type 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (_gen3 classD) :var-from-source ((_gen3) (classD))
+                      :sources (
+                        (column-source :index (AssignHeapAllocation 2 0 1) :ver FULL :prefix (inmeth heap))
+                        (column-source :index (HeapAllocation_Type 0 1) :ver FULL :prefix (heap))
+                      ))
+                    (insert-into :schema InitializedClass :ver NEW :dedup-index (0) :terms (classD))
+                )
+                (execute-pipeline :rule InitClass_StaticInvoke_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema Instruction_Method :index (1 0) :ver FULL)
+                    (index-spec :schema Instruction_Method :index (1 0) :ver FULL)
+                    (index-spec :schema MethodInvocation_Method :index (0 1) :ver FULL)
+                    (index-spec :schema isStaticMethodInvocation_Insn :index (0) :ver FULL)
+                    (index-spec :schema MethodInvocation_Method :index (0 1) :ver FULL)
+                    (index-spec :schema Method_DeclaringType :index (0 1) :ver FULL)
+                    (index-spec :schema Method_DeclaringType :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (Instruction_Method 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (Instruction_Method 1 0) :ver FULL :prefix (inmeth))
+                        (column-source :index (MethodInvocation_Method 0 1) :ver FULL :prefix ())
+                        (column-source :index (isStaticMethodInvocation_Insn 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var sig
+                      :sources (
+                        (column-source :index (MethodInvocation_Method 0 1) :ver FULL :prefix (invocation))
+                        (column-source :index (Method_DeclaringType 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (classD) :var-from-source ((classD))
+                      :sources (
+                        (column-source :index (Method_DeclaringType 0 1) :ver FULL :prefix (sig))
+                      ))
+                    (insert-into :schema InitializedClass :ver NEW :dedup-index (0) :terms (classD))
+                )
+                (execute-pipeline :rule InitClass_StoreStatic_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema StoreStaticField :index (2 1 0) :ver FULL)
+                    (index-spec :schema StoreStaticField :index (2 1 0) :ver FULL)
+                    (index-spec :schema Field_DeclaringType :index (0 1) :ver FULL)
+                    (index-spec :schema StoreStaticField :index (2 1 0) :ver FULL)
+                    (index-spec :schema Field_DeclaringType :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (StoreStaticField 2 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var sig
+                      :sources (
+                        (column-source :index (StoreStaticField 2 1 0) :ver FULL :prefix (inmeth))
+                        (column-source :index (Field_DeclaringType 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (_gen4 classOrIface) :var-from-source ((_gen4) (classOrIface))
+                      :sources (
+                        (column-source :index (StoreStaticField 2 1 0) :ver FULL :prefix (inmeth sig))
+                        (column-source :index (Field_DeclaringType 0 1) :ver FULL :prefix (sig))
+                      ))
+                    (insert-into :schema InitializedClass :ver NEW :dedup-index (0) :terms (classOrIface))
+                )
+                (execute-pipeline :rule InitClass_LoadStatic_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema LoadStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema LoadStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema Field_DeclaringType :index (0 1) :ver FULL)
+                    (index-spec :schema LoadStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema Field_DeclaringType :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (LoadStaticField 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var sig
+                      :sources (
+                        (column-source :index (LoadStaticField 2 0 1) :ver FULL :prefix (inmeth))
+                        (column-source :index (Field_DeclaringType 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (_gen5 classOrIface) :var-from-source ((_gen5) (classOrIface))
+                      :sources (
+                        (column-source :index (LoadStaticField 2 0 1) :ver FULL :prefix (inmeth sig))
+                        (column-source :index (Field_DeclaringType 0 1) :ver FULL :prefix (sig))
+                      ))
+                    (insert-into :schema InitializedClass :ver NEW :dedup-index (0) :terms (classOrIface))
+                )
+                (execute-pipeline :rule Reachable_Clinit_D0
+                  :sources (tuple
+                    (index-spec :schema InitializedClass :index (0) :ver DELTA)
+                    (index-spec :schema ClassInitializer :index (0 1) :ver FULL)
+                    (index-spec :schema ClassInitializer :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Reachable :index (0) :ver FULL))
+                    (column-join :var classD
+                      :sources (
+                        (column-source :index (InitializedClass 0) :ver DELTA :prefix ())
+                        (column-source :index (ClassInitializer 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (clinit) :var-from-source ((clinit))
+                      :sources (
+                        (column-source :index (ClassInitializer 0 1) :ver FULL :prefix (classD))
+                      ))
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (clinit))
+                )
+                (execute-pipeline :rule Static_MultiHead_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema StaticMethodInvocation :index (2 0 1) :ver FULL)
+                    (index-spec :schema StaticMethodInvocation :index (2 0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (StaticMethodInvocation 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (invocation tometh) :var-from-source ((invocation tometh))
+                      :sources (
+                        (column-source :index (StaticMethodInvocation 2 0 1) :ver FULL :prefix (inmeth))
+                      ))
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (tometh))
+                    (insert-into :schema CallGraphEdge :ver NEW :dedup-index (0 1) :terms (invocation tometh))
+                )
+                (execute-pipeline :rule Assign_Param_D0
+                  :sources (tuple
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver DELTA)
+                    (index-spec :schema ActualParam :index (1 0 2) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver DELTA)
+                    (index-spec :schema FormalParam :index (1 0 2) :ver FULL)
+                    (index-spec :schema FormalParam :index (1 0 2) :ver FULL)
+                    (index-spec :schema ActualParam :index (1 0 2) :ver FULL)
+                    (index-spec :schema FormalParam :index (1 0 2) :ver FULL)
+                    (index-spec :schema ActualParam :index (1 0 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (CallGraphEdge 0 1) :ver DELTA :prefix ())
+                        (column-source :index (ActualParam 1 0 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var meth
+                      :sources (
+                        (column-source :index (CallGraphEdge 0 1) :ver DELTA :prefix (invocation))
+                        (column-source :index (FormalParam 1 0 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var idx
+                      :sources (
+                        (column-source :index (FormalParam 1 0 2) :ver FULL :prefix (meth))
+                        (column-source :index (ActualParam 1 0 2) :ver FULL :prefix (invocation))
+                      ))
+                    (cartesian-join :vars (formal actual) :var-from-source ((formal) (actual))
+                      :sources (
+                        (column-source :index (FormalParam 1 0 2) :ver FULL :prefix (meth idx))
+                        (column-source :index (ActualParam 1 0 2) :ver FULL :prefix (invocation idx))
+                      ))
+                    (insert-into :schema Assign :ver NEW :dedup-index (0 1) :terms (actual formal))
+                )
+                (execute-pipeline :rule Assign_Return_D0
+                  :sources (tuple
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver DELTA)
+                    (index-spec :schema AssignReturnValue :index (0 1) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver DELTA)
+                    (index-spec :schema ReturnVar :index (1 0) :ver FULL)
+                    (index-spec :schema ReturnVar :index (1 0) :ver FULL)
+                    (index-spec :schema AssignReturnValue :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (CallGraphEdge 0 1) :ver DELTA :prefix ())
+                        (column-source :index (AssignReturnValue 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var meth
+                      :sources (
+                        (column-source :index (CallGraphEdge 0 1) :ver DELTA :prefix (invocation))
+                        (column-source :index (ReturnVar 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (ret local) :var-from-source ((ret) (local))
+                      :sources (
+                        (column-source :index (ReturnVar 1 0) :ver FULL :prefix (meth))
+                        (column-source :index (AssignReturnValue 0 1) :ver FULL :prefix (invocation))
+                      ))
+                    (insert-into :schema Assign :ver NEW :dedup-index (0 1) :terms (ret local))
+                )
+                (execute-pipeline :rule VPT_HeapAlloc_D1
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema AssignHeapAllocation :index (2 0 1) :ver FULL)
+                    (index-spec :schema AssignHeapAllocation :index (2 0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var inMeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (AssignHeapAllocation 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap vr) :var-from-source ((heap vr))
+                      :sources (
+                        (column-source :index (AssignHeapAllocation 2 0 1) :ver FULL :prefix (inMeth))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap vr))
+                )
+                (execute-pipeline :rule VPT_Assign_D0
+                  :sources (tuple
+                    (index-spec :schema Assign :index (0 1) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema Assign :index (0 1) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (Assign 0 1) :ver DELTA :prefix ())
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (to heap) :var-from-source ((to) (heap))
+                      :sources (
+                        (column-source :index (Assign 0 1) :ver DELTA :prefix (frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_Assign_D1
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema Assign :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (Assign 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap to) :var-from-source ((heap) (to))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (frm))
+                        (column-source :index (Assign 0 1) :ver FULL :prefix (frm))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_Local_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema AssignLocal :index (2 0 1) :ver FULL)
+                    (index-spec :schema AssignLocal :index (2 0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema AssignLocal :index (2 0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (AssignLocal 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (AssignLocal 2 0 1) :ver FULL :prefix (inmeth))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (to heap) :var-from-source ((to) (heap))
+                      :sources (
+                        (column-source :index (AssignLocal 2 0 1) :ver FULL :prefix (inmeth frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_Local_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema AssignLocal :index (0 2 1) :ver FULL)
+                    (index-spec :schema AssignLocal :index (0 2 1) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema AssignLocal :index (0 2 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (AssignLocal 0 2 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (AssignLocal 0 2 1) :ver FULL :prefix (frm))
+                        (column-source :index (Reachable 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap to) :var-from-source ((heap) (to))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (frm))
+                        (column-source :index (AssignLocal 0 2 1) :ver FULL :prefix (frm inmeth))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_Cast_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema CastTo :index (2 0 3 1) :ver FULL)
+                    (index-spec :schema CastTo :index (2 0 3 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema CastTo :index (2 0 3 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema CastTo :index (2 0 3 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (CastTo 2 0 3 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (CastTo 2 0 3 1) :ver FULL :prefix (inmeth))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (CastTo 2 0 3 1) :ver FULL :prefix (inmeth frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                      ))
+                    (cartesian-join :vars (to) :var-from-source ((to))
+                      :sources (
+                        (column-source :index (CastTo 2 0 3 1) :ver FULL :prefix (inmeth frm heap))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_Cast_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema CastTo :index (3 0 2 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema CastTo :index (3 0 2 1) :ver FULL)
+                    (index-spec :schema CastTo :index (3 0 2 1) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema CastTo :index (3 0 2 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (CastTo 3 0 2 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver DELTA :prefix (heap))
+                        (column-source :index (CastTo 3 0 2 1) :ver FULL :prefix (heap))
+                      ))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (CastTo 3 0 2 1) :ver FULL :prefix (heap frm))
+                        (column-source :index (Reachable 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (to) :var-from-source ((to))
+                      :sources (
+                        (column-source :index (CastTo 3 0 2 1) :ver FULL :prefix (heap frm inmeth))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule ReachableLoadInstanceField_rule_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema LoadInstanceField :index (3 0 1 2) :ver FULL)
+                    (index-spec :schema LoadInstanceField :index (3 0 1 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ReachableLoadInstanceField :index (0 1 2) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (LoadInstanceField 3 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (base sig to) :var-from-source ((base sig to))
+                      :sources (
+                        (column-source :index (LoadInstanceField 3 0 1 2) :ver FULL :prefix (inmeth))
+                      ))
+                    (insert-into :schema ReachableLoadInstanceField :ver NEW :dedup-index (0 1 2) :terms (base sig to))
+                )
+                (execute-pipeline :rule VPT_LoadField_D0
+                  :sources (tuple
+                    (index-spec :schema ReachableLoadInstanceField :index (0 1 2) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema ReachableLoadInstanceField :index (0 1 2) :ver DELTA)
+                    (index-spec :schema InstanceFieldPointsTo :index (1 2 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema InstanceFieldPointsTo :index (1 2 0) :ver FULL)
+                    (index-spec :schema ReachableLoadInstanceField :index (0 1 2) :ver DELTA)
+                    (index-spec :schema InstanceFieldPointsTo :index (1 2 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (ReachableLoadInstanceField 0 1 2) :ver DELTA :prefix ())
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var sig
+                      :sources (
+                        (column-source :index (ReachableLoadInstanceField 0 1 2) :ver DELTA :prefix (base))
+                        (column-source :index (InstanceFieldPointsTo 1 2 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                        (column-source :index (InstanceFieldPointsTo 1 2 0) :ver FULL :prefix (sig))
+                      ))
+                    (cartesian-join :vars (to heap) :var-from-source ((to) (heap))
+                      :sources (
+                        (column-source :index (ReachableLoadInstanceField 0 1 2) :ver DELTA :prefix (base sig))
+                        (column-source :index (InstanceFieldPointsTo 1 2 0) :ver FULL :prefix (sig baseheap))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_LoadField_D1
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema ReachableLoadInstanceField :index (0 1 2) :ver FULL)
+                    (index-spec :schema ReachableLoadInstanceField :index (0 1 2) :ver FULL)
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver FULL)
+                    (index-spec :schema ReachableLoadInstanceField :index (0 1 2) :ver FULL)
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (InstanceFieldPointsTo 2 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver DELTA :prefix (baseheap))
+                        (column-source :index (ReachableLoadInstanceField 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var sig
+                      :sources (
+                        (column-source :index (ReachableLoadInstanceField 0 1 2) :ver FULL :prefix (base))
+                        (column-source :index (InstanceFieldPointsTo 2 1 0) :ver FULL :prefix (baseheap))
+                      ))
+                    (cartesian-join :vars (to heap) :var-from-source ((to) (heap))
+                      :sources (
+                        (column-source :index (ReachableLoadInstanceField 0 1 2) :ver FULL :prefix (base sig))
+                        (column-source :index (InstanceFieldPointsTo 2 1 0) :ver FULL :prefix (baseheap sig))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_LoadField_D2
+                  :sources (tuple
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver DELTA)
+                    (index-spec :schema ReachableLoadInstanceField :index (1 0 2) :ver FULL)
+                    (index-spec :schema ReachableLoadInstanceField :index (1 0 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver DELTA)
+                    (index-spec :schema ReachableLoadInstanceField :index (1 0 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (InstanceFieldPointsTo 2 1 0) :ver DELTA :prefix ())
+                        (column-source :index (VarPointsTo 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var sig
+                      :sources (
+                        (column-source :index (InstanceFieldPointsTo 2 1 0) :ver DELTA :prefix (baseheap))
+                        (column-source :index (ReachableLoadInstanceField 1 0 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (ReachableLoadInstanceField 1 0 2) :ver FULL :prefix (sig))
+                        (column-source :index (VarPointsTo 0 1) :ver FULL :prefix (baseheap))
+                      ))
+                    (cartesian-join :vars (heap to) :var-from-source ((heap) (to))
+                      :sources (
+                        (column-source :index (InstanceFieldPointsTo 2 1 0) :ver DELTA :prefix (baseheap sig))
+                        (column-source :index (ReachableLoadInstanceField 1 0 2) :ver FULL :prefix (sig base))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_LoadStatic_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema LoadStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema LoadStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema StaticFieldPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema LoadStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema StaticFieldPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (LoadStaticField 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var fld
+                      :sources (
+                        (column-source :index (LoadStaticField 2 0 1) :ver FULL :prefix (inmeth))
+                        (column-source :index (StaticFieldPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (to heap) :var-from-source ((to) (heap))
+                      :sources (
+                        (column-source :index (LoadStaticField 2 0 1) :ver FULL :prefix (inmeth fld))
+                        (column-source :index (StaticFieldPointsTo 1 0) :ver FULL :prefix (fld))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_LoadStatic_D2
+                  :sources (tuple
+                    (index-spec :schema StaticFieldPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema LoadStaticField :index (0 2 1) :ver FULL)
+                    (index-spec :schema LoadStaticField :index (0 2 1) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema StaticFieldPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema LoadStaticField :index (0 2 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var fld
+                      :sources (
+                        (column-source :index (StaticFieldPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (LoadStaticField 0 2 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (LoadStaticField 0 2 1) :ver FULL :prefix (fld))
+                        (column-source :index (Reachable 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap to) :var-from-source ((heap) (to))
+                      :sources (
+                        (column-source :index (StaticFieldPointsTo 1 0) :ver DELTA :prefix (fld))
+                        (column-source :index (LoadStaticField 0 2 1) :ver FULL :prefix (fld inmeth))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_LoadArray_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema LoadArrayIndex :index (2 0 1) :ver FULL)
+                    (index-spec :schema LoadArrayIndex :index (2 0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema LoadArrayIndex :index (2 0 1) :ver FULL)
+                    (index-spec :schema Var_Type :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayTypeCompat :index (0 1) :ver FULL)
+                    (index-spec :schema Var_Type :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayTypeCompat :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (LoadArrayIndex 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (LoadArrayIndex 2 0 1) :ver FULL :prefix (inmeth))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var to
+                      :sources (
+                        (column-source :index (LoadArrayIndex 2 0 1) :ver FULL :prefix (inmeth base))
+                        (column-source :index (Var_Type 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                        (column-source :index (ArrayIndexPointsTo 0 1) :ver FULL :prefix ())
+                        (column-source :index (ArrayTypeCompat 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var vtype
+                      :sources (
+                        (column-source :index (Var_Type 0 1) :ver FULL :prefix (to))
+                        (column-source :index (ArrayTypeCompat 0 1) :ver FULL :prefix (baseheap))
+                      ))
+                    (cartesian-join :vars (heap) :var-from-source ((heap))
+                      :sources (
+                        (column-source :index (ArrayIndexPointsTo 0 1) :ver FULL :prefix (baseheap))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_LoadArray_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayTypeCompat :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema LoadArrayIndex :index (0 1 2) :ver FULL)
+                    (index-spec :schema LoadArrayIndex :index (0 1 2) :ver FULL)
+                    (index-spec :schema Var_Type :index (0 1) :ver FULL)
+                    (index-spec :schema LoadArrayIndex :index (0 1 2) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema Var_Type :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayTypeCompat :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (ArrayIndexPointsTo 0 1) :ver FULL :prefix ())
+                        (column-source :index (ArrayTypeCompat 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver DELTA :prefix (baseheap))
+                        (column-source :index (LoadArrayIndex 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var to
+                      :sources (
+                        (column-source :index (LoadArrayIndex 0 1 2) :ver FULL :prefix (base))
+                        (column-source :index (Var_Type 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (LoadArrayIndex 0 1 2) :ver FULL :prefix (base to))
+                        (column-source :index (Reachable 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var vtype
+                      :sources (
+                        (column-source :index (Var_Type 0 1) :ver FULL :prefix (to))
+                        (column-source :index (ArrayTypeCompat 0 1) :ver FULL :prefix (baseheap))
+                      ))
+                    (cartesian-join :vars (heap) :var-from-source ((heap))
+                      :sources (
+                        (column-source :index (ArrayIndexPointsTo 0 1) :ver FULL :prefix (baseheap))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule VPT_LoadArray_D3
+                  :sources (tuple
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayTypeCompat :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema LoadArrayIndex :index (0 1 2) :ver FULL)
+                    (index-spec :schema LoadArrayIndex :index (0 1 2) :ver FULL)
+                    (index-spec :schema Var_Type :index (0 1) :ver FULL)
+                    (index-spec :schema LoadArrayIndex :index (0 1 2) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema Var_Type :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayTypeCompat :index (0 1) :ver FULL)
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver DELTA))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (ArrayIndexPointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (VarPointsTo 0 1) :ver FULL :prefix ())
+                        (column-source :index (ArrayTypeCompat 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver FULL :prefix (baseheap))
+                        (column-source :index (LoadArrayIndex 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var to
+                      :sources (
+                        (column-source :index (LoadArrayIndex 0 1 2) :ver FULL :prefix (base))
+                        (column-source :index (Var_Type 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (LoadArrayIndex 0 1 2) :ver FULL :prefix (base to))
+                        (column-source :index (Reachable 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var vtype
+                      :sources (
+                        (column-source :index (Var_Type 0 1) :ver FULL :prefix (to))
+                        (column-source :index (ArrayTypeCompat 0 1) :ver FULL :prefix (baseheap))
+                      ))
+                    (cartesian-join :vars (heap) :var-from-source ((heap))
+                      :sources (
+                        (column-source :index (ArrayIndexPointsTo 0 1) :ver DELTA :prefix (baseheap))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap to))
+                )
+                (execute-pipeline :rule ReachableInstructionHelper_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema Instruction_Method :index (1 0) :ver FULL)
+                    (index-spec :schema Instruction_Method :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ReachableInstruction :index (0) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (Instruction_Method 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (invocation) :var-from-source ((invocation))
+                      :sources (
+                        (column-source :index (Instruction_Method 1 0) :ver FULL :prefix (inmeth))
+                      ))
+                    (insert-into :schema ReachableInstruction :ver NEW :dedup-index (0) :terms (invocation))
+                )
+                (execute-pipeline :rule VirtualDispatch_MultiHead_D0
+                  :sources (tuple
+                    (index-spec :schema ReachableInstruction :index (0) :ver DELTA)
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HeapHelper :index (0 1 4 2 3) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HeapHelper :index (0 1 4 2 3) :ver FULL)
+                    (index-spec :schema HeapHelper :index (0 1 4 2 3) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema HeapHelper :index (0 1 4 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (ReachableInstruction 0) :ver DELTA :prefix ())
+                        (column-source :index (VirtualMethodInvocation 0 1 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 0 1 2 3) :ver FULL :prefix (invocation))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var simplename
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 0 1 2 3) :ver FULL :prefix (invocation base))
+                        (column-source :index (HeapHelper 0 1 4 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var descriptor
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 0 1 2 3) :ver FULL :prefix (invocation base simplename))
+                        (column-source :index (HeapHelper 0 1 4 2 3) :ver FULL :prefix (simplename))
+                      ))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (HeapHelper 0 1 4 2 3) :ver FULL :prefix (simplename descriptor))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                      ))
+                    (cartesian-join :vars (toMeth thisP) :var-from-source ((toMeth thisP))
+                      :sources (
+                        (column-source :index (HeapHelper 0 1 4 2 3) :ver FULL :prefix (simplename descriptor heap))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap thisP))
+                    (insert-into :schema CallGraphEdge :ver NEW :dedup-index (0 1) :terms (invocation toMeth))
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (toMeth))
+                )
+                (execute-pipeline :rule VirtualDispatch_MultiHead_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema VirtualMethodInvocation :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema HeapHelper :index (4 0 1 2 3) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema ReachableInstruction :index (0) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema HeapHelper :index (4 0 1 2 3) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema HeapHelper :index (4 0 1 2 3) :ver FULL)
+                    (index-spec :schema HeapHelper :index (4 0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (VirtualMethodInvocation 1 0 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (base))
+                        (column-source :index (HeapHelper 4 0 1 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 1 0 2 3) :ver FULL :prefix (base))
+                        (column-source :index (ReachableInstruction 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var simplename
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 1 0 2 3) :ver FULL :prefix (base invocation))
+                        (column-source :index (HeapHelper 4 0 1 2 3) :ver FULL :prefix (heap))
+                      ))
+                    (column-join :var descriptor
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 1 0 2 3) :ver FULL :prefix (base invocation simplename))
+                        (column-source :index (HeapHelper 4 0 1 2 3) :ver FULL :prefix (heap simplename))
+                      ))
+                    (cartesian-join :vars (toMeth thisP) :var-from-source ((toMeth thisP))
+                      :sources (
+                        (column-source :index (HeapHelper 4 0 1 2 3) :ver FULL :prefix (heap simplename descriptor))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap thisP))
+                    (insert-into :schema CallGraphEdge :ver NEW :dedup-index (0 1) :terms (invocation toMeth))
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (toMeth))
+                )
+                (execute-pipeline :rule Reachable_CGE_Virtual_D0
+                  :sources (tuple
+                    (index-spec :schema ReachableInstruction :index (0) :ver DELTA)
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HeapHelperNoThis :index (0 1 3 2) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HeapHelperNoThis :index (0 1 3 2) :ver FULL)
+                    (index-spec :schema HeapHelperNoThis :index (0 1 3 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema HeapHelperNoThis :index (0 1 3 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver FULL))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (ReachableInstruction 0) :ver DELTA :prefix ())
+                        (column-source :index (VirtualMethodInvocation 0 1 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 0 1 2 3) :ver FULL :prefix (invocation))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var simplename
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 0 1 2 3) :ver FULL :prefix (invocation base))
+                        (column-source :index (HeapHelperNoThis 0 1 3 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var descriptor
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 0 1 2 3) :ver FULL :prefix (invocation base simplename))
+                        (column-source :index (HeapHelperNoThis 0 1 3 2) :ver FULL :prefix (simplename))
+                      ))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (HeapHelperNoThis 0 1 3 2) :ver FULL :prefix (simplename descriptor))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                      ))
+                    (cartesian-join :vars (toMeth) :var-from-source ((toMeth))
+                      :sources (
+                        (column-source :index (HeapHelperNoThis 0 1 3 2) :ver FULL :prefix (simplename descriptor heap))
+                      ))
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (toMeth))
+                    (insert-into :schema CallGraphEdge :ver NEW :dedup-index (0 1) :terms (invocation toMeth))
+                )
+                (execute-pipeline :rule Reachable_CGE_Virtual_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema VirtualMethodInvocation :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema HeapHelperNoThis :index (3 0 1 2) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema ReachableInstruction :index (0) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema HeapHelperNoThis :index (3 0 1 2) :ver FULL)
+                    (index-spec :schema VirtualMethodInvocation :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema HeapHelperNoThis :index (3 0 1 2) :ver FULL)
+                    (index-spec :schema HeapHelperNoThis :index (3 0 1 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver FULL))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (VirtualMethodInvocation 1 0 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (base))
+                        (column-source :index (HeapHelperNoThis 3 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 1 0 2 3) :ver FULL :prefix (base))
+                        (column-source :index (ReachableInstruction 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var simplename
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 1 0 2 3) :ver FULL :prefix (base invocation))
+                        (column-source :index (HeapHelperNoThis 3 0 1 2) :ver FULL :prefix (heap))
+                      ))
+                    (column-join :var descriptor
+                      :sources (
+                        (column-source :index (VirtualMethodInvocation 1 0 2 3) :ver FULL :prefix (base invocation simplename))
+                        (column-source :index (HeapHelperNoThis 3 0 1 2) :ver FULL :prefix (heap simplename))
+                      ))
+                    (cartesian-join :vars (toMeth) :var-from-source ((toMeth))
+                      :sources (
+                        (column-source :index (HeapHelperNoThis 3 0 1 2) :ver FULL :prefix (heap simplename descriptor))
+                      ))
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (toMeth))
+                    (insert-into :schema CallGraphEdge :ver NEW :dedup-index (0 1) :terms (invocation toMeth))
+                )
+                (execute-pipeline :rule SpecialDispatch_MultiHead_D0
+                  :sources (tuple
+                    (index-spec :schema ReachableInstruction :index (0) :ver DELTA)
+                    (index-spec :schema SpecialMethodInvocation_Base :index (0 1) :ver FULL)
+                    (index-spec :schema MethodInvocation_Method :index (0 1) :ver FULL)
+                    (index-spec :schema SpecialMethodInvocation_Base :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema MethodInvocation_Method :index (0 1) :ver FULL)
+                    (index-spec :schema ThisVar :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema ThisVar :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (ReachableInstruction 0) :ver DELTA :prefix ())
+                        (column-source :index (SpecialMethodInvocation_Base 0 1) :ver FULL :prefix ())
+                        (column-source :index (MethodInvocation_Method 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (SpecialMethodInvocation_Base 0 1) :ver FULL :prefix (invocation))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var tometh
+                      :sources (
+                        (column-source :index (MethodInvocation_Method 0 1) :ver FULL :prefix (invocation))
+                        (column-source :index (ThisVar 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap thisP) :var-from-source ((heap) (thisP))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                        (column-source :index (ThisVar 0 1) :ver FULL :prefix (tometh))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap thisP))
+                    (insert-into :schema CallGraphEdge :ver NEW :dedup-index (0 1) :terms (invocation tometh))
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (tometh))
+                )
+                (execute-pipeline :rule SpecialDispatch_MultiHead_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema SpecialMethodInvocation_Base :index (1 0) :ver FULL)
+                    (index-spec :schema SpecialMethodInvocation_Base :index (1 0) :ver FULL)
+                    (index-spec :schema ReachableInstruction :index (0) :ver FULL)
+                    (index-spec :schema MethodInvocation_Method :index (0 1) :ver FULL)
+                    (index-spec :schema MethodInvocation_Method :index (0 1) :ver FULL)
+                    (index-spec :schema ThisVar :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema ThisVar :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema CallGraphEdge :index (0 1) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (SpecialMethodInvocation_Base 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var invocation
+                      :sources (
+                        (column-source :index (SpecialMethodInvocation_Base 1 0) :ver FULL :prefix (base))
+                        (column-source :index (ReachableInstruction 0) :ver FULL :prefix ())
+                        (column-source :index (MethodInvocation_Method 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var tometh
+                      :sources (
+                        (column-source :index (MethodInvocation_Method 0 1) :ver FULL :prefix (invocation))
+                        (column-source :index (ThisVar 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap thisP) :var-from-source ((heap) (thisP))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (base))
+                        (column-source :index (ThisVar 0 1) :ver FULL :prefix (tometh))
+                      ))
+                    (insert-into :schema VarPointsTo :ver NEW :dedup-index (0 1) :terms (heap thisP))
+                    (insert-into :schema CallGraphEdge :ver NEW :dedup-index (0 1) :terms (invocation tometh))
+                    (insert-into :schema Reachable :ver NEW :dedup-index (0) :terms (tometh))
+                )
+                (execute-pipeline :rule IFPT_Store_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema StoreInstanceField :index (3 0 1 2) :ver FULL)
+                    (index-spec :schema StoreInstanceField :index (3 0 1 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema StoreInstanceField :index (3 0 1 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema StoreInstanceField :index (3 0 1 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (StoreInstanceField 3 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (StoreInstanceField 3 0 1 2) :ver FULL :prefix (inmeth))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (StoreInstanceField 3 0 1 2) :ver FULL :prefix (inmeth frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (fld heap baseheap) :var-from-source ((fld) (heap) (baseheap))
+                      :sources (
+                        (column-source :index (StoreInstanceField 3 0 1 2) :ver FULL :prefix (inmeth frm base))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                      ))
+                    (insert-into :schema InstanceFieldPointsTo :ver NEW :dedup-index (2 1 0) :terms (heap fld baseheap))
+                )
+                (execute-pipeline :rule IFPT_Store_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema StoreInstanceField :index (0 3 1 2) :ver FULL)
+                    (index-spec :schema StoreInstanceField :index (0 3 1 2) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema StoreInstanceField :index (0 3 1 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema StoreInstanceField :index (0 3 1 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver FULL))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (StoreInstanceField 0 3 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (StoreInstanceField 0 3 1 2) :ver FULL :prefix (frm))
+                        (column-source :index (Reachable 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (StoreInstanceField 0 3 1 2) :ver FULL :prefix (frm inmeth))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap fld baseheap) :var-from-source ((heap) (fld) (baseheap))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (frm))
+                        (column-source :index (StoreInstanceField 0 3 1 2) :ver FULL :prefix (frm inmeth base))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                      ))
+                    (insert-into :schema InstanceFieldPointsTo :ver NEW :dedup-index (2 1 0) :terms (heap fld baseheap))
+                )
+                (execute-pipeline :rule IFPT_Store_D3
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema StoreInstanceField :index (1 3 0 2) :ver FULL)
+                    (index-spec :schema StoreInstanceField :index (1 3 0 2) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema StoreInstanceField :index (1 3 0 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema StoreInstanceField :index (1 3 0 2) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema InstanceFieldPointsTo :index (2 1 0) :ver FULL))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (StoreInstanceField 1 3 0 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (StoreInstanceField 1 3 0 2) :ver FULL :prefix (base))
+                        (column-source :index (Reachable 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (StoreInstanceField 1 3 0 2) :ver FULL :prefix (base inmeth))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap fld baseheap) :var-from-source ((baseheap) (fld) (heap))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (base))
+                        (column-source :index (StoreInstanceField 1 3 0 2) :ver FULL :prefix (base inmeth frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                      ))
+                    (insert-into :schema InstanceFieldPointsTo :ver NEW :dedup-index (2 1 0) :terms (heap fld baseheap))
+                )
+                (execute-pipeline :rule SFPT_Store_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema StoreStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema StoreStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema StoreStaticField :index (2 0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema StaticFieldPointsTo :index (1 0) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (StoreStaticField 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (StoreStaticField 2 0 1) :ver FULL :prefix (inmeth))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (fld heap) :var-from-source ((fld) (heap))
+                      :sources (
+                        (column-source :index (StoreStaticField 2 0 1) :ver FULL :prefix (inmeth frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                      ))
+                    (insert-into :schema StaticFieldPointsTo :ver NEW :dedup-index (1 0) :terms (heap fld))
+                )
+                (execute-pipeline :rule SFPT_Store_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema StoreStaticField :index (0 2 1) :ver FULL)
+                    (index-spec :schema StoreStaticField :index (0 2 1) :ver FULL)
+                    (index-spec :schema Reachable :index (0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema StoreStaticField :index (0 2 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema StaticFieldPointsTo :index (1 0) :ver FULL))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (StoreStaticField 0 2 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (StoreStaticField 0 2 1) :ver FULL :prefix (frm))
+                        (column-source :index (Reachable 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap fld) :var-from-source ((heap) (fld))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (frm))
+                        (column-source :index (StoreStaticField 0 2 1) :ver FULL :prefix (frm inmeth))
+                      ))
+                    (insert-into :schema StaticFieldPointsTo :ver NEW :dedup-index (1 0) :terms (heap fld))
+                )
+                (execute-pipeline :rule ReachableSortedIndex_rule_D0
+                  :sources (tuple
+                    (index-spec :schema Reachable :index (0) :ver DELTA)
+                    (index-spec :schema StoreArrayIndex :index (2 0 1) :ver FULL)
+                    (index-spec :schema StoreArrayIndex :index (2 0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver FULL))
+                    (column-join :var inmeth
+                      :sources (
+                        (column-source :index (Reachable 0) :ver DELTA :prefix ())
+                        (column-source :index (StoreArrayIndex 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (frm base) :var-from-source ((frm base))
+                      :sources (
+                        (column-source :index (StoreArrayIndex 2 0 1) :ver FULL :prefix (inmeth))
+                      ))
+                    (insert-into :schema ReachableSortedIndex :ver NEW :dedup-index (0 1) :terms (frm base))
+                )
+                (execute-pipeline :rule AIPT_Store_ObjectArray_D0
+                  :sources (tuple
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema IsObjectArrayHeap :index (0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (ReachableSortedIndex 0 1) :ver DELTA :prefix ())
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (ReachableSortedIndex 0 1) :ver DELTA :prefix (frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                        (column-source :index (IsObjectArrayHeap 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap) :var-from-source ((heap))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                      ))
+                    (insert-into :schema ArrayIndexPointsTo :ver NEW :dedup-index (0 1) :terms (baseheap heap))
+                )
+                (execute-pipeline :rule AIPT_Store_ObjectArray_D1
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema ReachableSortedIndex :index (1 0) :ver FULL)
+                    (index-spec :schema ReachableSortedIndex :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema IsObjectArrayHeap :index (0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (ReachableSortedIndex 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (ReachableSortedIndex 1 0) :ver FULL :prefix (base))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (base))
+                        (column-source :index (IsObjectArrayHeap 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap) :var-from-source ((heap))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                      ))
+                    (insert-into :schema ArrayIndexPointsTo :ver NEW :dedup-index (0 1) :terms (baseheap heap))
+                )
+                (execute-pipeline :rule AIPT_Store_ObjectArray_D3
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver FULL)
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema IsObjectArrayHeap :index (0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA))
+                  :dests (tuple
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (ReachableSortedIndex 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (ReachableSortedIndex 0 1) :ver FULL :prefix (frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                        (column-source :index (IsObjectArrayHeap 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (heap) :var-from-source ((heap))
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (frm))
+                      ))
+                    (insert-into :schema ArrayIndexPointsTo :ver NEW :dedup-index (0 1) :terms (baseheap heap))
+                )
+                (execute-pipeline :rule AIPT_Store_D0
+                  :sources (tuple
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver DELTA)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema HeapAllocSuperType :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema HeapAllocSuperType :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (ReachableSortedIndex 0 1) :ver DELTA :prefix ())
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (ReachableSortedIndex 0 1) :ver DELTA :prefix (frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                        (column-source :index (HeapAllocSuperType 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                        (column-source :index (HeapAllocSuperType 1 0) :ver FULL :prefix (baseheap))
+                      ))
+                    (insert-into :schema ArrayIndexPointsTo :ver NEW :dedup-index (0 1) :terms (baseheap heap))
+                )
+                (execute-pipeline :rule AIPT_Store_D1
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema ReachableSortedIndex :index (1 0) :ver FULL)
+                    (index-spec :schema ReachableSortedIndex :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver DELTA)
+                    (index-spec :schema HeapAllocSuperType :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema HeapAllocSuperType :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix ())
+                        (column-source :index (ReachableSortedIndex 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (ReachableSortedIndex 1 0) :ver FULL :prefix (base))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver DELTA :prefix (base))
+                        (column-source :index (HeapAllocSuperType 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (frm))
+                        (column-source :index (HeapAllocSuperType 1 0) :ver FULL :prefix (baseheap))
+                      ))
+                    (insert-into :schema ArrayIndexPointsTo :ver NEW :dedup-index (0 1) :terms (baseheap heap))
+                )
+                (execute-pipeline :rule AIPT_Store_D2
+                  :sources (tuple
+                    (index-spec :schema VarPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema HeapAllocSuperType :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver FULL)
+                    (index-spec :schema ReachableSortedIndex :index (0 1) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema VarPointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema HeapAllocSuperType :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ArrayIndexPointsTo :index (0 1) :ver FULL))
+                    (column-join :var heap
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (HeapAllocSuperType 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var frm
+                      :sources (
+                        (column-source :index (VarPointsTo 0 1) :ver DELTA :prefix (heap))
+                        (column-source :index (ReachableSortedIndex 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var base
+                      :sources (
+                        (column-source :index (ReachableSortedIndex 0 1) :ver FULL :prefix (frm))
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var baseheap
+                      :sources (
+                        (column-source :index (VarPointsTo 1 0) :ver FULL :prefix (base))
+                        (column-source :index (HeapAllocSuperType 0 1) :ver FULL :prefix (heap))
+                      ))
+                    (insert-into :schema ArrayIndexPointsTo :ver NEW :dedup-index (0 1) :terms (baseheap heap))
+                )
+            )
+            (rebuild-index :index (ArrayIndexPointsTo 0 1) :ver NEW)
+            (clear-relation :schema ArrayIndexPointsTo :ver DELTA)
+            (check-size :schema ArrayIndexPointsTo :ver NEW)
+            (compute-delta-index :schema ArrayIndexPointsTo :canonical-index (0 1))
+            (clear-relation :schema ArrayIndexPointsTo :ver NEW)
+            (merge-index :index (ArrayIndexPointsTo 0 1))
+            (rebuild-index :index (Assign 0 1) :ver NEW)
+            (clear-relation :schema Assign :ver DELTA)
+            (check-size :schema Assign :ver NEW)
+            (compute-delta-index :schema Assign :canonical-index (0 1))
+            (clear-relation :schema Assign :ver NEW)
+            (merge-index :index (Assign 0 1))
+            (rebuild-index :index (CallGraphEdge 0 1) :ver NEW)
+            (clear-relation :schema CallGraphEdge :ver DELTA)
+            (check-size :schema CallGraphEdge :ver NEW)
+            (compute-delta-index :schema CallGraphEdge :canonical-index (0 1))
+            (clear-relation :schema CallGraphEdge :ver NEW)
+            (merge-index :index (CallGraphEdge 0 1))
+            (rebuild-index :index (InitializedClass 0) :ver NEW)
+            (clear-relation :schema InitializedClass :ver DELTA)
+            (check-size :schema InitializedClass :ver NEW)
+            (compute-delta-index :schema InitializedClass :canonical-index (0))
+            (clear-relation :schema InitializedClass :ver NEW)
+            (merge-index :index (InitializedClass 0))
+            (rebuild-index :index (InstanceFieldPointsTo 2 1 0) :ver NEW)
+            (clear-relation :schema InstanceFieldPointsTo :ver DELTA)
+            (check-size :schema InstanceFieldPointsTo :ver NEW)
+            (compute-delta-index :schema InstanceFieldPointsTo :canonical-index (2 1 0))
+            (clear-relation :schema InstanceFieldPointsTo :ver NEW)
+            (merge-index :index (InstanceFieldPointsTo 2 1 0))
+            (rebuild-index-from-index :source (InstanceFieldPointsTo 2 1 0) :target (InstanceFieldPointsTo 1 2 0) :ver DELTA)
+            (merge-index :index (InstanceFieldPointsTo 1 2 0))
+            (rebuild-index :index (Reachable 0) :ver NEW)
+            (clear-relation :schema Reachable :ver DELTA)
+            (check-size :schema Reachable :ver NEW)
+            (compute-delta-index :schema Reachable :canonical-index (0))
+            (clear-relation :schema Reachable :ver NEW)
+            (merge-index :index (Reachable 0))
+            (rebuild-index :index (ReachableInstruction 0) :ver NEW)
+            (clear-relation :schema ReachableInstruction :ver DELTA)
+            (check-size :schema ReachableInstruction :ver NEW)
+            (compute-delta-index :schema ReachableInstruction :canonical-index (0))
+            (clear-relation :schema ReachableInstruction :ver NEW)
+            (merge-index :index (ReachableInstruction 0))
+            (rebuild-index :index (ReachableLoadInstanceField 0 1 2) :ver NEW)
+            (clear-relation :schema ReachableLoadInstanceField :ver DELTA)
+            (check-size :schema ReachableLoadInstanceField :ver NEW)
+            (compute-delta-index :schema ReachableLoadInstanceField :canonical-index (0 1 2))
+            (clear-relation :schema ReachableLoadInstanceField :ver NEW)
+            (merge-index :index (ReachableLoadInstanceField 0 1 2))
+            (rebuild-index-from-index :source (ReachableLoadInstanceField 0 1 2) :target (ReachableLoadInstanceField 1 0 2) :ver DELTA)
+            (merge-index :index (ReachableLoadInstanceField 1 0 2))
+            (rebuild-index :index (ReachableSortedIndex 0 1) :ver NEW)
+            (clear-relation :schema ReachableSortedIndex :ver DELTA)
+            (check-size :schema ReachableSortedIndex :ver NEW)
+            (compute-delta-index :schema ReachableSortedIndex :canonical-index (0 1))
+            (clear-relation :schema ReachableSortedIndex :ver NEW)
+            (merge-index :index (ReachableSortedIndex 0 1))
+            (rebuild-index-from-index :source (ReachableSortedIndex 0 1) :target (ReachableSortedIndex 1 0) :ver DELTA)
+            (merge-index :index (ReachableSortedIndex 1 0))
+            (rebuild-index :index (StaticFieldPointsTo 1 0) :ver NEW)
+            (clear-relation :schema StaticFieldPointsTo :ver DELTA)
+            (check-size :schema StaticFieldPointsTo :ver NEW)
+            (compute-delta-index :schema StaticFieldPointsTo :canonical-index (1 0))
+            (clear-relation :schema StaticFieldPointsTo :ver NEW)
+            (merge-index :index (StaticFieldPointsTo 1 0))
+            (rebuild-index :index (VarPointsTo 0 1) :ver NEW)
+            (clear-relation :schema VarPointsTo :ver DELTA)
+            (check-size :schema VarPointsTo :ver NEW)
+            (compute-delta-index :schema VarPointsTo :canonical-index (0 1))
+            (clear-relation :schema VarPointsTo :ver NEW)
+            (merge-index :index (VarPointsTo 0 1))
+            (rebuild-index-from-index :source (VarPointsTo 0 1) :target (VarPointsTo 1 0) :ver DELTA)
+            (merge-index :index (VarPointsTo 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ArrayIndexPointsTo :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Assign :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel CallGraphEdge :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel InitializedClass :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel InstanceFieldPointsTo :canonical-index (2 1 0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Reachable :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ReachableInstruction :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ReachableLoadInstanceField :canonical-index (0 1 2))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ReachableSortedIndex :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel StaticFieldPointsTo :canonical-index (1 0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel VarPointsTo :canonical-index (0 1))
+  )
+)

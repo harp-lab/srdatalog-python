@@ -376,9 +376,10 @@ def lower_split_below(
   # Step 2: CartesianJoin for below patterns that introduce head vars.
   below_patterns = [p for p in variant.access_patterns if p.clause_idx > variant.split_at]
   head_vars: set[str] = set()
-  for a in rule.head.args:
-    if a.kind is ArgKind.LVAR:
-      head_vars.add(a.var_name)
+  for head in rule.heads:
+    for a in head.args:
+      if a.kind is ArgKind.LVAR:
+        head_vars.add(a.var_name)
 
   if below_patterns:
     cart_vars: list[str] = []
@@ -429,12 +430,12 @@ def lower_split_below(
   # Filters / Lets below the split.
   ops.extend(_lower_below_filter_and_let(variant))
 
-  # InsertInto the head.
-  head = rule.head
-  canonical = stratum.canonical_index.get(head.rel)
-  if canonical is None:
-    canonical = list(range(len(head.args)))
-  ops.append(generate_insert_into(head, list(canonical)))
+  # InsertInto every head — multi-head rules emit N inserts in one pipeline.
+  for head in rule.heads:
+    canonical = stratum.canonical_index.get(head.rel)
+    if canonical is None:
+      canonical = list(range(len(head.args)))
+    ops.append(generate_insert_into(head, list(canonical)))
   return ops
 
 
@@ -458,11 +459,11 @@ def lower_variant_to_pipeline(variant: HirRuleVariant, stratum: HirStratum) -> l
   ops.extend(_lower_negations(variant))
   ops.extend(_lower_filter_and_let_clauses(variant))
 
-  head = variant.original_rule.head
-  canonical = stratum.canonical_index.get(head.rel)
-  if canonical is None:
-    canonical = list(range(len(head.args)))
-  ops.append(generate_insert_into(head, list(canonical)))
+  for head in variant.original_rule.heads:
+    canonical = stratum.canonical_index.get(head.rel)
+    if canonical is None:
+      canonical = list(range(len(head.args)))
+    ops.append(generate_insert_into(head, list(canonical)))
 
   return ops
 
@@ -859,23 +860,24 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
             )
           )
 
-        rel_name = variant.original_rule.head.rel
-        if rel_name not in modified_rels:
-          modified_rels.append(rel_name)
-        if rel_name in stratum.required_indices:
-          canonical_idx = stratum.canonical_index.get(
-            rel_name,
-            stratum.required_indices[rel_name][0],
-          )
-          arity = get_arity(rel_name, decls)
-          maintenance_ops.extend(
-            generate_simple_maintenance(
+        for head in variant.original_rule.heads:
+          rel_name = head.rel
+          if rel_name not in modified_rels:
+            modified_rels.append(rel_name)
+          if rel_name in stratum.required_indices:
+            canonical_idx = stratum.canonical_index.get(
               rel_name,
-              stratum.required_indices[rel_name],
-              canonical_idx,
-              arity,
+              stratum.required_indices[rel_name][0],
             )
-          )
+            arity = get_arity(rel_name, decls)
+            maintenance_ops.extend(
+              generate_simple_maintenance(
+                rel_name,
+                stratum.required_indices[rel_name],
+                canonical_idx,
+                arity,
+              )
+            )
 
       ops: list[mir.MirNode] = []
       # Split phase runs first (sequential; depends on temp being populated).

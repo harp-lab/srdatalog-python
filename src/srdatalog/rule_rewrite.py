@@ -32,6 +32,47 @@ def _atom_has_const(atom: Atom) -> bool:
   return any(a.kind is ArgKind.CONST for a in atom.args)
 
 
+def rewrite_wildcards(
+  rules: list[Rule],
+  decls: list[RelationDecl],
+) -> tuple[list[Rule], list[RelationDecl]]:
+  '''Pre-pass: gensym each `_`-named LVAR to `_gen<N>`.
+
+  Mirrors `parseClauseArg` in src/srdatalog/syntax.nim where, at macro
+  parse time, every `_` (or `_`-prefixed) identifier is replaced with a
+  fresh unique name drawn from a monotonically increasing counter.
+  Two `_` slots in the same atom must be independent variables, which
+  requires a fresh name per occurrence.
+
+  Counter starts at 1 to match Nim's `wildcardCounter.inc` ordering.
+  '''
+  counter = 0
+
+  def rewrite_arg(arg: ClauseArg) -> ClauseArg:
+    nonlocal counter
+    if arg.kind is ArgKind.LVAR and arg.var_name and arg.var_name.startswith("_"):
+      counter += 1
+      return dataclasses.replace(arg, var_name=f"_gen{counter}")
+    return arg
+
+  def rewrite_atom(atom: Atom) -> Atom:
+    return dataclasses.replace(atom, args=tuple(rewrite_arg(a) for a in atom.args))
+
+  new_rules: list[Rule] = []
+  for rule in rules:
+    new_heads = tuple(rewrite_atom(h) for h in rule.heads)
+    new_body: list = []
+    for clause in rule.body:
+      if isinstance(clause, Atom):
+        new_body.append(rewrite_atom(clause))
+      elif isinstance(clause, Negation):
+        new_body.append(dataclasses.replace(clause, atom=rewrite_atom(clause.atom)))
+      else:
+        new_body.append(clause)
+    new_rules.append(dataclasses.replace(rule, heads=new_heads, body=tuple(new_body)))
+  return new_rules, decls
+
+
 def rewrite_constants(
   rules: list[Rule],
   decls: list[RelationDecl],
@@ -83,22 +124,24 @@ def rewrite_head_constants(
   counter = 0
   new_rules: list[Rule] = []
   for rule in rules:
-    new_head_args: list[ClauseArg] = []
     extra_body: list[Let] = []
+    new_heads: list[Atom] = []
     needs_rewrite = False
-    for arg in rule.head.args:
-      if arg.kind is ArgKind.CONST:
-        fresh = f"_hc{counter}"
-        counter += 1
-        new_head_args.append(ClauseArg(kind=ArgKind.LVAR, var_name=fresh))
-        extra_body.append(Let(var_name=fresh, code=arg.const_cpp_expr, deps=()))
-        needs_rewrite = True
-      else:
-        new_head_args.append(arg)
+    for head in rule.heads:
+      new_head_args: list[ClauseArg] = []
+      for arg in head.args:
+        if arg.kind is ArgKind.CONST:
+          fresh = f"_hc{counter}"
+          counter += 1
+          new_head_args.append(ClauseArg(kind=ArgKind.LVAR, var_name=fresh))
+          extra_body.append(Let(var_name=fresh, code=arg.const_cpp_expr, deps=()))
+          needs_rewrite = True
+        else:
+          new_head_args.append(arg)
+      new_heads.append(Atom(rel=head.rel, args=tuple(new_head_args)))
     if needs_rewrite:
-      new_head = Atom(rel=rule.head.rel, args=tuple(new_head_args))
       new_body = tuple(rule.body) + tuple(extra_body)
-      new_rules.append(dataclasses.replace(rule, head=new_head, body=new_body))
+      new_rules.append(dataclasses.replace(rule, heads=tuple(new_heads), body=new_body))
     else:
       new_rules.append(rule)
   return new_rules, decls
@@ -107,6 +150,19 @@ def rewrite_head_constants(
 # -----------------------------------------------------------------------------
 # Pipeline pass wrappers
 # -----------------------------------------------------------------------------
+
+
+class WildcardRewritePass:
+  info = PassInfo(
+    name="WildcardRewrite",
+    level=PassLevel.RULE_REWRITE,
+    order=-1,
+    source_dialect=Dialect.HIR,
+    target_dialect=Dialect.HIR,
+  )
+
+  def run(self, rules, decls):
+    return rewrite_wildcards(rules, decls)
 
 
 class ConstantRewritePass:
@@ -289,7 +345,7 @@ def optimize_semi_joins(
           )
           generated_rules.append(
             Rule(
-              head=gen_head,
+              heads=(gen_head,),
               body=(gen_target, gen_filter),
               name=f"{new_rel_name}_Gen",
               is_generated=True,

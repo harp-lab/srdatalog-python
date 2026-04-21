@@ -1,0 +1,18 @@
+{
+  "abstract": 1001,
+  "public": 1002,
+  "static": 1003,
+  "main": 1004,
+  "main_descriptor": 1005,
+  "java_lang_Object": 1006,
+  "java_lang_Cloneable": 1007,
+  "java_io_Serializable": 1008,
+  "clinit": 1009,
+  "clinit_descriptor": 1010,
+  "class_init_method": 1011,
+  "register_natives_method": 1012,
+  "desiredAssertionStatus_method": 1013,
+  "java_lang_String_type": 1014,
+  "java_lang_Class_type": 1015,
+  "java_lang_Object_array": 1016
+}

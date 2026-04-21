@@ -936,8 +936,8 @@ def _gen_setup(
     code += "    GPU_DEVICE_GET_ATTRIBUTE(&bg_num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n"
     code += (
       "    uint32_t hist_blocks = std::max((uint32_t)"
-      "((p.num_unique_root_keys + (kBlockSize / kGroupSize) - 1) / "
-      "(kBlockSize / kGroupSize)), (uint32_t)(bg_num_sms * 4));\n"
+      "((p.num_unique_root_keys + (kBlockSize/kGroupSize) - 1) / "
+      "(kBlockSize/kGroupSize)), (uint32_t)(bg_num_sms * 4));\n"
     )
     code += (
       "    kernel_bg_histogram<<<hist_blocks, kBlockSize, 0, stream>>>"
@@ -1152,8 +1152,8 @@ def _gen_launch_fused(
     code += "  {\n"
     code += (
       "    uint32_t hist_blocks = std::max((uint32_t)"
-      "((p.num_unique_root_keys + (kBlockSize / kGroupSize) - 1) / "
-      "(kBlockSize / kGroupSize)), (uint32_t)(num_sms * 4));\n"
+      "((p.num_unique_root_keys + (kBlockSize/kGroupSize) - 1) / "
+      "(kBlockSize/kGroupSize)), (uint32_t)(num_sms * 4));\n"
     )
     code += (
       "    kernel_bg_histogram<<<hist_blocks, kBlockSize, 0, stream>>>"
@@ -1261,8 +1261,8 @@ def _gen_execute(
     code += "  {\n"
     code += (
       "    uint32_t hist_blocks = std::max((uint32_t)"
-      "((p.num_unique_root_keys + (kBlockSize / kGroupSize) - 1) / "
-      "(kBlockSize / kGroupSize)), (uint32_t)(num_sms * 4));\n"
+      "((p.num_unique_root_keys + (kBlockSize/kGroupSize) - 1) / "
+      "(kBlockSize/kGroupSize)), (uint32_t)(num_sms * 4));\n"
     )
     code += (
       "    kernel_bg_histogram<<<hist_blocks, kBlockSize>>>"
@@ -1389,8 +1389,8 @@ def _gen_execute_fused(
     code += "  {\n"
     code += (
       "    uint32_t hist_blocks = std::max((uint32_t)"
-      "((p.num_unique_root_keys + (kBlockSize / kGroupSize) - 1) / "
-      "(kBlockSize / kGroupSize)), (uint32_t)(num_sms * 4));\n"
+      "((p.num_unique_root_keys + (kBlockSize/kGroupSize) - 1) / "
+      "(kBlockSize/kGroupSize)), (uint32_t)(num_sms * 4));\n"
     )
     code += (
       "    kernel_bg_histogram<<<hist_blocks, kBlockSize>>>"

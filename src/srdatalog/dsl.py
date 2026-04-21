@@ -7,7 +7,7 @@ Rules are constructed with Python objects and operator overloading:
   path = Relation("Path", 2)
 
   # Path(X, Y) :- Edge(X, Y)
-  r1 = Rule(head=path(X, Y), body=[edge(X, Y)], name="TCBase")
+  r1 = Rule(heads=(path(X, Y),), body=[edge(X, Y)], name="TCBase")
 
   # Path(X, Z) :- Path(X, Y), Edge(Y, Z)
   r2 = (path(X, Z) <= path(X, Y) & edge(Y, Z)).named("TCRec")
@@ -107,7 +107,30 @@ class Atom:
     `body` can be any BodyClauseT or a Conjunction of them.
     '''
     clauses = body.clauses if isinstance(body, Conjunction) else (body,)
-    return Rule(head=self, body=clauses, name=None)
+    return Rule(heads=(self,), body=clauses, name=None)
+
+  def __or__(self, other: Atom | HeadGroup) -> HeadGroup:
+    '''Compose atoms into a multi-head group: `A | B | C <= body`.'''
+    if isinstance(other, HeadGroup):
+      return HeadGroup((self,) + other.atoms)
+    return HeadGroup((self, other))
+
+
+@dataclass(frozen=True)
+class HeadGroup:
+  '''Intermediate: accumulates head atoms under `|`. Mirrors Nim's
+  `{(A args), (B args)} <-- body` multi-head rule form.
+  '''
+
+  atoms: tuple[Atom, ...]
+
+  def __or__(self, other: Atom | HeadGroup) -> HeadGroup:
+    extra = other.atoms if isinstance(other, HeadGroup) else (other,)
+    return HeadGroup(self.atoms + extra)
+
+  def __le__(self, body) -> Rule:
+    clauses = body.clauses if isinstance(body, Conjunction) else (body,)
+    return Rule(heads=self.atoms, body=clauses, name=None)
 
 
 @dataclass(frozen=True)
@@ -275,7 +298,11 @@ class PlanEntry:
 
 @dataclass(frozen=True)
 class Rule:
-  '''A Datalog rule: `head :- body_1, body_2, ...`.
+  '''A Datalog rule: `head_1, head_2, ... :- body_1, body_2, ...`.
+
+  `heads` is always a tuple of one or more Atoms (mirrors Nim's
+  `Rule.head: seq[HeadClause]`). Build multi-head rules with
+  `(A | B | C) <= body`; single-head still reads `A <= body`.
 
   `plans` holds user-provided PlanEntry overrides (one per delta position).
   `count` marks a rule as count-only: no materialization, just the cardinality.
@@ -286,7 +313,7 @@ class Rule:
   syntax.nim's `Rule.prov`.
   '''
 
-  head: Atom
+  heads: tuple[Atom, ...]
   body: tuple[BodyClauseT, ...]
   name: str | None = None
   plans: tuple[PlanEntry, ...] = ()
@@ -298,6 +325,12 @@ class Rule:
   # the lowering pass emits an InjectCppHook MIR node per variant (after
   # pipelines, before maintenance).
   debug_code: str = ""
+
+  @property
+  def head(self) -> Atom:
+    '''First head (convenience for single-head rules). For multi-head,
+    iterate `self.heads`.'''
+    return self.heads[0]
 
   def named(self, name: str) -> Rule:
     return dataclasses.replace(self, name=name)

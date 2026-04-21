@@ -52,7 +52,10 @@ jobs:
           path: docs/_build/html
 
   deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Deploy on every build that targets main — covers both push and
+    # manual workflow_dispatch runs. PRs skip (they build only to
+    # validate; they don't have the pages: write permission anyway).
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     environment:

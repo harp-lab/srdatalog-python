@@ -20,7 +20,7 @@ Other procs ported:
 from __future__ import annotations
 from typing import Sequence
 
-import srdatalog.mir_types as m
+import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.emit_helpers import assign_handle_positions
 from srdatalog.codegen.jit.kernel_functor import jit_full_kernel

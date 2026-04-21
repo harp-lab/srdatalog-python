@@ -41,7 +41,7 @@ Public API:
 from __future__ import annotations
 from typing import Optional
 
-import srdatalog.mir_types as m
+import srdatalog.mir.types as m
 from srdatalog.hir_types import Version
 from srdatalog.codegen.jit.context import CodeGenContext, ind
 

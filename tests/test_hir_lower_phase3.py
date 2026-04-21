@@ -16,7 +16,7 @@ from srdatalog.hir_lower import (
   lower_hir_to_mir_steps,
   lower_hir_to_mir,
 )
-import srdatalog.mir_types as mir
+import srdatalog.mir.types as mir
 
 
 def build_tc() -> Program:

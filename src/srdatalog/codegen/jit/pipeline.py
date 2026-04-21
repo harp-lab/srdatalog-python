@@ -44,7 +44,7 @@ that exercise them come online.
 from __future__ import annotations
 from typing import Optional
 
-import srdatalog.mir_types as m
+import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
   CodeGenContext, ind, inc_indent, gen_unique_name, with_bound_var,
   get_rel_index_type, gen_handle_state_key, gen_index_spec_key,

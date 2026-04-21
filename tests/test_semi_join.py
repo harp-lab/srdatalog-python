@@ -9,7 +9,7 @@ from pathlib import Path
 from srdatalog.dsl import Var, Relation, Program, Atom
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir_emit import hir_to_obj
-from srdatalog.mir_emit import print_mir_sexpr
+from srdatalog.mir.emit import print_mir_sexpr
 from srdatalog.rule_rewrite import optimize_semi_joins, _is_semi_join_candidate
 from srdatalog.provenance import ProvenanceKind
 

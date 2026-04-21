@@ -11,7 +11,7 @@ Order (matches Nim's registerMirOptimizePass priorities):
 from __future__ import annotations
 
 from srdatalog.hir_types import Version
-import srdatalog.mir_types as mir
+import srdatalog.mir.types as mir
 
 
 # -----------------------------------------------------------------------------

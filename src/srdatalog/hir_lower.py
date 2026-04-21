@@ -22,7 +22,7 @@ from __future__ import annotations
 from srdatalog.dsl import Atom, Negation, Filter, Let, ArgKind
 from srdatalog.hir_types import AccessPattern, HirProgram, HirRuleVariant, HirStratum, Version
 from srdatalog.hir_index import complete_index, get_arity
-import srdatalog.mir_types as mir
+import srdatalog.mir.types as mir
 
 
 def _prefix_vars(pattern: AccessPattern) -> list[str]:

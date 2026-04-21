@@ -20,8 +20,8 @@ from srdatalog.hir_lower import (
   generate_insert_into,
   lower_variant_to_pipeline,
 )
-import srdatalog.mir_types as mir
-from srdatalog.mir_emit import print_mir_sexpr
+import srdatalog.mir.types as mir
+from srdatalog.mir.emit import print_mir_sexpr
 
 
 def build_tc() -> Program:

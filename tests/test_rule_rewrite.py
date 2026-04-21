@@ -13,7 +13,7 @@ from srdatalog.dsl import Var, Relation, Program, Atom, Filter, Let, ClauseArg, 
 from srdatalog.hir_types import RelationDecl
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir_emit import hir_to_obj
-from srdatalog.mir_emit import print_mir_sexpr
+from srdatalog.mir.emit import print_mir_sexpr
 from srdatalog.rule_rewrite import rewrite_constants, rewrite_head_constants
 
 

@@ -23,7 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-import srdatalog.mir_types as m
+import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
   CodeGenContext, ind, inc_indent, sanitize_var_name, with_bound_var,
 )

@@ -22,8 +22,8 @@ from srdatalog.hir_lower import (
   generate_simple_maintenance,
   generate_loop_maintenance,
 )
-import srdatalog.mir_types as mir
-from srdatalog.mir_emit import print_mir_sexpr
+import srdatalog.mir.types as mir
+from srdatalog.mir.emit import print_mir_sexpr
 
 
 def build_tc() -> Program:

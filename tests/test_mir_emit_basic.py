@@ -14,8 +14,8 @@ from pathlib import Path
 
 
 from srdatalog.hir_types import Version
-import srdatalog.mir_types as m
-from srdatalog.mir_emit import print_mir_sexpr
+import srdatalog.mir.types as m
+from srdatalog.mir.emit import print_mir_sexpr
 
 
 def test_column_source():

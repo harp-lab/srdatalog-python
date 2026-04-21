@@ -1,5 +1,5 @@
-from srdatalog.mir_schema import SchemaDefinition, Pragma
-from srdatalog.mir_commands import MirInstructions
+from srdatalog.mir.schema import SchemaDefinition, Pragma
+from srdatalog.mir.commands import MirInstructions
 
 def _include_load_pragmas(schema):
   pragmas = ""

@@ -4,7 +4,7 @@ from pathlib import Path
 
 # Add the parent directory to the path so we can import mir_commands
 
-from srdatalog.mir_commands import (
+from srdatalog.mir.commands import (
     FactIndex, Version,
     RebuildIndex,
     MergeIndex,

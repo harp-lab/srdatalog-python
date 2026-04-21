@@ -56,10 +56,10 @@ def compile_to_mir(
   to stop at the raw output of `lower_hir_to_mir_steps`.
   '''
   from srdatalog.hir_lower import lower_hir_to_mir_steps
-  import srdatalog.mir_types as mir
+  import srdatalog.mir.types as mir
   hir = compile_to_hir(program, verbose=verbose)
   steps = lower_hir_to_mir_steps(hir)
   if apply_mir_passes:
-    from srdatalog.mir_passes import apply_all_mir_passes
+    from srdatalog.mir.passes import apply_all_mir_passes
     steps = apply_all_mir_passes(steps)
   return mir.Program(steps=[(node, is_rec) for node, is_rec in steps])

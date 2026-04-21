@@ -9,8 +9,8 @@ from pathlib import Path
 
 
 from srdatalog.hir_types import Version
-import srdatalog.mir_types as mir
-from srdatalog.mir_passes import (
+import srdatalog.mir.types as mir
+from srdatalog.mir.passes import (
   insert_pre_reconstruct_rebuilds,
   apply_clause_order_reordering,
   apply_prefix_source_reordering,
@@ -194,7 +194,7 @@ def test_balanced_scan_pass_converts_column_join_to_positioned_extract():
   '''A pipeline starting with BalancedScan gets its subsequent ColumnJoin
   for a balanced var turned into a PositionedExtract.
   '''
-  from srdatalog.mir_passes import apply_balanced_scan_pass
+  from srdatalog.mir.passes import apply_balanced_scan_pass
   s1 = mir.ColumnSource(rel_name="A", version=Version.FULL, index=[0, 1])
   s2 = mir.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1])
   bs = mir.BalancedScan(
@@ -219,7 +219,7 @@ def test_balanced_scan_pass_converts_column_join_to_positioned_extract():
 
 def test_balanced_scan_pass_leaves_non_balanced_var_alone():
   '''A ColumnJoin for a var NOT in the balanced set passes through.'''
-  from srdatalog.mir_passes import apply_balanced_scan_pass
+  from srdatalog.mir.passes import apply_balanced_scan_pass
   s1 = mir.ColumnSource(rel_name="A", version=Version.FULL, index=[0, 1])
   s2 = mir.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1])
   bs = mir.BalancedScan(
@@ -237,7 +237,7 @@ def test_balanced_scan_pass_leaves_non_balanced_var_alone():
 
 def test_balanced_scan_pass_noop_when_no_balanced_scan():
   '''Pipeline without BalancedScan at position 0 is untouched.'''
-  from srdatalog.mir_passes import apply_balanced_scan_pass
+  from srdatalog.mir.passes import apply_balanced_scan_pass
   scan = mir.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0])
   ins = mir.InsertInto(rel_name="S", version=Version.NEW, vars=["x"], index=[0])
   ep = mir.ExecutePipeline(

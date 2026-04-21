@@ -14,7 +14,7 @@ from srdatalog.hir_types import Version
 from srdatalog.hir import compile_to_hir, compile_to_mir
 from srdatalog.hir_emit import hir_to_obj
 from srdatalog.hir_plan import derive_clause_order_from_var_order
-from srdatalog.mir_emit import print_mir_sexpr
+from srdatalog.mir.emit import print_mir_sexpr
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

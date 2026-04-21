@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-import srdatalog.mir_types as m
+import srdatalog.mir.types as m
 from srdatalog.hir_types import Version
 from srdatalog.codegen.schema import SchemaDefinition, Pragma
 from srdatalog.codegen import cpp_emit

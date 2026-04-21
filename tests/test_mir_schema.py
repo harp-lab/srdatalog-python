@@ -1,7 +1,7 @@
 import unittest
 import sys
 from pathlib import Path
-from srdatalog.mir_schema import SchemaDefinition, FactDefinition, Pragma
+from srdatalog.mir.schema import SchemaDefinition, FactDefinition, Pragma
 
 # Add the parent directory to the path so we can import mir_schema
 

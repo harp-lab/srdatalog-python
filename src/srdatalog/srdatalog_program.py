@@ -3,9 +3,9 @@ from pathlib import Path
 import json
 from dataclasses import dataclass
 
-from srdatalog.mir_schema import SchemaDefinition
-from srdatalog.mir_commands import MirInstructions
-from srdatalog.mir_runner import generate_runner
+from srdatalog.mir.schema import SchemaDefinition
+from srdatalog.mir.commands import MirInstructions
+from srdatalog.mir.runner import generate_runner
 from srdatalog.ffi_header import generate_extern_c
 from srdatalog.ffi_wrapper import DatalogFFI
 

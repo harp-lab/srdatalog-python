@@ -21,7 +21,7 @@ and will be filled in as the programs that exercise them come online.
 from __future__ import annotations
 from typing import Optional
 
-import srdatalog.mir_types as m
+import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
   CodeGenContext, ind, inc_indent, dec_indent, gen_unique_name,
   with_bound_var, sanitize_var_name, get_view_slot_base, get_rel_index_type,

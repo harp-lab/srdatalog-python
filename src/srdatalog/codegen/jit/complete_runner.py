@@ -27,7 +27,7 @@ dedup_hash, balanced scan, fan-out, materialized pipelines.
 '''
 from __future__ import annotations
 
-import srdatalog.mir_types as m
+import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import CodeGenContext, new_code_gen_context
 from srdatalog.codegen.jit.emit_helpers import (
   assign_handle_positions,

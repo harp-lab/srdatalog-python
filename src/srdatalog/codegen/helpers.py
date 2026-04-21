@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional, Union
 
-import srdatalog.mir_types as m
+import srdatalog.mir.types as m
 from srdatalog.hir_types import Version
 
 

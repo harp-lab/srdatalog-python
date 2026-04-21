@@ -6,7 +6,6 @@ from srdatalog.mir.schema import FactDefinition, Pragma, SchemaDefinition
 
 
 def print_diff(expected, actual):
-
   # for debugging diff
   expected = expected.replace("<", "\n<")
   actual = actual.replace("<", "\n<")
@@ -16,7 +15,6 @@ def print_diff(expected, actual):
 
 class TestFactDefinition(unittest.TestCase):
   def test_andersen(self):
-
     fixture = FactDefinition("AddressOf", [int, int], {Pragma.INPUT: "addressOf.csv"})
 
     expected = '''using AddressOf = AST::RelationSchema<decltype("AddressOf"_s), BooleanSR, std::tuple<int, int>>;'''
@@ -31,7 +29,6 @@ class TestSchemaDefinition(unittest.TestCase):
   """Test cases for SchemaDefinition class"""
 
   def test_andersen(self):
-
     fixture = SchemaDefinition(
       [
         FactDefinition("AddressOf", [int, int], {Pragma.INPUT: "addressOf.csv"}),

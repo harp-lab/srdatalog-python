@@ -5,7 +5,6 @@ from cffi import FFI
 
 class DatalogFFI:
   def __init__(self, header_path: str, binary_path: str):
-
     self.ffi = FFI()
 
     # load the header and define the C API

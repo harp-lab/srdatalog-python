@@ -155,6 +155,8 @@ ignore = [
   "RUF059",  # unused-unpacked-variable (_, _, x = ...) is clearer than slicing
   "UP007",   # non-pep604-annotation-union — both `Union[X,Y]` and `X|Y` are fine on py310+
   "UP045",   # non-pep604-annotation-optional — same
+  "UP038",   # isinstance(x, A|B) — runtime cost is real; tuple form is correct
+             # (this rule was removed in ruff 0.11+ for the same reason).
   "W291",    # trailing-whitespace — the formatter fixes real cases, these are in strings
   "W293",    # blank-line-with-whitespace — same
 ]

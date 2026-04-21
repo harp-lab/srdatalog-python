@@ -42,7 +42,6 @@ def generate_runner(name: str, instructions: MirInstructions, schema: SchemaDefi
 
 
 def _generate_section_steps(name: str, instructions: MirInstructions):
-
   section_steps = ""
   for section_i in range(len(instructions.structure)):
     rec = "max_iterations" if instructions.structure[section_i].recursive else "1"  # is recursive?
@@ -56,7 +55,6 @@ def _generate_section_steps(name: str, instructions: MirInstructions):
 
 
 def _generate_run_func(instructions: MirInstructions, schema: SchemaDefinition):
-
   body = ""
 
   for section_i in range(len(instructions.structure)):

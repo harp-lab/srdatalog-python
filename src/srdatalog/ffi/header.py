@@ -1,5 +1,4 @@
 def generate_extern_c(name):
-
   return (
     """
 

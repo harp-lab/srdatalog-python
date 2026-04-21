@@ -330,7 +330,6 @@ class Scan(FMirNode):
   cursor: int = MISSING_HANDLE
 
   def __str__(self):
-
     if self.cursor < 0:
       self.cursor = self._request_cursor()
 
@@ -356,7 +355,6 @@ class ExecutePipeline(MirNode):
   body: list[MirNode]
 
   def __str__(self):
-
     source_str = "std::tuple<" + ", ".join(str(node) for node in self.sources) + ">"
     dest_str = "std::tuple<" + ", ".join(str(node) for node in self.dests) + ">"
     body_str = ",\n".join(str(node) for node in self.body)
@@ -380,7 +378,6 @@ class Block(MirNode):
   recursive: bool = True
 
   def __str__(self):
-
     retrieved_specs = collect_index_specs(self)
 
     # dedup specs
@@ -417,7 +414,6 @@ class ColumnJoin(MirNode):
   cursor: int = MISSING_HANDLE
 
   def __str__(self):
-
     if self.cursor < 0:
       sourcecount = 0
       for src in self.sources:
@@ -449,7 +445,6 @@ class CartesianJoin(MirNode):
   cursor: int = MISSING_HANDLE
 
   def __str__(self):
-
     if self.cursor < 0:
       sourcecount = 0
       for src in self.sources:
@@ -480,7 +475,6 @@ class CppHook(MirNode):
   label: str = ""
 
   def __str__(self):
-
     display_label = f" /* {self.label} */ " if self.label != "" else ""
 
     return f"inject_cpp_hook([] __host__ (auto& db) {{ {display_label} \n{self.code} }})"
@@ -518,7 +512,6 @@ class Filter(MirNode):
   code: str  # potential TODO can this code be generated more automatically?
 
   def __str__(self):
-
     variable_str = ", ".join(f'"{v}"_v' for v in self.vars)
     arg_str = ", ".join(f'auto {v}' for v in self.vars)
 
@@ -531,7 +524,6 @@ class Negate(FMirNode):
   cursor: int = MISSING_HANDLE
 
   def __str__(self):
-
     if self.cursor < 0:
       self.cursor = self._request_cursor()
 

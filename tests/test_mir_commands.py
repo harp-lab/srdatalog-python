@@ -32,7 +32,6 @@ Relation_AddressOf = "AddressOf"
 
 
 def print_diff(expected, actual):
-
   # for debugging diff
   expected = expected.replace("<", "\n<")
   actual = actual.replace("<", "\n<")
@@ -336,7 +335,6 @@ class TestBlock(unittest.TestCase):
     self.assertEqual(actual, expected)
 
   def test_andersen_basecase(self):
-
     structure = Block(
       dests=[IndexSpec(fact=FactIndex(Relation_PointsTo, [1, 0]), version=Version.FULL)],
       instructions=[
@@ -380,7 +378,6 @@ class TestBlock(unittest.TestCase):
 
 class TestColumnSource(unittest.TestCase):
   def test_noprefix(self):
-
     structure = ColumnSource(fact=FactIndex(Relation_PointsTo, [0, 1]), version=Version.DELTA)
 
     expected = (
@@ -390,7 +387,6 @@ class TestColumnSource(unittest.TestCase):
     self.assertEqual(str(structure), expected)
 
   def test_prefix(self):
-
     structure = ColumnSource(
       fact=FactIndex(Relation_PointsTo, [0, 1]), version=Version.DELTA, prefix=("x")
     )
@@ -404,7 +400,6 @@ class TestColumnSource(unittest.TestCase):
 
 class TestColumnJoin(unittest.TestCase):
   def test_prefix(self):
-
     structure = ColumnJoin(
       vars=("z"),
       sources=[
@@ -429,7 +424,6 @@ class TestColumnJoin(unittest.TestCase):
 
 class TestCartesianJoin(unittest.TestCase):
   def test_two_prefix(self):
-
     structure = CartesianJoin(
       vars=("y", "w"),
       sources=[
@@ -450,7 +444,6 @@ class TestCartesianJoin(unittest.TestCase):
 
 class TestMirInstructions(unittest.TestCase):
   def setUp(self):
-
     self.structure_nohandles = [
       Block(
         dests=[IndexSpec(fact=FactIndex(Relation_PointsTo, [1, 0]), version=Version.FULL)],
@@ -503,11 +496,9 @@ class TestMirInstructions(unittest.TestCase):
     self.program_h = MirInstructions(structure=self.structure_handles)
 
   def test_program_assignment(self):
-
     self.assertEqual(self.structure_nohandles[0].instructions[0].body[0].program, self.program_nh)
 
   def test_program_nohandles(self):
-
     # the order of certain factors is different in this program vs what the nim generated
     # as_produced_by_nim ='fixpoint_plan<std::tuple<PointsTo>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,0>>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,0,1>,2>,SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,2>>>(execute(pipeline<std::tuple<SRDatalog::mir::IndexSpecT<AddressOf,std::integer_sequence<int,0,1>,0>>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,0>>,std::tuple<AddressOf>>(insert_into<PointsTo,NEW_VER,decltype(SRDatalog::mir::dsl::index<PointsTo,1,0>().newt())>("y"_v,"x"_v))),rebuild_index(SRDatalog::mir::dsl::index<PointsTo,1,0>().newt()),rebuild_index(SRDatalog::mir::dsl::index<PointsTo,0,1>().newt()));'
     expected = 'constexprautostep_0=fixpoint_plan <std::tuple <PointsTo>,std::tuple <SRDatalog::mir::IndexSpecT <PointsTo,std::integer_sequence <int,1,0>,0>>,std::tuple <SRDatalog::mir::IndexSpecT <PointsTo,std::integer_sequence <int,1,0>,2>,SRDatalog::mir::IndexSpecT <PointsTo,std::integer_sequence <int,0,1>,2>>>(execute(pipeline <std::tuple <SRDatalog::mir::IndexSpecT <AddressOf,std::integer_sequence <int,0,1>,0>>,std::tuple <SRDatalog::mir::IndexSpecT <PointsTo,std::integer_sequence <int,1,0>,0>>,std::tuple <AddressOf>>(insert_into <PointsTo,NEW_VER,decltype(SRDatalog::mir::dsl::index <PointsTo,1,0>().newt())>("y"_v,"x"_v))),rebuild_index(SRDatalog::mir::dsl::index <PointsTo,1,0>().newt()),rebuild_index(SRDatalog::mir::dsl::index <PointsTo,0,1>().newt()));usingstep_0_t=decltype(step_0);'
@@ -521,7 +512,6 @@ class TestMirInstructions(unittest.TestCase):
     self.assertEqual(expected, actual)
 
   def test_program_handles(self):
-
     # the order of certain factors is different in this program vs what the nim generated
     expected = 'constexprautostep_0=fixpoint_plan<std::tuple<PointsTo>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,0>>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,2>,SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,0,1>,2>>>(execute(pipeline<std::tuple<SRDatalog::mir::IndexSpecT<AddressOf,std::integer_sequence<int,0,1>,0>>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,0>>,std::tuple<AddressOf>>(SRDatalog::mir::dsl::scan_h<0,decltype(boost::hana::make_map())>(SRDatalog::mir::dsl::vars("y"_v,"x"_v),SRDatalog::mir::dsl::index<AddressOf,0,1>().full()),insert_into<PointsTo,NEW_VER,decltype(SRDatalog::mir::dsl::index<PointsTo,1,0>().newt())>("y"_v,"x"_v))),rebuild_index(SRDatalog::mir::dsl::index<PointsTo,1,0>().newt()),rebuild_index(SRDatalog::mir::dsl::index<PointsTo,0,1>().newt()),check_size<PointsTo,NEW_VER>(),compute_delta(SRDatalog::mir::dsl::index<PointsTo,1,0>().newt()),clear_relation<PointsTo,NEW_VER>(),merge_index(SRDatalog::mir::dsl::index<PointsTo,1,0>().full()),merge_index(SRDatalog::mir::dsl::index<PointsTo,0,1>().full()));usingstep_0_t=decltype(step_0);'
     # self.program.cursors_allocated = 3
@@ -536,7 +526,6 @@ class TestMirInstructions(unittest.TestCase):
     self.assertEqual(expected, actual)
 
   def test_program_adjusted_handles(self):
-
     expected = 'constexprautostep_0=fixpoint_plan<std::tuple<PointsTo>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,0>>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,2>,SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,0,1>,2>>>(execute(pipeline<std::tuple<SRDatalog::mir::IndexSpecT<AddressOf,std::integer_sequence<int,0,1>,0>>,std::tuple<SRDatalog::mir::IndexSpecT<PointsTo,std::integer_sequence<int,1,0>,0>>,std::tuple<AddressOf>>(SRDatalog::mir::dsl::scan_h<3,decltype(boost::hana::make_map())>(SRDatalog::mir::dsl::vars("y"_v,"x"_v),SRDatalog::mir::dsl::index<AddressOf,0,1>().full()),insert_into<PointsTo,NEW_VER,decltype(SRDatalog::mir::dsl::index<PointsTo,1,0>().newt())>("y"_v,"x"_v))),rebuild_index(SRDatalog::mir::dsl::index<PointsTo,1,0>().newt()),rebuild_index(SRDatalog::mir::dsl::index<PointsTo,0,1>().newt()),check_size<PointsTo,NEW_VER>(),compute_delta(SRDatalog::mir::dsl::index<PointsTo,1,0>().newt()),clear_relation<PointsTo,NEW_VER>(),merge_index(SRDatalog::mir::dsl::index<PointsTo,1,0>().full()),merge_index(SRDatalog::mir::dsl::index<PointsTo,0,1>().full()));usingstep_0_t=decltype(step_0);'
     self.program_h.cursors_allocated = 3
     actual = (
@@ -552,7 +541,6 @@ class TestMirInstructions(unittest.TestCase):
 
 class TestCppHook(unittest.TestCase):
   def test_andersen(self):
-
     structure = CppHook(
       code="""
             auto& points_to_delta = get_relation_by_schema<PointsTo, DELTA_VER>(db);
@@ -574,13 +562,11 @@ class TestCppHook(unittest.TestCase):
 
 class TestAggregate(unittest.TestCase):
   def test_agg_noprogram(self):
-
     pass
 
 
 class TestFilter(unittest.TestCase):
   def test_filterjoin_basic(self):
-
     structure = Filter(
       vars=('Ctr1', 'N1', 'Ctr2', 'N2'), code="return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);"
     )
@@ -593,7 +579,6 @@ class TestFilter(unittest.TestCase):
 
 class TestNegate(unittest.TestCase):
   def test_negationtest_basic(self):
-
     structure = Negate(
       fact=FactIndex("HasNextSibling", [0, 1]), version=Version.FULL, prefix=("StartCtr", "StartN")
     )

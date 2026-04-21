@@ -6,7 +6,9 @@
 # Manual:    pre-commit run --all-files
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.4
+    # Pinned to match CI's ruff version and the pyproject.toml ignore list.
+    # Bump in lockstep with .github/workflows/lint.yml.
+    rev: v0.9.10
     hooks:
       # Auto-fix simple lints (imports, trailing whitespace, etc.)
       - id: ruff

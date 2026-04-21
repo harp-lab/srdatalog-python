@@ -1,0 +1,15 @@
+# Run via `pre-commit install` once, then `pre-commit` runs automatically
+# on every commit. Matches the gate the CI lint/format workflow runs —
+# keeps format passes out of review diffs.
+#
+# Install:   uv tool install pre-commit && pre-commit install
+# Manual:    pre-commit run --all-files
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.4
+    hooks:
+      # Auto-fix simple lints (imports, trailing whitespace, etc.)
+      - id: ruff
+        args: [--fix]
+      # Enforce the code-formatter — no manual indent fights.
+      - id: ruff-format

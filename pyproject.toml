@@ -109,10 +109,77 @@ pythonpath = ["tests"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+indent-width = 2
+# Skip the auto-generated tree (sphinx-autodoc2 output, build caches,
+# the in-tree vendor tarball we fetch on build, and the Nim translator
+# outputs which are regenerated from Nim sources).
+extend-exclude = [
+  "docs/_build", "docs/api",
+  "src/srdatalog/runtime/vendor",
+  "src/srdatalog/runtime/generalized_datalog",
+  "build", "dist", "wheelhouse",
+  ".venv", ".cache",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I"]
-ignore = ["E501"]
+# E/F/W are pycodestyle + pyflakes core; I is isort (import sorting).
+# UP is pyupgrade (auto-modernize to current target-version syntax).
+# B is flake8-bugbear (common correctness traps).
+# SIM is flake8-simplify (readability). RUF is ruff-specific.
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+  "E501",    # line-length (we don't hard-wrap; let the formatter decide)
+  "SIM108",  # ternary-vs-if (ternaries aren't always clearer)
+  "SIM102",  # collapsible-if (nested-if is often more readable)
+  "SIM110",  # reimplemented-builtin (explicit loops are often clearer than any/all)
+  "SIM101",  # duplicate-isinstance-call (splitting by class is often clearer)
+  "SIM115",  # open-file-with-context-handler (tolerated in scripts that stream)
+  "SIM401",  # if-else-block-instead-of-dict-get (explicit ifs read better for 2-branch logic)
+  "B005",    # strip-with-multi-chars (we know what we're stripping)
+  "B007",    # unused-loop-control-variable (`for _, x in enumerate(...)` pattern)
+  "B008",    # Do not perform function call in argument defaults (dataclass field())
+  "B006",    # mutable-argument-default — tolerated in long-lived caller-provided lists
+  "B905",    # zip-without-explicit-strict (we know inputs are same length)
+  "E402",    # module-import-not-at-top (sys.path hacks in scripts need this)
+  "E731",    # lambda-assignment (short lambdas are fine as named callbacks)
+  "E741",    # ambiguous-name (`l` / `I` / `O` are fine in short local scopes)
+  "F403",    # `from X import *` — deliberate in mir/hir re-exports
+  "F405",    # "may be undefined from import *" — false positives on our star-imports
+  "F841",    # unused local — some emit paths compute then conditionally use
+  "SIM113",  # enumerate-for-loop — explicit counters are readable enough
+  "RUF002",  # ambiguous unicode in docstrings (we use — em-dash deliberately)
+  "RUF003",  # ambiguous unicode in comments (same reason)
+  "RUF005",  # `[a] + list(b)` → `[a, *b]` (either form is fine)
+  "RUF013",  # implicit-Optional (legacy stubs; fix opportunistically)
+  "RUF022",  # unsorted-dunder-all (our order mirrors logical grouping, not alphabet)
+  "RUF059",  # unused-unpacked-variable (_, _, x = ...) is clearer than slicing
+  "UP007",   # non-pep604-annotation-union — both `Union[X,Y]` and `X|Y` are fine on py310+
+  "UP045",   # non-pep604-annotation-optional — same
+  "W291",    # trailing-whitespace — the formatter fixes real cases, these are in strings
+  "W293",    # blank-line-with-whitespace — same
+]
+# Allow unused imports in __init__.py (re-exports).
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+# Auto-generated benchmark programs — the translator declares every var
+# referenced anywhere in the Nim source, some of which are unused in
+# trimmed-down rule sets. Not worth fixing by hand on regenerate.
+"examples/*.py" = ["F401", "F841", "E402"]
+# Tests use `import *` to pull in DSL factories en masse, and aggressive
+# short names (`l`, `I`, `O`) are fine in fixture-heavy code.
+"tests/**" = ["F403", "F405", "F841", "E741"]
+# The translator + validator build lookups via `import *`-style patterns
+# and intentionally defer sys.path tweaks before importing.
+"tools/*.py" = ["F403", "F405", "E402"]
+
+[tool.ruff.format]
+# Match the existing codebase style — 2-space indent, preserve the
+# single-quote docstrings we've been writing. Don't reshuffle quotes
+# inside strings.
+indent-style = "space"
+quote-style = "preserve"
+docstring-code-format = true
+docstring-code-line-length = 80
 
 # ---------------------------------------------------------------------------
 # uv dev group

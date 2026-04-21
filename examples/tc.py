@@ -3,23 +3,47 @@ Do not edit manually — regenerate via:
 
     python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/tc/tc.nim --out <this file>
 """
+
 from __future__ import annotations
 
-from srdatalog.dsl import Filter, Program, Relation, Var
 from srdatalog.dataset_const import load_meta, resolve_program_consts
+from srdatalog.dsl import Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
-ArcInput = Relation("ArcInput", 2, column_types=(int, int,), input_file="Arc.csv")
-Edge = Relation("Edge", 2, column_types=(int, int,))
-Path = Relation("Path", 2, column_types=(int, int,), print_size=True)
+ArcInput = Relation(
+  "ArcInput",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+  input_file="Arc.csv",
+)
+Edge = Relation(
+  "Edge",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+)
+Path = Relation(
+  "Path",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+  print_size=True,
+)
 
 # ----- dataset_const declarations -----------------------------
 
-DATASET_CONST_DECLS = {
-}
+DATASET_CONST_DECLS = {}
 
 # ----- Rules: TCDB -----
+
 
 def build_tcdb_program() -> Program:
   x = Var("x")

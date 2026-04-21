@@ -3,25 +3,65 @@ Do not edit manually — regenerate via:
 
     python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/lsqb_q6_count.nim --out <this file>
 """
+
 from __future__ import annotations
 
-from srdatalog.dsl import Filter, Program, Relation, Var
 from srdatalog.dataset_const import load_meta, resolve_program_consts
+from srdatalog.dsl import Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
-KnowsInput = Relation("KnowsInput", 2, column_types=(int, int,), input_file="Person_knows_Person.csv")
-HasInterestInput = Relation("HasInterestInput", 2, column_types=(int, int,), input_file="Person_hasInterest_Tag.csv")
-Knows = Relation("Knows", 2, column_types=(int, int,))
-HasInterest = Relation("HasInterest", 2, column_types=(int, int,))
-Path = Relation("Path", 4, column_types=(int, int, int, int,))
+KnowsInput = Relation(
+  "KnowsInput",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+  input_file="Person_knows_Person.csv",
+)
+HasInterestInput = Relation(
+  "HasInterestInput",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+  input_file="Person_hasInterest_Tag.csv",
+)
+Knows = Relation(
+  "Knows",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+)
+HasInterest = Relation(
+  "HasInterest",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+)
+Path = Relation(
+  "Path",
+  4,
+  column_types=(
+    int,
+    int,
+    int,
+    int,
+  ),
+)
 
 # ----- dataset_const declarations -----------------------------
 
-DATASET_CONST_DECLS = {
-}
+DATASET_CONST_DECLS = {}
 
 # ----- Rules: LSQB_Q6_DB -----
+
 
 def build_lsqb_q6_db_program() -> Program:
   p = Var("p")
@@ -44,7 +84,22 @@ def build_lsqb_q6_db_program() -> Program:
       (Knows(x, y) <= KnowsInput(x, y)).named('KnowsLoad'),
       (Knows(y, x) <= KnowsInput(x, y)).named('KnowsLoadRev'),
       (HasInterest(p, t) <= HasInterestInput(p, t)).named('InterestLoad'),
-      (Path(p1, p2, p3, t) <= Knows(p1, p2) & Knows(p2, p3) & HasInterest(p3, t) & Filter(('p1', 'p3',), "return p1 != p3;")).named('TwoHopPath').with_plan(var_order=['p2', 'p3', 'p1', 't']).with_count(),
+      (
+        Path(p1, p2, p3, t)
+        <= Knows(p1, p2)
+        & Knows(p2, p3)
+        & HasInterest(p3, t)
+        & Filter(
+          (
+            'p1',
+            'p3',
+          ),
+          "return p1 != p3;",
+        )
+      )
+      .named('TwoHopPath')
+      .with_plan(var_order=['p2', 'p3', 'p1', 't'])
+      .with_count(),
     ],
   )
 

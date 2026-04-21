@@ -17,6 +17,7 @@ Usage:
 
 For any benchmark besides doop, see `examples/run_benchmark.py`.
 '''
+
 from __future__ import annotations
 
 import sys
@@ -30,10 +31,7 @@ sys.path.insert(0, str(_HERE))
 # duplicated.
 from run_benchmark import main as _run_main
 
-
-DEFAULT_DATA = (
-  "/home/stargazermiao/workspace/SRDatalog/benchmarks/data/doop/batik_interned"
-)
+DEFAULT_DATA = "/home/stargazermiao/workspace/SRDatalog/benchmarks/data/doop/batik_interned"
 DEFAULT_META = (
   "/home/stargazermiao/workspace/SRDatalog/integration_tests/examples/doop/batik_meta.json"
 )

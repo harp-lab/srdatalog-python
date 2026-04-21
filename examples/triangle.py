@@ -3,24 +3,56 @@ Do not edit manually — regenerate via:
 
     python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/triangle.nim --out <this file>
 """
+
 from __future__ import annotations
 
-from srdatalog.dsl import Filter, Program, Relation, Var
 from srdatalog.dataset_const import load_meta, resolve_program_consts
+from srdatalog.dsl import Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
-RRel = Relation("RRel", 2, column_types=(int, int,))
-SRel = Relation("SRel", 3, column_types=(int, int, int,))
-TRel = Relation("TRel", 3, column_types=(int, int, int,))
-ZRel = Relation("ZRel", 3, column_types=(int, int, int,))
+RRel = Relation(
+  "RRel",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+)
+SRel = Relation(
+  "SRel",
+  3,
+  column_types=(
+    int,
+    int,
+    int,
+  ),
+)
+TRel = Relation(
+  "TRel",
+  3,
+  column_types=(
+    int,
+    int,
+    int,
+  ),
+)
+ZRel = Relation(
+  "ZRel",
+  3,
+  column_types=(
+    int,
+    int,
+    int,
+  ),
+)
 
 # ----- dataset_const declarations -----------------------------
 
-DATASET_CONST_DECLS = {
-}
+DATASET_CONST_DECLS = {}
 
 # ----- Rules: TriangleDB -----
+
 
 def build_triangledb_program() -> Program:
   f = Var("f")
@@ -37,7 +69,9 @@ def build_triangledb_program() -> Program:
       ZRel,
     ],
     rules=[
-      (ZRel(x, y, z) <= RRel(x, y) & SRel(y, z, h) & TRel(z, x, f)).named('Triangle').with_plan(var_order=['x', 'y', 'z']),
+      (ZRel(x, y, z) <= RRel(x, y) & SRel(y, z, h) & TRel(z, x, f))
+      .named('Triangle')
+      .with_plan(var_order=['x', 'y', 'z']),
     ],
   )
 

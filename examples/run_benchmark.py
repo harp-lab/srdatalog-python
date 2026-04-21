@@ -30,12 +30,12 @@ Each benchmark's `build_<name>_program()` returns a `Program`. When a
 `build_<name>(meta_json)` function also exists, dataset_const
 substitution is applied via that path.
 '''
+
 from __future__ import annotations
 
 import argparse
 import ctypes
 import importlib
-import os
 import sys
 import time
 from pathlib import Path
@@ -58,8 +58,11 @@ def _load_benchmark(name: str, meta_json: str | None):
   # (e.g. doop.py emits `build_doopdb`). Fall back to anything that matches.
   if not hasattr(m, sym_resolved):
     sym_resolved = next(
-      (s for s in dir(m) if s.startswith("build_") and not s.endswith("_program")
-       and callable(getattr(m, s))),
+      (
+        s
+        for s in dir(m)
+        if s.startswith("build_") and not s.endswith("_program") and callable(getattr(m, s))
+      ),
       "",
     )
   if not hasattr(m, sym_program):
@@ -81,59 +84,79 @@ def _load_benchmark(name: str, meta_json: str | None):
 def main() -> int:
   p = argparse.ArgumentParser(description=__doc__)
   p.add_argument("benchmark", help="Name of examples/<benchmark>.py")
-  p.add_argument("--data", default="",
-                 help="Input CSV directory (required for benchmarks "
-                      "whose relations have input_file set)")
-  p.add_argument("--meta", default="",
-                 help="Dataset meta JSON (needed when the benchmark "
-                      "declares dataset_consts)")
-  p.add_argument("--project", default="",
-                 help="Project name (defaults to benchmark name "
-                      "with first char capitalized + 'Plan')")
-  p.add_argument("--cache-base", default="./build",
-                 help="Root for the JIT cache dir (default: ./build)")
-  p.add_argument("--max-iter", type=int, default=0,
-                 help="Cap fixpoint iterations (0 = unlimited)")
-  p.add_argument("--jobs", type=int, default=16,
-                 help="Ninja parallel jobs (default: 16)")
-  p.add_argument("--no-run", action="store_true",
-                 help="Compile the .so but don't invoke the runtime "
-                      "(useful for timing / fixture checks)")
-  p.add_argument("--no-compile", action="store_true",
-                 help="Skip compile; dlopen the existing .so in the cache dir")
+  p.add_argument(
+    "--data",
+    default="",
+    help="Input CSV directory (required for benchmarks whose relations have input_file set)",
+  )
+  p.add_argument(
+    "--meta",
+    default="",
+    help="Dataset meta JSON (needed when the benchmark declares dataset_consts)",
+  )
+  p.add_argument(
+    "--project",
+    default="",
+    help="Project name (defaults to benchmark name with first char capitalized + 'Plan')",
+  )
+  p.add_argument(
+    "--cache-base", default="./build", help="Root for the JIT cache dir (default: ./build)"
+  )
+  p.add_argument("--max-iter", type=int, default=0, help="Cap fixpoint iterations (0 = unlimited)")
+  p.add_argument("--jobs", type=int, default=16, help="Ninja parallel jobs (default: 16)")
+  p.add_argument(
+    "--no-run",
+    action="store_true",
+    help="Compile the .so but don't invoke the runtime (useful for timing / fixture checks)",
+  )
+  p.add_argument(
+    "--no-compile",
+    action="store_true",
+    help="Skip compile; dlopen the existing .so in the cache dir",
+  )
   args = p.parse_args()
 
   project_name = args.project or args.benchmark.capitalize() + "Plan"
 
   from srdatalog import CompilerConfig, build_project, compile_jit_project
   from srdatalog.runtime import (
-    cuda_compile_flags, cuda_include_paths, cuda_libs, cuda_link_flags,
-    runtime_defines, runtime_include_paths,
+    cuda_compile_flags,
+    cuda_include_paths,
+    cuda_libs,
+    cuda_link_flags,
+    runtime_defines,
+    runtime_include_paths,
   )
 
   # ---------- Build DSL program ----------
   t0 = time.time()
   prog, consts = _load_benchmark(args.benchmark, args.meta or None)
-  print(f"[{args.benchmark}] program: "
-        f"{len(prog.relations)} relations, {len(prog.rules)} rules"
-        + (f", {len(consts)} dataset_consts" if consts else "")
-        + f" ({time.time() - t0:.1f}s)")
+  print(
+    f"[{args.benchmark}] program: "
+    f"{len(prog.relations)} relations, {len(prog.rules)} rules"
+    + (f", {len(consts)} dataset_consts" if consts else "")
+    + f" ({time.time() - t0:.1f}s)"
+  )
 
   # Sanity: warn if the benchmark expects CSVs but --data is empty.
   loadable = [r for r in prog.relations if getattr(r, "input_file", "")]
   if loadable and not args.data and not args.no_run:
-    print(f"[warn] {args.benchmark} has {len(loadable)} input relations but "
-          f"--data is unset; use --data <dir> to populate them.",
-          file=sys.stderr)
+    print(
+      f"[warn] {args.benchmark} has {len(loadable)} input relations but "
+      f"--data is unset; use --data <dir> to populate them.",
+      file=sys.stderr,
+    )
 
   # ---------- Emit C++ tree ----------
   t0 = time.time()
   project = build_project(
-    prog, project_name=project_name, cache_base=args.cache_base,
+    prog,
+    project_name=project_name,
+    cache_base=args.cache_base,
   )
-  print(f"[emit] {project['dir']} "
-        f"(main + {len(project['batches'])} batches, "
-        f"{time.time() - t0:.1f}s)")
+  print(
+    f"[emit] {project['dir']} (main + {len(project['batches'])} batches, {time.time() - t0:.1f}s)"
+  )
 
   # ---------- Compile ----------
   cfg = CompilerConfig(
@@ -148,8 +171,7 @@ def main() -> int:
   if args.no_compile:
     sos = list(Path(project["dir"]).glob("*.so"))
     if not sos:
-      print(f"[error] --no-compile but no .so in {project['dir']}",
-            file=sys.stderr)
+      print(f"[error] --no-compile but no .so in {project['dir']}", file=sys.stderr)
       return 1
     artifact = str(sos[0])
     print(f"[compile] skipped; reusing {artifact}")
@@ -190,12 +212,11 @@ def main() -> int:
     t0 = time.time()
     rc = lib.srdatalog_load_all(str(args.data).encode())
     if rc != 0:
-      print(f"[run] srdatalog_load_all({args.data}) returned {rc}",
-            file=sys.stderr)
+      print(f"[run] srdatalog_load_all({args.data}) returned {rc}", file=sys.stderr)
       return 1
     print(f"[load] {args.data} ({time.time() - t0:.1f}s)")
   elif loadable:
-    print(f"[load] skipped — benchmark has input relations but no --data given")
+    print("[load] skipped — benchmark has input relations but no --data given")
 
   t0 = time.time()
   rc = lib.srdatalog_run(args.max_iter)
@@ -203,16 +224,14 @@ def main() -> int:
   if rc != 0:
     print(f"[run] srdatalog_run returned {rc}", file=sys.stderr)
     # Continue — partial results may still be in the DB.
-  print(f"[run] fixpoint finished in {elapsed:.1f}s "
-        f"(max_iter={args.max_iter or 'unlimited'})")
+  print(f"[run] fixpoint finished in {elapsed:.1f}s (max_iter={args.max_iter or 'unlimited'})")
 
   print()
   print("  === Result sizes ===")
   print_rel_sizes = [r for r in prog.relations if getattr(r, "print_size", False)]
   if not print_rel_sizes:
     # Fall back: report all computed relations.
-    print_rel_sizes = [r for r in prog.relations
-                       if not getattr(r, "input_file", "")]
+    print_rel_sizes = [r for r in prog.relations if not getattr(r, "input_file", "")]
   for rel in print_rel_sizes:
     size = lib.srdatalog_size(rel.name.encode())
     print(f"  {rel.name:<30} {size:>14}")

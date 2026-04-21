@@ -1,80 +1,49 @@
-'''Triangle-counting example.
+'''Triangle-counting example — mirrors `integration_tests/examples/triangle/triangle.nim`
+in the parent SRDatalog repo so the emitted .cpp tree is byte-comparable.
 
-Run with:
+Run:
 
     python examples/triangle.py
 
-or via the CLI:
-
-    srdatalog emit    examples/triangle.py --project TrianglePlan
-    srdatalog compile examples/triangle.py --project TrianglePlan --out /tmp/tri.so
-
-Shows the full pipeline: DSL → HIR → MIR → emitted C++ tree written
-to disk. Compilation is only attempted if a C++ toolchain is on PATH.
+emits the same `jit_batch_0.cpp` Nim writes to its JIT cache, so the
+*exact same* compile flags / external dependencies that work for Nim's
+output work here too.
 '''
-from srdatalog import (
-  Var, Relation, Program,
-  compile_to_hir, compile_to_mir,
-  gen_step_body, gen_complete_runner, gen_main_file_content,
-  write_jit_project,
-)
-from srdatalog.codegen.batchfile import _collect_pipelines
+from srdatalog import Var, Relation, Program, build_project
 
 
 def program() -> Program:
-  '''Z(x, y, z) :- R(x, y), S(x, y, z), T(y, x, z) — triangle join
-  with one shared key `y`.'''
+  '''Z(x, y, z) :- R(x, y), S(y, z, h), T(z, x, f).
+  Matches the Nim definition: T uses (z, x, f) — index [1, 0, 2].
+  '''
   x, y, z = Var("x"), Var("y"), Var("z")
   h, f = Var("h"), Var("f")
-  R = Relation("RRel", 2)
-  S = Relation("SRel", 3)
-  T = Relation("TRel", 3)
-  Z = Relation("ZRel", 3)
+  R = Relation("RRel", 2, column_types=(int, int))
+  S = Relation("SRel", 3, column_types=(int, int, int))
+  T = Relation("TRel", 3, column_types=(int, int, int))
+  Z = Relation("ZRel", 3, column_types=(int, int, int))
   return Program(
     relations=[R, S, T, Z],
     rules=[
-      (Z(x, y, z) <= R(x, y) & S(y, z, h) & T(x, z, f)).named("Triangle"),
+      (Z(x, y, z) <= R(x, y) & S(y, z, h) & T(z, x, f)).named("Triangle"),
     ],
   )
 
 
 def main() -> None:
-  prog = program()
-  project_name = "TrianglePlan"
-  db_type = f"{project_name}_DB_DeviceDB"
-
-  hir = compile_to_hir(prog)
-  mir = compile_to_mir(prog)
-
-  step_bodies = [
-    gen_step_body(step, db_type, is_rec, i)
-    for i, (step, is_rec) in enumerate(mir.steps)
-  ]
-  per_rule = []
-  runner_decls = {}
-  for ep in _collect_pipelines(mir):
-    decl, full = gen_complete_runner(ep, db_type)
-    per_rule.append((ep.rule_name, full))
-    runner_decls[ep.rule_name] = decl
-
-  main_cpp = gen_main_file_content(
-    project_name, hir.relation_decls, mir, step_bodies, runner_decls,
-    cache_dir_hint="<cache>", jit_batch_count=1,
-  )
-
-  result = write_jit_project(
-    f"{project_name}_DB",
-    main_file_content=main_cpp,
-    per_rule_runners=per_rule,
+  result = build_project(
+    program(),
+    project_name="TrianglePlan",
     cache_base="./build",
   )
   print("Wrote:")
+  print(f"  dir   : {result['dir']}")
   print(f"  main  : {result['main']}")
   for b in result["batches"]:
     print(f"  batch : {b}")
-  print(f"  dir   : {result['dir']}")
   print()
-  print("To compile: `srdatalog compile examples/triangle.py --project TrianglePlan`")
+  print("Each batch file inlines the schema typedefs + DB blueprint, so it")
+  print("compiles standalone with the same -I flags as Nim's JIT output.")
 
 
 if __name__ == "__main__":

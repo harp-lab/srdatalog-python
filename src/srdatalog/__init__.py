@@ -20,6 +20,9 @@ from srdatalog.codegen.jit.main_file import gen_main_file_content
 from srdatalog.codegen.jit.complete_runner import gen_complete_runner
 from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
 from srdatalog.codegen.jit.cache import write_jit_project
+
+# One-shot end-to-end builder
+from srdatalog.build import build_project
 from srdatalog.codegen.jit.compiler import (
   CompilerConfig, BuildResult, CompileResult,
   compile_cpp, link_shared, compile_jit_project,
@@ -38,6 +41,8 @@ __all__ = [
   # Codegen
   "gen_main_file_content", "gen_complete_runner", "gen_step_body",
   "write_jit_project",
+  # End-to-end
+  "build_project",
   # Build
   "CompilerConfig", "BuildResult", "CompileResult",
   "compile_cpp", "link_shared", "compile_jit_project",

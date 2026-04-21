@@ -79,7 +79,9 @@ def _extract_computed_relations(plan: m.MirNode) -> list[str]:
 
 def gen_relation_typedefs(decls: list[RelationDecl]) -> str:
   '''Emit `using <Name> = AST::RelationSchema<decltype("<Name>"_s),
-  <Semiring>, std::tuple<<types>>>;` for each relation decl.'''
+  <Semiring>, std::tuple<<types>>>;` for each relation decl. Used in
+  the main-file scope where `using namespace SRDatalog::AST` makes
+  the unqualified `AST::` resolve.'''
   out = ""
   for d in decls:
     types_str = ", ".join(d.types)
@@ -96,6 +98,48 @@ def gen_db_alias(ruleset_name: str, decls: list[RelationDecl]) -> str:
   genRelCpp emission (codegen.nim:224).'''
   names = ", ".join(d.rel_name for d in decls)
   return f"using {ruleset_name}_DB = AST::Database<{names}>;\n"
+
+
+def gen_schema_definitions_for_batch(decls: list[RelationDecl]) -> str:
+  '''Schema definitions inlined into each `jit_batch_N.cpp`. Mirrors
+  Nim's `collectSchemaDefinitions` output: fully-qualified
+  `SRDatalog::AST::RelationSchema` (no `using namespace` umbrella in
+  the batch file scope) plus the `Literals` using-directive for the
+  `_s` UDL.
+
+  Pass this to `cache.JitBatchManager.set_schema_definitions(...)` /
+  `write_jit_project(schema_definitions=...)`.
+  '''
+  out = "using namespace SRDatalog::AST::Literals;  // For _s string literal\n\n"
+  for d in decls:
+    types_str = ", ".join(d.types)
+    out += (
+      f"using {d.rel_name} = SRDatalog::AST::RelationSchema<"
+      f'decltype("{d.rel_name}"_s), {d.semiring}, '
+      f"std::tuple<{types_str}>>;\n"
+    )
+  return out
+
+
+def gen_db_type_alias_for_batch(
+  ruleset_name: str, decls: list[RelationDecl],
+) -> str:
+  '''DB blueprint + DeviceDB alias inlined into each batch file so
+  `JitRunner_<rule>::DB` resolves. Mirrors the `dbTypeAlias` Nim
+  passes to `JitBatchManager.setDbTypeAlias`.
+
+  `ruleset_name` here is the **ext_db** name (e.g. "TrianglePlan_DB"),
+  not the bare ruleset; the resulting types are `<ruleset>_Blueprint`
+  and `<ruleset>_DeviceDB`.
+  '''
+  names = ", ".join(d.rel_name for d in decls)
+  blueprint = f"{ruleset_name}_Blueprint"
+  device_db = f"{ruleset_name}_DeviceDB"
+  return (
+    f"using {blueprint} = SRDatalog::AST::Database<{names}>;\n"
+    f"using {device_db} = SRDatalog::AST::SemiNaiveDatabase"
+    f"<{blueprint}, SRDatalog::GPU::DeviceRelationType>;\n"
+  )
 
 
 def gen_kernel_decls_block(

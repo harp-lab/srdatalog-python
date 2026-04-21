@@ -23,7 +23,7 @@ from enum import Enum
 from typing import Protocol, runtime_checkable
 
 from srdatalog.dsl import Program, Rule
-from srdatalog.hir_types import HirProgram, RelationDecl
+from srdatalog.hir.types import HirProgram, RelationDecl
 
 
 class PassLevel(Enum):
@@ -128,7 +128,7 @@ class Pipeline:
 
   def compile_to_hir(self, program: Program) -> HirProgram:
     '''Run the full HIR pipeline on a Program. Returns the resulting HirProgram.'''
-    from srdatalog.hir_stratify import stratify  # deferred to avoid import cycle
+    from srdatalog.hir.stratify import stratify  # deferred to avoid import cycle
 
     rules = list(program.rules)
     decls = program_to_decls(program)

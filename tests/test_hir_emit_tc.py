@@ -12,7 +12,7 @@ from pathlib import Path
 
 
 from srdatalog.dsl import Var, Relation
-from srdatalog.hir_types import (
+from srdatalog.hir.types import (
   Version,
   AccessPattern,
   HirRuleVariant,
@@ -20,7 +20,7 @@ from srdatalog.hir_types import (
   HirProgram,
   RelationDecl,
 )
-from srdatalog.hir_emit import hir_to_obj, emit_hir_json
+from srdatalog.hir.emit import hir_to_obj, emit_hir_json
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

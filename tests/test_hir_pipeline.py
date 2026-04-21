@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 from srdatalog.dsl import Var, Relation, Program, Rule
-from srdatalog.hir_types import HirProgram, RelationDecl
-from srdatalog.hir_pass import (
+from srdatalog.hir.types import HirProgram, RelationDecl
+from srdatalog.hir.pass_ import (
   Pipeline,
   PassInfo,
   PassLevel,
@@ -113,8 +113,8 @@ def test_wrong_level_registration_rejected():
 
 def test_pipeline_preserves_rule_and_decl_identity_when_empty():
   '''Empty pipeline should be equivalent to stratify(rules, decls) directly.'''
-  from srdatalog.hir_stratify import stratify
-  from srdatalog.hir_pass import program_to_decls
+  from srdatalog.hir.stratify import stratify
+  from srdatalog.hir.pass_ import program_to_decls
   prog = _tc()
   bare = stratify(list(prog.rules), program_to_decls(prog))
   piped = compile_to_hir(prog)

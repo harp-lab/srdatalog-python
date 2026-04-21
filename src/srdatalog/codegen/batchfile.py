@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import Tuple
 
 import srdatalog.mir.types as m
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 from srdatalog.codegen.schema import SchemaDefinition
 from srdatalog.codegen.helpers import (
   CodeGenContext,

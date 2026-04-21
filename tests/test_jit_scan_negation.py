@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 import srdatalog.mir.types as m
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import new_code_gen_context, NegPreNarrowInfo
 from srdatalog.codegen.jit.scan_negation import jit_scan, jit_negation, jit_aggregate
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 
 import srdatalog.mir.types as m
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 from srdatalog.codegen.cpp_emit import (
   fact_index_str,
   index_spec_t,

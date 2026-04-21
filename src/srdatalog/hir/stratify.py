@@ -18,8 +18,8 @@ downstream ordering (dependency edges, SCC membership iteration).
 from __future__ import annotations
 
 from srdatalog.dsl import Rule, Atom, Negation, Filter, Let, Agg
-from srdatalog.hir_types import HirProgram, HirStratum, RelationDecl
-from srdatalog.hir_pass import PassInfo, PassLevel, Dialect
+from srdatalog.hir.types import HirProgram, HirStratum, RelationDecl
+from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 def _body_relations(rule: Rule) -> set[str]:

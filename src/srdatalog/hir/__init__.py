@@ -7,8 +7,8 @@ they are ported from Nim).
 from __future__ import annotations
 
 from srdatalog.dsl import Program
-from srdatalog.hir_types import HirProgram
-from srdatalog.hir_pass import Pipeline
+from srdatalog.hir.types import HirProgram
+from srdatalog.hir.pass_ import Pipeline
 
 
 def default_pipeline(verbose: bool = False) -> Pipeline:
@@ -24,10 +24,10 @@ def default_pipeline(verbose: bool = False) -> Pipeline:
     Pass 5   selectIndices             [HIR transform, ported]
   '''
   from srdatalog.rule_rewrite import ConstantRewritePass, HeadConstantRewritePass, SemiJoinPass
-  from srdatalog.hir_semi_naive import SemiNaiveVariantPass
-  from srdatalog.hir_plan import JoinPlannerPass
-  from srdatalog.hir_index import IndexSelectionPass
-  from srdatalog.hir_split import TempRelSynthesisPass, TempIndexRegistrationPass
+  from srdatalog.hir.semi_naive import SemiNaiveVariantPass
+  from srdatalog.hir.plan import JoinPlannerPass
+  from srdatalog.hir.index import IndexSelectionPass
+  from srdatalog.hir.split import TempRelSynthesisPass, TempIndexRegistrationPass
 
   p = Pipeline(verbose=verbose)
   p.add_rule_rewrite(ConstantRewritePass())
@@ -55,7 +55,7 @@ def compile_to_mir(
   clause_order_reorder, prefix_source_reorder). Pass `apply_mir_passes=False`
   to stop at the raw output of `lower_hir_to_mir_steps`.
   '''
-  from srdatalog.hir_lower import lower_hir_to_mir_steps
+  from srdatalog.hir.lower import lower_hir_to_mir_steps
   import srdatalog.mir.types as mir
   hir = compile_to_hir(program, verbose=verbose)
   steps = lower_hir_to_mir_steps(hir)

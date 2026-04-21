@@ -10,9 +10,9 @@ from pathlib import Path
 
 
 from srdatalog.dsl import Var, Relation, Program, Atom, Filter, Let, ClauseArg, ArgKind
-from srdatalog.hir_types import RelationDecl
+from srdatalog.hir.types import RelationDecl
 from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir_emit import hir_to_obj
+from srdatalog.hir.emit import hir_to_obj
 from srdatalog.mir.emit import print_mir_sexpr
 from srdatalog.rule_rewrite import rewrite_constants, rewrite_head_constants
 

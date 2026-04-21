@@ -10,7 +10,7 @@ Order (matches Nim's registerMirOptimizePass priorities):
 '''
 from __future__ import annotations
 
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 import srdatalog.mir.types as mir
 
 
@@ -31,7 +31,7 @@ def _regenerate_source_specs(ep: mir.ExecutePipeline) -> None:
   the generated C++ source_specs type drifts out of sync with the actual
   MIR source order and handles point at the wrong views.
   '''
-  from srdatalog.hir_lower import _extract_pipeline_sources
+  from srdatalog.hir.lower import _extract_pipeline_sources
   specs: list[mir.MirNode] = []
   for op in ep.pipeline:
     _extract_pipeline_sources(op, specs)

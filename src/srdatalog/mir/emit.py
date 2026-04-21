@@ -13,7 +13,7 @@ cases to src/srdatalog/mir/printer.nim first.
 '''
 from __future__ import annotations
 
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 import srdatalog.mir.types as m
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 from srdatalog.dsl import Var, Relation, Program
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 from srdatalog.hir import compile_to_hir
 
 

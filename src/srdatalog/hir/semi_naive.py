@@ -16,8 +16,8 @@ members get incrementalized).
 from __future__ import annotations
 
 from srdatalog.dsl import Rule, Atom
-from srdatalog.hir_types import HirProgram, HirRuleVariant, Version
-from srdatalog.hir_pass import PassInfo, PassLevel, Dialect
+from srdatalog.hir.types import HirProgram, HirRuleVariant, Version
+from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 def find_scc_clause_indices(rule: Rule, scc_members: set[str]) -> list[int]:

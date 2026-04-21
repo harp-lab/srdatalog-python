@@ -17,7 +17,7 @@ import json
 
 from srdatalog.dsl import Atom, Negation, Filter, Let, Agg, Split, ClauseArg, ArgKind, Rule
 from srdatalog.provenance import Provenance, ProvenanceKind
-from srdatalog.hir_types import (
+from srdatalog.hir.types import (
   Version,
   AccessPattern,
   HirRuleVariant,

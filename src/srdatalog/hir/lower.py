@@ -20,8 +20,8 @@ Deliberately NOT ported (no Python DSL equivalent or deferred optimization):
 from __future__ import annotations
 
 from srdatalog.dsl import Atom, Negation, Filter, Let, ArgKind
-from srdatalog.hir_types import AccessPattern, HirProgram, HirRuleVariant, HirStratum, Version
-from srdatalog.hir_index import complete_index, get_arity
+from srdatalog.hir.types import AccessPattern, HirProgram, HirRuleVariant, HirStratum, Version
+from srdatalog.hir.index import complete_index, get_arity
 import srdatalog.mir.types as mir
 
 

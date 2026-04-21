@@ -12,7 +12,7 @@ from pathlib import Path
 
 from srdatalog.dsl import Var, Relation, Program, Agg, agg, count
 from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir_emit import hir_to_obj
+from srdatalog.hir.emit import hir_to_obj
 from srdatalog.mir.emit import print_mir_sexpr
 
 
@@ -59,7 +59,7 @@ def test_agg_helper_cpp_type_threads_through():
 
 
 def test_analyze_rule_counts_agg_args_and_result_var_as_positive():
-  from srdatalog.hir_plan import analyze_rule
+  from srdatalog.hir.plan import analyze_rule
   hir = compile_to_hir(build_agg_program())
   # Variant's analysis should treat x, y, cnt all as vars.
   rule = hir.strata[0].base_variants[0].original_rule

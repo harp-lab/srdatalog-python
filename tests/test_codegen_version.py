@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 
 
 def test_version_value_unchanged():

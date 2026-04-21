@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 from srdatalog.dsl import Var, Relation, Rule, Program, Atom, Negation, Conjunction, ArgKind
-from srdatalog.hir_types import (
+from srdatalog.hir.types import (
   Version,
   AccessPattern,
   HirRuleVariant,

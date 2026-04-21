@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import srdatalog.mir.types as m
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 from srdatalog.codegen.schema import SchemaDefinition, Pragma
 from srdatalog.codegen import cpp_emit
 

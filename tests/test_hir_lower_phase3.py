@@ -11,7 +11,7 @@ from pathlib import Path
 
 from srdatalog.dsl import Var, Relation, Program
 from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir_lower import (
+from srdatalog.hir.lower import (
   wrap_in_execute_pipeline,
   lower_hir_to_mir_steps,
   lower_hir_to_mir,
@@ -36,7 +36,7 @@ def build_tc() -> Program:
 
 def test_wrap_in_execute_pipeline_extracts_sources_and_dests():
   '''A pipeline with Scan + InsertInto: sources=[Scan], dests=[InsertInto].'''
-  from srdatalog.hir_types import Version
+  from srdatalog.hir.types import Version
   scan = mir.Scan(vars=["x", "y"], rel_name="Edge", version=Version.FULL,
                   index=[0, 1], prefix_vars=[])
   ins = mir.InsertInto(rel_name="Path", version=Version.NEW,
@@ -52,7 +52,7 @@ def test_wrap_in_execute_pipeline_flattens_join_sources():
   '''Sources under a ColumnJoin/CartesianJoin get extracted into the flat
   source_specs list so the scheduler sees every index-spec.
   '''
-  from srdatalog.hir_types import Version
+  from srdatalog.hir.types import Version
   src1 = mir.ColumnSource(rel_name="A", version=Version.DELTA, index=[0, 1],
                           prefix_vars=[])
   src2 = mir.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1],

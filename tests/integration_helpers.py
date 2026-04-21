@@ -16,7 +16,7 @@ from pathlib import Path
 
 from srdatalog.dsl import Program
 from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir_emit import hir_to_obj
+from srdatalog.hir.emit import hir_to_obj
 from srdatalog.mir.emit import print_mir_sexpr
 
 

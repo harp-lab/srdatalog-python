@@ -14,8 +14,8 @@ import dataclasses
 from srdatalog.dsl import (
   Atom, Negation, Filter, Let, ClauseArg, ArgKind, Rule, PlanEntry,
 )
-from srdatalog.hir_types import RelationDecl
-from srdatalog.hir_pass import PassInfo, PassLevel, Dialect
+from srdatalog.hir.types import RelationDecl
+from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 from srdatalog.provenance import compiler_gen
 
 

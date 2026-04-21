@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 
 
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 import srdatalog.mir.types as mir
 from srdatalog.mir.passes import (
   insert_pre_reconstruct_rebuilds,

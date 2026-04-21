@@ -19,8 +19,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from srdatalog.dsl import Rule, Atom, Negation, ArgKind, PlanEntry, Filter, Let, Agg, Split
-from srdatalog.hir_types import HirProgram, HirRuleVariant, AccessPattern, Version
-from srdatalog.hir_pass import PassInfo, PassLevel, Dialect
+from srdatalog.hir.types import HirProgram, HirRuleVariant, AccessPattern, Version
+from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 # -----------------------------------------------------------------------------

@@ -12,9 +12,9 @@ from pathlib import Path
 
 
 from srdatalog.dsl import Var, Relation, Program
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 from srdatalog.hir import compile_to_hir
-from srdatalog.hir_lower import (
+from srdatalog.hir.lower import (
   generate_column_source,
   generate_scan,
   generate_insert_into,
@@ -106,7 +106,7 @@ def test_generate_column_source_shape():
   A pattern with prefix_len=1, access_order=[y,x], index_cols=[1,0]
   produces a ColumnSource with prefix_vars=[y].
   '''
-  from srdatalog.hir_types import AccessPattern
+  from srdatalog.hir.types import AccessPattern
   ap = AccessPattern(
     rel_name="Path",
     version=Version.DELTA,

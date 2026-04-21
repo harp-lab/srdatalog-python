@@ -13,9 +13,9 @@ from pathlib import Path
 
 
 from srdatalog.dsl import Var, Relation, Program
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 from srdatalog.hir import compile_to_hir
-from srdatalog.hir_lower import (
+from srdatalog.hir.lower import (
   lower_variant_to_pipeline,
   generate_rebuild_indices,
   generate_merge_indices,

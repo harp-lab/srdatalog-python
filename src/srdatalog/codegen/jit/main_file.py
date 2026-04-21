@@ -35,7 +35,7 @@ Scope caveats:
 from __future__ import annotations
 
 import srdatalog.mir.types as m
-from srdatalog.hir_types import RelationDecl
+from srdatalog.hir.types import RelationDecl
 
 
 # -----------------------------------------------------------------------------

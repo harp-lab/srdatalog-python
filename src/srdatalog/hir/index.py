@@ -24,13 +24,13 @@ only has to be stable, not byte-matched against Nim.
 '''
 from __future__ import annotations
 
-from srdatalog.hir_types import (
+from srdatalog.hir.types import (
   HirProgram,
   HirRuleVariant,
   RelationDecl,
   Version,
 )
-from srdatalog.hir_pass import PassInfo, PassLevel, Dialect
+from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 def get_arity(rel_name: str, decls: list[RelationDecl]) -> int:

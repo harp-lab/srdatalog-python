@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 import srdatalog.mir.types as m
 from srdatalog.mir.emit import print_mir_sexpr
 

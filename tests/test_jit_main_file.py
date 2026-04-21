@@ -32,7 +32,7 @@ from srdatalog.codegen.jit.main_file import (
 # -----------------------------------------------------------------------------
 
 def test_gen_relation_typedefs_shape():
-  from srdatalog.hir_types import RelationDecl
+  from srdatalog.hir.types import RelationDecl
   decls = [
     RelationDecl(rel_name="Edge", types=["int", "int"], semiring="NoProvenance"),
     RelationDecl(rel_name="Path", types=["int", "int"], semiring="NoProvenance"),

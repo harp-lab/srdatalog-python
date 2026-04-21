@@ -15,8 +15,8 @@ JoinPlannerPass from hir_plan._plan_variant.
 from __future__ import annotations
 
 from srdatalog.dsl import Atom, ArgKind
-from srdatalog.hir_types import HirProgram, RelationDecl
-from srdatalog.hir_pass import PassInfo, PassLevel, Dialect
+from srdatalog.hir.types import HirProgram, RelationDecl
+from srdatalog.hir.pass_ import PassInfo, PassLevel, Dialect
 
 
 def _infer_temp_types(variant, decls: list[RelationDecl]) -> list[str]:

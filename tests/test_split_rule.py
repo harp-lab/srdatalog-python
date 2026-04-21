@@ -12,8 +12,8 @@ from pathlib import Path
 
 from srdatalog.dsl import Var, Relation, Program, SPLIT
 from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir_emit import hir_to_obj
-from srdatalog.hir_plan import detect_split, compute_temp_vars
+from srdatalog.hir.emit import hir_to_obj
+from srdatalog.hir.plan import detect_split, compute_temp_vars
 from srdatalog.mir.emit import print_mir_sexpr
 
 

@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import srdatalog.mir.types as m
-from srdatalog.hir_types import Version
+from srdatalog.hir.types import Version
 from srdatalog.codegen.jit.context import (
   CodeGenContext, ind, get_view_slot_base, gen_view_access,
 )

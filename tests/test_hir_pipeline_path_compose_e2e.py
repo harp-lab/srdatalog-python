@@ -17,7 +17,7 @@ from pathlib import Path
 
 from srdatalog.dsl import Var, Relation, Program
 from srdatalog.hir import compile_to_hir
-from srdatalog.hir_emit import hir_to_obj
+from srdatalog.hir.emit import hir_to_obj
 
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"

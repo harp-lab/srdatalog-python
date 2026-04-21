@@ -11,7 +11,7 @@ from pathlib import Path
 
 from srdatalog.dsl import Var, Relation, Program
 from srdatalog.hir import compile_to_hir
-from srdatalog.hir_stratify import stratify
+from srdatalog.hir.stratify import stratify
 
 
 def build_tc_program() -> Program:
@@ -118,7 +118,7 @@ def test_stratify_bare_function_takes_rules_and_decls():
   the contract the Pipeline uses internally and that other HIR passes will
   plug into after rule-rewrite passes run.
   '''
-  from srdatalog.hir_pass import program_to_decls
+  from srdatalog.hir.pass_ import program_to_decls
   prog = build_tc_program()
   rules = list(prog.rules)
   decls = program_to_decls(prog)

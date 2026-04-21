@@ -32,6 +32,7 @@ Returns nonzero if the Nim file uses syntax outside the supported
 subset (unrecognized body form, etc.) — better to fail loudly than
 emit subtly wrong Python.
 '''
+
 from __future__ import annotations
 
 import argparse
@@ -45,6 +46,7 @@ from pathlib import Path
 # Lexing helpers — work with blank-line-separated pragma-aware paragraphs.
 # ---------------------------------------------------------------------------
 
+
 def _strip_comments(src: str) -> str:
   '''Drop `#`-prefixed line comments. Nim block comments `#[ ... ]#`
   do appear in doop — strip those too (single-pass, no nesting).'''
@@ -57,10 +59,11 @@ def _strip_comments(src: str) -> str:
 # Schema block
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RelationSpec:
   name: str
-  types: list[str]                         # e.g. ["int", "int"]
+  types: list[str]  # e.g. ["int", "int"]
   input_file: str = ""
   print_size: bool = False
   index_type: str = ""
@@ -85,8 +88,7 @@ def _parse_schema_block(src: str) -> list[RelationSpec]:
   start = m.end()
   # End of block: next top-level (non-indented) declaration.
   tail = src[start:]
-  end_m = re.search(r"^(rules_def|datalog_db|proc|fixpoint_rule)\b",
-                    tail, flags=re.MULTILINE)
+  end_m = re.search(r"^(rules_def|datalog_db|proc|fixpoint_rule)\b", tail, flags=re.MULTILINE)
   block = tail[: end_m.start()] if end_m else tail
 
   specs: list[RelationSpec] = []
@@ -94,8 +96,8 @@ def _parse_schema_block(src: str) -> list[RelationSpec]:
   # The pragma block is `{. ... .}` with newlines inside.
   relation_pat = re.compile(
     r"^\s*(\w+)\s*:\s*\n"
-    r"\s*Relation\[([^\]]+)\]"                 # types
-    r"(\s*\{\.\s*(.*?)\s*\.\})?",              # optional pragma block
+    r"\s*Relation\[([^\]]+)\]"  # types
+    r"(\s*\{\.\s*(.*?)\s*\.\})?",  # optional pragma block
     re.MULTILINE | re.DOTALL,
   )
   for rm in relation_pat.finditer(block):
@@ -103,11 +105,11 @@ def _parse_schema_block(src: str) -> list[RelationSpec]:
     types = [t.strip() for t in types_raw.split(",")]
     spec = RelationSpec(name=name, types=types)
     if pragma_body:
-      if (mm := _PRAGMA_INPUT.search(pragma_body)):
+      if mm := _PRAGMA_INPUT.search(pragma_body):
         spec.input_file = mm.group(1)
       if _PRAGMA_PRINT.search(pragma_body):
         spec.print_size = True
-      if (mm := _PRAGMA_INDEX.search(pragma_body)):
+      if mm := _PRAGMA_INDEX.search(pragma_body):
         spec.index_type = mm.group(1)
     specs.append(spec)
   return specs
@@ -117,22 +119,23 @@ def _parse_schema_block(src: str) -> list[RelationSpec]:
 # rules_def block — dataset_consts + rules
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DatasetConst:
-  name: str                                   # UPPER_SNAKE
-  key: str                                    # lower_snake JSON key
+  name: str  # UPPER_SNAKE
+  key: str  # lower_snake JSON key
 
 
 @dataclass
 class FilterClause:
   vars: list[str]
-  code: str                                   # raw C++
+  code: str  # raw C++
 
 
 @dataclass
 class BodyAtom:
   rel: str
-  args: list[str]                             # raw idents / ints / underscore
+  args: list[str]  # raw idents / ints / underscore
   negated: bool = False
 
 
@@ -151,11 +154,11 @@ class Plan:
 @dataclass
 class RuleSpec:
   name: str
-  heads: list[BodyAtom]                      # head atoms (usually 1, sometimes >1)
+  heads: list[BodyAtom]  # head atoms (usually 1, sometimes >1)
   body: list[BodyClauseT]
   plans: list[Plan] = field(default_factory=list)
-  count: bool = False                        # rule-level `count: true` pragma
-  semi_join: bool = False                    # rule-level `semi_join: true` pragma
+  count: bool = False  # rule-level `count: true` pragma
+  semi_join: bool = False  # rule-level `semi_join: true` pragma
   var_order: list[str] = field(default_factory=list)  # rule-level `var_order: [...]`
 
 
@@ -165,8 +168,9 @@ def _extract_rules_block(src: str) -> str:
     return ""
   start = m.end()
   tail = src[start:]
-  end_m = re.search(r"^(datalog_db|fixpoint_rule|proc|when\s+isMainModule)\b",
-                    tail, flags=re.MULTILINE)
+  end_m = re.search(
+    r"^(datalog_db|fixpoint_rule|proc|when\s+isMainModule)\b", tail, flags=re.MULTILINE
+  )
   return tail[: end_m.start()] if end_m else tail
 
 
@@ -193,7 +197,7 @@ def _strip_outer_pragma(s: str) -> tuple[str, str]:
     return s, ""
   # Walk backwards counting `.}` vs `{.`
   depth = 0
-  i = len(s) - 2                           # position of '.' in ".}"
+  i = len(s) - 2  # position of '.' in ".}"
   while i >= 1:
     if s[i] == "." and i + 1 < len(s) and s[i + 1] == "}":
       depth += 1
@@ -262,12 +266,12 @@ _SHORTHAND_FILTER_RE = re.compile(
 )
 
 
-def _parse_body_clause(s: str) -> "BodyClauseT":
+def _parse_body_clause(s: str) -> BodyClauseT:
   s = s.strip().rstrip(",").strip()
   # Split marker — partitions the rule body for pipeline-A/B splits
   # (used by ddisasm's negation-pushdown variants).
   if s == "split":
-    return "__SPLIT__"   # sentinel; handled in body emit
+    return "__SPLIT__"  # sentinel; handled in body emit
   # Shorthand filter: `?(v1, v2) """cpp"""`
   if s.startswith("?"):
     m = _SHORTHAND_FILTER_RE.match(s)
@@ -335,18 +339,33 @@ def _parse_rule_pragma(body: str) -> tuple[str, list[Plan], bool, bool, list[str
 
   plans: list[Plan] = []
   # plan: [ (entry1), (entry2), ... ]
-  pm = re.search(r"\bplan\s*:\s*\[(.*?)\](?:\s*[,\.]|$)", body, flags=re.DOTALL)
+  # Non-greedy regex would stop at the FIRST `]`, which is the inner `]`
+  # of a nested `var_order: [...]` list. Instead find `plan: [` and scan
+  # forward at depth 0 for the matching outer `]`.
+  pm = re.search(r"\bplan\s*:\s*\[", body)
   if pm:
-    plan_body = pm.group(1).strip()
+    start = pm.end()  # first char after the outer `[`
+    depth = 1
+    i = start
+    while i < len(body) and depth > 0:
+      ch = body[i]
+      if ch == "[":
+        depth += 1
+      elif ch == "]":
+        depth -= 1
+      i += 1
+    # `i` now points one past the matching outer `]` (or end-of-string
+    # if the source is malformed — we fall through safely below).
+    plan_body = body[start : i - 1].strip() if depth == 0 else ""
     entries = _split_top_level_commas(plan_body)
     for e in entries:
       e = e.strip().lstrip("(").rstrip(")").strip()
       if not e:
         continue
       p = Plan()
-      if (dm := re.search(r"\bdelta\s*:\s*(-?\d+)", e)):
+      if dm := re.search(r"\bdelta\s*:\s*(-?\d+)", e):
         p.delta = int(dm.group(1))
-      if (vm := re.search(r"\bvar_order\s*:\s*\[([^\]]*)\]", e)):
+      if vm := re.search(r"\bvar_order\s*:\s*\[([^\]]*)\]", e):
         p.var_order = [v.strip() for v in vm.group(1).split(",") if v.strip()]
       if re.search(r"\bblock_group\s*:\s*true", e):
         p.block_group = True
@@ -383,16 +402,24 @@ def _parse_rules(block: str) -> list[RuleSpec]:
     # synthesize a single Plan with that var_order so codegen picks it up.
     if rule_var_order and not plans:
       plans = [Plan(var_order=rule_var_order)]
-    rules.append(RuleSpec(
-      name=name, heads=heads, body=body, plans=plans,
-      count=count, semi_join=semi_join, var_order=rule_var_order,
-    ))
+    rules.append(
+      RuleSpec(
+        name=name,
+        heads=heads,
+        body=body,
+        plans=plans,
+        count=count,
+        semi_join=semi_join,
+        var_order=rule_var_order,
+      )
+    )
   return rules
 
 
 # ---------------------------------------------------------------------------
 # Python code emission
 # ---------------------------------------------------------------------------
+
 
 def _py_ident(n: str) -> str:
   '''Turn a Nim identifier into a Python-legal one.
@@ -404,9 +431,9 @@ def _py_ident(n: str) -> str:
 
 def _emit_arg(a: str) -> str:
   '''Emit one atom arg as Python-DSL source:
-    - `_`   → `Wild()` (handled below — actually we use `Var('_')`)
-    - int literal → literal
-    - otherwise a Var reference by identifier.'''
+  - `_`   → `Wild()` (handled below — actually we use `Var('_')`)
+  - int literal → literal
+  - otherwise a Var reference by identifier.'''
   if a == "_":
     return 'Var("_")'
   if re.match(r"^-?\d+$", a):
@@ -418,6 +445,7 @@ def _all_vars(rules: list[RuleSpec]) -> set[str]:
   '''Collect every unique var identifier across rules. Used to generate
   the `x = Var("x")` block inside `build_*()`.'''
   names: set[str] = set()
+
   def collect_atom(a: BodyAtom) -> None:
     for arg in a.args:
       if arg == "_":
@@ -425,6 +453,7 @@ def _all_vars(rules: list[RuleSpec]) -> set[str]:
       if re.match(r"^-?\d+$", arg):
         continue
       names.add(arg)
+
   for r in rules:
     for h in r.heads:
       collect_atom(h)
@@ -529,8 +558,7 @@ Do not edit manually — regenerate via:
   for r in relations:
     pyname = _py_ident(r.name)
     types_tuple = ", ".join(r.types)
-    kwargs = [f'"{r.name}"', str(len(r.types)),
-              f"column_types=({types_tuple},)"]
+    kwargs = [f'"{r.name}"', str(len(r.types)), f"column_types=({types_tuple},)"]
     if r.input_file:
       kwargs.append(f'input_file="{r.input_file}"')
     if r.print_size:
@@ -559,7 +587,9 @@ Do not edit manually — regenerate via:
   const_names = sorted({dc.name for dc in dataset_consts})
   if const_names:
     out.append("")
-    out.append("  # dataset_consts appear as Var(UPPER_NAME); substitute via resolve_program_consts.")
+    out.append(
+      "  # dataset_consts appear as Var(UPPER_NAME); substitute via resolve_program_consts."
+    )
     for n in const_names:
       py = _py_ident(n)
       out.append(f'  {py} = Var("{n}")')
@@ -578,7 +608,7 @@ Do not edit manually — regenerate via:
   out.append("")
   out.append("")
   out.append(f"def build_{lower}(meta_json_path: str) -> tuple[Program, dict[str, int]]:")
-  out.append(f'  \"\"\"Convenience: build the program, load dataset_consts, substitute.\"\"\"')
+  out.append('  """Convenience: build the program, load dataset_consts, substitute."""')
   out.append("  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)")
   out.append(f"  return resolve_program_consts(build_{lower}_program(), consts), consts")
   out.append("")
@@ -589,7 +619,10 @@ Do not edit manually — regenerate via:
 # CLI
 # ---------------------------------------------------------------------------
 
-def translate_file(nim_path: Path) -> tuple[str, list[RelationSpec], list[RuleSpec], list[DatasetConst]]:
+
+def translate_file(
+  nim_path: Path,
+) -> tuple[str, list[RelationSpec], list[RuleSpec], list[DatasetConst]]:
   src = _strip_comments(nim_path.read_text())
   m = re.search(r"^schema\s+(\w+)\s*:", src, flags=re.MULTILINE)
   schema_name = m.group(1) if m else nim_path.stem
@@ -604,14 +637,12 @@ def translate_file(nim_path: Path) -> tuple[str, list[RelationSpec], list[RuleSp
 def main(argv: list[str] | None = None) -> int:
   p = argparse.ArgumentParser(description=__doc__)
   p.add_argument("nim_source", help="Path to the Nim source file")
-  p.add_argument("--out", "-o", default=None,
-                 help="Output .py path (default: stdout)")
+  p.add_argument("--out", "-o", default=None, help="Output .py path (default: stdout)")
   args = p.parse_args(argv)
 
   py, rels, rules, consts = translate_file(Path(args.nim_source))
   sys.stderr.write(
-    f"[nim_to_dsl] {len(rels)} relations, {len(rules)} rules, "
-    f"{len(consts)} dataset_consts\n"
+    f"[nim_to_dsl] {len(rels)} relations, {len(rules)} rules, {len(consts)} dataset_consts\n"
   )
   if args.out:
     Path(args.out).write_text(py)

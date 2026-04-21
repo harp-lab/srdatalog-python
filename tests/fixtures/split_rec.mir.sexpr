@@ -1,0 +1,60 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule RBase
+              :sources (tuple
+                (index-spec :schema Seed :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema R :index (1 0) :ver FULL))
+                (scan :vars (x y) :index (Seed 0 1) :ver FULL :prefix ())
+                (insert-into :schema R :ver NEW :dedup-index (1 0) :terms (x y))
+            )
+            (rebuild-index :index (R 1 0) :ver NEW)
+            (check-size :schema R :ver NEW)
+            (compute-delta-index :schema R :canonical-index (1 0))
+            (clear-relation :schema R :ver NEW)
+            (merge-index :index (R 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel R :canonical-index (1 0))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (clear-relation :schema _temp_RRec :ver NEW)
+            (execute-pipeline :rule RRec_D0_splitA
+              :sources (tuple
+                (index-spec :schema R :index (1 0) :ver DELTA)
+                (index-spec :schema Filter :index (0) :ver FULL))
+              :dests (tuple
+                (index-spec :schema _temp_RRec :index (0 1) :ver FULL))
+                (scan :vars (y x) :index (R 1 0) :ver DELTA :prefix ())
+                (negation :schema Filter :ver FULL :index (Filter 0) :prefix (y))
+                (insert-into :schema _temp_RRec :ver NEW :dedup-index (0 1) :terms (y x))
+            )
+            (create-flat-view :index (_temp_RRec 0 1) :ver NEW)
+            (execute-pipeline :rule RRec_D0_splitB
+              :sources (tuple
+                (index-spec :schema _temp_RRec :index (0 1) :ver NEW)
+                (index-spec :schema Edge :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema R :index (1 0) :ver FULL))
+                (scan :vars (y x) :index (_temp_RRec 0 1) :ver NEW :prefix ())
+                (cartesian-join :vars (z) :var-from-source ((z))
+                  :sources (
+                    (column-source :index (Edge 0 1) :ver FULL :prefix (y))
+                  ))
+                (insert-into :schema R :ver NEW :dedup-index (1 0) :terms (x z))
+            )
+            (rebuild-index :index (R 1 0) :ver NEW)
+            (clear-relation :schema R :ver DELTA)
+            (check-size :schema R :ver NEW)
+            (compute-delta-index :schema R :canonical-index (1 0))
+            (clear-relation :schema R :ver NEW)
+            (merge-index :index (R 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel R :canonical-index (1 0))
+  )
+)

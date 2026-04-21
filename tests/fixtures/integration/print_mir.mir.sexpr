@@ -1,0 +1,169 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule Base
+              :sources (tuple
+                (index-spec :schema AddressOf :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                (scan :vars (y x) :index (AddressOf 0 1) :ver FULL :prefix ())
+                (insert-into :schema PointsTo :ver NEW :dedup-index (0 1) :terms (y x))
+            )
+            (rebuild-index :index (PointsTo 0 1) :ver NEW)
+            (check-size :schema PointsTo :ver NEW)
+            (compute-delta-index :schema PointsTo :canonical-index (0 1))
+            (clear-relation :schema PointsTo :ver NEW)
+            (merge-index :index (PointsTo 0 1))
+            (rebuild-index-from-index :source (PointsTo 0 1) :target (PointsTo 1 0) :ver DELTA)
+            (merge-index :index (PointsTo 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel PointsTo :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 5 independent ops
+                (execute-pipeline :rule Assign_D0
+                  :sources (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema Assign :index (1 0) :ver FULL)
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema Assign :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (Assign 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x y) :var-from-source ((x) (y))
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix (z))
+                        (column-source :index (Assign 1 0) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema PointsTo :ver NEW :dedup-index (0 1) :terms (y x))
+                )
+                (execute-pipeline :rule Load_D0
+                  :sources (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema Load :index (1 0) :ver FULL)
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema Load :index (1 0) :ver FULL)
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                    (column-join :var x
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (Load 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix (x))
+                        (column-source :index (PointsTo 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (y w) :var-from-source ((y) (w))
+                      :sources (
+                        (column-source :index (Load 1 0) :ver FULL :prefix (x))
+                        (column-source :index (PointsTo 0 1) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema PointsTo :ver NEW :dedup-index (0 1) :terms (y w))
+                )
+                (execute-pipeline :rule Load_D2
+                  :sources (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema PointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema PointsTo :index (1 0) :ver FULL)
+                    (index-spec :schema Load :index (1 0) :ver FULL)
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema Load :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (PointsTo 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var x
+                      :sources (
+                        (column-source :index (PointsTo 1 0) :ver FULL :prefix (z))
+                        (column-source :index (Load 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (w y) :var-from-source ((w) (y))
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix (z))
+                        (column-source :index (Load 1 0) :ver FULL :prefix (x))
+                      ))
+                    (insert-into :schema PointsTo :ver NEW :dedup-index (0 1) :terms (y w))
+                )
+                (execute-pipeline :rule Store_D0
+                  :sources (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema Store :index (0 1) :ver FULL)
+                    (index-spec :schema Store :index (0 1) :ver FULL)
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (Store 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var x
+                      :sources (
+                        (column-source :index (Store 0 1) :ver FULL :prefix (y))
+                        (column-source :index (PointsTo 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (z w) :var-from-source ((z) (w))
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix (y))
+                        (column-source :index (PointsTo 0 1) :ver FULL :prefix (x))
+                      ))
+                    (insert-into :schema PointsTo :ver NEW :dedup-index (0 1) :terms (z w))
+                )
+                (execute-pipeline :rule Store_D2
+                  :sources (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema Store :index (1 0) :ver FULL)
+                    (index-spec :schema Store :index (1 0) :ver FULL)
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL)
+                    (index-spec :schema PointsTo :index (0 1) :ver DELTA)
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema PointsTo :index (0 1) :ver FULL))
+                    (column-join :var x
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix ())
+                        (column-source :index (Store 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (Store 1 0) :ver FULL :prefix (x))
+                        (column-source :index (PointsTo 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (w z) :var-from-source ((w) (z))
+                      :sources (
+                        (column-source :index (PointsTo 0 1) :ver DELTA :prefix (x))
+                        (column-source :index (PointsTo 0 1) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema PointsTo :ver NEW :dedup-index (0 1) :terms (z w))
+                )
+            )
+            (rebuild-index :index (PointsTo 0 1) :ver NEW)
+            (clear-relation :schema PointsTo :ver DELTA)
+            (check-size :schema PointsTo :ver NEW)
+            (compute-delta-index :schema PointsTo :canonical-index (0 1))
+            (clear-relation :schema PointsTo :ver NEW)
+            (merge-index :index (PointsTo 0 1))
+            (rebuild-index-from-index :source (PointsTo 0 1) :target (PointsTo 1 0) :ver DELTA)
+            (merge-index :index (PointsTo 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel PointsTo :canonical-index (0 1))
+  )
+)

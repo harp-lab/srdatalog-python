@@ -1,0 +1,80 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule KnowsLoad
+                  :sources (tuple
+                    (index-spec :schema KnowsInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Knows :index (0 1) :ver FULL))
+                    (scan :vars (x y) :index (KnowsInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema Knows :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule InterestLoad
+                  :sources (tuple
+                    (index-spec :schema HasInterestInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema HasInterest :index (0 1) :ver FULL))
+                    (scan :vars (p t) :index (HasInterestInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema HasInterest :ver NEW :dedup-index (0 1) :terms (p t))
+                )
+            )
+            (rebuild-index :index (Knows 0 1) :ver NEW)
+            (check-size :schema Knows :ver NEW)
+            (compute-delta-index :schema Knows :canonical-index (0 1))
+            (clear-relation :schema Knows :ver NEW)
+            (merge-index :index (Knows 0 1))
+            (rebuild-index :index (HasInterest 0 1) :ver NEW)
+            (check-size :schema HasInterest :ver NEW)
+            (compute-delta-index :schema HasInterest :canonical-index (0 1))
+            (clear-relation :schema HasInterest :ver NEW)
+            (merge-index :index (HasInterest 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Knows :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HasInterest :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule TwoHopPath
+              :sources (tuple
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema HasInterest :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema HasInterest :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Path :index (0 1 2 3) :ver FULL))
+                (column-join :var p2
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix ())
+                    (column-source :index (Knows 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var p3
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix (p2))
+                    (column-source :index (HasInterest 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (p1 t) :var-from-source ((p1) (t))
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix (p2))
+                    (column-source :index (HasInterest 0 1) :ver FULL :prefix (p3))
+                  ))
+                (filter :vars (p1 p3) :code "return p1 != p3;")
+                (insert-into :schema Path :ver NEW :dedup-index (0 1 2 3) :terms (p1 p2 p3 t))
+            )
+            (rebuild-index :index (Path 0 1 2 3) :ver NEW)
+            (check-size :schema Path :ver NEW)
+            (compute-delta-index :schema Path :canonical-index (0 1 2 3))
+            (clear-relation :schema Path :ver NEW)
+            (merge-index :index (Path 0 1 2 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Path :canonical-index (0 1 2 3))
+  )
+)

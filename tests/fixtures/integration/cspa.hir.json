@@ -1,0 +1,1466 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Assign",
+        "Deref"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "LoadAssign",
+            "head": [
+              {
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "AssignInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LoadAssign: (Assign x y) <-\n      (AssignInput x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "AssignInput",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "LoadDeref",
+            "head": [
+              {
+                "rel": "Deref",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "DerefInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LoadDeref: (Deref x y) <-\n      (DerefInput x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "DerefInput",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "MemoryAlias",
+        "ValueAlias",
+        "ValueFlow"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "VF_Assign",
+            "head": [
+              {
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VF_Assign: (ValueFlow y x) <-\n      (Assign y x)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "y",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "Assign",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VF_Refl1",
+            "head": [
+              {
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen1"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VF_Refl1: (ValueFlow x x) <-\n      (Assign x _gen1)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "_gen1"
+          ],
+          "joins": [
+            {
+              "rel": "Assign",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "_gen1"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VF_Refl2",
+            "head": [
+              {
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VF_Refl2: (ValueFlow x x) <-\n      (Assign _gen2 x)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "_gen2",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "Assign",
+              "version": "FULL",
+              "accessOrder": [
+                "_gen2",
+                "x"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "MA_Refl1",
+            "head": [
+              {
+                "rel": "MemoryAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "MA_Refl1: (MemoryAlias x x) <-\n      (Assign _gen3 x)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "_gen3",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "Assign",
+              "version": "FULL",
+              "accessOrder": [
+                "_gen3",
+                "x"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "MA_Refl2",
+            "head": [
+              {
+                "rel": "MemoryAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen4"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "MA_Refl2: (MemoryAlias x x) <-\n      (Assign x _gen4)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "_gen4"
+          ],
+          "joins": [
+            {
+              "rel": "Assign",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "_gen4"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 2,
+      "isRecursive": true,
+      "relations": [
+        "MemoryAlias",
+        "ValueAlias",
+        "ValueFlow"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "VF_Trans",
+            "head": [
+              {
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VF_Trans: (ValueFlow x y) <-\n      (ValueFlow x z),\n      (ValueFlow z y)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "z",
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "ValueFlow",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ValueFlow",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VF_Trans",
+            "head": [
+              {
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VF_Trans: (ValueFlow x y) <-\n      (ValueFlow x z),\n      (ValueFlow z y)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0
+          ],
+          "varOrder": [
+            "z",
+            "y",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "ValueFlow",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ValueFlow",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VF_Assign_MA",
+            "head": [
+              {
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "MemoryAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VF_Assign_MA: (ValueFlow x y) <-\n      (Assign x z),\n      (MemoryAlias z y)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0
+          ],
+          "varOrder": [
+            "z",
+            "y",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "Assign",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "MemoryAlias",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VA_VF",
+            "head": [
+              {
+                "rel": "ValueAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VA_VF: (ValueAlias x y) <-\n      (ValueFlow z x),\n      (ValueFlow z y)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "z",
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "ValueFlow",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ValueFlow",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VA_VF",
+            "head": [
+              {
+                "rel": "ValueAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VA_VF: (ValueAlias x y) <-\n      (ValueFlow z x),\n      (ValueFlow z y)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0
+          ],
+          "varOrder": [
+            "z",
+            "y",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "ValueFlow",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ValueFlow",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VA_VF_MA_VF",
+            "head": [
+              {
+                "rel": "ValueAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "MemoryAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VA_VF_MA_VF: (ValueAlias x y) <-\n      (ValueFlow z x),\n      (MemoryAlias z w),\n      (ValueFlow w y)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "z",
+            "w",
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "ValueFlow",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "MemoryAlias",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "w"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "ValueFlow",
+              "version": "FULL",
+              "accessOrder": [
+                "w",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VA_VF_MA_VF",
+            "head": [
+              {
+                "rel": "ValueAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "MemoryAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VA_VF_MA_VF: (ValueAlias x y) <-\n      (ValueFlow z x),\n      (MemoryAlias z w),\n      (ValueFlow w y)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0,
+            2
+          ],
+          "varOrder": [
+            "z",
+            "w",
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "ValueFlow",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "MemoryAlias",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "w"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "ValueFlow",
+              "version": "FULL",
+              "accessOrder": [
+                "w",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "VA_VF_MA_VF",
+            "head": [
+              {
+                "rel": "ValueAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "MemoryAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ValueFlow",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "VA_VF_MA_VF: (ValueAlias x y) <-\n      (ValueFlow z x),\n      (MemoryAlias z w),\n      (ValueFlow w y)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            1,
+            0
+          ],
+          "varOrder": [
+            "w",
+            "z",
+            "y",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "ValueFlow",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "MemoryAlias",
+              "version": "FULL",
+              "accessOrder": [
+                "w",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "ValueFlow",
+              "version": "DELTA",
+              "accessOrder": [
+                "w",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "MA_Deref_VA",
+            "head": [
+              {
+                "rel": "MemoryAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Deref",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ValueAlias",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Deref",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "MA_Deref_VA: (MemoryAlias x w) <-\n      (Deref y x),\n      (ValueAlias y z),\n      (Deref z w)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0,
+            2
+          ],
+          "varOrder": [
+            "y",
+            "z",
+            "x",
+            "w"
+          ],
+          "joins": [
+            {
+              "rel": "Deref",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ValueAlias",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "Deref",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "w"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ]
+    }
+  ],
+  "relations": {
+    "AssignInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "DerefInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Assign": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Deref": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "ValueFlow": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "ValueAlias": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "MemoryAlias": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Assign\", \"Deref\"]\n  (base-variant :name LoadAssign\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (Assign(x, y))\n  :body (AssignInput(x, y):@[0, 1])\n)\n  (base-variant :name LoadDeref\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (Deref(x, y))\n  :body (DerefInput(x, y):@[0, 1])\n)\n)\n(stratum 1 simple\n  :members @[\"MemoryAlias\", \"ValueAlias\", \"ValueFlow\"]\n  (base-variant :name VF_Assign\n  :var-order @[\"y\", \"x\"]\n  :clause-order @[0]\n  :head (ValueFlow(y, x))\n  :body (Assign(y, x):@[0, 1])\n)\n  (base-variant :name VF_Refl1\n  :var-order @[\"x\", \"_gen1\"]\n  :clause-order @[0]\n  :head (ValueFlow(x, x))\n  :body (Assign(x, _gen1):@[0, 1])\n)\n  (base-variant :name VF_Refl2\n  :var-order @[\"_gen2\", \"x\"]\n  :clause-order @[0]\n  :head (ValueFlow(x, x))\n  :body (Assign(_gen2, x):@[0, 1])\n)\n  (base-variant :name MA_Refl1\n  :var-order @[\"_gen3\", \"x\"]\n  :clause-order @[0]\n  :head (MemoryAlias(x, x))\n  :body (Assign(_gen3, x):@[0, 1])\n)\n  (base-variant :name MA_Refl2\n  :var-order @[\"x\", \"_gen4\"]\n  :clause-order @[0]\n  :head (MemoryAlias(x, x))\n  :body (Assign(x, _gen4):@[0, 1])\n)\n)\n(stratum 2 recursive\n  :members @[\"MemoryAlias\", \"ValueAlias\", \"ValueFlow\"]\n  (recursive-variant :name VF_Trans\n  :delta-at 0\n  :var-order @[\"z\", \"x\", \"y\"]\n  :clause-order @[0, 1]\n  :head (ValueFlow(x, y))\n  :body (ΔValueFlow(x, z):@[1, 0] ⋈ ValueFlow(z, y):@[0, 1])\n)\n  (recursive-variant :name VF_Trans\n  :delta-at 1\n  :var-order @[\"z\", \"y\", \"x\"]\n  :clause-order @[1, 0]\n  :head (ValueFlow(x, y))\n  :body (ΔValueFlow(z, y):@[0, 1] ⋈ ValueFlow(x, z):@[1, 0])\n)\n  (recursive-variant :name VF_Assign_MA\n  :delta-at 1\n  :var-order @[\"z\", \"y\", \"x\"]\n  :clause-order @[1, 0]\n  :head (ValueFlow(x, y))\n  :body (ΔMemoryAlias(z, y):@[0, 1] ⋈ Assign(x, z):@[1, 0])\n)\n  (recursive-variant :name VA_VF\n  :delta-at 0\n  :var-order @[\"z\", \"x\", \"y\"]\n  :clause-order @[0, 1]\n  :head (ValueAlias(x, y))\n  :body (ΔValueFlow(z, x):@[0, 1] ⋈ ValueFlow(z, y):@[0, 1])\n)\n  (recursive-variant :name VA_VF\n  :delta-at 1\n  :var-order @[\"z\", \"y\", \"x\"]\n  :clause-order @[1, 0]\n  :head (ValueAlias(x, y))\n  :body (ΔValueFlow(z, y):@[0, 1] ⋈ ValueFlow(z, x):@[0, 1])\n)\n  (recursive-variant :name VA_VF_MA_VF\n  :delta-at 0\n  :var-order @[\"z\", \"w\", \"x\", \"y\"]\n  :clause-order @[0, 1, 2]\n  :head (ValueAlias(x, y))\n  :body (ΔValueFlow(z, x):@[0, 1] ⋈ MemoryAlias(z, w):@[0, 1] ⋈ ValueFlow(w, y):@[0, 1])\n)\n  (recursive-variant :name VA_VF_MA_VF\n  :delta-at 1\n  :var-order @[\"z\", \"w\", \"x\", \"y\"]\n  :clause-order @[1, 0, 2]\n  :head (ValueAlias(x, y))\n  :body (ΔMemoryAlias(z, w):@[0, 1] ⋈ ValueFlow(z, x):@[0, 1] ⋈ ValueFlow(w, y):@[0, 1])\n)\n  (recursive-variant :name VA_VF_MA_VF\n  :delta-at 2\n  :var-order @[\"w\", \"z\", \"y\", \"x\"]\n  :clause-order @[2, 1, 0]\n  :head (ValueAlias(x, y))\n  :body (ΔValueFlow(w, y):@[0, 1] ⋈ MemoryAlias(z, w):@[1, 0] ⋈ ValueFlow(z, x):@[0, 1])\n)\n  (recursive-variant :name MA_Deref_VA\n  :delta-at 1\n  :var-order @[\"y\", \"z\", \"x\", \"w\"]\n  :clause-order @[1, 0, 2]\n  :head (MemoryAlias(x, w))\n  :body (ΔValueAlias(y, z):@[0, 1] ⋈ Deref(y, x):@[0, 1] ⋈ Deref(z, w):@[0, 1])\n)\n)\n)"
+}

@@ -1,0 +1,75 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Counts"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "CountR",
+            "head": [
+              {
+                "rel": "Counts",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "cnt"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "aggregation",
+                "rel": "R",
+                "func": "count",
+                "result": "cnt",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "CountR: (Counts cnt) <-\n      (AGG cnt := count (R x y))",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y",
+            "cnt"
+          ],
+          "joins": [],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "R": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Counts": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Counts\"]\n  (base-variant :name CountR\n  :var-order @[\"x\", \"y\", \"cnt\"]\n  :clause-order @[0]\n  :head (Counts(cnt))\n  :body (cnt = agg(...))\n)\n)\n)"
+}

@@ -1,0 +1,255 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "_SJ_R_S_0_2"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "_SJ_R_S_0_2_Gen",
+            "head": [
+              {
+                "rel": "_SJ_R_S_0_2",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "v0"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "v2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "R",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "v0"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "v1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "v2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "S",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "v1"
+                  }
+                ]
+              }
+            ],
+            "provenance": {
+              "kind": "compilerGen",
+              "parentRule": "SJTest",
+              "derivedFrom": "R",
+              "transformPass": "semi_join"
+            }
+          },
+          "hirText": "_SJ_R_S_0_2_Gen: (_SJ_R_S_0_2 v0 v2) <-\n      (R v0 v1 v2),\n      (S v1)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "v1",
+            "v0",
+            "v2"
+          ],
+          "joins": [
+            {
+              "rel": "R",
+              "version": "FULL",
+              "accessOrder": [
+                "v1",
+                "v0",
+                "v2"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "S",
+              "version": "FULL",
+              "accessOrder": [
+                "v1"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "Main"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "SJTest",
+            "head": [
+              {
+                "rel": "Main",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "_SJ_R_S_0_2",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ],
+                "provenance": {
+                  "kind": "compilerGen",
+                  "parentRule": "SJTest",
+                  "derivedFrom": "R",
+                  "transformPass": "semi_join"
+                }
+              },
+              {
+                "kind": "relation",
+                "rel": "T",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "SJTest: (Main x z) <-\n      (_SJ_R_S_0_2 x z),\n      (T x z)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "_SJ_R_S_0_2",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "T",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "R": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "S": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "T": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Main": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "_SJ_R_S_0_2": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"_SJ_R_S_0_2\"]\n  (base-variant :name _SJ_R_S_0_2_Gen\n  :var-order @[\"v1\", \"v0\", \"v2\"]\n  :clause-order @[0, 1]\n  :head (_SJ_R_S_0_2(v0, v2))\n  :body (R(v0, v1, v2):@[1, 0, 2] ⋈ S(v1):@[0])\n)\n)\n(stratum 1 simple\n  :members @[\"Main\"]\n  (base-variant :name SJTest\n  :var-order @[\"x\", \"z\"]\n  :clause-order @[0, 1]\n  :head (Main(x, z))\n  :body (_SJ_R_S_0_2(x, z):@[0, 1] ⋈ T(x, z):@[0, 1])\n)\n)\n)"
+}

@@ -1,0 +1,234 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Knows"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "KnowsLoad",
+            "head": [
+              {
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "KnowsInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "KnowsLoad: (Knows x y) <-\n      (KnowsInput x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "KnowsInput",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "Triangle"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "TriangleJoin",
+            "head": [
+              {
+                "rel": "Triangle",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "a"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "b"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "a"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "b"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "b"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "a"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "TriangleJoin: (Triangle a b c) <-\n      (Knows a b),\n      (Knows b c),\n      (Knows a c)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "a",
+            "b",
+            "c"
+          ],
+          "joins": [
+            {
+              "rel": "Knows",
+              "version": "FULL",
+              "accessOrder": [
+                "a",
+                "b"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Knows",
+              "version": "FULL",
+              "accessOrder": [
+                "b",
+                "c"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "Knows",
+              "version": "FULL",
+              "accessOrder": [
+                "a",
+                "c"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "KnowsInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Knows": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Triangle": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Knows\"]\n  (base-variant :name KnowsLoad\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (Knows(x, y))\n  :body (KnowsInput(x, y):@[0, 1])\n)\n)\n(stratum 1 simple\n  :members @[\"Triangle\"]\n  (base-variant :name TriangleJoin\n  :var-order @[\"a\", \"b\", \"c\"]\n  :clause-order @[0, 1, 2]\n  :head (Triangle(a, b, c))\n  :body (Knows(a, b):@[0, 1] ⋈ Knows(b, c):@[0, 1] ⋈ Knows(a, c):@[0, 1])\n)\n)\n)"
+}

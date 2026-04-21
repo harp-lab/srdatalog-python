@@ -1,0 +1,182 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 3 independent ops
+                (execute-pipeline :rule MarkHasReply
+                  :sources (tuple
+                    (index-spec :schema ReplyOf :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema HasReply :index (0) :ver FULL))
+                    (scan :vars (_gen1 m) :index (ReplyOf 0 1) :ver FULL :prefix ())
+                    (insert-into :schema HasReply :ver NEW :dedup-index (0) :terms (m))
+                )
+                (execute-pipeline :rule MarkHasLiker
+                  :sources (tuple
+                    (index-spec :schema Likes :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema HasLiker :index (0) :ver FULL))
+                    (scan :vars (_gen2 m) :index (Likes 0 1) :ver FULL :prefix ())
+                    (insert-into :schema HasLiker :ver NEW :dedup-index (0) :terms (m))
+                )
+                (execute-pipeline :rule Case1Both
+                  :sources (tuple
+                    (index-spec :schema HasTag :index (0 1) :ver FULL)
+                    (index-spec :schema ReplyOf :index (1 0) :ver FULL)
+                    (index-spec :schema Likes :index (1 0) :ver FULL)
+                    (index-spec :schema HasCreator :index (0 1) :ver FULL)
+                    (index-spec :schema HasTag :index (0 1) :ver FULL)
+                    (index-spec :schema ReplyOf :index (1 0) :ver FULL)
+                    (index-spec :schema Likes :index (1 0) :ver FULL)
+                    (index-spec :schema HasCreator :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Case1 :index (0 1 2 3 4) :ver FULL))
+                    (column-join :var m
+                      :sources (
+                        (column-source :index (HasTag 0 1) :ver FULL :prefix ())
+                        (column-source :index (ReplyOf 1 0) :ver FULL :prefix ())
+                        (column-source :index (Likes 1 0) :ver FULL :prefix ())
+                        (column-source :index (HasCreator 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (comment liker t c) :var-from-source ((t) (comment) (liker) (c))
+                      :sources (
+                        (column-source :index (HasTag 0 1) :ver FULL :prefix (m))
+                        (column-source :index (ReplyOf 1 0) :ver FULL :prefix (m))
+                        (column-source :index (Likes 1 0) :ver FULL :prefix (m))
+                        (column-source :index (HasCreator 0 1) :ver FULL :prefix (m))
+                      ))
+                    (insert-into :schema Case1 :ver NEW :dedup-index (0 1 2 3 4) :terms (m t c comment liker))
+                )
+            )
+            (rebuild-index :index (HasReply 0) :ver NEW)
+            (check-size :schema HasReply :ver NEW)
+            (compute-delta-index :schema HasReply :canonical-index (0))
+            (clear-relation :schema HasReply :ver NEW)
+            (merge-index :index (HasReply 0))
+            (rebuild-index :index (HasLiker 0) :ver NEW)
+            (check-size :schema HasLiker :ver NEW)
+            (compute-delta-index :schema HasLiker :canonical-index (0))
+            (clear-relation :schema HasLiker :ver NEW)
+            (merge-index :index (HasLiker 0))
+            (rebuild-index :index (Case1 0 1 2 3 4) :ver NEW)
+            (check-size :schema Case1 :ver NEW)
+            (compute-delta-index :schema Case1 :canonical-index (0 1 2 3 4))
+            (clear-relation :schema Case1 :ver NEW)
+            (merge-index :index (Case1 0 1 2 3 4))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HasReply :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HasLiker :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Case1 :canonical-index (0 1 2 3 4))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 3 independent ops
+                (execute-pipeline :rule Case2ReplyOnly
+                  :sources (tuple
+                    (index-spec :schema HasTag :index (0 1) :ver FULL)
+                    (index-spec :schema ReplyOf :index (1 0) :ver FULL)
+                    (index-spec :schema HasCreator :index (0 1) :ver FULL)
+                    (index-spec :schema HasTag :index (0 1) :ver FULL)
+                    (index-spec :schema ReplyOf :index (1 0) :ver FULL)
+                    (index-spec :schema HasCreator :index (0 1) :ver FULL)
+                    (index-spec :schema HasLiker :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Case2 :index (0 1 2 3) :ver FULL))
+                    (column-join :var m
+                      :sources (
+                        (column-source :index (HasTag 0 1) :ver FULL :prefix ())
+                        (column-source :index (ReplyOf 1 0) :ver FULL :prefix ())
+                        (column-source :index (HasCreator 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (comment t c) :var-from-source ((t) (comment) (c))
+                      :sources (
+                        (column-source :index (HasTag 0 1) :ver FULL :prefix (m))
+                        (column-source :index (ReplyOf 1 0) :ver FULL :prefix (m))
+                        (column-source :index (HasCreator 0 1) :ver FULL :prefix (m))
+                      ))
+                    (negation :schema HasLiker :ver FULL :index (HasLiker 0) :prefix (m))
+                    (insert-into :schema Case2 :ver NEW :dedup-index (0 1 2 3) :terms (m t c comment))
+                )
+                (execute-pipeline :rule Case3LikeOnly
+                  :sources (tuple
+                    (index-spec :schema HasTag :index (0 1) :ver FULL)
+                    (index-spec :schema Likes :index (1 0) :ver FULL)
+                    (index-spec :schema HasCreator :index (0 1) :ver FULL)
+                    (index-spec :schema HasTag :index (0 1) :ver FULL)
+                    (index-spec :schema Likes :index (1 0) :ver FULL)
+                    (index-spec :schema HasCreator :index (0 1) :ver FULL)
+                    (index-spec :schema HasReply :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Case3 :index (0 1 2 3) :ver FULL))
+                    (column-join :var m
+                      :sources (
+                        (column-source :index (HasTag 0 1) :ver FULL :prefix ())
+                        (column-source :index (Likes 1 0) :ver FULL :prefix ())
+                        (column-source :index (HasCreator 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (liker t c) :var-from-source ((t) (liker) (c))
+                      :sources (
+                        (column-source :index (HasTag 0 1) :ver FULL :prefix (m))
+                        (column-source :index (Likes 1 0) :ver FULL :prefix (m))
+                        (column-source :index (HasCreator 0 1) :ver FULL :prefix (m))
+                      ))
+                    (negation :schema HasReply :ver FULL :index (HasReply 0) :prefix (m))
+                    (insert-into :schema Case3 :ver NEW :dedup-index (0 1 2 3) :terms (m t c liker))
+                )
+                (execute-pipeline :rule Case4Neither
+                  :sources (tuple
+                    (index-spec :schema HasTag :index (0 1) :ver FULL)
+                    (index-spec :schema HasCreator :index (0 1) :ver FULL)
+                    (index-spec :schema HasTag :index (0 1) :ver FULL)
+                    (index-spec :schema HasCreator :index (0 1) :ver FULL)
+                    (index-spec :schema HasReply :index (0) :ver FULL)
+                    (index-spec :schema HasLiker :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Case4 :index (0 1 2) :ver FULL))
+                    (column-join :var m
+                      :sources (
+                        (column-source :index (HasTag 0 1) :ver FULL :prefix ())
+                        (column-source :index (HasCreator 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (t c) :var-from-source ((t) (c))
+                      :sources (
+                        (column-source :index (HasTag 0 1) :ver FULL :prefix (m))
+                        (column-source :index (HasCreator 0 1) :ver FULL :prefix (m))
+                      ))
+                    (negation :schema HasReply :ver FULL :index (HasReply 0) :prefix (m))
+                    (negation :schema HasLiker :ver FULL :index (HasLiker 0) :prefix (m))
+                    (insert-into :schema Case4 :ver NEW :dedup-index (0 1 2) :terms (m t c))
+                )
+            )
+            (rebuild-index :index (Case2 0 1 2 3) :ver NEW)
+            (check-size :schema Case2 :ver NEW)
+            (compute-delta-index :schema Case2 :canonical-index (0 1 2 3))
+            (clear-relation :schema Case2 :ver NEW)
+            (merge-index :index (Case2 0 1 2 3))
+            (rebuild-index :index (Case3 0 1 2 3) :ver NEW)
+            (check-size :schema Case3 :ver NEW)
+            (compute-delta-index :schema Case3 :canonical-index (0 1 2 3))
+            (clear-relation :schema Case3 :ver NEW)
+            (merge-index :index (Case3 0 1 2 3))
+            (rebuild-index :index (Case4 0 1 2) :ver NEW)
+            (check-size :schema Case4 :ver NEW)
+            (compute-delta-index :schema Case4 :canonical-index (0 1 2))
+            (clear-relation :schema Case4 :ver NEW)
+            (merge-index :index (Case4 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Case2 :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Case3 :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Case4 :canonical-index (0 1 2))
+  )
+)

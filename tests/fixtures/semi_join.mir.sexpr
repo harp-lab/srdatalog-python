@@ -1,0 +1,64 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule _SJ_R_S_0_2_Gen
+              :sources (tuple
+                (index-spec :schema R :index (1 0 2) :ver FULL)
+                (index-spec :schema S :index (0) :ver FULL)
+                (index-spec :schema R :index (1 0 2) :ver FULL))
+              :dests (tuple
+                (index-spec :schema _SJ_R_S_0_2 :index (0 1) :ver FULL))
+                (column-join :var v1
+                  :sources (
+                    (column-source :index (R 1 0 2) :ver FULL :prefix ())
+                    (column-source :index (S 0) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (v0 v2) :var-from-source ((v0 v2))
+                  :sources (
+                    (column-source :index (R 1 0 2) :ver FULL :prefix (v1))
+                  ))
+                (insert-into :schema _SJ_R_S_0_2 :ver NEW :dedup-index (0 1) :terms (v0 v2))
+            )
+            (rebuild-index :index (_SJ_R_S_0_2 0 1) :ver NEW)
+            (check-size :schema _SJ_R_S_0_2 :ver NEW)
+            (compute-delta-index :schema _SJ_R_S_0_2 :canonical-index (0 1))
+            (clear-relation :schema _SJ_R_S_0_2 :ver NEW)
+            (merge-index :index (_SJ_R_S_0_2 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel _SJ_R_S_0_2 :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule SJTest
+              :sources (tuple
+                (index-spec :schema _SJ_R_S_0_2 :index (0 1) :ver FULL)
+                (index-spec :schema T :index (0 1) :ver FULL)
+                (index-spec :schema _SJ_R_S_0_2 :index (0 1) :ver FULL)
+                (index-spec :schema T :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Main :index (0 1) :ver FULL))
+                (column-join :var x
+                  :sources (
+                    (column-source :index (_SJ_R_S_0_2 0 1) :ver FULL :prefix ())
+                    (column-source :index (T 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var z
+                  :sources (
+                    (column-source :index (_SJ_R_S_0_2 0 1) :ver FULL :prefix (x))
+                    (column-source :index (T 0 1) :ver FULL :prefix (x))
+                  ))
+                (insert-into :schema Main :ver NEW :dedup-index (0 1) :terms (x z))
+            )
+            (rebuild-index :index (Main 0 1) :ver NEW)
+            (check-size :schema Main :ver NEW)
+            (compute-delta-index :schema Main :canonical-index (0 1))
+            (clear-relation :schema Main :ver NEW)
+            (merge-index :index (Main 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Main :canonical-index (0 1))
+  )
+)

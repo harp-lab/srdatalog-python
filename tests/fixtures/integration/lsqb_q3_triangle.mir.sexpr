@@ -1,0 +1,133 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 3 independent ops
+                (execute-pipeline :rule KnowsLoad
+                  :sources (tuple
+                    (index-spec :schema KnowsInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Knows :index (0 1) :ver FULL))
+                    (scan :vars (x y) :index (KnowsInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema Knows :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule LocLoad
+                  :sources (tuple
+                    (index-spec :schema IsLocatedInInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema IsLocatedIn :index (0 1) :ver FULL))
+                    (scan :vars (p c) :index (IsLocatedInInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema IsLocatedIn :ver NEW :dedup-index (0 1) :terms (p c))
+                )
+                (execute-pipeline :rule PartOfLoad
+                  :sources (tuple
+                    (index-spec :schema IsPartOfInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema IsPartOf :index (0 1) :ver FULL))
+                    (scan :vars (c co) :index (IsPartOfInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema IsPartOf :ver NEW :dedup-index (0 1) :terms (c co))
+                )
+            )
+            (rebuild-index :index (Knows 0 1) :ver NEW)
+            (check-size :schema Knows :ver NEW)
+            (compute-delta-index :schema Knows :canonical-index (0 1))
+            (clear-relation :schema Knows :ver NEW)
+            (merge-index :index (Knows 0 1))
+            (rebuild-index-from-index :source (Knows 0 1) :target (Knows 1 0) :ver DELTA)
+            (merge-index :index (Knows 1 0))
+            (rebuild-index :index (IsLocatedIn 0 1) :ver NEW)
+            (check-size :schema IsLocatedIn :ver NEW)
+            (compute-delta-index :schema IsLocatedIn :canonical-index (0 1))
+            (clear-relation :schema IsLocatedIn :ver NEW)
+            (merge-index :index (IsLocatedIn 0 1))
+            (rebuild-index :index (IsPartOf 0 1) :ver NEW)
+            (check-size :schema IsPartOf :ver NEW)
+            (compute-delta-index :schema IsPartOf :canonical-index (0 1))
+            (clear-relation :schema IsPartOf :ver NEW)
+            (merge-index :index (IsPartOf 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Knows :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel IsLocatedIn :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel IsPartOf :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule LabeledTriangle
+              :sources (tuple
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema IsLocatedIn :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (1 0) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema IsLocatedIn :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema IsLocatedIn :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (1 0) :ver FULL)
+                (index-spec :schema IsLocatedIn :index (0 1) :ver FULL)
+                (index-spec :schema IsPartOf :index (0 1) :ver FULL)
+                (index-spec :schema IsLocatedIn :index (0 1) :ver FULL)
+                (index-spec :schema IsPartOf :index (0 1) :ver FULL)
+                (index-spec :schema IsLocatedIn :index (0 1) :ver FULL)
+                (index-spec :schema IsPartOf :index (0 1) :ver FULL)
+                (index-spec :schema IsPartOf :index (0 1) :ver FULL)
+                (index-spec :schema IsPartOf :index (0 1) :ver FULL)
+                (index-spec :schema IsPartOf :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Triangle :index (0 1 2) :ver FULL))
+                (column-join :var p1
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix ())
+                    (column-source :index (IsLocatedIn 0 1) :ver FULL :prefix ())
+                    (column-source :index (Knows 1 0) :ver FULL :prefix ())
+                  ))
+                (column-join :var p2
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix (p1))
+                    (column-source :index (Knows 0 1) :ver FULL :prefix ())
+                    (column-source :index (IsLocatedIn 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var p3
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix (p2))
+                    (column-source :index (IsLocatedIn 0 1) :ver FULL :prefix ())
+                    (column-source :index (Knows 1 0) :ver FULL :prefix (p1))
+                  ))
+                (column-join :var c1
+                  :sources (
+                    (column-source :index (IsLocatedIn 0 1) :ver FULL :prefix (p1))
+                    (column-source :index (IsPartOf 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var c2
+                  :sources (
+                    (column-source :index (IsLocatedIn 0 1) :ver FULL :prefix (p2))
+                    (column-source :index (IsPartOf 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var c3
+                  :sources (
+                    (column-source :index (IsLocatedIn 0 1) :ver FULL :prefix (p3))
+                    (column-source :index (IsPartOf 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var co
+                  :sources (
+                    (column-source :index (IsPartOf 0 1) :ver FULL :prefix (c1))
+                    (column-source :index (IsPartOf 0 1) :ver FULL :prefix (c2))
+                    (column-source :index (IsPartOf 0 1) :ver FULL :prefix (c3))
+                  ))
+                (insert-into :schema Triangle :ver NEW :dedup-index (0 1 2) :terms (p1 p2 p3))
+            )
+            (rebuild-index :index (Triangle 0 1 2) :ver NEW)
+            (check-size :schema Triangle :ver NEW)
+            (compute-delta-index :schema Triangle :canonical-index (0 1 2))
+            (clear-relation :schema Triangle :ver NEW)
+            (merge-index :index (Triangle 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Triangle :canonical-index (0 1 2))
+  )
+)

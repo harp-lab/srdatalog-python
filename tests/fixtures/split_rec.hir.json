@@ -1,0 +1,242 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "R"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "RBase",
+            "head": [
+              {
+                "rel": "R",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Seed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RBase: (R x y) <-\n      (Seed x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "Seed",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": true,
+      "relations": [
+        "R"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "RRec",
+            "head": [
+              {
+                "rel": "R",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "R",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "Filter",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "split"
+              },
+              {
+                "kind": "relation",
+                "rel": "Edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RRec: (R x z) <-\n      (R x y),\n      (NOT (Filter y)),\n      ---,\n      (Edge y z)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            3,
+            1,
+            2
+          ],
+          "varOrder": [
+            "y",
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "R",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Edge",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 3
+            }
+          ],
+          "negations": [
+            {
+              "rel": "Filter",
+              "version": "FULL",
+              "accessOrder": [
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "relations": {
+    "Seed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Filter": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "Edge": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "R": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "_temp_RRec": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"R\"]\n  (base-variant :name RBase\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (R(x, y))\n  :body (Seed(x, y):@[0, 1])\n)\n)\n(stratum 1 recursive\n  :members @[\"R\"]\n  (recursive-variant :name RRec\n  :delta-at 0\n  :var-order @[\"y\", \"x\", \"z\"]\n  :clause-order @[0, 3, 1, 2]\n  :head (R(x, z))\n  :body (ΔR(x, y):@[1, 0] ⋈ Edge(y, z):@[0, 1] ⋈ ~Filter(y) ⋈ ---)\n)\n)\n)"
+}

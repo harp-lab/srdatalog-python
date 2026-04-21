@@ -1,0 +1,703 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "PointsTo"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "Base",
+            "head": [
+              {
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "AddressOf",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Base: (PointsTo y x) <-\n      (AddressOf y x)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "y",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "AddressOf",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": true,
+      "relations": [
+        "PointsTo"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "Assign",
+            "head": [
+              {
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Assign: (PointsTo y x) <-\n      (PointsTo z x),\n      (Assign y z)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "z",
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "PointsTo",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Assign",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Load",
+            "head": [
+              {
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Load",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Load: (PointsTo y w) <-\n      (PointsTo x z),\n      (Load y x),\n      (PointsTo z w)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "x",
+            "z",
+            "y",
+            "w"
+          ],
+          "joins": [
+            {
+              "rel": "PointsTo",
+              "version": "DELTA",
+              "accessOrder": [
+                "x",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Load",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "PointsTo",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "w"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Load",
+            "head": [
+              {
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Load",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Load: (PointsTo y w) <-\n      (PointsTo x z),\n      (Load y x),\n      (PointsTo z w)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            0,
+            1
+          ],
+          "varOrder": [
+            "z",
+            "x",
+            "y",
+            "w"
+          ],
+          "joins": [
+            {
+              "rel": "PointsTo",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "x"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Load",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "PointsTo",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "w"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Store",
+            "head": [
+              {
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Store",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Store: (PointsTo z w) <-\n      (PointsTo y z),\n      (Store y x),\n      (PointsTo x w)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "y",
+            "x",
+            "z",
+            "w"
+          ],
+          "joins": [
+            {
+              "rel": "PointsTo",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Store",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "PointsTo",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "w"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Store",
+            "head": [
+              {
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Store",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "PointsTo",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Store: (PointsTo z w) <-\n      (PointsTo y z),\n      (Store y x),\n      (PointsTo x w)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            1,
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y",
+            "w",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "PointsTo",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Store",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "PointsTo",
+              "version": "DELTA",
+              "accessOrder": [
+                "x",
+                "w"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ]
+    }
+  ],
+  "relations": {
+    "AddressOf": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Assign": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Load": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Store": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "PointsTo": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"PointsTo\"]\n  (base-variant :name Base\n  :var-order @[\"y\", \"x\"]\n  :clause-order @[0]\n  :head (PointsTo(y, x))\n  :body (AddressOf(y, x):@[0, 1])\n)\n)\n(stratum 1 recursive\n  :members @[\"PointsTo\"]\n  (recursive-variant :name Assign\n  :delta-at 0\n  :var-order @[\"z\", \"x\", \"y\"]\n  :clause-order @[0, 1]\n  :head (PointsTo(y, x))\n  :body (ΔPointsTo(z, x):@[0, 1] ⋈ Assign(y, z):@[1, 0])\n)\n  (recursive-variant :name Load\n  :delta-at 0\n  :var-order @[\"x\", \"z\", \"y\", \"w\"]\n  :clause-order @[0, 1, 2]\n  :head (PointsTo(y, w))\n  :body (ΔPointsTo(x, z):@[0, 1] ⋈ Load(y, x):@[1, 0] ⋈ PointsTo(z, w):@[0, 1])\n)\n  (recursive-variant :name Load\n  :delta-at 2\n  :var-order @[\"z\", \"x\", \"y\", \"w\"]\n  :clause-order @[2, 0, 1]\n  :head (PointsTo(y, w))\n  :body (ΔPointsTo(z, w):@[0, 1] ⋈ PointsTo(x, z):@[1, 0] ⋈ Load(y, x):@[1, 0])\n)\n  (recursive-variant :name Store\n  :delta-at 0\n  :var-order @[\"y\", \"x\", \"z\", \"w\"]\n  :clause-order @[0, 1, 2]\n  :head (PointsTo(z, w))\n  :body (ΔPointsTo(y, z):@[0, 1] ⋈ Store(y, x):@[0, 1] ⋈ PointsTo(x, w):@[0, 1])\n)\n  (recursive-variant :name Store\n  :delta-at 2\n  :var-order @[\"x\", \"y\", \"w\", \"z\"]\n  :clause-order @[2, 1, 0]\n  :head (PointsTo(z, w))\n  :body (ΔPointsTo(x, w):@[0, 1] ⋈ Store(y, x):@[1, 0] ⋈ PointsTo(y, z):@[0, 1])\n)\n)\n)"
+}

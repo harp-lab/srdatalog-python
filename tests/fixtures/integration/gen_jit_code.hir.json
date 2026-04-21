@@ -1,0 +1,156 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Z"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "Triangle",
+            "head": [
+              {
+                "rel": "Z",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Triangle: (Z x y z) <-\n      (Edge x y),\n      (Edge y z),\n      (Edge z x)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "x",
+            "y",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "Edge",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Edge",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "Edge",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "Edge": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Z": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Z\"]\n  (base-variant :name Triangle\n  :var-order @[\"x\", \"y\", \"z\"]\n  :clause-order @[0, 1, 2]\n  :head (Z(x, y, z))\n  :body (Edge(x, y):@[0, 1] ⋈ Edge(y, z):@[0, 1] ⋈ Edge(z, x):@[1, 0])\n)\n)\n)"
+}

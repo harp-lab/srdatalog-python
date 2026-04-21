@@ -1,0 +1,259 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Sg"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "SGBase",
+            "head": [
+              {
+                "rel": "Sg",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Arc",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Arc",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return x != y;"
+              }
+            ]
+          },
+          "hirText": "SGBase: (Sg x y) <-\n      (Arc p x),\n      (Arc p y),\n      (FILTER return x != y;)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "p",
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "Arc",
+              "version": "FULL",
+              "accessOrder": [
+                "p",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Arc",
+              "version": "FULL",
+              "accessOrder": [
+                "p",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": true,
+      "relations": [
+        "Sg"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "SGRec",
+            "head": [
+              {
+                "rel": "Sg",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Arc",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Sg",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "q"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Arc",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "q"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "SGRec: (Sg x y) <-\n      (Arc p x),\n      (Sg p q),\n      (Arc q y)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0,
+            2
+          ],
+          "varOrder": [
+            "p",
+            "q",
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "Arc",
+              "version": "FULL",
+              "accessOrder": [
+                "p",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Sg",
+              "version": "DELTA",
+              "accessOrder": [
+                "p",
+                "q"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "Arc",
+              "version": "FULL",
+              "accessOrder": [
+                "q",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ]
+    }
+  ],
+  "relations": {
+    "Arc": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Sg": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Sg\"]\n  (base-variant :name SGBase\n  :var-order @[\"p\", \"x\", \"y\"]\n  :clause-order @[0, 1, 2]\n  :head (Sg(x, y))\n  :body (Arc(p, x):@[0, 1] ⋈ Arc(p, y):@[0, 1] ⋈ (filter((x, y)) {.cpp: \"return x != y;\" .}))\n)\n)\n(stratum 1 recursive\n  :members @[\"Sg\"]\n  (recursive-variant :name SGRec\n  :delta-at 1\n  :var-order @[\"p\", \"q\", \"x\", \"y\"]\n  :clause-order @[1, 0, 2]\n  :head (Sg(x, y))\n  :body (ΔSg(p, q):@[0, 1] ⋈ Arc(p, x):@[0, 1] ⋈ Arc(q, y):@[0, 1])\n)\n)\n)"
+}

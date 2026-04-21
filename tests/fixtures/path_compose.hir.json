@@ -1,0 +1,286 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Path"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "PathSeed",
+            "head": [
+              {
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Seed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "PathSeed: (Path x y) <-\n      (Seed x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "Seed",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": true,
+      "relations": [
+        "Path"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "PathCompose",
+            "head": [
+              {
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "PathCompose: (Path x z) <-\n      (Path x y),\n      (Path y z)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "y",
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "Path",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Path",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "PathCompose",
+            "head": [
+              {
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "PathCompose: (Path x z) <-\n      (Path x y),\n      (Path y z)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0
+          ],
+          "varOrder": [
+            "y",
+            "z",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "Path",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Path",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    }
+  ],
+  "relations": {
+    "Seed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Path": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Path\"]\n  (base-variant :name PathSeed\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (Path(x, y))\n  :body (Seed(x, y):@[0, 1])\n)\n)\n(stratum 1 recursive\n  :members @[\"Path\"]\n  (recursive-variant :name PathCompose\n  :delta-at 0\n  :var-order @[\"y\", \"x\", \"z\"]\n  :clause-order @[0, 1]\n  :head (Path(x, z))\n  :body (ΔPath(x, y):@[1, 0] ⋈ Path(y, z):@[0, 1])\n)\n  (recursive-variant :name PathCompose\n  :delta-at 1\n  :var-order @[\"y\", \"z\", \"x\"]\n  :clause-order @[1, 0]\n  :head (Path(x, z))\n  :body (ΔPath(y, z):@[0, 1] ⋈ Path(x, y):@[1, 0])\n)\n)\n)"
+}

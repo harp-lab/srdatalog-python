@@ -1,0 +1,1150 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule cfg_node_from_edge_src
+                  :sources (tuple
+                    (index-spec :schema cfg_edge :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema cfg_node :index (0) :ver FULL))
+                    (scan :vars (point1 _gen1) :index (cfg_edge 0 1) :ver FULL :prefix ())
+                    (insert-into :schema cfg_node :ver NEW :dedup-index (0) :terms (point1))
+                )
+                (execute-pipeline :rule cfg_node_from_edge_dst
+                  :sources (tuple
+                    (index-spec :schema cfg_edge :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema cfg_node :index (0) :ver FULL))
+                    (scan :vars (_gen2 point2) :index (cfg_edge 0 1) :ver FULL :prefix ())
+                    (insert-into :schema cfg_node :ver NEW :dedup-index (0) :terms (point2))
+                )
+            )
+            (rebuild-index :index (cfg_node 0) :ver NEW)
+            (check-size :schema cfg_node :ver NEW)
+            (compute-delta-index :schema cfg_node :canonical-index (0))
+            (clear-relation :schema cfg_node :ver NEW)
+            (merge-index :index (cfg_node 0))
+            (rebuild-index :index (cfg_node 0) :ver NEW)
+            (check-size :schema cfg_node :ver NEW)
+            (compute-delta-index :schema cfg_node :canonical-index (0))
+            (clear-relation :schema cfg_node :ver NEW)
+            (merge-index :index (cfg_node 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel cfg_node :canonical-index (0))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule ancestor_path_base
+              :sources (tuple
+                (index-spec :schema child_path :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL))
+                (scan :vars (x y) :index (child_path 0 1) :ver FULL :prefix ())
+                (insert-into :schema ancestor_path :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (ancestor_path 0 1) :ver NEW)
+            (check-size :schema ancestor_path :ver NEW)
+            (compute-delta-index :schema ancestor_path :canonical-index (0 1))
+            (clear-relation :schema ancestor_path :ver NEW)
+            (merge-index :index (ancestor_path 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ancestor_path :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule ancestor_path_trans_D0
+              :sources (tuple
+                (index-spec :schema ancestor_path :index (0 1) :ver DELTA)
+                (index-spec :schema child_path :index (0 1) :ver FULL)
+                (index-spec :schema ancestor_path :index (0 1) :ver DELTA)
+                (index-spec :schema child_path :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL))
+                (column-join :var parent
+                  :sources (
+                    (column-source :index (ancestor_path 0 1) :ver DELTA :prefix ())
+                    (column-source :index (child_path 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (child grandparent) :var-from-source ((child) (grandparent))
+                  :sources (
+                    (column-source :index (ancestor_path 0 1) :ver DELTA :prefix (parent))
+                    (column-source :index (child_path 0 1) :ver FULL :prefix (parent))
+                  ))
+                (insert-into :schema ancestor_path :ver NEW :dedup-index (0 1) :terms (grandparent child))
+            )
+            (rebuild-index :index (ancestor_path 0 1) :ver NEW)
+            (clear-relation :schema ancestor_path :ver DELTA)
+            (check-size :schema ancestor_path :ver NEW)
+            (compute-delta-index :schema ancestor_path :canonical-index (0 1))
+            (clear-relation :schema ancestor_path :ver NEW)
+            (merge-index :index (ancestor_path 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ancestor_path :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule pbwv_base
+              :sources (tuple
+                (index-spec :schema path_is_var :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_begins_with_var :index (0 1) :ver FULL))
+                (scan :vars (x vr) :index (path_is_var 0 1) :ver FULL :prefix ())
+                (insert-into :schema path_begins_with_var :ver NEW :dedup-index (0 1) :terms (x vr))
+            )
+            (rebuild-index :index (path_begins_with_var 0 1) :ver NEW)
+            (check-size :schema path_begins_with_var :ver NEW)
+            (compute-delta-index :schema path_begins_with_var :canonical-index (0 1))
+            (clear-relation :schema path_begins_with_var :ver NEW)
+            (merge-index :index (path_begins_with_var 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_begins_with_var :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule pbwv_ancestor_D0
+              :sources (tuple
+                (index-spec :schema path_begins_with_var :index (0 1) :ver DELTA)
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL)
+                (index-spec :schema path_begins_with_var :index (0 1) :ver DELTA)
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_begins_with_var :index (0 1) :ver FULL))
+                (column-join :var parent
+                  :sources (
+                    (column-source :index (path_begins_with_var 0 1) :ver DELTA :prefix ())
+                    (column-source :index (ancestor_path 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (v child) :var-from-source ((v) (child))
+                  :sources (
+                    (column-source :index (path_begins_with_var 0 1) :ver DELTA :prefix (parent))
+                    (column-source :index (ancestor_path 0 1) :ver FULL :prefix (parent))
+                  ))
+                (insert-into :schema path_begins_with_var :ver NEW :dedup-index (0 1) :terms (child v))
+            )
+            (rebuild-index :index (path_begins_with_var 0 1) :ver NEW)
+            (clear-relation :schema path_begins_with_var :ver DELTA)
+            (check-size :schema path_begins_with_var :ver NEW)
+            (compute-delta-index :schema path_begins_with_var :canonical-index (0 1))
+            (clear-relation :schema path_begins_with_var :ver NEW)
+            (merge-index :index (path_begins_with_var 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_begins_with_var :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule path_assigned_at_base_rule
+              :sources (tuple
+                (index-spec :schema path_assigned_at_base :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_assigned_at :index (0 1) :ver FULL))
+                (scan :vars (x y) :index (path_assigned_at_base 0 1) :ver FULL :prefix ())
+                (insert-into :schema path_assigned_at :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (path_assigned_at 0 1) :ver NEW)
+            (check-size :schema path_assigned_at :ver NEW)
+            (compute-delta-index :schema path_assigned_at :canonical-index (0 1))
+            (clear-relation :schema path_assigned_at :ver NEW)
+            (merge-index :index (path_assigned_at 0 1))
+            (rebuild-index-from-index :source (path_assigned_at 0 1) :target (path_assigned_at 1 0) :ver DELTA)
+            (merge-index :index (path_assigned_at 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_assigned_at :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule path_assigned_at_ancestor_D0
+              :sources (tuple
+                (index-spec :schema path_assigned_at :index (0 1) :ver DELTA)
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL)
+                (index-spec :schema path_assigned_at :index (0 1) :ver DELTA)
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_assigned_at :index (0 1) :ver FULL))
+                (column-join :var parent
+                  :sources (
+                    (column-source :index (path_assigned_at 0 1) :ver DELTA :prefix ())
+                    (column-source :index (ancestor_path 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (point child) :var-from-source ((point) (child))
+                  :sources (
+                    (column-source :index (path_assigned_at 0 1) :ver DELTA :prefix (parent))
+                    (column-source :index (ancestor_path 0 1) :ver FULL :prefix (parent))
+                  ))
+                (insert-into :schema path_assigned_at :ver NEW :dedup-index (0 1) :terms (child point))
+            )
+            (rebuild-index :index (path_assigned_at 0 1) :ver NEW)
+            (clear-relation :schema path_assigned_at :ver DELTA)
+            (check-size :schema path_assigned_at :ver NEW)
+            (compute-delta-index :schema path_assigned_at :canonical-index (0 1))
+            (clear-relation :schema path_assigned_at :ver NEW)
+            (merge-index :index (path_assigned_at 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_assigned_at :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule path_moved_at_base_rule
+              :sources (tuple
+                (index-spec :schema path_moved_at_base :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_moved_at :index (0 1) :ver FULL))
+                (scan :vars (x y) :index (path_moved_at_base 0 1) :ver FULL :prefix ())
+                (insert-into :schema path_moved_at :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (path_moved_at 0 1) :ver NEW)
+            (check-size :schema path_moved_at :ver NEW)
+            (compute-delta-index :schema path_moved_at :canonical-index (0 1))
+            (clear-relation :schema path_moved_at :ver NEW)
+            (merge-index :index (path_moved_at 0 1))
+            (rebuild-index-from-index :source (path_moved_at 0 1) :target (path_moved_at 1 0) :ver DELTA)
+            (merge-index :index (path_moved_at 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_moved_at :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule path_moved_at_ancestor_D0
+              :sources (tuple
+                (index-spec :schema path_moved_at :index (0 1) :ver DELTA)
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL)
+                (index-spec :schema path_moved_at :index (0 1) :ver DELTA)
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_moved_at :index (0 1) :ver FULL))
+                (column-join :var parent
+                  :sources (
+                    (column-source :index (path_moved_at 0 1) :ver DELTA :prefix ())
+                    (column-source :index (ancestor_path 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (point child) :var-from-source ((point) (child))
+                  :sources (
+                    (column-source :index (path_moved_at 0 1) :ver DELTA :prefix (parent))
+                    (column-source :index (ancestor_path 0 1) :ver FULL :prefix (parent))
+                  ))
+                (insert-into :schema path_moved_at :ver NEW :dedup-index (0 1) :terms (child point))
+            )
+            (rebuild-index :index (path_moved_at 0 1) :ver NEW)
+            (clear-relation :schema path_moved_at :ver DELTA)
+            (check-size :schema path_moved_at :ver NEW)
+            (compute-delta-index :schema path_moved_at :canonical-index (0 1))
+            (clear-relation :schema path_moved_at :ver NEW)
+            (merge-index :index (path_moved_at 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_moved_at :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule pmioe_assigned
+              :sources (tuple
+                (index-spec :schema path_assigned_at :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_maybe_initialized_on_exit :index (1 0) :ver FULL))
+                (scan :vars (path point) :index (path_assigned_at 0 1) :ver FULL :prefix ())
+                (insert-into :schema path_maybe_initialized_on_exit :ver NEW :dedup-index (1 0) :terms (path point))
+            )
+            (rebuild-index :index (path_maybe_initialized_on_exit 1 0) :ver NEW)
+            (check-size :schema path_maybe_initialized_on_exit :ver NEW)
+            (compute-delta-index :schema path_maybe_initialized_on_exit :canonical-index (1 0))
+            (clear-relation :schema path_maybe_initialized_on_exit :ver NEW)
+            (merge-index :index (path_maybe_initialized_on_exit 1 0))
+            (rebuild-index-from-index :source (path_maybe_initialized_on_exit 1 0) :target (path_maybe_initialized_on_exit 0 1) :ver DELTA)
+            (merge-index :index (path_maybe_initialized_on_exit 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_maybe_initialized_on_exit :canonical-index (1 0))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule pmioe_cfg_D0
+              :sources (tuple
+                (index-spec :schema path_maybe_initialized_on_exit :index (1 0) :ver DELTA)
+                (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                (index-spec :schema path_maybe_initialized_on_exit :index (1 0) :ver DELTA)
+                (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                (index-spec :schema path_moved_at :index (1 0) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_maybe_initialized_on_exit :index (1 0) :ver FULL))
+                (column-join :var point1
+                  :sources (
+                    (column-source :index (path_maybe_initialized_on_exit 1 0) :ver DELTA :prefix ())
+                    (column-source :index (cfg_edge 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (point2 path) :var-from-source ((path) (point2))
+                  :sources (
+                    (column-source :index (path_maybe_initialized_on_exit 1 0) :ver DELTA :prefix (point1))
+                    (column-source :index (cfg_edge 0 1) :ver FULL :prefix (point1))
+                  ))
+                (negation :schema path_moved_at :ver FULL :index (path_moved_at 1 0) :prefix (point2 path))
+                (insert-into :schema path_maybe_initialized_on_exit :ver NEW :dedup-index (1 0) :terms (path point2))
+            )
+            (rebuild-index :index (path_maybe_initialized_on_exit 1 0) :ver NEW)
+            (clear-relation :schema path_maybe_initialized_on_exit :ver DELTA)
+            (check-size :schema path_maybe_initialized_on_exit :ver NEW)
+            (compute-delta-index :schema path_maybe_initialized_on_exit :canonical-index (1 0))
+            (clear-relation :schema path_maybe_initialized_on_exit :ver NEW)
+            (merge-index :index (path_maybe_initialized_on_exit 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_maybe_initialized_on_exit :canonical-index (1 0))
+  )
+  (step :recursive false
+        (rebuild-index :index (path_maybe_initialized_on_exit 0 1) :ver FULL)
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule vmpioe_from_path
+              :sources (tuple
+                (index-spec :schema path_maybe_initialized_on_exit :index (0 1) :ver FULL)
+                (index-spec :schema path_begins_with_var :index (0 1) :ver FULL)
+                (index-spec :schema path_maybe_initialized_on_exit :index (0 1) :ver FULL)
+                (index-spec :schema path_begins_with_var :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema var_maybe_partly_initialized_on_exit :index (1 0) :ver FULL))
+                (column-join :var path
+                  :sources (
+                    (column-source :index (path_maybe_initialized_on_exit 0 1) :ver FULL :prefix ())
+                    (column-source :index (path_begins_with_var 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (point vr) :var-from-source ((point) (vr))
+                  :sources (
+                    (column-source :index (path_maybe_initialized_on_exit 0 1) :ver FULL :prefix (path))
+                    (column-source :index (path_begins_with_var 0 1) :ver FULL :prefix (path))
+                  ))
+                (insert-into :schema var_maybe_partly_initialized_on_exit :ver NEW :dedup-index (1 0) :terms (vr point))
+            )
+            (rebuild-index :index (var_maybe_partly_initialized_on_exit 1 0) :ver NEW)
+            (check-size :schema var_maybe_partly_initialized_on_exit :ver NEW)
+            (compute-delta-index :schema var_maybe_partly_initialized_on_exit :canonical-index (1 0))
+            (clear-relation :schema var_maybe_partly_initialized_on_exit :ver NEW)
+            (merge-index :index (var_maybe_partly_initialized_on_exit 1 0))
+            (rebuild-index-from-index :source (var_maybe_partly_initialized_on_exit 1 0) :target (var_maybe_partly_initialized_on_exit 0 1) :ver DELTA)
+            (merge-index :index (var_maybe_partly_initialized_on_exit 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel var_maybe_partly_initialized_on_exit :canonical-index (1 0))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule vmpie_from_exit
+              :sources (tuple
+                (index-spec :schema var_maybe_partly_initialized_on_exit :index (1 0) :ver FULL)
+                (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                (index-spec :schema var_maybe_partly_initialized_on_exit :index (1 0) :ver FULL)
+                (index-spec :schema cfg_edge :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema var_maybe_partly_initialized_on_entry :index (0 1) :ver FULL))
+                (column-join :var point1
+                  :sources (
+                    (column-source :index (var_maybe_partly_initialized_on_exit 1 0) :ver FULL :prefix ())
+                    (column-source :index (cfg_edge 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (vr point2) :var-from-source ((vr) (point2))
+                  :sources (
+                    (column-source :index (var_maybe_partly_initialized_on_exit 1 0) :ver FULL :prefix (point1))
+                    (column-source :index (cfg_edge 0 1) :ver FULL :prefix (point1))
+                  ))
+                (insert-into :schema var_maybe_partly_initialized_on_entry :ver NEW :dedup-index (0 1) :terms (vr point2))
+            )
+            (rebuild-index :index (var_maybe_partly_initialized_on_entry 0 1) :ver NEW)
+            (check-size :schema var_maybe_partly_initialized_on_entry :ver NEW)
+            (compute-delta-index :schema var_maybe_partly_initialized_on_entry :canonical-index (0 1))
+            (clear-relation :schema var_maybe_partly_initialized_on_entry :ver NEW)
+            (merge-index :index (var_maybe_partly_initialized_on_entry 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel var_maybe_partly_initialized_on_entry :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule vdle_dropped
+              :sources (tuple
+                (index-spec :schema var_dropped_at :index (0 1) :ver FULL)
+                (index-spec :schema var_maybe_partly_initialized_on_entry :index (0 1) :ver FULL)
+                (index-spec :schema var_dropped_at :index (0 1) :ver FULL)
+                (index-spec :schema var_maybe_partly_initialized_on_entry :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema var_drop_live_on_entry :index (0 1) :ver FULL))
+                (column-join :var vr
+                  :sources (
+                    (column-source :index (var_dropped_at 0 1) :ver FULL :prefix ())
+                    (column-source :index (var_maybe_partly_initialized_on_entry 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var point
+                  :sources (
+                    (column-source :index (var_dropped_at 0 1) :ver FULL :prefix (vr))
+                    (column-source :index (var_maybe_partly_initialized_on_entry 0 1) :ver FULL :prefix (vr))
+                  ))
+                (insert-into :schema var_drop_live_on_entry :ver NEW :dedup-index (0 1) :terms (vr point))
+            )
+            (rebuild-index :index (var_drop_live_on_entry 0 1) :ver NEW)
+            (check-size :schema var_drop_live_on_entry :ver NEW)
+            (compute-delta-index :schema var_drop_live_on_entry :canonical-index (0 1))
+            (clear-relation :schema var_drop_live_on_entry :ver NEW)
+            (merge-index :index (var_drop_live_on_entry 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel var_drop_live_on_entry :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule vdle_cfg_D0
+              :sources (tuple
+                (index-spec :schema var_drop_live_on_entry :index (0 1) :ver DELTA)
+                (index-spec :schema var_maybe_partly_initialized_on_exit :index (0 1) :ver FULL)
+                (index-spec :schema var_drop_live_on_entry :index (0 1) :ver DELTA)
+                (index-spec :schema cfg_edge :index (1 0) :ver FULL)
+                (index-spec :schema cfg_edge :index (1 0) :ver FULL)
+                (index-spec :schema var_maybe_partly_initialized_on_exit :index (0 1) :ver FULL)
+                (index-spec :schema var_defined_at :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema var_drop_live_on_entry :index (0 1) :ver FULL))
+                (column-join :var v
+                  :sources (
+                    (column-source :index (var_drop_live_on_entry 0 1) :ver DELTA :prefix ())
+                    (column-source :index (var_maybe_partly_initialized_on_exit 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var tgt
+                  :sources (
+                    (column-source :index (var_drop_live_on_entry 0 1) :ver DELTA :prefix (v))
+                    (column-source :index (cfg_edge 1 0) :ver FULL :prefix ())
+                  ))
+                (column-join :var src
+                  :sources (
+                    (column-source :index (cfg_edge 1 0) :ver FULL :prefix (tgt))
+                    (column-source :index (var_maybe_partly_initialized_on_exit 0 1) :ver FULL :prefix (v))
+                  ))
+                (negation :schema var_defined_at :ver FULL :index (var_defined_at 0 1) :prefix (v src))
+                (insert-into :schema var_drop_live_on_entry :ver NEW :dedup-index (0 1) :terms (v src))
+            )
+            (rebuild-index :index (var_drop_live_on_entry 0 1) :ver NEW)
+            (clear-relation :schema var_drop_live_on_entry :ver DELTA)
+            (check-size :schema var_drop_live_on_entry :ver NEW)
+            (compute-delta-index :schema var_drop_live_on_entry :canonical-index (0 1))
+            (clear-relation :schema var_drop_live_on_entry :ver NEW)
+            (merge-index :index (var_drop_live_on_entry 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel var_drop_live_on_entry :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule vle_used
+              :sources (tuple
+                (index-spec :schema var_used_at :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema var_live_on_entry :index (1 0) :ver FULL))
+                (scan :vars (vr point) :index (var_used_at 0 1) :ver FULL :prefix ())
+                (insert-into :schema var_live_on_entry :ver NEW :dedup-index (1 0) :terms (vr point))
+            )
+            (rebuild-index :index (var_live_on_entry 1 0) :ver NEW)
+            (check-size :schema var_live_on_entry :ver NEW)
+            (compute-delta-index :schema var_live_on_entry :canonical-index (1 0))
+            (clear-relation :schema var_live_on_entry :ver NEW)
+            (merge-index :index (var_live_on_entry 1 0))
+            (rebuild-index-from-index :source (var_live_on_entry 1 0) :target (var_live_on_entry 0 1) :ver DELTA)
+            (merge-index :index (var_live_on_entry 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel var_live_on_entry :canonical-index (1 0))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule vle_cfg_D0
+              :sources (tuple
+                (index-spec :schema var_live_on_entry :index (1 0) :ver DELTA)
+                (index-spec :schema cfg_edge :index (1 0) :ver FULL)
+                (index-spec :schema var_live_on_entry :index (1 0) :ver DELTA)
+                (index-spec :schema cfg_edge :index (1 0) :ver FULL)
+                (index-spec :schema var_defined_at :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema var_live_on_entry :index (1 0) :ver FULL))
+                (column-join :var point2
+                  :sources (
+                    (column-source :index (var_live_on_entry 1 0) :ver DELTA :prefix ())
+                    (column-source :index (cfg_edge 1 0) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (vr point1) :var-from-source ((vr) (point1))
+                  :sources (
+                    (column-source :index (var_live_on_entry 1 0) :ver DELTA :prefix (point2))
+                    (column-source :index (cfg_edge 1 0) :ver FULL :prefix (point2))
+                  ))
+                (negation :schema var_defined_at :ver FULL :index (var_defined_at 0 1) :prefix (vr point1))
+                (insert-into :schema var_live_on_entry :ver NEW :dedup-index (1 0) :terms (vr point1))
+            )
+            (rebuild-index :index (var_live_on_entry 1 0) :ver NEW)
+            (clear-relation :schema var_live_on_entry :ver DELTA)
+            (check-size :schema var_live_on_entry :ver NEW)
+            (compute-delta-index :schema var_live_on_entry :canonical-index (1 0))
+            (clear-relation :schema var_live_on_entry :ver NEW)
+            (merge-index :index (var_live_on_entry 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel var_live_on_entry :canonical-index (1 0))
+  )
+  (step :recursive false
+        (rebuild-index :index (var_live_on_entry 0 1) :ver FULL)
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 3 independent ops
+                (execute-pipeline :rule ole_universal
+                  :sources (tuple
+                    (index-spec :schema cfg_node :index (0) :ver FULL)
+                    (index-spec :schema universal_region :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema origin_live_on_entry :index (1 0) :ver FULL))
+                    (cartesian-join :vars (point origin) :var-from-source ((point) (origin))
+                      :sources (
+                        (column-source :index (cfg_node 0) :ver FULL :prefix ())
+                        (column-source :index (universal_region 0) :ver FULL :prefix ())
+                      ))
+                    (insert-into :schema origin_live_on_entry :ver NEW :dedup-index (1 0) :terms (origin point))
+                )
+                (execute-pipeline :rule ole_drop
+                  :sources (tuple
+                    (index-spec :schema var_drop_live_on_entry :index (0 1) :ver FULL)
+                    (index-spec :schema drop_of_var_derefs_origin :index (0 1) :ver FULL)
+                    (index-spec :schema var_drop_live_on_entry :index (0 1) :ver FULL)
+                    (index-spec :schema drop_of_var_derefs_origin :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema origin_live_on_entry :index (1 0) :ver FULL))
+                    (column-join :var vr
+                      :sources (
+                        (column-source :index (var_drop_live_on_entry 0 1) :ver FULL :prefix ())
+                        (column-source :index (drop_of_var_derefs_origin 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (point origin) :var-from-source ((point) (origin))
+                      :sources (
+                        (column-source :index (var_drop_live_on_entry 0 1) :ver FULL :prefix (vr))
+                        (column-source :index (drop_of_var_derefs_origin 0 1) :ver FULL :prefix (vr))
+                      ))
+                    (insert-into :schema origin_live_on_entry :ver NEW :dedup-index (1 0) :terms (origin point))
+                )
+                (execute-pipeline :rule ole_use
+                  :sources (tuple
+                    (index-spec :schema var_live_on_entry :index (0 1) :ver FULL)
+                    (index-spec :schema use_of_var_derefs_origin :index (0 1) :ver FULL)
+                    (index-spec :schema var_live_on_entry :index (0 1) :ver FULL)
+                    (index-spec :schema use_of_var_derefs_origin :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema origin_live_on_entry :index (1 0) :ver FULL))
+                    (column-join :var vr
+                      :sources (
+                        (column-source :index (var_live_on_entry 0 1) :ver FULL :prefix ())
+                        (column-source :index (use_of_var_derefs_origin 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (point origin) :var-from-source ((point) (origin))
+                      :sources (
+                        (column-source :index (var_live_on_entry 0 1) :ver FULL :prefix (vr))
+                        (column-source :index (use_of_var_derefs_origin 0 1) :ver FULL :prefix (vr))
+                      ))
+                    (insert-into :schema origin_live_on_entry :ver NEW :dedup-index (1 0) :terms (origin point))
+                )
+            )
+            (rebuild-index :index (origin_live_on_entry 1 0) :ver NEW)
+            (check-size :schema origin_live_on_entry :ver NEW)
+            (compute-delta-index :schema origin_live_on_entry :canonical-index (1 0))
+            (clear-relation :schema origin_live_on_entry :ver NEW)
+            (merge-index :index (origin_live_on_entry 1 0))
+            (rebuild-index-from-index :source (origin_live_on_entry 1 0) :target (origin_live_on_entry 0 1) :ver DELTA)
+            (merge-index :index (origin_live_on_entry 0 1))
+            (rebuild-index :index (origin_live_on_entry 1 0) :ver NEW)
+            (check-size :schema origin_live_on_entry :ver NEW)
+            (compute-delta-index :schema origin_live_on_entry :canonical-index (1 0))
+            (clear-relation :schema origin_live_on_entry :ver NEW)
+            (merge-index :index (origin_live_on_entry 1 0))
+            (rebuild-index-from-index :source (origin_live_on_entry 1 0) :target (origin_live_on_entry 0 1) :ver DELTA)
+            (merge-index :index (origin_live_on_entry 0 1))
+            (rebuild-index :index (origin_live_on_entry 1 0) :ver NEW)
+            (check-size :schema origin_live_on_entry :ver NEW)
+            (compute-delta-index :schema origin_live_on_entry :canonical-index (1 0))
+            (clear-relation :schema origin_live_on_entry :ver NEW)
+            (merge-index :index (origin_live_on_entry 1 0))
+            (rebuild-index-from-index :source (origin_live_on_entry 1 0) :target (origin_live_on_entry 0 1) :ver DELTA)
+            (merge-index :index (origin_live_on_entry 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel origin_live_on_entry :canonical-index (1 0))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule subset_base_rule
+              :sources (tuple
+                (index-spec :schema subset_base :index (0 1 2) :ver FULL))
+              :dests (tuple
+                (index-spec :schema subset :index (1 2 0) :ver FULL))
+                (scan :vars (origin1 origin2 point) :index (subset_base 0 1 2) :ver FULL :prefix ())
+                (insert-into :schema subset :ver NEW :dedup-index (1 2 0) :terms (origin1 origin2 point))
+            )
+            (rebuild-index :index (subset 1 2 0) :ver NEW)
+            (check-size :schema subset :ver NEW)
+            (compute-delta-index :schema subset :canonical-index (1 2 0))
+            (clear-relation :schema subset :ver NEW)
+            (merge-index :index (subset 1 2 0))
+            (rebuild-index-from-index :source (subset 1 2 0) :target (subset 2 0 1) :ver DELTA)
+            (merge-index :index (subset 2 0 1))
+            (rebuild-index-from-index :source (subset 1 2 0) :target (subset 0 2 1) :ver DELTA)
+            (merge-index :index (subset 0 2 1))
+            (rebuild-index-from-index :source (subset 1 2 0) :target (subset 0 1 2) :ver DELTA)
+            (merge-index :index (subset 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel subset :canonical-index (1 2 0))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule subset_trans_D0
+                  :sources (tuple
+                    (index-spec :schema subset :index (1 2 0) :ver DELTA)
+                    (index-spec :schema subset_base :index (0 2 1) :ver FULL)
+                    (index-spec :schema subset :index (1 2 0) :ver DELTA)
+                    (index-spec :schema subset_base :index (0 2 1) :ver FULL)
+                    (index-spec :schema subset :index (1 2 0) :ver DELTA)
+                    (index-spec :schema subset_base :index (0 2 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema subset :index (1 2 0) :ver FULL))
+                    (column-join :var origin2
+                      :sources (
+                        (column-source :index (subset 1 2 0) :ver DELTA :prefix ())
+                        (column-source :index (subset_base 0 2 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var point
+                      :sources (
+                        (column-source :index (subset 1 2 0) :ver DELTA :prefix (origin2))
+                        (column-source :index (subset_base 0 2 1) :ver FULL :prefix (origin2))
+                      ))
+                    (cartesian-join :vars (origin1 origin3) :var-from-source ((origin1) (origin3))
+                      :sources (
+                        (column-source :index (subset 1 2 0) :ver DELTA :prefix (origin2 point))
+                        (column-source :index (subset_base 0 2 1) :ver FULL :prefix (origin2 point))
+                      ))
+                    (filter :vars (origin1 origin3) :code "return origin1 != origin3;")
+                    (insert-into :schema subset :ver NEW :dedup-index (1 2 0) :terms (origin1 origin3 point))
+                )
+                (execute-pipeline :rule subset_cfg_D0
+                  :sources (tuple
+                    (index-spec :schema subset :index (2 0 1) :ver DELTA)
+                    (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                    (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                    (index-spec :schema origin_live_on_entry :index (1 0) :ver FULL)
+                    (index-spec :schema origin_live_on_entry :index (1 0) :ver FULL)
+                    (index-spec :schema subset :index (2 0 1) :ver DELTA)
+                    (index-spec :schema origin_live_on_entry :index (1 0) :ver FULL)
+                    (index-spec :schema subset :index (2 0 1) :ver DELTA)
+                    (index-spec :schema origin_live_on_entry :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema subset :index (1 2 0) :ver FULL))
+                    (column-join :var point1
+                      :sources (
+                        (column-source :index (subset 2 0 1) :ver DELTA :prefix ())
+                        (column-source :index (cfg_edge 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var point2
+                      :sources (
+                        (column-source :index (cfg_edge 0 1) :ver FULL :prefix (point1))
+                        (column-source :index (origin_live_on_entry 1 0) :ver FULL :prefix ())
+                        (column-source :index (origin_live_on_entry 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var origin1
+                      :sources (
+                        (column-source :index (subset 2 0 1) :ver DELTA :prefix (point1))
+                        (column-source :index (origin_live_on_entry 1 0) :ver FULL :prefix (point2))
+                      ))
+                    (column-join :var origin2
+                      :sources (
+                        (column-source :index (subset 2 0 1) :ver DELTA :prefix (point1 origin1))
+                        (column-source :index (origin_live_on_entry 1 0) :ver FULL :prefix (point2))
+                      ))
+                    (insert-into :schema subset :ver NEW :dedup-index (1 2 0) :terms (origin1 origin2 point2))
+                )
+            )
+            (rebuild-index :index (subset 1 2 0) :ver NEW)
+            (clear-relation :schema subset :ver DELTA)
+            (check-size :schema subset :ver NEW)
+            (compute-delta-index :schema subset :canonical-index (1 2 0))
+            (clear-relation :schema subset :ver NEW)
+            (merge-index :index (subset 1 2 0))
+            (rebuild-index-from-index :source (subset 1 2 0) :target (subset 2 0 1) :ver DELTA)
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel subset :canonical-index (1 2 0))
+  )
+  (step :recursive false
+        (rebuild-index :index (subset 0 1 2) :ver FULL)
+  )
+  (step :recursive false
+        (rebuild-index :index (subset 0 2 1) :ver FULL)
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule ocle_issued
+              :sources (tuple
+                (index-spec :schema loan_issued_at :index (0 1 2) :ver FULL))
+              :dests (tuple
+                (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver FULL))
+                (scan :vars (loan origin point) :index (loan_issued_at 0 1 2) :ver FULL :prefix ())
+                (insert-into :schema origin_contains_loan_on_entry :ver NEW :dedup-index (0 2 1) :terms (origin loan point))
+            )
+            (rebuild-index :index (origin_contains_loan_on_entry 0 2 1) :ver NEW)
+            (check-size :schema origin_contains_loan_on_entry :ver NEW)
+            (compute-delta-index :schema origin_contains_loan_on_entry :canonical-index (0 2 1))
+            (clear-relation :schema origin_contains_loan_on_entry :ver NEW)
+            (merge-index :index (origin_contains_loan_on_entry 0 2 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel origin_contains_loan_on_entry :canonical-index (0 2 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule ocle_subset_D0
+                  :sources (tuple
+                    (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver DELTA)
+                    (index-spec :schema subset :index (0 2 1) :ver FULL)
+                    (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver DELTA)
+                    (index-spec :schema subset :index (0 2 1) :ver FULL)
+                    (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver DELTA)
+                    (index-spec :schema subset :index (0 2 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver FULL))
+                    (column-join :var origin1
+                      :sources (
+                        (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver DELTA :prefix ())
+                        (column-source :index (subset 0 2 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var point
+                      :sources (
+                        (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver DELTA :prefix (origin1))
+                        (column-source :index (subset 0 2 1) :ver FULL :prefix (origin1))
+                      ))
+                    (cartesian-join :vars (loan origin2) :var-from-source ((loan) (origin2))
+                      :sources (
+                        (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver DELTA :prefix (origin1 point))
+                        (column-source :index (subset 0 2 1) :ver FULL :prefix (origin1 point))
+                      ))
+                    (insert-into :schema origin_contains_loan_on_entry :ver NEW :dedup-index (0 2 1) :terms (origin2 loan point))
+                )
+                (execute-pipeline :rule ocle_cfg_D0
+                  :sources (tuple
+                    (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver DELTA)
+                    (index-spec :schema origin_live_on_entry :index (0 1) :ver FULL)
+                    (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver DELTA)
+                    (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                    (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                    (index-spec :schema origin_live_on_entry :index (0 1) :ver FULL)
+                    (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver DELTA)
+                    (index-spec :schema loan_killed_at :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver FULL))
+                    (column-join :var origin
+                      :sources (
+                        (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver DELTA :prefix ())
+                        (column-source :index (origin_live_on_entry 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var point1
+                      :sources (
+                        (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver DELTA :prefix (origin))
+                        (column-source :index (cfg_edge 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var point2
+                      :sources (
+                        (column-source :index (cfg_edge 0 1) :ver FULL :prefix (point1))
+                        (column-source :index (origin_live_on_entry 0 1) :ver FULL :prefix (origin))
+                      ))
+                    (cartesian-join :vars (loan) :var-from-source ((loan))
+                      :sources (
+                        (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver DELTA :prefix (origin point1))
+                      ))
+                    (negation :schema loan_killed_at :ver FULL :index (loan_killed_at 1 0) :prefix (point1 loan))
+                    (insert-into :schema origin_contains_loan_on_entry :ver NEW :dedup-index (0 2 1) :terms (origin loan point2))
+                )
+            )
+            (rebuild-index :index (origin_contains_loan_on_entry 0 2 1) :ver NEW)
+            (clear-relation :schema origin_contains_loan_on_entry :ver DELTA)
+            (check-size :schema origin_contains_loan_on_entry :ver NEW)
+            (compute-delta-index :schema origin_contains_loan_on_entry :canonical-index (0 2 1))
+            (clear-relation :schema origin_contains_loan_on_entry :ver NEW)
+            (merge-index :index (origin_contains_loan_on_entry 0 2 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel origin_contains_loan_on_entry :canonical-index (0 2 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule placeholder_origin_rule
+              :sources (tuple
+                (index-spec :schema universal_region :index (0) :ver FULL))
+              :dests (tuple
+                (index-spec :schema placeholder_origin :index (0) :ver FULL))
+                (scan :vars (origin) :index (universal_region 0) :ver FULL :prefix ())
+                (insert-into :schema placeholder_origin :ver NEW :dedup-index (0) :terms (origin))
+            )
+            (rebuild-index :index (placeholder_origin 0) :ver NEW)
+            (check-size :schema placeholder_origin :ver NEW)
+            (compute-delta-index :schema placeholder_origin :canonical-index (0))
+            (clear-relation :schema placeholder_origin :ver NEW)
+            (merge-index :index (placeholder_origin 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel placeholder_origin :canonical-index (0))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule kps_seed
+              :sources (tuple
+                (index-spec :schema known_placeholder_subset_input :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema known_placeholder_subset :index (0 1) :ver FULL))
+                (scan :vars (x z) :index (known_placeholder_subset_input 0 1) :ver FULL :prefix ())
+                (insert-into :schema known_placeholder_subset :ver NEW :dedup-index (0 1) :terms (x z))
+            )
+            (rebuild-index :index (known_placeholder_subset 0 1) :ver NEW)
+            (check-size :schema known_placeholder_subset :ver NEW)
+            (compute-delta-index :schema known_placeholder_subset :canonical-index (0 1))
+            (clear-relation :schema known_placeholder_subset :ver NEW)
+            (merge-index :index (known_placeholder_subset 0 1))
+            (rebuild-index-from-index :source (known_placeholder_subset 0 1) :target (known_placeholder_subset 1 0) :ver DELTA)
+            (merge-index :index (known_placeholder_subset 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel known_placeholder_subset :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule kps_transitive_D0
+                  :sources (tuple
+                    (index-spec :schema known_placeholder_subset :index (1 0) :ver DELTA)
+                    (index-spec :schema known_placeholder_subset :index (0 1) :ver FULL)
+                    (index-spec :schema known_placeholder_subset :index (1 0) :ver DELTA)
+                    (index-spec :schema known_placeholder_subset :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema known_placeholder_subset :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (known_placeholder_subset 1 0) :ver DELTA :prefix ())
+                        (column-source :index (known_placeholder_subset 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x z) :var-from-source ((x) (z))
+                      :sources (
+                        (column-source :index (known_placeholder_subset 1 0) :ver DELTA :prefix (y))
+                        (column-source :index (known_placeholder_subset 0 1) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema known_placeholder_subset :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule kps_transitive_D1
+                  :sources (tuple
+                    (index-spec :schema known_placeholder_subset :index (0 1) :ver DELTA)
+                    (index-spec :schema known_placeholder_subset :index (1 0) :ver FULL)
+                    (index-spec :schema known_placeholder_subset :index (0 1) :ver DELTA)
+                    (index-spec :schema known_placeholder_subset :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema known_placeholder_subset :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (known_placeholder_subset 0 1) :ver DELTA :prefix ())
+                        (column-source :index (known_placeholder_subset 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (z x) :var-from-source ((z) (x))
+                      :sources (
+                        (column-source :index (known_placeholder_subset 0 1) :ver DELTA :prefix (y))
+                        (column-source :index (known_placeholder_subset 1 0) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema known_placeholder_subset :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+            )
+            (rebuild-index :index (known_placeholder_subset 0 1) :ver NEW)
+            (clear-relation :schema known_placeholder_subset :ver DELTA)
+            (check-size :schema known_placeholder_subset :ver NEW)
+            (compute-delta-index :schema known_placeholder_subset :canonical-index (0 1))
+            (clear-relation :schema known_placeholder_subset :ver NEW)
+            (merge-index :index (known_placeholder_subset 0 1))
+            (rebuild-index-from-index :source (known_placeholder_subset 0 1) :target (known_placeholder_subset 1 0) :ver DELTA)
+            (merge-index :index (known_placeholder_subset 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel known_placeholder_subset :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule loan_live_at_rule
+              :sources (tuple
+                (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver FULL)
+                (index-spec :schema origin_live_on_entry :index (0 1) :ver FULL)
+                (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver FULL)
+                (index-spec :schema origin_live_on_entry :index (0 1) :ver FULL)
+                (index-spec :schema origin_contains_loan_on_entry :index (0 2 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema loan_live_at :index (0 1) :ver FULL))
+                (column-join :var origin
+                  :sources (
+                    (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver FULL :prefix ())
+                    (column-source :index (origin_live_on_entry 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var point
+                  :sources (
+                    (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver FULL :prefix (origin))
+                    (column-source :index (origin_live_on_entry 0 1) :ver FULL :prefix (origin))
+                  ))
+                (cartesian-join :vars (loan) :var-from-source ((loan))
+                  :sources (
+                    (column-source :index (origin_contains_loan_on_entry 0 2 1) :ver FULL :prefix (origin point))
+                  ))
+                (insert-into :schema loan_live_at :ver NEW :dedup-index (0 1) :terms (loan point))
+            )
+            (rebuild-index :index (loan_live_at 0 1) :ver NEW)
+            (check-size :schema loan_live_at :ver NEW)
+            (compute-delta-index :schema loan_live_at :canonical-index (0 1))
+            (clear-relation :schema loan_live_at :ver NEW)
+            (merge-index :index (loan_live_at 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel loan_live_at :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule errors_rule
+                  :sources (tuple
+                    (index-spec :schema loan_invalidated_at :index (0 1) :ver FULL)
+                    (index-spec :schema loan_live_at :index (0 1) :ver FULL)
+                    (index-spec :schema loan_invalidated_at :index (0 1) :ver FULL)
+                    (index-spec :schema loan_live_at :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema errors :index (0 1) :ver FULL))
+                    (column-join :var loan
+                      :sources (
+                        (column-source :index (loan_invalidated_at 0 1) :ver FULL :prefix ())
+                        (column-source :index (loan_live_at 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var point
+                      :sources (
+                        (column-source :index (loan_invalidated_at 0 1) :ver FULL :prefix (loan))
+                        (column-source :index (loan_live_at 0 1) :ver FULL :prefix (loan))
+                      ))
+                    (insert-into :schema errors :ver NEW :dedup-index (0 1) :terms (loan point))
+                )
+                (execute-pipeline :rule subset_error_rule
+                  :sources (tuple
+                    (index-spec :schema subset :index (0 1 2) :ver FULL)
+                    (index-spec :schema placeholder_origin :index (0) :ver FULL)
+                    (index-spec :schema subset :index (0 1 2) :ver FULL)
+                    (index-spec :schema placeholder_origin :index (0) :ver FULL)
+                    (index-spec :schema subset :index (0 1 2) :ver FULL)
+                    (index-spec :schema known_placeholder_subset :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema subset_error :index (0 1 2) :ver FULL))
+                    (column-join :var origin1
+                      :sources (
+                        (column-source :index (subset 0 1 2) :ver FULL :prefix ())
+                        (column-source :index (placeholder_origin 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var origin2
+                      :sources (
+                        (column-source :index (subset 0 1 2) :ver FULL :prefix (origin1))
+                        (column-source :index (placeholder_origin 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (point) :var-from-source ((point))
+                      :sources (
+                        (column-source :index (subset 0 1 2) :ver FULL :prefix (origin1 origin2))
+                      ))
+                    (negation :schema known_placeholder_subset :ver FULL :index (known_placeholder_subset 0 1) :prefix (origin1 origin2))
+                    (filter :vars (origin1 origin2) :code "return origin1 != origin2;")
+                    (insert-into :schema subset_error :ver NEW :dedup-index (0 1 2) :terms (origin1 origin2 point))
+                )
+            )
+            (rebuild-index :index (errors 0 1) :ver NEW)
+            (check-size :schema errors :ver NEW)
+            (compute-delta-index :schema errors :canonical-index (0 1))
+            (clear-relation :schema errors :ver NEW)
+            (merge-index :index (errors 0 1))
+            (rebuild-index :index (subset_error 0 1 2) :ver NEW)
+            (check-size :schema subset_error :ver NEW)
+            (compute-delta-index :schema subset_error :canonical-index (0 1 2))
+            (clear-relation :schema subset_error :ver NEW)
+            (merge-index :index (subset_error 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel errors :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel subset_error :canonical-index (0 1 2))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule path_accessed_at_base_rule
+              :sources (tuple
+                (index-spec :schema path_accessed_at_base :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_accessed_at :index (0 1) :ver FULL))
+                (scan :vars (x y) :index (path_accessed_at_base 0 1) :ver FULL :prefix ())
+                (insert-into :schema path_accessed_at :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (path_accessed_at 0 1) :ver NEW)
+            (check-size :schema path_accessed_at :ver NEW)
+            (compute-delta-index :schema path_accessed_at :canonical-index (0 1))
+            (clear-relation :schema path_accessed_at :ver NEW)
+            (merge-index :index (path_accessed_at 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_accessed_at :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule path_accessed_at_ancestor_D0
+              :sources (tuple
+                (index-spec :schema path_accessed_at :index (0 1) :ver DELTA)
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL)
+                (index-spec :schema path_accessed_at :index (0 1) :ver DELTA)
+                (index-spec :schema ancestor_path :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_accessed_at :index (0 1) :ver FULL))
+                (column-join :var parent
+                  :sources (
+                    (column-source :index (path_accessed_at 0 1) :ver DELTA :prefix ())
+                    (column-source :index (ancestor_path 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (point child) :var-from-source ((point) (child))
+                  :sources (
+                    (column-source :index (path_accessed_at 0 1) :ver DELTA :prefix (parent))
+                    (column-source :index (ancestor_path 0 1) :ver FULL :prefix (parent))
+                  ))
+                (insert-into :schema path_accessed_at :ver NEW :dedup-index (0 1) :terms (child point))
+            )
+            (rebuild-index :index (path_accessed_at 0 1) :ver NEW)
+            (clear-relation :schema path_accessed_at :ver DELTA)
+            (check-size :schema path_accessed_at :ver NEW)
+            (compute-delta-index :schema path_accessed_at :canonical-index (0 1))
+            (clear-relation :schema path_accessed_at :ver NEW)
+            (merge-index :index (path_accessed_at 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_accessed_at :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule pmuoe_moved
+              :sources (tuple
+                (index-spec :schema path_moved_at :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_maybe_uninitialized_on_exit :index (1 0) :ver FULL))
+                (scan :vars (path point) :index (path_moved_at 0 1) :ver FULL :prefix ())
+                (insert-into :schema path_maybe_uninitialized_on_exit :ver NEW :dedup-index (1 0) :terms (path point))
+            )
+            (rebuild-index :index (path_maybe_uninitialized_on_exit 1 0) :ver NEW)
+            (check-size :schema path_maybe_uninitialized_on_exit :ver NEW)
+            (compute-delta-index :schema path_maybe_uninitialized_on_exit :canonical-index (1 0))
+            (clear-relation :schema path_maybe_uninitialized_on_exit :ver NEW)
+            (merge-index :index (path_maybe_uninitialized_on_exit 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_maybe_uninitialized_on_exit :canonical-index (1 0))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule pmuoe_cfg_D0
+              :sources (tuple
+                (index-spec :schema path_maybe_uninitialized_on_exit :index (1 0) :ver DELTA)
+                (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                (index-spec :schema path_maybe_uninitialized_on_exit :index (1 0) :ver DELTA)
+                (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                (index-spec :schema path_assigned_at :index (1 0) :ver FULL))
+              :dests (tuple
+                (index-spec :schema path_maybe_uninitialized_on_exit :index (1 0) :ver FULL))
+                (column-join :var point1
+                  :sources (
+                    (column-source :index (path_maybe_uninitialized_on_exit 1 0) :ver DELTA :prefix ())
+                    (column-source :index (cfg_edge 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (point2 path) :var-from-source ((path) (point2))
+                  :sources (
+                    (column-source :index (path_maybe_uninitialized_on_exit 1 0) :ver DELTA :prefix (point1))
+                    (column-source :index (cfg_edge 0 1) :ver FULL :prefix (point1))
+                  ))
+                (negation :schema path_assigned_at :ver FULL :index (path_assigned_at 1 0) :prefix (point2 path))
+                (insert-into :schema path_maybe_uninitialized_on_exit :ver NEW :dedup-index (1 0) :terms (path point2))
+            )
+            (rebuild-index :index (path_maybe_uninitialized_on_exit 1 0) :ver NEW)
+            (clear-relation :schema path_maybe_uninitialized_on_exit :ver DELTA)
+            (check-size :schema path_maybe_uninitialized_on_exit :ver NEW)
+            (compute-delta-index :schema path_maybe_uninitialized_on_exit :canonical-index (1 0))
+            (clear-relation :schema path_maybe_uninitialized_on_exit :ver NEW)
+            (merge-index :index (path_maybe_uninitialized_on_exit 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel path_maybe_uninitialized_on_exit :canonical-index (1 0))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule move_error_rule
+              :sources (tuple
+                (index-spec :schema path_maybe_uninitialized_on_exit :index (1 0) :ver FULL)
+                (index-spec :schema cfg_edge :index (0 1) :ver FULL)
+                (index-spec :schema path_maybe_uninitialized_on_exit :index (1 0) :ver FULL)
+                (index-spec :schema cfg_edge :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema move_error :index (0 1) :ver FULL))
+                (column-join :var src
+                  :sources (
+                    (column-source :index (path_maybe_uninitialized_on_exit 1 0) :ver FULL :prefix ())
+                    (column-source :index (cfg_edge 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (path tgt) :var-from-source ((path) (tgt))
+                  :sources (
+                    (column-source :index (path_maybe_uninitialized_on_exit 1 0) :ver FULL :prefix (src))
+                    (column-source :index (cfg_edge 0 1) :ver FULL :prefix (src))
+                  ))
+                (insert-into :schema move_error :ver NEW :dedup-index (0 1) :terms (path tgt))
+            )
+            (rebuild-index :index (move_error 0 1) :ver NEW)
+            (check-size :schema move_error :ver NEW)
+            (compute-delta-index :schema move_error :canonical-index (0 1))
+            (clear-relation :schema move_error :ver NEW)
+            (merge-index :index (move_error 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel move_error :canonical-index (0 1))
+  )
+)

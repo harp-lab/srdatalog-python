@@ -1,0 +1,20 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule CountR
+              :sources (tuple)
+              :dests (tuple
+                (index-spec :schema Counts :index (0) :ver FULL))
+                (insert-into :schema Counts :ver NEW :dedup-index (0) :terms (cnt))
+            )
+            (rebuild-index :index (Counts 0) :ver NEW)
+            (check-size :schema Counts :ver NEW)
+            (compute-delta-index :schema Counts :canonical-index (0))
+            (clear-relation :schema Counts :ver NEW)
+            (merge-index :index (Counts 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Counts :canonical-index (0))
+  )
+)

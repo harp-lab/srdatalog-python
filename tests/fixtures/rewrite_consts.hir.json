@@ -1,0 +1,175 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "P",
+        "Q"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "BodyConst",
+            "head": [
+              {
+                "rel": "P",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "In",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_c0"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_c1"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return _c0 == 42 && _c1 == 99;"
+              }
+            ]
+          },
+          "hirText": "BodyConst: (P x) <-\n      (In x _c0 _c1),\n      (FILTER return _c0 == 42 && _c1 == 99;)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "x",
+            "_c0",
+            "_c1"
+          ],
+          "joins": [
+            {
+              "rel": "In",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "_c0",
+                "_c1"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "HeadConst",
+            "head": [
+              {
+                "rel": "Q",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_hc0"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "In2",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              },
+              {
+                "kind": "bind",
+                "var": "_hc0",
+                "code": "7"
+              }
+            ]
+          },
+          "hirText": "HeadConst: (Q x _hc0) <-\n      (In2 x),\n      (LET _hc0 := 7)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "x",
+            "_hc0"
+          ],
+          "joins": [
+            {
+              "rel": "In2",
+              "version": "FULL",
+              "accessOrder": [
+                "x"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "In": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "In2": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "P": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "Q": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"P\", \"Q\"]\n  (base-variant :name BodyConst\n  :var-order @[\"x\", \"_c0\", \"_c1\"]\n  :clause-order @[0, 1]\n  :head (P(x))\n  :body (In(x, _c0, _c1):@[0, 1, 2] ⋈ (filter((_c0, _c1)) {.cpp: \"return _c0 == 42 && _c1 == 99;\" .}))\n)\n  (base-variant :name HeadConst\n  :var-order @[\"x\", \"_hc0\"]\n  :clause-order @[0, 1]\n  :head (Q(x, _hc0))\n  :body (In2(x):@[0] ⋈ _hc0 = ...)\n)\n)\n)"
+}

@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.env
+
+# JIT cache produced by examples / tests
+.cache/
+*.o
+*.so
+*.a
+*.stamp
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# xmake
+.xmake/

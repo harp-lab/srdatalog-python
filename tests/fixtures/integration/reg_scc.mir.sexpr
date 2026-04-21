@@ -1,0 +1,466 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule RegDefUsed1
+                  :sources (tuple
+                    (index-spec :schema RegDefUseUsed :index (0 1 2) :ver FULL)
+                    (index-spec :schema RegDefUseBlockLastDef :index (0 2 1) :ver FULL)
+                    (index-spec :schema RegDefUseUsed :index (0 1 2) :ver FULL)
+                    (index-spec :schema RegDefUseBlockLastDef :index (0 2 1) :ver FULL)
+                    (index-spec :schema RegDefUseUsed :index (0 1 2) :ver FULL)
+                    (index-spec :schema RegDefUseBlockLastDef :index (0 2 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (0 1 2 3) :ver FULL))
+                    (column-join :var eaUsed
+                      :sources (
+                        (column-source :index (RegDefUseUsed 0 1 2) :ver FULL :prefix ())
+                        (column-source :index (RegDefUseBlockLastDef 0 2 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var mvar
+                      :sources (
+                        (column-source :index (RegDefUseUsed 0 1 2) :ver FULL :prefix (eaUsed))
+                        (column-source :index (RegDefUseBlockLastDef 0 2 1) :ver FULL :prefix (eaUsed))
+                      ))
+                    (cartesian-join :vars (index eaDef) :var-from-source ((index) (eaDef))
+                      :sources (
+                        (column-source :index (RegDefUseUsed 0 1 2) :ver FULL :prefix (eaUsed mvar))
+                        (column-source :index (RegDefUseBlockLastDef 0 2 1) :ver FULL :prefix (eaUsed mvar))
+                      ))
+                    (insert-into :schema RegDefUseDefUsed :ver NEW :dedup-index (0 1 2 3) :terms (eaDef mvar eaUsed index))
+                )
+                (execute-pipeline :rule LiveVarUsed1
+                  :sources (tuple
+                    (index-spec :schema RegDefUseUsedInBlock :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseBlockLastDef :index (0 2 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver FULL))
+                    (scan :vars (blk eaUsed mvar index) :index (RegDefUseUsedInBlock 0 1 2 3) :ver FULL :prefix ())
+                    (negation :schema RegDefUseBlockLastDef :ver FULL :index (RegDefUseBlockLastDef 0 2 1) :prefix (eaUsed mvar))
+                    (insert-into :schema RegDefUseLiveVarUsed :ver NEW :dedup-index (0 1 2 3) :terms (blk mvar eaUsed index))
+                )
+            )
+            (rebuild-index :index (RegDefUseDefUsed 0 1 2 3) :ver NEW)
+            (check-size :schema RegDefUseDefUsed :ver NEW)
+            (compute-delta-index :schema RegDefUseDefUsed :canonical-index (0 1 2 3))
+            (clear-relation :schema RegDefUseDefUsed :ver NEW)
+            (merge-index :index (RegDefUseDefUsed 0 1 2 3))
+            (rebuild-index-from-index :source (RegDefUseDefUsed 0 1 2 3) :target (RegDefUseDefUsed 1 2 0 3) :ver DELTA)
+            (merge-index :index (RegDefUseDefUsed 1 2 0 3))
+            (rebuild-index-from-index :source (RegDefUseDefUsed 0 1 2 3) :target (RegDefUseDefUsed 2 1 0 3) :ver DELTA)
+            (merge-index :index (RegDefUseDefUsed 2 1 0 3))
+            (rebuild-index :index (RegDefUseLiveVarUsed 0 1 2 3) :ver NEW)
+            (check-size :schema RegDefUseLiveVarUsed :ver NEW)
+            (compute-delta-index :schema RegDefUseLiveVarUsed :canonical-index (0 1 2 3))
+            (clear-relation :schema RegDefUseLiveVarUsed :ver NEW)
+            (merge-index :index (RegDefUseLiveVarUsed 0 1 2 3))
+            (rebuild-index-from-index :source (RegDefUseLiveVarUsed 0 1 2 3) :target (RegDefUseLiveVarUsed 1 0 2 3) :ver DELTA)
+            (merge-index :index (RegDefUseLiveVarUsed 1 0 2 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel RegDefUseDefUsed :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel RegDefUseLiveVarUsed :canonical-index (0 1 2 3))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 11 independent ops
+                (execute-pipeline :rule RegDefUsed2_D0
+                  :sources (tuple
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (0 1 2) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarDef :index (0 2 1 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (0 1 2) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (0 1 2) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarDef :index (0 2 1 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarDef :index (0 2 1 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL))
+                    (column-join :var blk
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 0 1 2) :ver DELTA :prefix ())
+                        (column-source :index (RegDefUseLiveVarDef 0 2 1 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var blockUsed
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 0 1 2) :ver DELTA :prefix (blk))
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var mvar
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 0 1 2) :ver DELTA :prefix (blk blockUsed))
+                        (column-source :index (RegDefUseLiveVarDef 0 2 1 3) :ver FULL :prefix (blk))
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver FULL :prefix (blockUsed))
+                      ))
+                    (cartesian-join :vars (varIdentity eaDef eaUsed index) :var-from-source ((varIdentity eaDef) (eaUsed index))
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarDef 0 2 1 3) :ver FULL :prefix (blk mvar))
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver FULL :prefix (blockUsed mvar))
+                      ))
+                    (insert-into :schema RegDefUseDefUsed :ver NEW :dedup-index (2 1 0 3) :terms (eaDef varIdentity eaUsed index))
+                )
+                (execute-pipeline :rule RegDefUsed2_D2
+                  :sources (tuple
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (1 2 0) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (1 2 0) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarDef :index (2 0 1 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (1 2 0) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarDef :index (2 0 1 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarDef :index (2 0 1 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL))
+                    (column-join :var blockUsed
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver DELTA :prefix ())
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 1 2 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var mvar
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver DELTA :prefix (blockUsed))
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 1 2 0) :ver FULL :prefix (blockUsed))
+                        (column-source :index (RegDefUseLiveVarDef 2 0 1 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var blk
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 1 2 0) :ver FULL :prefix (blockUsed mvar))
+                        (column-source :index (RegDefUseLiveVarDef 2 0 1 3) :ver FULL :prefix (mvar))
+                      ))
+                    (cartesian-join :vars (eaUsed index varIdentity eaDef) :var-from-source ((eaUsed index) (varIdentity eaDef))
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver DELTA :prefix (blockUsed mvar))
+                        (column-source :index (RegDefUseLiveVarDef 2 0 1 3) :ver FULL :prefix (mvar blk))
+                      ))
+                    (insert-into :schema RegDefUseDefUsed :ver NEW :dedup-index (2 1 0 3) :terms (eaDef varIdentity eaUsed index))
+                )
+                (execute-pipeline :rule RegDefUsed3_D0
+                  :sources (tuple
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (0 2 1) :ver DELTA)
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (0 2 1) :ver DELTA)
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (0 2 1) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (1 0 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL))
+                    (column-join :var eaUsed
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 0 2 1) :ver DELTA :prefix ())
+                        (column-source :index (RegDefUseDefUsed 2 1 0 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var mvar
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 0 2 1) :ver DELTA :prefix (eaUsed))
+                        (column-source :index (RegDefUseDefUsed 2 1 0 3) :ver FULL :prefix (eaUsed))
+                        (column-source :index (RegDefUseLiveVarUsed 1 0 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var nxtBlk
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 0 2 1) :ver DELTA :prefix (eaUsed mvar))
+                        (column-source :index (RegDefUseLiveVarUsed 1 0 2 3) :ver FULL :prefix (mvar))
+                      ))
+                    (cartesian-join :vars (eaDef nextEaUsed nextIndex _gen1) :var-from-source ((eaDef _gen1) (nextEaUsed nextIndex))
+                      :sources (
+                        (column-source :index (RegDefUseDefUsed 2 1 0 3) :ver FULL :prefix (eaUsed mvar))
+                        (column-source :index (RegDefUseLiveVarUsed 1 0 2 3) :ver FULL :prefix (mvar nxtBlk))
+                      ))
+                    (insert-into :schema RegDefUseDefUsed :ver NEW :dedup-index (2 1 0 3) :terms (eaDef mvar nextEaUsed nextIndex))
+                )
+                (execute-pipeline :rule RegDefUsed3_D1
+                  :sources (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (0 2 1) :ver FULL)
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (0 2 1) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (0 2 1) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (1 0 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (1 0 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL))
+                    (column-join :var eaUsed
+                      :sources (
+                        (column-source :index (RegDefUseDefUsed 2 1 0 3) :ver DELTA :prefix ())
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 0 2 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var mvar
+                      :sources (
+                        (column-source :index (RegDefUseDefUsed 2 1 0 3) :ver DELTA :prefix (eaUsed))
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 0 2 1) :ver FULL :prefix (eaUsed))
+                        (column-source :index (RegDefUseLiveVarUsed 1 0 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var nxtBlk
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 0 2 1) :ver FULL :prefix (eaUsed mvar))
+                        (column-source :index (RegDefUseLiveVarUsed 1 0 2 3) :ver FULL :prefix (mvar))
+                      ))
+                    (cartesian-join :vars (eaDef nextEaUsed nextIndex _gen1) :var-from-source ((eaDef _gen1) (nextEaUsed nextIndex))
+                      :sources (
+                        (column-source :index (RegDefUseDefUsed 2 1 0 3) :ver DELTA :prefix (eaUsed mvar))
+                        (column-source :index (RegDefUseLiveVarUsed 1 0 2 3) :ver FULL :prefix (mvar nxtBlk))
+                      ))
+                    (insert-into :schema RegDefUseDefUsed :ver NEW :dedup-index (2 1 0 3) :terms (eaDef mvar nextEaUsed nextIndex))
+                )
+                (execute-pipeline :rule RegDefUsed3_D2
+                  :sources (tuple
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (1 2 0) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (1 2 0) :ver FULL)
+                    (index-spec :schema RegDefUseDefUsed :index (1 2 0 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (1 2 0) :ver FULL)
+                    (index-spec :schema RegDefUseDefUsed :index (1 2 0 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema RegDefUseDefUsed :index (1 2 0 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL))
+                    (column-join :var nxtBlk
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver DELTA :prefix ())
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 1 2 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var mvar
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver DELTA :prefix (nxtBlk))
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 1 2 0) :ver FULL :prefix (nxtBlk))
+                        (column-source :index (RegDefUseDefUsed 1 2 0 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var eaUsed
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtPriorUsed 1 2 0) :ver FULL :prefix (nxtBlk mvar))
+                        (column-source :index (RegDefUseDefUsed 1 2 0 3) :ver FULL :prefix (mvar))
+                      ))
+                    (cartesian-join :vars (eaDef nextEaUsed nextIndex _gen1) :var-from-source ((nextEaUsed nextIndex) (eaDef _gen1))
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver DELTA :prefix (nxtBlk mvar))
+                        (column-source :index (RegDefUseDefUsed 1 2 0 3) :ver FULL :prefix (mvar eaUsed))
+                      ))
+                    (insert-into :schema RegDefUseDefUsed :ver NEW :dedup-index (2 1 0 3) :terms (eaDef mvar nextEaUsed nextIndex))
+                )
+                (execute-pipeline :rule RegDefUsed4_D0
+                  :sources (tuple
+                    (index-spec :schema RegDefUseReturnValUsed :index (1 2 0 3 4) :ver DELTA)
+                    (index-spec :schema RegDefUseReturnBlockEnd :index (0 3 1 2) :ver FULL)
+                    (index-spec :schema RegDefUseReturnValUsed :index (1 2 0 3 4) :ver DELTA)
+                    (index-spec :schema RegDefUseBlockLastDef :index (2 0 1) :ver FULL)
+                    (index-spec :schema RegDefUseReturnBlockEnd :index (0 3 1 2) :ver FULL)
+                    (index-spec :schema RegDefUseBlockLastDef :index (2 0 1) :ver FULL)
+                    (index-spec :schema RegDefUseReturnValUsed :index (1 2 0 3 4) :ver DELTA)
+                    (index-spec :schema RegDefUseReturnBlockEnd :index (0 3 1 2) :ver FULL)
+                    (index-spec :schema RegDefUseBlockLastDef :index (2 0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (2 1 0 3) :ver FULL))
+                    (column-join :var callee
+                      :sources (
+                        (column-source :index (RegDefUseReturnValUsed 1 2 0 3 4) :ver DELTA :prefix ())
+                        (column-source :index (RegDefUseReturnBlockEnd 0 3 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var reg
+                      :sources (
+                        (column-source :index (RegDefUseReturnValUsed 1 2 0 3 4) :ver DELTA :prefix (callee))
+                        (column-source :index (RegDefUseBlockLastDef 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var blockEnd
+                      :sources (
+                        (column-source :index (RegDefUseReturnBlockEnd 0 3 1 2) :ver FULL :prefix (callee))
+                        (column-source :index (RegDefUseBlockLastDef 2 0 1) :ver FULL :prefix (reg))
+                      ))
+                    (cartesian-join :vars (_gen2 eaUsed index _gen3 _gen4 eaDef) :var-from-source ((_gen2 eaUsed index) (_gen3 _gen4) (eaDef))
+                      :sources (
+                        (column-source :index (RegDefUseReturnValUsed 1 2 0 3 4) :ver DELTA :prefix (callee reg))
+                        (column-source :index (RegDefUseReturnBlockEnd 0 3 1 2) :ver FULL :prefix (callee blockEnd))
+                        (column-source :index (RegDefUseBlockLastDef 2 0 1) :ver FULL :prefix (reg blockEnd))
+                      ))
+                    (insert-into :schema RegDefUseDefUsed :ver NEW :dedup-index (2 1 0 3) :terms (eaDef reg eaUsed index))
+                )
+                (execute-pipeline :rule RetValUsed_D1
+                  :sources (tuple
+                    (index-spec :schema RegDefUseDefUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema DirectCall :index (0 1) :ver FULL)
+                    (index-spec :schema RegDefUseDefUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema ArchReturnReg :index (0) :ver FULL)
+                    (index-spec :schema RegDefUseDefUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema DirectCall :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseReturnValUsed :index (1 0 2 3 4) :ver FULL))
+                    (column-join :var eaCall
+                      :sources (
+                        (column-source :index (RegDefUseDefUsed 0 1 2 3) :ver DELTA :prefix ())
+                        (column-source :index (DirectCall 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var reg
+                      :sources (
+                        (column-source :index (RegDefUseDefUsed 0 1 2 3) :ver DELTA :prefix (eaCall))
+                        (column-source :index (ArchReturnReg 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (eaUsed indexUsed callee) :var-from-source ((eaUsed indexUsed) (callee))
+                      :sources (
+                        (column-source :index (RegDefUseDefUsed 0 1 2 3) :ver DELTA :prefix (eaCall reg))
+                        (column-source :index (DirectCall 0 1) :ver FULL :prefix (eaCall))
+                      ))
+                    (insert-into :schema RegDefUseReturnValUsed :ver NEW :dedup-index (1 0 2 3 4) :terms (eaCall callee reg eaUsed indexUsed))
+                )
+                (execute-pipeline :rule LiveVarUsed2_D2
+                  :sources (tuple
+                    (index-spec :schema RegDefUseReturnValUsed :index (1 0 2 3 4) :ver DELTA)
+                    (index-spec :schema RegDefUseReturnBlockEnd :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseReturnValUsed :index (1 0 2 3 4) :ver DELTA)
+                    (index-spec :schema RegDefUseReturnBlockEnd :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema RegDefUseBlockLastDef :index (2 0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver FULL))
+                    (column-join :var callee
+                      :sources (
+                        (column-source :index (RegDefUseReturnValUsed 1 0 2 3 4) :ver DELTA :prefix ())
+                        (column-source :index (RegDefUseReturnBlockEnd 0 1 2 3) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (_gen8 reg eaUsed index _gen6 retBlock retBlockEnd) :var-from-source ((_gen8 reg eaUsed index) (_gen6 retBlock retBlockEnd))
+                      :sources (
+                        (column-source :index (RegDefUseReturnValUsed 1 0 2 3 4) :ver DELTA :prefix (callee))
+                        (column-source :index (RegDefUseReturnBlockEnd 0 1 2 3) :ver FULL :prefix (callee))
+                      ))
+                    (negation :schema RegDefUseBlockLastDef :ver FULL :index (RegDefUseBlockLastDef 2 0 1) :prefix (reg retBlockEnd))
+                    (insert-into :schema RegDefUseLiveVarUsed :ver NEW :dedup-index (0 1 2 3) :terms (retBlock reg eaUsed index))
+                )
+                (execute-pipeline :rule LiveVarAtPriorUsed_D0
+                  :sources (tuple
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (0 2 1) :ver DELTA)
+                    (index-spec :schema RegDefUseUsedInBlock :index (0 2 1 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (0 2 1) :ver DELTA)
+                    (index-spec :schema RegDefUseUsedInBlock :index (0 2 1 3) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (0 2 1) :ver DELTA)
+                    (index-spec :schema RegDefUseUsedInBlock :index (0 2 1 3) :ver FULL)
+                    (index-spec :schema RegDefUseDefinedInBlock :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseLiveVarAtPriorUsed :index (0 2 1) :ver FULL))
+                    (column-join :var blk
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 0 2 1) :ver DELTA :prefix ())
+                        (column-source :index (RegDefUseUsedInBlock 0 2 1 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var mvar
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 0 2 1) :ver DELTA :prefix (blk))
+                        (column-source :index (RegDefUseUsedInBlock 0 2 1 3) :ver FULL :prefix (blk))
+                      ))
+                    (cartesian-join :vars (blockUsed eaUsed _gen9) :var-from-source ((blockUsed) (eaUsed _gen9))
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 0 2 1) :ver DELTA :prefix (blk mvar))
+                        (column-source :index (RegDefUseUsedInBlock 0 2 1 3) :ver FULL :prefix (blk mvar))
+                      ))
+                    (negation :schema RegDefUseDefinedInBlock :ver FULL :index (RegDefUseDefinedInBlock 0 1) :prefix (blk mvar))
+                    (insert-into :schema RegDefUseLiveVarAtPriorUsed :ver NEW :dedup-index (0 2 1) :terms (eaUsed blockUsed mvar))
+                )
+                (execute-pipeline :rule LiveVarAtBlockEnd1_D1
+                  :sources (tuple
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema BlockNext :index (2 0 1) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarUsed :index (0 1 2 3) :ver DELTA)
+                    (index-spec :schema BlockNext :index (2 0 1) :ver FULL)
+                    (index-spec :schema RegDefUseFlowDef :index (2 1 0 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (1 2 0) :ver FULL))
+                    (column-join :var blk
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver DELTA :prefix ())
+                        (column-source :index (BlockNext 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (mvar _gen10 _gen11 prevBlock prevBlockEnd) :var-from-source ((mvar _gen10 _gen11) (prevBlock prevBlockEnd))
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarUsed 0 1 2 3) :ver DELTA :prefix (blk))
+                        (column-source :index (BlockNext 2 0 1) :ver FULL :prefix (blk))
+                      ))
+                    (negation :schema RegDefUseFlowDef :ver FULL :index (RegDefUseFlowDef 2 1 0 3) :prefix (blk mvar prevBlockEnd))
+                    (insert-into :schema RegDefUseLiveVarAtBlockEnd :ver NEW :dedup-index (1 2 0) :terms (prevBlock blk mvar))
+                )
+                (execute-pipeline :rule LiveVarAtBlockEnd2_D0
+                  :sources (tuple
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (0 1 2) :ver DELTA)
+                    (index-spec :schema BlockNext :index (2 0 1) :ver FULL)
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (0 1 2) :ver DELTA)
+                    (index-spec :schema BlockNext :index (2 0 1) :ver FULL)
+                    (index-spec :schema RegDefUseRefInBlock :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema RegDefUseLiveVarAtBlockEnd :index (1 2 0) :ver FULL))
+                    (column-join :var blk
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 0 1 2) :ver DELTA :prefix ())
+                        (column-source :index (BlockNext 2 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (blockUsed mvar prevBlock _gen13) :var-from-source ((blockUsed mvar) (prevBlock _gen13))
+                      :sources (
+                        (column-source :index (RegDefUseLiveVarAtBlockEnd 0 1 2) :ver DELTA :prefix (blk))
+                        (column-source :index (BlockNext 2 0 1) :ver FULL :prefix (blk))
+                      ))
+                    (negation :schema RegDefUseRefInBlock :ver FULL :index (RegDefUseRefInBlock 0 1) :prefix (blk mvar))
+                    (insert-into :schema RegDefUseLiveVarAtBlockEnd :ver NEW :dedup-index (1 2 0) :terms (prevBlock blockUsed mvar))
+                )
+            )
+            (rebuild-index :index (RegDefUseDefUsed 2 1 0 3) :ver NEW)
+            (clear-relation :schema RegDefUseDefUsed :ver DELTA)
+            (check-size :schema RegDefUseDefUsed :ver NEW)
+            (compute-delta-index :schema RegDefUseDefUsed :canonical-index (2 1 0 3))
+            (clear-relation :schema RegDefUseDefUsed :ver NEW)
+            (rebuild-index-from-index :source (RegDefUseDefUsed 2 1 0 3) :target (RegDefUseDefUsed 0 1 2 3) :ver DELTA)
+            (merge-index :index (RegDefUseDefUsed 2 1 0 3))
+            (rebuild-index-from-index :source (RegDefUseDefUsed 2 1 0 3) :target (RegDefUseDefUsed 1 2 0 3) :ver DELTA)
+            (merge-index :index (RegDefUseDefUsed 1 2 0 3))
+            (rebuild-index :index (RegDefUseLiveVarAtBlockEnd 1 2 0) :ver NEW)
+            (clear-relation :schema RegDefUseLiveVarAtBlockEnd :ver DELTA)
+            (check-size :schema RegDefUseLiveVarAtBlockEnd :ver NEW)
+            (compute-delta-index :schema RegDefUseLiveVarAtBlockEnd :canonical-index (1 2 0))
+            (clear-relation :schema RegDefUseLiveVarAtBlockEnd :ver NEW)
+            (rebuild-index-from-index :source (RegDefUseLiveVarAtBlockEnd 1 2 0) :target (RegDefUseLiveVarAtBlockEnd 0 1 2) :ver DELTA)
+            (rebuild-index-from-index :source (RegDefUseLiveVarAtBlockEnd 1 2 0) :target (RegDefUseLiveVarAtBlockEnd 0 2 1) :ver DELTA)
+            (merge-index :index (RegDefUseLiveVarAtBlockEnd 1 2 0))
+            (rebuild-index :index (RegDefUseLiveVarAtPriorUsed 0 2 1) :ver NEW)
+            (clear-relation :schema RegDefUseLiveVarAtPriorUsed :ver DELTA)
+            (check-size :schema RegDefUseLiveVarAtPriorUsed :ver NEW)
+            (compute-delta-index :schema RegDefUseLiveVarAtPriorUsed :canonical-index (0 2 1))
+            (clear-relation :schema RegDefUseLiveVarAtPriorUsed :ver NEW)
+            (merge-index :index (RegDefUseLiveVarAtPriorUsed 0 2 1))
+            (rebuild-index-from-index :source (RegDefUseLiveVarAtPriorUsed 0 2 1) :target (RegDefUseLiveVarAtPriorUsed 1 2 0) :ver DELTA)
+            (merge-index :index (RegDefUseLiveVarAtPriorUsed 1 2 0))
+            (rebuild-index :index (RegDefUseLiveVarUsed 0 1 2 3) :ver NEW)
+            (clear-relation :schema RegDefUseLiveVarUsed :ver DELTA)
+            (check-size :schema RegDefUseLiveVarUsed :ver NEW)
+            (compute-delta-index :schema RegDefUseLiveVarUsed :canonical-index (0 1 2 3))
+            (clear-relation :schema RegDefUseLiveVarUsed :ver NEW)
+            (merge-index :index (RegDefUseLiveVarUsed 0 1 2 3))
+            (rebuild-index-from-index :source (RegDefUseLiveVarUsed 0 1 2 3) :target (RegDefUseLiveVarUsed 1 0 2 3) :ver DELTA)
+            (merge-index :index (RegDefUseLiveVarUsed 1 0 2 3))
+            (rebuild-index :index (RegDefUseReturnValUsed 1 0 2 3 4) :ver NEW)
+            (clear-relation :schema RegDefUseReturnValUsed :ver DELTA)
+            (check-size :schema RegDefUseReturnValUsed :ver NEW)
+            (compute-delta-index :schema RegDefUseReturnValUsed :canonical-index (1 0 2 3 4))
+            (clear-relation :schema RegDefUseReturnValUsed :ver NEW)
+            (merge-index :index (RegDefUseReturnValUsed 1 0 2 3 4))
+            (rebuild-index-from-index :source (RegDefUseReturnValUsed 1 0 2 3 4) :target (RegDefUseReturnValUsed 1 2 0 3 4) :ver DELTA)
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel RegDefUseDefUsed :canonical-index (2 1 0 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel RegDefUseLiveVarAtBlockEnd :canonical-index (1 2 0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel RegDefUseLiveVarAtPriorUsed :canonical-index (0 2 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel RegDefUseLiveVarUsed :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel RegDefUseReturnValUsed :canonical-index (1 0 2 3 4))
+  )
+)

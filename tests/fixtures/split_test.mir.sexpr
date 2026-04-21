@@ -1,0 +1,38 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule SplitTest_splitA
+              :sources (tuple
+                (index-spec :schema A :index (0 1) :ver FULL)
+                (index-spec :schema B :index (0) :ver FULL))
+              :dests (tuple
+                (index-spec :schema _temp_SplitTest :index (0) :ver FULL))
+                (scan :vars (x y) :index (A 0 1) :ver FULL :prefix ())
+                (negation :schema B :ver FULL :index (B 0) :prefix (y))
+                (insert-into :schema _temp_SplitTest :ver NEW :dedup-index (0) :terms (x))
+            )
+            (create-flat-view :index (_temp_SplitTest 0) :ver NEW)
+            (execute-pipeline :rule SplitTest_splitB
+              :sources (tuple
+                (index-spec :schema _temp_SplitTest :index (0) :ver FULL)
+                (index-spec :schema C :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Q :index (0 1) :ver FULL))
+                (scan :vars (x) :index (_temp_SplitTest 0) :ver FULL :prefix ())
+                (cartesian-join :vars (z) :var-from-source ((z))
+                  :sources (
+                    (column-source :index (C 0 1) :ver FULL :prefix (x))
+                  ))
+                (insert-into :schema Q :ver NEW :dedup-index (0 1) :terms (x z))
+            )
+            (rebuild-index :index (Q 0 1) :ver NEW)
+            (check-size :schema Q :ver NEW)
+            (compute-delta-index :schema Q :canonical-index (0 1))
+            (clear-relation :schema Q :ver NEW)
+            (merge-index :index (Q 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Q :canonical-index (0 1))
+  )
+)

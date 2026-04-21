@@ -1,0 +1,61 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule KnowsLoad
+              :sources (tuple
+                (index-spec :schema KnowsInput :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Knows :index (0 1) :ver FULL))
+                (scan :vars (x y) :index (KnowsInput 0 1) :ver FULL :prefix ())
+                (insert-into :schema Knows :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (Knows 0 1) :ver NEW)
+            (check-size :schema Knows :ver NEW)
+            (compute-delta-index :schema Knows :canonical-index (0 1))
+            (clear-relation :schema Knows :ver NEW)
+            (merge-index :index (Knows 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Knows :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule TriangleJoin
+              :sources (tuple
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL)
+                (index-spec :schema Knows :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Triangle :index (0 1 2) :ver FULL))
+                (column-join :var a
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix ())
+                    (column-source :index (Knows 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var b
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix (a))
+                    (column-source :index (Knows 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var c
+                  :sources (
+                    (column-source :index (Knows 0 1) :ver FULL :prefix (b))
+                    (column-source :index (Knows 0 1) :ver FULL :prefix (a))
+                  ))
+                (insert-into :schema Triangle :ver NEW :dedup-index (0 1 2) :terms (a b c))
+            )
+            (rebuild-index :index (Triangle 0 1 2) :ver NEW)
+            (check-size :schema Triangle :ver NEW)
+            (compute-delta-index :schema Triangle :canonical-index (0 1 2))
+            (clear-relation :schema Triangle :ver NEW)
+            (merge-index :index (Triangle 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Triangle :canonical-index (0 1 2))
+  )
+)

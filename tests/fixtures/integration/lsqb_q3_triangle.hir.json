@@ -1,0 +1,564 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "IsLocatedIn",
+        "IsPartOf",
+        "Knows"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "KnowsLoad",
+            "head": [
+              {
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "KnowsInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "KnowsLoad: (Knows x y) <-\n      (KnowsInput x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "KnowsInput",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "LocLoad",
+            "head": [
+              {
+                "rel": "IsLocatedIn",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "IsLocatedInInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LocLoad: (IsLocatedIn p c) <-\n      (IsLocatedInInput p c)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "p",
+            "c"
+          ],
+          "joins": [
+            {
+              "rel": "IsLocatedInInput",
+              "version": "FULL",
+              "accessOrder": [
+                "p",
+                "c"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "PartOfLoad",
+            "head": [
+              {
+                "rel": "IsPartOf",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "co"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "IsPartOfInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "co"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "PartOfLoad: (IsPartOf c co) <-\n      (IsPartOfInput c co)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "c",
+            "co"
+          ],
+          "joins": [
+            {
+              "rel": "IsPartOfInput",
+              "version": "FULL",
+              "accessOrder": [
+                "c",
+                "co"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "Triangle"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "LabeledTriangle",
+            "head": [
+              {
+                "rel": "Triangle",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p3"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p3"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "IsLocatedIn",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "IsLocatedIn",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "IsLocatedIn",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c3"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "IsPartOf",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "c1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "co"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "IsPartOf",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "c2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "co"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "IsPartOf",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "c3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "co"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LabeledTriangle: (Triangle p1 p2 p3) <-\n      (Knows p1 p2),\n      (Knows p2 p3),\n      (Knows p3 p1),\n      (IsLocatedIn p1 c1),\n      (IsLocatedIn p2 c2),\n      (IsLocatedIn p3 c3),\n      (IsPartOf c1 co),\n      (IsPartOf c2 co),\n      (IsPartOf c3 co)",
+          "clauseOrder": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6,
+            2,
+            7,
+            8
+          ],
+          "varOrder": [
+            "p1",
+            "p2",
+            "p3",
+            "c1",
+            "c2",
+            "c3",
+            "co"
+          ],
+          "joins": [
+            {
+              "rel": "Knows",
+              "version": "FULL",
+              "accessOrder": [
+                "p1",
+                "p2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Knows",
+              "version": "FULL",
+              "accessOrder": [
+                "p2",
+                "p3"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "Knows",
+              "version": "FULL",
+              "accessOrder": [
+                "p1",
+                "p3"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            },
+            {
+              "rel": "IsLocatedIn",
+              "version": "FULL",
+              "accessOrder": [
+                "p1",
+                "c1"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 3
+            },
+            {
+              "rel": "IsLocatedIn",
+              "version": "FULL",
+              "accessOrder": [
+                "p2",
+                "c2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 4
+            },
+            {
+              "rel": "IsLocatedIn",
+              "version": "FULL",
+              "accessOrder": [
+                "p3",
+                "c3"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 5
+            },
+            {
+              "rel": "IsPartOf",
+              "version": "FULL",
+              "accessOrder": [
+                "c1",
+                "co"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 6
+            },
+            {
+              "rel": "IsPartOf",
+              "version": "FULL",
+              "accessOrder": [
+                "c2",
+                "co"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 7
+            },
+            {
+              "rel": "IsPartOf",
+              "version": "FULL",
+              "accessOrder": [
+                "c3",
+                "co"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 8
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "KnowsInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "IsLocatedInInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "IsPartOfInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Knows": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "IsLocatedIn": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "IsPartOf": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Triangle": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"IsLocatedIn\", \"IsPartOf\", \"Knows\"]\n  (base-variant :name KnowsLoad\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (Knows(x, y))\n  :body (KnowsInput(x, y):@[0, 1])\n)\n  (base-variant :name LocLoad\n  :var-order @[\"p\", \"c\"]\n  :clause-order @[0]\n  :head (IsLocatedIn(p, c))\n  :body (IsLocatedInInput(p, c):@[0, 1])\n)\n  (base-variant :name PartOfLoad\n  :var-order @[\"c\", \"co\"]\n  :clause-order @[0]\n  :head (IsPartOf(c, co))\n  :body (IsPartOfInput(c, co):@[0, 1])\n)\n)\n(stratum 1 simple\n  :members @[\"Triangle\"]\n  (base-variant :name LabeledTriangle\n  :var-order @[\"p1\", \"p2\", \"p3\", \"c1\", \"c2\", \"c3\", \"co\"]\n  :clause-order @[0, 1, 3, 4, 5, 6, 2, 7, 8]\n  :head (Triangle(p1, p2, p3))\n  :body (Knows(p1, p2):@[0, 1] ⋈ Knows(p2, p3):@[0, 1] ⋈ IsLocatedIn(p1, c1):@[0, 1] ⋈ IsLocatedIn(p2, c2):@[0, 1] ⋈ IsLocatedIn(p3, c3):@[0, 1] ⋈ IsPartOf(c1, co):@[0, 1] ⋈ Knows(p3, p1):@[1, 0] ⋈ IsPartOf(c2, co):@[0, 1] ⋈ IsPartOf(c3, co):@[0, 1])\n)\n)\n)"
+}

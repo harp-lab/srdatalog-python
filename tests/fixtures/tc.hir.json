@@ -1,0 +1,272 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Edge"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "EdgeLoad",
+            "head": [
+              {
+                "rel": "Edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ArcInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "EdgeLoad: (Edge x y) <-\n      (ArcInput x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "ArcInput",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "Path"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "TCBase",
+            "head": [
+              {
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "TCBase: (Path x y) <-\n      (Edge x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "Edge",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 2,
+      "isRecursive": true,
+      "relations": [
+        "Path"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "TCRec",
+            "head": [
+              {
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "TCRec: (Path x z) <-\n      (Path x y),\n      (Edge y z)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "y",
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "Path",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Edge",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    }
+  ],
+  "relations": {
+    "ArcInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Edge": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Path": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Edge\"]\n  (base-variant :name EdgeLoad\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (Edge(x, y))\n  :body (ArcInput(x, y):@[0, 1])\n)\n)\n(stratum 1 simple\n  :members @[\"Path\"]\n  (base-variant :name TCBase\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (Path(x, y))\n  :body (Edge(x, y):@[0, 1])\n)\n)\n(stratum 2 recursive\n  :members @[\"Path\"]\n  (recursive-variant :name TCRec\n  :delta-at 0\n  :var-order @[\"y\", \"x\", \"z\"]\n  :clause-order @[0, 1]\n  :head (Path(x, z))\n  :body (ΔPath(x, y):@[1, 0] ⋈ Edge(y, z):@[0, 1])\n)\n)\n)"
+}

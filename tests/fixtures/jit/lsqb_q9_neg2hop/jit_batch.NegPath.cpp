@@ -1,0 +1,137 @@
+// JIT-Generated Rule Kernel Batch
+// This file is auto-generated - do not edit
+#define SRDATALOG_JIT_BATCH  // Guard: exclude host-side helpers from JIT compilation
+
+// Main project header - includes all necessary boost/hana, etc.
+#include "srdatalog.h"
+
+#include <cooperative_groups.h>
+#include <cstdint>
+
+// JIT-specific headers (relative to generalized_datalog/)
+#include "gpu/device_sorted_array_index.h"
+#include "gpu/runtime/jit/intersect_handles.h"
+#include "gpu/runtime/jit/jit_executor.h"
+#include "gpu/runtime/jit/materialized_join.h"
+#include "gpu/runtime/jit/ws_infrastructure.h"  // WCOJTask, WCOJTaskQueue, ChunkedOutputContext
+#include "gpu/runtime/output_context.h"
+#include "gpu/runtime/query.h"  // For DeviceRelationType
+
+namespace cg = cooperative_groups;
+
+// Make JIT helpers visible without full namespace qualification
+using SRDatalog::GPU::JIT::intersect_handles;
+
+// =============================================================
+// JIT-Generated Kernel Functor: NegPath
+// Handles: 7
+// =============================================================
+
+// WARP MODE: 32 threads share 1 row, cooperative search
+struct Kernel_NegPath {
+  static constexpr int kBlockSize = 256;
+  static constexpr int kGroupSize = 32;
+
+  template <typename Tile, typename Views, typename ValueType, typename Output>
+  __device__ void operator()(Tile& tile, const Views* views,
+                             const ValueType* __restrict__ root_unique_values,
+                             uint32_t num_unique_root_keys, uint32_t num_root_keys,
+                             uint32_t warp_id, uint32_t num_warps, Output& output) const {
+    using ViewType = std::remove_cvref_t<decltype(views[0])>;
+    using HandleType = ViewType::NodeHandle;
+
+    // View declarations (deduplicated by spec, 3 unique views)
+    auto view_Knows_1_0_FULL_VER = views[0];
+    auto view_Knows_0_1_FULL_VER = views[1];
+    auto view_HasInterest_0_1_FULL_VER = views[3];
+
+    // Root ColumnJoin (multi-source intersection): bind 'p2' from 2 sources
+    // Uses root_unique_values + prefix() pattern (like TMP)
+    // MIR: (column-join :var p2 :sources ((Knows :handle 0) (Knows :handle 1) ))
+    // WARP MODE: 32 threads cooperatively handle one row
+    for (uint32_t y_idx_1 = warp_id; y_idx_1 < num_unique_root_keys; y_idx_1 += num_warps) {
+      auto root_val_2 = root_unique_values[y_idx_1];
+
+      uint32_t hint_lo_3 = y_idx_1;
+      uint32_t hint_hi_4 = view_Knows_1_0_FULL_VER.num_rows_ - (num_unique_root_keys - y_idx_1 - 1);
+      hint_hi_4 = (hint_hi_4 <= view_Knows_1_0_FULL_VER.num_rows_)
+                      ? hint_hi_4
+                      : view_Knows_1_0_FULL_VER.num_rows_;
+      hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Knows_1_0_FULL_VER.num_rows_;
+      auto h_Knows_0_root =
+          HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Knows_1_0_FULL_VER);
+      if (!h_Knows_0_root.valid())
+        continue;
+      auto h_Knows_1_root = HandleType(0, view_Knows_0_1_FULL_VER.num_rows_, 0)
+                                .prefix(root_val_2, tile, view_Knows_0_1_FULL_VER);
+      if (!h_Knows_1_root.valid())
+        continue;
+      auto p2 = root_val_2;
+      // Nested ColumnJoin (intersection): bind 'p3' from 2 sources
+      // MIR: (column-join :var p3 :sources ((Knows :handle 2 :prefix (p2)) (HasInterest :handle 3
+      // :prefix ()) ))
+      auto h_Knows_2_14 = h_Knows_1_root;
+      auto h_HasInterest_3_15 = HandleType(0, view_HasInterest_0_1_FULL_VER.num_rows_, 0);
+      auto intersect_16 =
+          intersect_handles(tile, h_Knows_2_14.iterators(view_Knows_0_1_FULL_VER),
+                            h_HasInterest_3_15.iterators(view_HasInterest_0_1_FULL_VER));
+      for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
+        auto p3 = it_17.value();
+        auto positions = it_17.positions();
+        auto ch_Knows_2_p3 =
+            h_Knows_2_14.child_range(positions[0], p3, tile, view_Knows_0_1_FULL_VER);
+        auto ch_HasInterest_3_p3 =
+            h_HasInterest_3_15.child_range(positions[1], p3, tile, view_HasInterest_0_1_FULL_VER);
+        // Nested CartesianJoin: bind p1, t from 2 source(s)
+        // MIR: (cartesian-join :vars (p1 t) :sources ((Knows :handle 4 :prefix (p2)) (HasInterest
+        // :handle 5 :prefix (p3)) ))
+        uint32_t lane_3 = tile.thread_rank();
+        uint32_t group_size_4 = tile.size();
+
+        auto h_Knows_4_6 = h_Knows_0_root;             // reusing narrowed handle
+        auto h_HasInterest_5_8 = ch_HasInterest_3_p3;  // reusing narrowed handle
+
+        if (!h_Knows_4_6.valid() || !h_HasInterest_5_8.valid())
+          continue;
+
+        uint32_t degree_5 = h_Knows_4_6.degree();
+        uint32_t degree_7 = h_HasInterest_5_8.degree();
+        uint32_t total_9 = degree_5 * degree_7;
+        if (total_9 == 0)
+          continue;
+
+        // Pre-narrow negation handle for Knows (pre-Cartesian vars: p3)
+        auto h_Knows_neg_pre_1 = HandleType(0, view_Knows_1_0_FULL_VER.num_rows_, 0)
+                                     .prefix(p3, tile, view_Knows_1_0_FULL_VER);
+
+        for (uint32_t flat_idx_10 = lane_3; flat_idx_10 < total_9; flat_idx_10 += group_size_4) {
+          const bool major_is_1_13 = (degree_7 >= degree_5);
+          uint32_t idx0_11, idx1_12;
+          if (major_is_1_13) {
+            idx0_11 = flat_idx_10 / degree_7;
+            idx1_12 = flat_idx_10 % degree_7;
+          } else {
+            idx1_12 = flat_idx_10 / degree_5;
+            idx0_11 = flat_idx_10 % degree_5;
+          }
+
+          auto p1 = view_Knows_1_0_FULL_VER.get_value(1, h_Knows_4_6.begin() + idx0_11);
+          auto t = view_HasInterest_0_1_FULL_VER.get_value(1, h_HasInterest_5_8.begin() + idx1_12);
+
+          // Negation: NOT EXISTS in Knows
+          // MIR: (negation :rel Knows :prefix (p3 p1) :handle 6)
+          // Using pre-narrowed handle (pre-Cartesian vars: p3)
+          auto h_Knows_neg_6_2 = h_Knows_neg_pre_1.prefix_seq(p1, view_Knows_1_0_FULL_VER);
+          if (!h_Knows_neg_6_2.valid()) {
+            if (p1 != p3) {
+              // Emit: Path(p1, p2, p3, t)
+              output.emit_direct(p1, p2, p3, t);
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+// End of JIT batch file

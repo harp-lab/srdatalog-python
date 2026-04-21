@@ -1,0 +1,321 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "HasInterest",
+        "Knows"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "KnowsLoad",
+            "head": [
+              {
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "KnowsInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "KnowsLoad: (Knows x y) <-\n      (KnowsInput x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "KnowsInput",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "InterestLoad",
+            "head": [
+              {
+                "rel": "HasInterest",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "HasInterestInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "InterestLoad: (HasInterest p t) <-\n      (HasInterestInput p t)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "p",
+            "t"
+          ],
+          "joins": [
+            {
+              "rel": "HasInterestInput",
+              "version": "FULL",
+              "accessOrder": [
+                "p",
+                "t"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "Path"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "TwoHopPath",
+            "head": [
+              {
+                "rel": "Path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Knows",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "p3"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "HasInterest",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "p3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return p1 != p3;"
+              }
+            ]
+          },
+          "hirText": "TwoHopPath: (Path p1 p2 p3 t) <-\n      (Knows p1 p2),\n      (Knows p2 p3),\n      (HasInterest p3 t),\n      (FILTER return p1 != p3;)",
+          "clauseOrder": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "varOrder": [
+            "p1",
+            "p2",
+            "p3",
+            "t"
+          ],
+          "joins": [
+            {
+              "rel": "Knows",
+              "version": "FULL",
+              "accessOrder": [
+                "p1",
+                "p2"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Knows",
+              "version": "FULL",
+              "accessOrder": [
+                "p2",
+                "p3"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "HasInterest",
+              "version": "FULL",
+              "accessOrder": [
+                "p3",
+                "t"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "KnowsInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "HasInterestInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Knows": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "HasInterest": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Path": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"HasInterest\", \"Knows\"]\n  (base-variant :name KnowsLoad\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (Knows(x, y))\n  :body (KnowsInput(x, y):@[0, 1])\n)\n  (base-variant :name InterestLoad\n  :var-order @[\"p\", \"t\"]\n  :clause-order @[0]\n  :head (HasInterest(p, t))\n  :body (HasInterestInput(p, t):@[0, 1])\n)\n)\n(stratum 1 simple\n  :members @[\"Path\"]\n  (base-variant :name TwoHopPath\n  :var-order @[\"p1\", \"p2\", \"p3\", \"t\"]\n  :clause-order @[0, 1, 2, 3]\n  :head (Path(p1, p2, p3, t))\n  :body (Knows(p1, p2):@[0, 1] ⋈ Knows(p2, p3):@[0, 1] ⋈ HasInterest(p3, t):@[0, 1] ⋈ (filter((p1, p3)) {.cpp: \"return p1 != p3;\" .}))\n)\n)\n)"
+}

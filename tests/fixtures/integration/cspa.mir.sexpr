@@ -1,0 +1,374 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule LoadAssign
+                  :sources (tuple
+                    (index-spec :schema AssignInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                    (scan :vars (x y) :index (AssignInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema Assign :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule LoadDeref
+                  :sources (tuple
+                    (index-spec :schema DerefInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Deref :index (0 1) :ver FULL))
+                    (scan :vars (x y) :index (DerefInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema Deref :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+            )
+            (rebuild-index :index (Assign 0 1) :ver NEW)
+            (check-size :schema Assign :ver NEW)
+            (compute-delta-index :schema Assign :canonical-index (0 1))
+            (clear-relation :schema Assign :ver NEW)
+            (merge-index :index (Assign 0 1))
+            (rebuild-index-from-index :source (Assign 0 1) :target (Assign 1 0) :ver DELTA)
+            (merge-index :index (Assign 1 0))
+            (rebuild-index :index (Deref 0 1) :ver NEW)
+            (check-size :schema Deref :ver NEW)
+            (compute-delta-index :schema Deref :canonical-index (0 1))
+            (clear-relation :schema Deref :ver NEW)
+            (merge-index :index (Deref 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Assign :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Deref :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 5 independent ops
+                (execute-pipeline :rule VF_Assign
+                  :sources (tuple
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                    (scan :vars (y x) :index (Assign 0 1) :ver FULL :prefix ())
+                    (insert-into :schema ValueFlow :ver NEW :dedup-index (0 1) :terms (y x))
+                )
+                (execute-pipeline :rule VF_Refl1
+                  :sources (tuple
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                    (scan :vars (x _gen1) :index (Assign 0 1) :ver FULL :prefix ())
+                    (insert-into :schema ValueFlow :ver NEW :dedup-index (0 1) :terms (x x))
+                )
+                (execute-pipeline :rule VF_Refl2
+                  :sources (tuple
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                    (scan :vars (_gen2 x) :index (Assign 0 1) :ver FULL :prefix ())
+                    (insert-into :schema ValueFlow :ver NEW :dedup-index (0 1) :terms (x x))
+                )
+                (execute-pipeline :rule MA_Refl1
+                  :sources (tuple
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MemoryAlias :index (0 1) :ver FULL))
+                    (scan :vars (_gen3 x) :index (Assign 0 1) :ver FULL :prefix ())
+                    (insert-into :schema MemoryAlias :ver NEW :dedup-index (0 1) :terms (x x))
+                )
+                (execute-pipeline :rule MA_Refl2
+                  :sources (tuple
+                    (index-spec :schema Assign :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MemoryAlias :index (0 1) :ver FULL))
+                    (scan :vars (x _gen4) :index (Assign 0 1) :ver FULL :prefix ())
+                    (insert-into :schema MemoryAlias :ver NEW :dedup-index (0 1) :terms (x x))
+                )
+            )
+            (rebuild-index :index (ValueFlow 0 1) :ver NEW)
+            (check-size :schema ValueFlow :ver NEW)
+            (compute-delta-index :schema ValueFlow :canonical-index (0 1))
+            (clear-relation :schema ValueFlow :ver NEW)
+            (merge-index :index (ValueFlow 0 1))
+            (rebuild-index-from-index :source (ValueFlow 0 1) :target (ValueFlow 1 0) :ver DELTA)
+            (merge-index :index (ValueFlow 1 0))
+            (rebuild-index :index (ValueFlow 0 1) :ver NEW)
+            (check-size :schema ValueFlow :ver NEW)
+            (compute-delta-index :schema ValueFlow :canonical-index (0 1))
+            (clear-relation :schema ValueFlow :ver NEW)
+            (merge-index :index (ValueFlow 0 1))
+            (rebuild-index-from-index :source (ValueFlow 0 1) :target (ValueFlow 1 0) :ver DELTA)
+            (merge-index :index (ValueFlow 1 0))
+            (rebuild-index :index (ValueFlow 0 1) :ver NEW)
+            (check-size :schema ValueFlow :ver NEW)
+            (compute-delta-index :schema ValueFlow :canonical-index (0 1))
+            (clear-relation :schema ValueFlow :ver NEW)
+            (merge-index :index (ValueFlow 0 1))
+            (rebuild-index-from-index :source (ValueFlow 0 1) :target (ValueFlow 1 0) :ver DELTA)
+            (merge-index :index (ValueFlow 1 0))
+            (rebuild-index :index (MemoryAlias 0 1) :ver NEW)
+            (check-size :schema MemoryAlias :ver NEW)
+            (compute-delta-index :schema MemoryAlias :canonical-index (0 1))
+            (clear-relation :schema MemoryAlias :ver NEW)
+            (merge-index :index (MemoryAlias 0 1))
+            (rebuild-index-from-index :source (MemoryAlias 0 1) :target (MemoryAlias 1 0) :ver DELTA)
+            (merge-index :index (MemoryAlias 1 0))
+            (rebuild-index :index (MemoryAlias 0 1) :ver NEW)
+            (check-size :schema MemoryAlias :ver NEW)
+            (compute-delta-index :schema MemoryAlias :canonical-index (0 1))
+            (clear-relation :schema MemoryAlias :ver NEW)
+            (merge-index :index (MemoryAlias 0 1))
+            (rebuild-index-from-index :source (MemoryAlias 0 1) :target (MemoryAlias 1 0) :ver DELTA)
+            (merge-index :index (MemoryAlias 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ValueFlow :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel MemoryAlias :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 9 independent ops
+                (execute-pipeline :rule VF_Trans_D0
+                  :sources (tuple
+                    (index-spec :schema ValueFlow :index (1 0) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL)
+                    (index-spec :schema ValueFlow :index (1 0) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (ValueFlow 1 0) :ver DELTA :prefix ())
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x y) :var-from-source ((x) (y))
+                      :sources (
+                        (column-source :index (ValueFlow 1 0) :ver DELTA :prefix (z))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema ValueFlow :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule VF_Trans_D1
+                  :sources (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (1 0) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix ())
+                        (column-source :index (ValueFlow 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (y x) :var-from-source ((y) (x))
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix (z))
+                        (column-source :index (ValueFlow 1 0) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema ValueFlow :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule VF_Assign_MA_D1
+                  :sources (tuple
+                    (index-spec :schema MemoryAlias :index (0 1) :ver DELTA)
+                    (index-spec :schema Assign :index (1 0) :ver FULL)
+                    (index-spec :schema MemoryAlias :index (0 1) :ver DELTA)
+                    (index-spec :schema Assign :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (MemoryAlias 0 1) :ver DELTA :prefix ())
+                        (column-source :index (Assign 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (y x) :var-from-source ((y) (x))
+                      :sources (
+                        (column-source :index (MemoryAlias 0 1) :ver DELTA :prefix (z))
+                        (column-source :index (Assign 1 0) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema ValueFlow :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule VA_VF_D0
+                  :sources (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueAlias :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix ())
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x y) :var-from-source ((x) (y))
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix (z))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema ValueAlias :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule VA_VF_D1
+                  :sources (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueAlias :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix ())
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (y x) :var-from-source ((y) (x))
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix (z))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema ValueAlias :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule VA_VF_MA_VF_D0
+                  :sources (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema MemoryAlias :index (0 1) :ver FULL)
+                    (index-spec :schema MemoryAlias :index (0 1) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueAlias :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix ())
+                        (column-source :index (MemoryAlias 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var w
+                      :sources (
+                        (column-source :index (MemoryAlias 0 1) :ver FULL :prefix (z))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x y) :var-from-source ((x) (y))
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix (z))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix (w))
+                      ))
+                    (insert-into :schema ValueAlias :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule VA_VF_MA_VF_D1
+                  :sources (tuple
+                    (index-spec :schema MemoryAlias :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL)
+                    (index-spec :schema MemoryAlias :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueAlias :index (0 1) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (MemoryAlias 0 1) :ver DELTA :prefix ())
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var w
+                      :sources (
+                        (column-source :index (MemoryAlias 0 1) :ver DELTA :prefix (z))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x y) :var-from-source ((x) (y))
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix (z))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix (w))
+                      ))
+                    (insert-into :schema ValueAlias :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule VA_VF_MA_VF_D2
+                  :sources (tuple
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema MemoryAlias :index (1 0) :ver FULL)
+                    (index-spec :schema MemoryAlias :index (1 0) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL)
+                    (index-spec :schema ValueFlow :index (0 1) :ver DELTA)
+                    (index-spec :schema ValueFlow :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema ValueAlias :index (0 1) :ver FULL))
+                    (column-join :var w
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix ())
+                        (column-source :index (MemoryAlias 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (MemoryAlias 1 0) :ver FULL :prefix (w))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (y x) :var-from-source ((y) (x))
+                      :sources (
+                        (column-source :index (ValueFlow 0 1) :ver DELTA :prefix (w))
+                        (column-source :index (ValueFlow 0 1) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema ValueAlias :ver NEW :dedup-index (0 1) :terms (x y))
+                )
+                (execute-pipeline :rule MA_Deref_VA_D1
+                  :sources (tuple
+                    (index-spec :schema ValueAlias :index (0 1) :ver DELTA)
+                    (index-spec :schema Deref :index (0 1) :ver FULL)
+                    (index-spec :schema ValueAlias :index (0 1) :ver DELTA)
+                    (index-spec :schema Deref :index (0 1) :ver FULL)
+                    (index-spec :schema Deref :index (0 1) :ver FULL)
+                    (index-spec :schema Deref :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema MemoryAlias :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (ValueAlias 0 1) :ver DELTA :prefix ())
+                        (column-source :index (Deref 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (ValueAlias 0 1) :ver DELTA :prefix (y))
+                        (column-source :index (Deref 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x w) :var-from-source ((x) (w))
+                      :sources (
+                        (column-source :index (Deref 0 1) :ver FULL :prefix (y))
+                        (column-source :index (Deref 0 1) :ver FULL :prefix (z))
+                      ))
+                    (insert-into :schema MemoryAlias :ver NEW :dedup-index (0 1) :terms (x w))
+                )
+            )
+            (rebuild-index :index (MemoryAlias 0 1) :ver NEW)
+            (clear-relation :schema MemoryAlias :ver DELTA)
+            (check-size :schema MemoryAlias :ver NEW)
+            (compute-delta-index :schema MemoryAlias :canonical-index (0 1))
+            (clear-relation :schema MemoryAlias :ver NEW)
+            (merge-index :index (MemoryAlias 0 1))
+            (rebuild-index-from-index :source (MemoryAlias 0 1) :target (MemoryAlias 1 0) :ver DELTA)
+            (merge-index :index (MemoryAlias 1 0))
+            (rebuild-index :index (ValueAlias 0 1) :ver NEW)
+            (clear-relation :schema ValueAlias :ver DELTA)
+            (check-size :schema ValueAlias :ver NEW)
+            (compute-delta-index :schema ValueAlias :canonical-index (0 1))
+            (clear-relation :schema ValueAlias :ver NEW)
+            (merge-index :index (ValueAlias 0 1))
+            (rebuild-index :index (ValueFlow 0 1) :ver NEW)
+            (clear-relation :schema ValueFlow :ver DELTA)
+            (check-size :schema ValueFlow :ver NEW)
+            (compute-delta-index :schema ValueFlow :canonical-index (0 1))
+            (clear-relation :schema ValueFlow :ver NEW)
+            (merge-index :index (ValueFlow 0 1))
+            (rebuild-index-from-index :source (ValueFlow 0 1) :target (ValueFlow 1 0) :ver DELTA)
+            (merge-index :index (ValueFlow 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel MemoryAlias :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ValueAlias :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ValueFlow :canonical-index (0 1))
+  )
+)

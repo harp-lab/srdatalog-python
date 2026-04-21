@@ -1,0 +1,170 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "ZRel"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "TriangleDebug",
+            "head": [
+              {
+                "rel": "ZRel",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RRel",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "SRel",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "TRel",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "TriangleDebug: (ZRel x y z) <-\n      (RRel x y),\n      (SRel y z),\n      (TRel z x)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "x",
+            "y",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "RRel",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "SRel",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "TRel",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "RRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "SRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "TRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "ZRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"ZRel\"]\n  (base-variant :name TriangleDebug\n  :var-order @[\"x\", \"y\", \"z\"]\n  :clause-order @[0, 1, 2]\n  :head (ZRel(x, y, z))\n  :body (RRel(x, y):@[0, 1] ⋈ SRel(y, z):@[0, 1] ⋈ TRel(z, x):@[1, 0])\n)\n)\n)"
+}

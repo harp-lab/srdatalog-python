@@ -1,0 +1,42 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule BodyConst
+                  :sources (tuple
+                    (index-spec :schema In :index (0 1 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema P :index (0) :ver FULL))
+                    (scan :vars (x _c0 _c1) :index (In 0 1 2) :ver FULL :prefix ())
+                    (filter :vars (_c0 _c1) :code "return _c0 == 42 && _c1 == 99;")
+                    (insert-into :schema P :ver NEW :dedup-index (0) :terms (x))
+                )
+                (execute-pipeline :rule HeadConst
+                  :sources (tuple
+                    (index-spec :schema In2 :index (0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Q :index (0 1) :ver FULL))
+                    (scan :vars (x) :index (In2 0) :ver FULL :prefix ())
+                    (constant-bind :var _hc0 :code "7" :deps ())
+                    (insert-into :schema Q :ver NEW :dedup-index (0 1) :terms (x _hc0))
+                )
+            )
+            (rebuild-index :index (P 0) :ver NEW)
+            (check-size :schema P :ver NEW)
+            (compute-delta-index :schema P :canonical-index (0))
+            (clear-relation :schema P :ver NEW)
+            (merge-index :index (P 0))
+            (rebuild-index :index (Q 0 1) :ver NEW)
+            (check-size :schema Q :ver NEW)
+            (compute-delta-index :schema Q :canonical-index (0 1))
+            (clear-relation :schema Q :ver NEW)
+            (merge-index :index (Q 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel P :canonical-index (0))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Q :canonical-index (0 1))
+  )
+)

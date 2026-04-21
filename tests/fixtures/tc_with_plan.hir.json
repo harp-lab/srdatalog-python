@@ -1,0 +1,286 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "P"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "Base",
+            "head": [
+              {
+                "rel": "P",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Seed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Base: (P x y) <-\n      (Seed x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "y",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "Seed",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 0,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": true,
+      "relations": [
+        "P"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "Compose",
+            "head": [
+              {
+                "rel": "P",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "P",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "P",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Compose: (P x z) <-\n      (P x y),\n      (P y z)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "x",
+            "y",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "P",
+              "version": "DELTA",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "P",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Compose",
+            "head": [
+              {
+                "rel": "P",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "P",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "P",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Compose: (P x z) <-\n      (P x y),\n      (P y z)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0
+          ],
+          "varOrder": [
+            "z",
+            "y",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "P",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "P",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    }
+  ],
+  "relations": {
+    "Seed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "P": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"P\"]\n  (base-variant :name Base\n  :var-order @[\"y\", \"x\"]\n  :clause-order @[0]\n  :head (P(x, y))\n  :body (Seed(x, y):@[1, 0])\n)\n)\n(stratum 1 recursive\n  :members @[\"P\"]\n  (recursive-variant :name Compose\n  :delta-at 0\n  :var-order @[\"x\", \"y\", \"z\"]\n  :clause-order @[0, 1]\n  :head (P(x, z))\n  :body (ΔP(x, y):@[0, 1] ⋈ P(y, z):@[0, 1])\n)\n  (recursive-variant :name Compose\n  :delta-at 1\n  :var-order @[\"z\", \"y\", \"x\"]\n  :clause-order @[1, 0]\n  :head (P(x, z))\n  :body (ΔP(y, z):@[1, 0] ⋈ P(x, y):@[1, 0])\n)\n)\n)"
+}

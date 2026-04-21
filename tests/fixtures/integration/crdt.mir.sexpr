@@ -1,0 +1,647 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule Insert
+                  :sources (tuple
+                    (index-spec :schema InsertInput :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Insert :index (2 3 0 1) :ver FULL))
+                    (scan :vars (a b c d) :index (InsertInput 0 1 2 3) :ver FULL :prefix ())
+                    (insert-into :schema Insert :ver NEW :dedup-index (2 3 0 1) :terms (a b c d))
+                )
+                (execute-pipeline :rule Remove
+                  :sources (tuple
+                    (index-spec :schema RemoveInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Remove :index (0 1) :ver FULL))
+                    (scan :vars (a b) :index (RemoveInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema Remove :ver NEW :dedup-index (0 1) :terms (a b))
+                )
+            )
+            (rebuild-index :index (Insert 2 3 0 1) :ver NEW)
+            (check-size :schema Insert :ver NEW)
+            (compute-delta-index :schema Insert :canonical-index (2 3 0 1))
+            (clear-relation :schema Insert :ver NEW)
+            (merge-index :index (Insert 2 3 0 1))
+            (rebuild-index-from-index :source (Insert 2 3 0 1) :target (Insert 0 1 2 3) :ver DELTA)
+            (merge-index :index (Insert 0 1 2 3))
+            (rebuild-index :index (Remove 0 1) :ver NEW)
+            (check-size :schema Remove :ver NEW)
+            (compute-delta-index :schema Remove :canonical-index (0 1))
+            (clear-relation :schema Remove :ver NEW)
+            (merge-index :index (Remove 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Insert :canonical-index (2 3 0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Remove :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule LaterChild
+              :sources (tuple
+                (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                (index-spec :schema Insert :index (2 3 0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema LaterChild :index (2 3 0 1) :ver FULL))
+                (column-join :var ParentCtr
+                  :sources (
+                    (column-source :index (Insert 2 3 0 1) :ver FULL :prefix ())
+                    (column-source :index (Insert 2 3 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var ParentN
+                  :sources (
+                    (column-source :index (Insert 2 3 0 1) :ver FULL :prefix (ParentCtr))
+                    (column-source :index (Insert 2 3 0 1) :ver FULL :prefix (ParentCtr))
+                  ))
+                (cartesian-join :vars (Ctr1 N1 Ctr2 N2) :var-from-source ((Ctr1 N1) (Ctr2 N2))
+                  :sources (
+                    (column-source :index (Insert 2 3 0 1) :ver FULL :prefix (ParentCtr ParentN))
+                    (column-source :index (Insert 2 3 0 1) :ver FULL :prefix (ParentCtr ParentN))
+                  ))
+                (filter :vars (Ctr1 N1 Ctr2 N2) :code "return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);")
+                (insert-into :schema LaterChild :ver NEW :dedup-index (2 3 0 1) :terms (ParentCtr ParentN Ctr2 N2))
+            )
+            (rebuild-index :index (LaterChild 2 3 0 1) :ver NEW)
+            (check-size :schema LaterChild :ver NEW)
+            (compute-delta-index :schema LaterChild :canonical-index (2 3 0 1))
+            (clear-relation :schema LaterChild :ver NEW)
+            (merge-index :index (LaterChild 2 3 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel LaterChild :canonical-index (2 3 0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule FirstChild
+                  :sources (tuple
+                    (index-spec :schema Insert :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema LaterChild :index (2 3 0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema FirstChild :index (0 1 2 3) :ver FULL))
+                    (scan :vars (ChildCtr ChildN ParentCtr ParentN) :index (Insert 0 1 2 3) :ver FULL :prefix ())
+                    (negation :schema LaterChild :ver FULL :index (LaterChild 2 3 0 1) :prefix (ChildCtr ChildN ParentCtr ParentN))
+                    (insert-into :schema FirstChild :ver NEW :dedup-index (0 1 2 3) :terms (ParentCtr ParentN ChildCtr ChildN))
+                )
+                (execute-pipeline :rule Sibling
+                  :sources (tuple
+                    (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema Insert :index (2 3 0 1) :ver FULL)
+                    (index-spec :schema Insert :index (2 3 0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Sibling :index (0 1 2 3) :ver FULL))
+                    (column-join :var ParentCtr
+                      :sources (
+                        (column-source :index (Insert 2 3 0 1) :ver FULL :prefix ())
+                        (column-source :index (Insert 2 3 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var ParentN
+                      :sources (
+                        (column-source :index (Insert 2 3 0 1) :ver FULL :prefix (ParentCtr))
+                        (column-source :index (Insert 2 3 0 1) :ver FULL :prefix (ParentCtr))
+                      ))
+                    (cartesian-join :vars (ChildCtr1 ChildN1 ChildCtr2 ChildN2) :var-from-source ((ChildCtr1 ChildN1) (ChildCtr2 ChildN2))
+                      :sources (
+                        (column-source :index (Insert 2 3 0 1) :ver FULL :prefix (ParentCtr ParentN))
+                        (column-source :index (Insert 2 3 0 1) :ver FULL :prefix (ParentCtr ParentN))
+                      ))
+                    (insert-into :schema Sibling :ver NEW :dedup-index (0 1 2 3) :terms (ChildCtr1 ChildN1 ChildCtr2 ChildN2))
+                )
+            )
+            (rebuild-index :index (FirstChild 0 1 2 3) :ver NEW)
+            (check-size :schema FirstChild :ver NEW)
+            (compute-delta-index :schema FirstChild :canonical-index (0 1 2 3))
+            (clear-relation :schema FirstChild :ver NEW)
+            (merge-index :index (FirstChild 0 1 2 3))
+            (rebuild-index :index (Sibling 0 1 2 3) :ver NEW)
+            (check-size :schema Sibling :ver NEW)
+            (compute-delta-index :schema Sibling :canonical-index (0 1 2 3))
+            (clear-relation :schema Sibling :ver NEW)
+            (merge-index :index (Sibling 0 1 2 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel FirstChild :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Sibling :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule LaterSibling
+                  :sources (tuple
+                    (index-spec :schema Sibling :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema LaterSibling :index (0 1 2 3) :ver FULL))
+                    (scan :vars (Ctr1 N1 Ctr2 N2) :index (Sibling 0 1 2 3) :ver FULL :prefix ())
+                    (filter :vars (Ctr1 N1 Ctr2 N2) :code "return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);")
+                    (insert-into :schema LaterSibling :ver NEW :dedup-index (0 1 2 3) :terms (Ctr1 N1 Ctr2 N2))
+                )
+                (execute-pipeline :rule LaterSibling2
+                  :sources (tuple
+                    (index-spec :schema Sibling :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema Sibling :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema Sibling :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema Sibling :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema Sibling :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema Sibling :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema LaterSibling2 :index (0 1 2 3) :ver FULL))
+                    (column-join :var Ctr1
+                      :sources (
+                        (column-source :index (Sibling 0 1 2 3) :ver FULL :prefix ())
+                        (column-source :index (Sibling 0 1 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var N1
+                      :sources (
+                        (column-source :index (Sibling 0 1 2 3) :ver FULL :prefix (Ctr1))
+                        (column-source :index (Sibling 0 1 2 3) :ver FULL :prefix (Ctr1))
+                      ))
+                    (cartesian-join :vars (Ctr2 N2 Ctr3 N3) :var-from-source ((Ctr2 N2) (Ctr3 N3))
+                      :sources (
+                        (column-source :index (Sibling 0 1 2 3) :ver FULL :prefix (Ctr1 N1))
+                        (column-source :index (Sibling 0 1 2 3) :ver FULL :prefix (Ctr1 N1))
+                      ))
+                    (filter :vars (Ctr1 N1 Ctr2 N2) :code "return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);")
+                    (filter :vars (Ctr2 N2 Ctr3 N3) :code "return (Ctr2 * 10 + N2) > (Ctr3 * 10 + N3);")
+                    (insert-into :schema LaterSibling2 :ver NEW :dedup-index (0 1 2 3) :terms (Ctr1 N1 Ctr3 N3))
+                )
+            )
+            (rebuild-index :index (LaterSibling 0 1 2 3) :ver NEW)
+            (check-size :schema LaterSibling :ver NEW)
+            (compute-delta-index :schema LaterSibling :canonical-index (0 1 2 3))
+            (clear-relation :schema LaterSibling :ver NEW)
+            (merge-index :index (LaterSibling 0 1 2 3))
+            (rebuild-index :index (LaterSibling2 0 1 2 3) :ver NEW)
+            (check-size :schema LaterSibling2 :ver NEW)
+            (compute-delta-index :schema LaterSibling2 :canonical-index (0 1 2 3))
+            (clear-relation :schema LaterSibling2 :ver NEW)
+            (merge-index :index (LaterSibling2 0 1 2 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel LaterSibling :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel LaterSibling2 :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule NextSibling
+                  :sources (tuple
+                    (index-spec :schema LaterSibling :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema LaterSibling2 :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema NextSibling :index (0 1 2 3) :ver FULL))
+                    (scan :vars (Ctr1 N1 Ctr2 N2) :index (LaterSibling 0 1 2 3) :ver FULL :prefix ())
+                    (negation :schema LaterSibling2 :ver FULL :index (LaterSibling2 0 1 2 3) :prefix (Ctr1 N1 Ctr2 N2))
+                    (insert-into :schema NextSibling :ver NEW :dedup-index (0 1 2 3) :terms (Ctr1 N1 Ctr2 N2))
+                )
+                (execute-pipeline :rule HasNextSibling
+                  :sources (tuple
+                    (index-spec :schema LaterSibling :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema HasNextSibling :index (0 1) :ver FULL))
+                    (scan :vars (SibCtr1 SibN1 _gen1 _gen2) :index (LaterSibling 0 1 2 3) :ver FULL :prefix ())
+                    (insert-into :schema HasNextSibling :ver NEW :dedup-index (0 1) :terms (SibCtr1 SibN1))
+                )
+            )
+            (rebuild-index :index (NextSibling 0 1 2 3) :ver NEW)
+            (check-size :schema NextSibling :ver NEW)
+            (compute-delta-index :schema NextSibling :canonical-index (0 1 2 3))
+            (clear-relation :schema NextSibling :ver NEW)
+            (merge-index :index (NextSibling 0 1 2 3))
+            (rebuild-index :index (HasNextSibling 0 1) :ver NEW)
+            (check-size :schema HasNextSibling :ver NEW)
+            (compute-delta-index :schema HasNextSibling :canonical-index (0 1))
+            (clear-relation :schema HasNextSibling :ver NEW)
+            (merge-index :index (HasNextSibling 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel NextSibling :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HasNextSibling :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule NotSiblingInsert
+              :sources (tuple
+                (index-spec :schema Insert :index (0 1 2 3) :ver FULL)
+                (index-spec :schema HasNextSibling :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema NotSiblingInsert :index (2 3 0 1) :ver FULL))
+                (scan :vars (Ctr1 N1 Ctr2 N2) :index (Insert 0 1 2 3) :ver FULL :prefix ())
+                (negation :schema HasNextSibling :ver FULL :index (HasNextSibling 0 1) :prefix (Ctr1 N1))
+                (insert-into :schema NotSiblingInsert :ver NEW :dedup-index (2 3 0 1) :terms (Ctr1 N1 Ctr2 N2))
+            )
+            (rebuild-index :index (NotSiblingInsert 2 3 0 1) :ver NEW)
+            (check-size :schema NotSiblingInsert :ver NEW)
+            (compute-delta-index :schema NotSiblingInsert :canonical-index (2 3 0 1))
+            (clear-relation :schema NotSiblingInsert :ver NEW)
+            (merge-index :index (NotSiblingInsert 2 3 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel NotSiblingInsert :canonical-index (2 3 0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule NextSiblingAnc1
+              :sources (tuple
+                (index-spec :schema NextSibling :index (0 1 2 3) :ver FULL))
+              :dests (tuple
+                (index-spec :schema NextSiblingAnc :index (0 1 2 3) :ver FULL))
+                (scan :vars (StartCtr StartN NextCtr NextN) :index (NextSibling 0 1 2 3) :ver FULL :prefix ())
+                (insert-into :schema NextSiblingAnc :ver NEW :dedup-index (0 1 2 3) :terms (StartCtr StartN NextCtr NextN))
+            )
+            (rebuild-index :index (NextSiblingAnc 0 1 2 3) :ver NEW)
+            (check-size :schema NextSiblingAnc :ver NEW)
+            (compute-delta-index :schema NextSiblingAnc :canonical-index (0 1 2 3))
+            (clear-relation :schema NextSiblingAnc :ver NEW)
+            (merge-index :index (NextSiblingAnc 0 1 2 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel NextSiblingAnc :canonical-index (0 1 2 3))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule NextSiblingAnc2_D0
+              :sources (tuple
+                (index-spec :schema NextSiblingAnc :index (0 1 2 3) :ver DELTA)
+                (index-spec :schema NotSiblingInsert :index (2 3 0 1) :ver FULL)
+                (index-spec :schema NextSiblingAnc :index (0 1 2 3) :ver DELTA)
+                (index-spec :schema NotSiblingInsert :index (2 3 0 1) :ver FULL)
+                (index-spec :schema NextSiblingAnc :index (0 1 2 3) :ver DELTA)
+                (index-spec :schema NotSiblingInsert :index (2 3 0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema NextSiblingAnc :index (0 1 2 3) :ver FULL))
+                (column-join :var ParentCtr
+                  :sources (
+                    (column-source :index (NextSiblingAnc 0 1 2 3) :ver DELTA :prefix ())
+                    (column-source :index (NotSiblingInsert 2 3 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var ParentN
+                  :sources (
+                    (column-source :index (NextSiblingAnc 0 1 2 3) :ver DELTA :prefix (ParentCtr))
+                    (column-source :index (NotSiblingInsert 2 3 0 1) :ver FULL :prefix (ParentCtr))
+                  ))
+                (cartesian-join :vars (NextCtr NextN StartCtr StartN) :var-from-source ((NextCtr NextN) (StartCtr StartN))
+                  :sources (
+                    (column-source :index (NextSiblingAnc 0 1 2 3) :ver DELTA :prefix (ParentCtr ParentN))
+                    (column-source :index (NotSiblingInsert 2 3 0 1) :ver FULL :prefix (ParentCtr ParentN))
+                  ))
+                (insert-into :schema NextSiblingAnc :ver NEW :dedup-index (0 1 2 3) :terms (StartCtr StartN NextCtr NextN))
+            )
+            (rebuild-index :index (NextSiblingAnc 0 1 2 3) :ver NEW)
+            (clear-relation :schema NextSiblingAnc :ver DELTA)
+            (check-size :schema NextSiblingAnc :ver NEW)
+            (compute-delta-index :schema NextSiblingAnc :canonical-index (0 1 2 3))
+            (clear-relation :schema NextSiblingAnc :ver NEW)
+            (merge-index :index (NextSiblingAnc 0 1 2 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel NextSiblingAnc :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule HasChild
+              :sources (tuple
+                (index-spec :schema Insert :index (0 1 2 3) :ver FULL))
+              :dests (tuple
+                (index-spec :schema HasChild :index (0 1) :ver FULL))
+                (scan :vars (_gen3 _gen4 ParentCtr ParentN) :index (Insert 0 1 2 3) :ver FULL :prefix ())
+                (insert-into :schema HasChild :ver NEW :dedup-index (0 1) :terms (ParentCtr ParentN))
+            )
+            (rebuild-index :index (HasChild 0 1) :ver NEW)
+            (check-size :schema HasChild :ver NEW)
+            (compute-delta-index :schema HasChild :canonical-index (0 1))
+            (clear-relation :schema HasChild :ver NEW)
+            (merge-index :index (HasChild 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HasChild :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 3 independent ops
+                (execute-pipeline :rule NextElem1
+                  :sources (tuple
+                    (index-spec :schema FirstChild :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema NextElem :index (0 1 2 3) :ver FULL))
+                    (scan :vars (PrevCtr PrevN NextCtr NextN) :index (FirstChild 0 1 2 3) :ver FULL :prefix ())
+                    (insert-into :schema NextElem :ver NEW :dedup-index (0 1 2 3) :terms (PrevCtr PrevN NextCtr NextN))
+                )
+                (execute-pipeline :rule NextElem2
+                  :sources (tuple
+                    (index-spec :schema NextSiblingAnc :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HasChild :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema NextElem :index (0 1 2 3) :ver FULL))
+                    (scan :vars (PrevCtr PrevN NextCtr NextN) :index (NextSiblingAnc 0 1 2 3) :ver FULL :prefix ())
+                    (negation :schema HasChild :ver FULL :index (HasChild 0 1) :prefix (PrevCtr PrevN))
+                    (insert-into :schema NextElem :ver NEW :dedup-index (0 1 2 3) :terms (PrevCtr PrevN NextCtr NextN))
+                )
+                (execute-pipeline :rule Assign
+                  :sources (tuple
+                    (index-spec :schema Insert :index (0 1 2 3) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema Assign :index (0 1 2 3 4) :ver FULL))
+                    (scan :vars (ctr n _gen5 _gen6) :index (Insert 0 1 2 3) :ver FULL :prefix ())
+                    (insert-into :schema Assign :ver NEW :dedup-index (0 1 2 3 4) :terms (ctr n ctr n n))
+                )
+            )
+            (rebuild-index :index (NextElem 0 1 2 3) :ver NEW)
+            (check-size :schema NextElem :ver NEW)
+            (compute-delta-index :schema NextElem :canonical-index (0 1 2 3))
+            (clear-relation :schema NextElem :ver NEW)
+            (merge-index :index (NextElem 0 1 2 3))
+            (rebuild-index :index (NextElem 0 1 2 3) :ver NEW)
+            (check-size :schema NextElem :ver NEW)
+            (compute-delta-index :schema NextElem :canonical-index (0 1 2 3))
+            (clear-relation :schema NextElem :ver NEW)
+            (merge-index :index (NextElem 0 1 2 3))
+            (rebuild-index :index (Assign 0 1 2 3 4) :ver NEW)
+            (check-size :schema Assign :ver NEW)
+            (compute-delta-index :schema Assign :canonical-index (0 1 2 3 4))
+            (clear-relation :schema Assign :ver NEW)
+            (merge-index :index (Assign 0 1 2 3 4))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel NextElem :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Assign :canonical-index (0 1 2 3 4))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule CurrentValue
+              :sources (tuple
+                (index-spec :schema Assign :index (0 1 2 3 4) :ver FULL)
+                (index-spec :schema Remove :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema CurrentValue :index (0 1 2) :ver FULL))
+                (scan :vars (IDCtr IDN ElemCtr ElemN Value) :index (Assign 0 1 2 3 4) :ver FULL :prefix ())
+                (negation :schema Remove :ver FULL :index (Remove 0 1) :prefix (IDCtr IDN))
+                (insert-into :schema CurrentValue :ver NEW :dedup-index (0 1 2) :terms (ElemCtr ElemN Value))
+            )
+            (rebuild-index :index (CurrentValue 0 1 2) :ver NEW)
+            (check-size :schema CurrentValue :ver NEW)
+            (compute-delta-index :schema CurrentValue :canonical-index (0 1 2))
+            (clear-relation :schema CurrentValue :ver NEW)
+            (merge-index :index (CurrentValue 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel CurrentValue :canonical-index (0 1 2))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule HasValue
+              :sources (tuple
+                (index-spec :schema CurrentValue :index (0 1 2) :ver FULL))
+              :dests (tuple
+                (index-spec :schema HasValue :index (0 1) :ver FULL))
+                (scan :vars (ElemCtr ElemN _gen7) :index (CurrentValue 0 1 2) :ver FULL :prefix ())
+                (insert-into :schema HasValue :ver NEW :dedup-index (0 1) :terms (ElemCtr ElemN))
+            )
+            (rebuild-index :index (HasValue 0 1) :ver NEW)
+            (check-size :schema HasValue :ver NEW)
+            (compute-delta-index :schema HasValue :canonical-index (0 1))
+            (clear-relation :schema HasValue :ver NEW)
+            (merge-index :index (HasValue 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel HasValue :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule NotHasValueNextElem
+              :sources (tuple
+                (index-spec :schema NextElem :index (0 1 2 3) :ver FULL)
+                (index-spec :schema HasValue :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema NotHasValueNextElem :index (2 3 0 1) :ver FULL))
+                (scan :vars (Ctr1 N1 Ctr2 N2) :index (NextElem 0 1 2 3) :ver FULL :prefix ())
+                (negation :schema HasValue :ver FULL :index (HasValue 0 1) :prefix (Ctr2 N2))
+                (insert-into :schema NotHasValueNextElem :ver NEW :dedup-index (2 3 0 1) :terms (Ctr1 N1 Ctr2 N2))
+            )
+            (rebuild-index :index (NotHasValueNextElem 2 3 0 1) :ver NEW)
+            (check-size :schema NotHasValueNextElem :ver NEW)
+            (compute-delta-index :schema NotHasValueNextElem :canonical-index (2 3 0 1))
+            (clear-relation :schema NotHasValueNextElem :ver NEW)
+            (merge-index :index (NotHasValueNextElem 2 3 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel NotHasValueNextElem :canonical-index (2 3 0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule SkipBlank1
+              :sources (tuple
+                (index-spec :schema NextElem :index (0 1 2 3) :ver FULL))
+              :dests (tuple
+                (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL))
+                (scan :vars (FromCtr FromN ToCtr ToN) :index (NextElem 0 1 2 3) :ver FULL :prefix ())
+                (insert-into :schema SkipBlank :ver NEW :dedup-index (0 1 2 3) :terms (FromCtr FromN ToCtr ToN))
+            )
+            (rebuild-index :index (SkipBlank 0 1 2 3) :ver NEW)
+            (check-size :schema SkipBlank :ver NEW)
+            (compute-delta-index :schema SkipBlank :canonical-index (0 1 2 3))
+            (clear-relation :schema SkipBlank :ver NEW)
+            (merge-index :index (SkipBlank 0 1 2 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel SkipBlank :canonical-index (0 1 2 3))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule SkipBlank2_D0
+              :sources (tuple
+                (index-spec :schema SkipBlank :index (0 1 2 3) :ver DELTA)
+                (index-spec :schema NotHasValueNextElem :index (2 3 0 1) :ver FULL)
+                (index-spec :schema SkipBlank :index (0 1 2 3) :ver DELTA)
+                (index-spec :schema NotHasValueNextElem :index (2 3 0 1) :ver FULL)
+                (index-spec :schema SkipBlank :index (0 1 2 3) :ver DELTA)
+                (index-spec :schema NotHasValueNextElem :index (2 3 0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL))
+                (column-join :var ViaCtr
+                  :sources (
+                    (column-source :index (SkipBlank 0 1 2 3) :ver DELTA :prefix ())
+                    (column-source :index (NotHasValueNextElem 2 3 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var ViaN
+                  :sources (
+                    (column-source :index (SkipBlank 0 1 2 3) :ver DELTA :prefix (ViaCtr))
+                    (column-source :index (NotHasValueNextElem 2 3 0 1) :ver FULL :prefix (ViaCtr))
+                  ))
+                (cartesian-join :vars (ToCtr ToN FromCtr FromN) :var-from-source ((ToCtr ToN) (FromCtr FromN))
+                  :sources (
+                    (column-source :index (SkipBlank 0 1 2 3) :ver DELTA :prefix (ViaCtr ViaN))
+                    (column-source :index (NotHasValueNextElem 2 3 0 1) :ver FULL :prefix (ViaCtr ViaN))
+                  ))
+                (insert-into :schema SkipBlank :ver NEW :dedup-index (0 1 2 3) :terms (FromCtr FromN ToCtr ToN))
+            )
+            (inject-cpp-hook :rule SkipBlank2 :code "...")
+            (rebuild-index :index (SkipBlank 0 1 2 3) :ver NEW)
+            (clear-relation :schema SkipBlank :ver DELTA)
+            (check-size :schema SkipBlank :ver NEW)
+            (compute-delta-index :schema SkipBlank :canonical-index (0 1 2 3))
+            (clear-relation :schema SkipBlank :ver NEW)
+            (merge-index :index (SkipBlank 0 1 2 3))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel SkipBlank :canonical-index (0 1 2 3))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule NextVisible1
+                  :sources (tuple
+                    (index-spec :schema HasValue :index (0 1) :ver FULL)
+                    (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HasValue :index (0 1) :ver FULL)
+                    (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HasValue :index (0 1) :ver FULL)
+                    (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HasValue :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema NextVisible :index (2 3 0 1) :ver FULL))
+                    (column-join :var PrevCtr
+                      :sources (
+                        (column-source :index (HasValue 0 1) :ver FULL :prefix ())
+                        (column-source :index (SkipBlank 0 1 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var PrevN
+                      :sources (
+                        (column-source :index (HasValue 0 1) :ver FULL :prefix (PrevCtr))
+                        (column-source :index (SkipBlank 0 1 2 3) :ver FULL :prefix (PrevCtr))
+                      ))
+                    (column-join :var NextCtr
+                      :sources (
+                        (column-source :index (SkipBlank 0 1 2 3) :ver FULL :prefix (PrevCtr PrevN))
+                        (column-source :index (HasValue 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var NextN
+                      :sources (
+                        (column-source :index (SkipBlank 0 1 2 3) :ver FULL :prefix (PrevCtr PrevN NextCtr))
+                        (column-source :index (HasValue 0 1) :ver FULL :prefix (NextCtr))
+                      ))
+                    (insert-into :schema NextVisible :ver NEW :dedup-index (2 3 0 1) :terms (PrevCtr PrevN NextCtr NextN))
+                )
+                (execute-pipeline :rule NextVisible2
+                  :sources (tuple
+                    (index-spec :schema HasValue :index (0 1) :ver FULL)
+                    (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HasValue :index (0 1) :ver FULL)
+                    (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HasValue :index (0 1) :ver FULL)
+                    (index-spec :schema SkipBlank :index (0 1 2 3) :ver FULL)
+                    (index-spec :schema HasValue :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema NextVisible :index (2 3 0 1) :ver FULL))
+                    (column-join :var PrevCtr
+                      :sources (
+                        (column-source :index (HasValue 0 1) :ver FULL :prefix ())
+                        (column-source :index (SkipBlank 0 1 2 3) :ver FULL :prefix ())
+                      ))
+                    (column-join :var PrevN
+                      :sources (
+                        (column-source :index (HasValue 0 1) :ver FULL :prefix (PrevCtr))
+                        (column-source :index (SkipBlank 0 1 2 3) :ver FULL :prefix (PrevCtr))
+                      ))
+                    (column-join :var NextCtr
+                      :sources (
+                        (column-source :index (SkipBlank 0 1 2 3) :ver FULL :prefix (PrevCtr PrevN))
+                        (column-source :index (HasValue 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var NextN
+                      :sources (
+                        (column-source :index (SkipBlank 0 1 2 3) :ver FULL :prefix (PrevCtr PrevN NextCtr))
+                        (column-source :index (HasValue 0 1) :ver FULL :prefix (NextCtr))
+                      ))
+                    (insert-into :schema NextVisible :ver NEW :dedup-index (2 3 0 1) :terms (PrevCtr PrevN NextCtr NextN))
+                )
+            )
+            (rebuild-index :index (NextVisible 2 3 0 1) :ver NEW)
+            (check-size :schema NextVisible :ver NEW)
+            (compute-delta-index :schema NextVisible :canonical-index (2 3 0 1))
+            (clear-relation :schema NextVisible :ver NEW)
+            (merge-index :index (NextVisible 2 3 0 1))
+            (rebuild-index :index (NextVisible 2 3 0 1) :ver NEW)
+            (check-size :schema NextVisible :ver NEW)
+            (compute-delta-index :schema NextVisible :canonical-index (2 3 0 1))
+            (clear-relation :schema NextVisible :ver NEW)
+            (merge-index :index (NextVisible 2 3 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel NextVisible :canonical-index (2 3 0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule Result
+              :sources (tuple
+                (index-spec :schema NextVisible :index (2 3 0 1) :ver FULL)
+                (index-spec :schema CurrentValue :index (0 1 2) :ver FULL)
+                (index-spec :schema NextVisible :index (2 3 0 1) :ver FULL)
+                (index-spec :schema CurrentValue :index (0 1 2) :ver FULL)
+                (index-spec :schema NextVisible :index (2 3 0 1) :ver FULL)
+                (index-spec :schema CurrentValue :index (0 1 2) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Result :index (0 1 2) :ver FULL))
+                (column-join :var ctr2
+                  :sources (
+                    (column-source :index (NextVisible 2 3 0 1) :ver FULL :prefix ())
+                    (column-source :index (CurrentValue 0 1 2) :ver FULL :prefix ())
+                  ))
+                (column-join :var N2
+                  :sources (
+                    (column-source :index (NextVisible 2 3 0 1) :ver FULL :prefix (ctr2))
+                    (column-source :index (CurrentValue 0 1 2) :ver FULL :prefix (ctr2))
+                  ))
+                (cartesian-join :vars (ctr1 _gen8 value) :var-from-source ((ctr1 _gen8) (value))
+                  :sources (
+                    (column-source :index (NextVisible 2 3 0 1) :ver FULL :prefix (ctr2 N2))
+                    (column-source :index (CurrentValue 0 1 2) :ver FULL :prefix (ctr2 N2))
+                  ))
+                (insert-into :schema Result :ver NEW :dedup-index (0 1 2) :terms (ctr1 ctr2 value))
+            )
+            (rebuild-index :index (Result 0 1 2) :ver NEW)
+            (check-size :schema Result :ver NEW)
+            (compute-delta-index :schema Result :canonical-index (0 1 2))
+            (clear-relation :schema Result :ver NEW)
+            (merge-index :index (Result 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Result :canonical-index (0 1 2))
+  )
+)

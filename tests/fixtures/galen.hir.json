@@ -1,0 +1,1534 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "OutP",
+        "OutQ"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "LoadP",
+            "head": [
+              {
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "PInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LoadP: (OutP x z) <-\n      (PInput x z)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "PInput",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "z"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "LoadQ",
+            "head": [
+              {
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "QInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LoadQ: (OutQ x r z) <-\n      (QInput x r z)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "r",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "QInput",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "r",
+                "z"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": true,
+      "relations": [
+        "OutP",
+        "OutQ"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "TC",
+            "head": [
+              {
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "TC: (OutP x z) <-\n      (OutP x y),\n      (OutP y z)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "y",
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "OutP",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "OutP",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "TC",
+            "head": [
+              {
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "TC: (OutP x z) <-\n      (OutP x y),\n      (OutP y z)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0
+          ],
+          "varOrder": [
+            "y",
+            "z",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "OutP",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "OutP",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "PropQ",
+            "head": [
+              {
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "PropQ: (OutQ x r z) <-\n      (OutP x y),\n      (OutQ y r z)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "y",
+            "x",
+            "r",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "OutP",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "OutQ",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "r",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "PropQ",
+            "head": [
+              {
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "PropQ: (OutQ x r z) <-\n      (OutP x y),\n      (OutQ y r z)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0
+          ],
+          "varOrder": [
+            "y",
+            "r",
+            "z",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "OutP",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "OutQ",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "r",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Join3a",
+            "head": [
+              {
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "UInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Join3a: (OutP x z) <-\n      (OutP y w),\n      (UInput w r z),\n      (OutQ x r y)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "y",
+            "w",
+            "r",
+            "z",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "OutP",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "w"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "UInput",
+              "version": "FULL",
+              "accessOrder": [
+                "w",
+                "r",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "OutQ",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "r",
+                "x"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Join3a",
+            "head": [
+              {
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "UInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Join3a: (OutP x z) <-\n      (OutP y w),\n      (UInput w r z),\n      (OutQ x r y)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            0,
+            1
+          ],
+          "varOrder": [
+            "y",
+            "w",
+            "r",
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "OutP",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "w"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "UInput",
+              "version": "FULL",
+              "accessOrder": [
+                "w",
+                "r",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "OutQ",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "r",
+                "x"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Join3b",
+            "head": [
+              {
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "CInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Join3b: (OutP x z) <-\n      (CInput y w z),\n      (OutP x w),\n      (OutP x y)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0,
+            2
+          ],
+          "varOrder": [
+            "x",
+            "w",
+            "y",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "CInput",
+              "version": "FULL",
+              "accessOrder": [
+                "w",
+                "y",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "OutP",
+              "version": "DELTA",
+              "accessOrder": [
+                "x",
+                "w"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "OutP",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Join3b",
+            "head": [
+              {
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "CInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "w"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutP",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Join3b: (OutP x z) <-\n      (CInput y w z),\n      (OutP x w),\n      (OutP x y)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            0,
+            1
+          ],
+          "varOrder": [
+            "x",
+            "y",
+            "w",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "CInput",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "w",
+                "z"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "OutP",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "w"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "OutP",
+              "version": "DELTA",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "PropQS",
+            "head": [
+              {
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "q"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "SInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "r"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "q"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "PropQS: (OutQ x q z) <-\n      (OutQ x r z),\n      (SInput r q)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "r",
+            "x",
+            "z",
+            "q"
+          ],
+          "joins": [
+            {
+              "rel": "OutQ",
+              "version": "DELTA",
+              "accessOrder": [
+                "r",
+                "x",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "SInput",
+              "version": "FULL",
+              "accessOrder": [
+                "r",
+                "q"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Join3c",
+            "head": [
+              {
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "e"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "o"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "u"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "e"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "u"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "o"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Join3c: (OutQ x e o) <-\n      (OutQ x y z),\n      (RInput y u e),\n      (OutQ z u o)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "z",
+            "y",
+            "u",
+            "x",
+            "e",
+            "o"
+          ],
+          "joins": [
+            {
+              "rel": "OutQ",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "y",
+                "x"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RInput",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "u",
+                "e"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "OutQ",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "u",
+                "o"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Join3c",
+            "head": [
+              {
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "e"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "o"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "u"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "e"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "OutQ",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "u"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "o"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Join3c: (OutQ x e o) <-\n      (OutQ x y z),\n      (RInput y u e),\n      (OutQ z u o)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            0,
+            1
+          ],
+          "varOrder": [
+            "z",
+            "u",
+            "y",
+            "o",
+            "x",
+            "e"
+          ],
+          "joins": [
+            {
+              "rel": "OutQ",
+              "version": "FULL",
+              "accessOrder": [
+                "z",
+                "y",
+                "x"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RInput",
+              "version": "FULL",
+              "accessOrder": [
+                "u",
+                "y",
+                "e"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0,
+                2
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "OutQ",
+              "version": "DELTA",
+              "accessOrder": [
+                "z",
+                "u",
+                "o"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ]
+    }
+  ],
+  "relations": {
+    "PInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "QInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "CInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "UInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "SInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "OutP": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "OutQ": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"OutP\", \"OutQ\"]\n  (base-variant :name LoadP\n  :var-order @[\"x\", \"z\"]\n  :clause-order @[0]\n  :head (OutP(x, z))\n  :body (PInput(x, z):@[0, 1])\n)\n  (base-variant :name LoadQ\n  :var-order @[\"x\", \"r\", \"z\"]\n  :clause-order @[0]\n  :head (OutQ(x, r, z))\n  :body (QInput(x, r, z):@[0, 1, 2])\n)\n)\n(stratum 1 recursive\n  :members @[\"OutP\", \"OutQ\"]\n  (recursive-variant :name TC\n  :delta-at 0\n  :var-order @[\"y\", \"x\", \"z\"]\n  :clause-order @[0, 1]\n  :head (OutP(x, z))\n  :body (ΔOutP(x, y):@[1, 0] ⋈ OutP(y, z):@[0, 1])\n)\n  (recursive-variant :name TC\n  :delta-at 1\n  :var-order @[\"y\", \"z\", \"x\"]\n  :clause-order @[1, 0]\n  :head (OutP(x, z))\n  :body (ΔOutP(y, z):@[0, 1] ⋈ OutP(x, y):@[1, 0])\n)\n  (recursive-variant :name PropQ\n  :delta-at 0\n  :var-order @[\"y\", \"x\", \"r\", \"z\"]\n  :clause-order @[0, 1]\n  :head (OutQ(x, r, z))\n  :body (ΔOutP(x, y):@[1, 0] ⋈ OutQ(y, r, z):@[0, 1, 2])\n)\n  (recursive-variant :name PropQ\n  :delta-at 1\n  :var-order @[\"y\", \"r\", \"z\", \"x\"]\n  :clause-order @[1, 0]\n  :head (OutQ(x, r, z))\n  :body (ΔOutQ(y, r, z):@[0, 1, 2] ⋈ OutP(x, y):@[1, 0])\n)\n  (recursive-variant :name Join3a\n  :delta-at 0\n  :var-order @[\"y\", \"w\", \"r\", \"z\", \"x\"]\n  :clause-order @[0, 1, 2]\n  :head (OutP(x, z))\n  :body (ΔOutP(y, w):@[0, 1] ⋈ UInput(w, r, z):@[0, 1, 2] ⋈ OutQ(x, r, y):@[2, 1, 0])\n)\n  (recursive-variant :name Join3a\n  :delta-at 2\n  :var-order @[\"y\", \"w\", \"r\", \"x\", \"z\"]\n  :clause-order @[2, 0, 1]\n  :head (OutP(x, z))\n  :body (ΔOutQ(x, r, y):@[2, 1, 0] ⋈ OutP(y, w):@[0, 1] ⋈ UInput(w, r, z):@[0, 1, 2])\n)\n  (recursive-variant :name Join3b\n  :delta-at 1\n  :var-order @[\"x\", \"w\", \"y\", \"z\"]\n  :clause-order @[1, 0, 2]\n  :head (OutP(x, z))\n  :body (ΔOutP(x, w):@[0, 1] ⋈ CInput(y, w, z):@[1, 0, 2] ⋈ OutP(x, y):@[0, 1])\n)\n  (recursive-variant :name Join3b\n  :delta-at 2\n  :var-order @[\"x\", \"y\", \"w\", \"z\"]\n  :clause-order @[2, 0, 1]\n  :head (OutP(x, z))\n  :body (ΔOutP(x, y):@[0, 1] ⋈ CInput(y, w, z):@[0, 1, 2] ⋈ OutP(x, w):@[0, 1])\n)\n  (recursive-variant :name PropQS\n  :delta-at 0\n  :var-order @[\"r\", \"x\", \"z\", \"q\"]\n  :clause-order @[0, 1]\n  :head (OutQ(x, q, z))\n  :body (ΔOutQ(x, r, z):@[1, 0, 2] ⋈ SInput(r, q):@[0, 1])\n)\n  (recursive-variant :name Join3c\n  :delta-at 0\n  :var-order @[\"z\", \"y\", \"u\", \"x\", \"e\", \"o\"]\n  :clause-order @[0, 1, 2]\n  :head (OutQ(x, e, o))\n  :body (ΔOutQ(x, y, z):@[2, 1, 0] ⋈ RInput(y, u, e):@[0, 1, 2] ⋈ OutQ(z, u, o):@[0, 1, 2])\n)\n  (recursive-variant :name Join3c\n  :delta-at 2\n  :var-order @[\"z\", \"u\", \"y\", \"o\", \"x\", \"e\"]\n  :clause-order @[2, 0, 1]\n  :head (OutQ(x, e, o))\n  :body (ΔOutQ(z, u, o):@[0, 1, 2] ⋈ OutQ(x, y, z):@[2, 1, 0] ⋈ RInput(y, u, e):@[1, 0, 2])\n)\n)\n)"
+}

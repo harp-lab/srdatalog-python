@@ -1,0 +1,379 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule LoadP
+                  :sources (tuple
+                    (index-spec :schema PInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutP :index (0 1) :ver FULL))
+                    (scan :vars (x z) :index (PInput 0 1) :ver FULL :prefix ())
+                    (insert-into :schema OutP :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule LoadQ
+                  :sources (tuple
+                    (index-spec :schema QInput :index (0 1 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL))
+                    (scan :vars (x r z) :index (QInput 0 1 2) :ver FULL :prefix ())
+                    (insert-into :schema OutQ :ver NEW :dedup-index (0 1 2) :terms (x r z))
+                )
+            )
+            (rebuild-index :index (OutP 0 1) :ver NEW)
+            (check-size :schema OutP :ver NEW)
+            (compute-delta-index :schema OutP :canonical-index (0 1))
+            (clear-relation :schema OutP :ver NEW)
+            (merge-index :index (OutP 0 1))
+            (rebuild-index-from-index :source (OutP 0 1) :target (OutP 1 0) :ver DELTA)
+            (merge-index :index (OutP 1 0))
+            (rebuild-index :index (OutQ 0 1 2) :ver NEW)
+            (check-size :schema OutQ :ver NEW)
+            (compute-delta-index :schema OutQ :canonical-index (0 1 2))
+            (clear-relation :schema OutQ :ver NEW)
+            (merge-index :index (OutQ 0 1 2))
+            (rebuild-index-from-index :source (OutQ 0 1 2) :target (OutQ 1 0 2) :ver DELTA)
+            (merge-index :index (OutQ 1 0 2))
+            (rebuild-index-from-index :source (OutQ 0 1 2) :target (OutQ 2 1 0) :ver DELTA)
+            (merge-index :index (OutQ 2 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel OutP :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel OutQ :canonical-index (0 1 2))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 11 independent ops
+                (execute-pipeline :rule TC_D0
+                  :sources (tuple
+                    (index-spec :schema OutP :index (1 0) :ver DELTA)
+                    (index-spec :schema OutP :index (0 1) :ver FULL)
+                    (index-spec :schema OutP :index (1 0) :ver DELTA)
+                    (index-spec :schema OutP :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutP :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutP 1 0) :ver DELTA :prefix ())
+                        (column-source :index (OutP 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x z) :var-from-source ((x) (z))
+                      :sources (
+                        (column-source :index (OutP 1 0) :ver DELTA :prefix (y))
+                        (column-source :index (OutP 0 1) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema OutP :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule TC_D1
+                  :sources (tuple
+                    (index-spec :schema OutP :index (0 1) :ver DELTA)
+                    (index-spec :schema OutP :index (1 0) :ver FULL)
+                    (index-spec :schema OutP :index (0 1) :ver DELTA)
+                    (index-spec :schema OutP :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutP :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver DELTA :prefix ())
+                        (column-source :index (OutP 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (z x) :var-from-source ((z) (x))
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver DELTA :prefix (y))
+                        (column-source :index (OutP 1 0) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema OutP :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule PropQ_D0
+                  :sources (tuple
+                    (index-spec :schema OutP :index (1 0) :ver DELTA)
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutP :index (1 0) :ver DELTA)
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutP 1 0) :ver DELTA :prefix ())
+                        (column-source :index (OutQ 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x r z) :var-from-source ((x) (r z))
+                      :sources (
+                        (column-source :index (OutP 1 0) :ver DELTA :prefix (y))
+                        (column-source :index (OutQ 0 1 2) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema OutQ :ver NEW :dedup-index (0 1 2) :terms (x r z))
+                )
+                (execute-pipeline :rule PropQ_D1
+                  :sources (tuple
+                    (index-spec :schema OutQ :index (0 1 2) :ver DELTA)
+                    (index-spec :schema OutP :index (1 0) :ver FULL)
+                    (index-spec :schema OutQ :index (0 1 2) :ver DELTA)
+                    (index-spec :schema OutP :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutQ 0 1 2) :ver DELTA :prefix ())
+                        (column-source :index (OutP 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (r z x) :var-from-source ((r z) (x))
+                      :sources (
+                        (column-source :index (OutQ 0 1 2) :ver DELTA :prefix (y))
+                        (column-source :index (OutP 1 0) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema OutQ :ver NEW :dedup-index (0 1 2) :terms (x r z))
+                )
+                (execute-pipeline :rule Join3a_D0
+                  :sources (tuple
+                    (index-spec :schema OutP :index (0 1) :ver DELTA)
+                    (index-spec :schema OutQ :index (2 1 0) :ver FULL)
+                    (index-spec :schema OutP :index (0 1) :ver DELTA)
+                    (index-spec :schema UInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema UInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutQ :index (2 1 0) :ver FULL)
+                    (index-spec :schema UInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutQ :index (2 1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutP :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver DELTA :prefix ())
+                        (column-source :index (OutQ 2 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var w
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver DELTA :prefix (y))
+                        (column-source :index (UInput 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var r
+                      :sources (
+                        (column-source :index (UInput 0 1 2) :ver FULL :prefix (w))
+                        (column-source :index (OutQ 2 1 0) :ver FULL :prefix (y))
+                      ))
+                    (cartesian-join :vars (z x) :var-from-source ((z) (x))
+                      :sources (
+                        (column-source :index (UInput 0 1 2) :ver FULL :prefix (w r))
+                        (column-source :index (OutQ 2 1 0) :ver FULL :prefix (y r))
+                      ))
+                    (insert-into :schema OutP :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule Join3a_D2
+                  :sources (tuple
+                    (index-spec :schema OutQ :index (2 1 0) :ver DELTA)
+                    (index-spec :schema OutP :index (0 1) :ver FULL)
+                    (index-spec :schema OutP :index (0 1) :ver FULL)
+                    (index-spec :schema UInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutQ :index (2 1 0) :ver DELTA)
+                    (index-spec :schema UInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutQ :index (2 1 0) :ver DELTA)
+                    (index-spec :schema UInput :index (0 1 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutP :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutQ 2 1 0) :ver DELTA :prefix ())
+                        (column-source :index (OutP 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var w
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver FULL :prefix (y))
+                        (column-source :index (UInput 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var r
+                      :sources (
+                        (column-source :index (OutQ 2 1 0) :ver DELTA :prefix (y))
+                        (column-source :index (UInput 0 1 2) :ver FULL :prefix (w))
+                      ))
+                    (cartesian-join :vars (x z) :var-from-source ((x) (z))
+                      :sources (
+                        (column-source :index (OutQ 2 1 0) :ver DELTA :prefix (y r))
+                        (column-source :index (UInput 0 1 2) :ver FULL :prefix (w r))
+                      ))
+                    (insert-into :schema OutP :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule Join3b_D1
+                  :sources (tuple
+                    (index-spec :schema OutP :index (0 1) :ver DELTA)
+                    (index-spec :schema OutP :index (0 1) :ver FULL)
+                    (index-spec :schema OutP :index (0 1) :ver DELTA)
+                    (index-spec :schema CInput :index (1 0 2) :ver FULL)
+                    (index-spec :schema CInput :index (1 0 2) :ver FULL)
+                    (index-spec :schema OutP :index (0 1) :ver FULL)
+                    (index-spec :schema CInput :index (1 0 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutP :index (0 1) :ver FULL))
+                    (column-join :var x
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver DELTA :prefix ())
+                        (column-source :index (OutP 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var w
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver DELTA :prefix (x))
+                        (column-source :index (CInput 1 0 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (CInput 1 0 2) :ver FULL :prefix (w))
+                        (column-source :index (OutP 0 1) :ver FULL :prefix (x))
+                      ))
+                    (cartesian-join :vars (z) :var-from-source ((z))
+                      :sources (
+                        (column-source :index (CInput 1 0 2) :ver FULL :prefix (w y))
+                      ))
+                    (insert-into :schema OutP :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule Join3b_D2
+                  :sources (tuple
+                    (index-spec :schema OutP :index (0 1) :ver DELTA)
+                    (index-spec :schema OutP :index (0 1) :ver FULL)
+                    (index-spec :schema OutP :index (0 1) :ver DELTA)
+                    (index-spec :schema CInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema CInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutP :index (0 1) :ver FULL)
+                    (index-spec :schema CInput :index (0 1 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutP :index (0 1) :ver FULL))
+                    (column-join :var x
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver DELTA :prefix ())
+                        (column-source :index (OutP 0 1) :ver FULL :prefix ())
+                      ))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutP 0 1) :ver DELTA :prefix (x))
+                        (column-source :index (CInput 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var w
+                      :sources (
+                        (column-source :index (CInput 0 1 2) :ver FULL :prefix (y))
+                        (column-source :index (OutP 0 1) :ver FULL :prefix (x))
+                      ))
+                    (cartesian-join :vars (z) :var-from-source ((z))
+                      :sources (
+                        (column-source :index (CInput 0 1 2) :ver FULL :prefix (y w))
+                      ))
+                    (insert-into :schema OutP :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule PropQS_D0
+                  :sources (tuple
+                    (index-spec :schema OutQ :index (1 0 2) :ver DELTA)
+                    (index-spec :schema SInput :index (0 1) :ver FULL)
+                    (index-spec :schema OutQ :index (1 0 2) :ver DELTA)
+                    (index-spec :schema SInput :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL))
+                    (column-join :var r
+                      :sources (
+                        (column-source :index (OutQ 1 0 2) :ver DELTA :prefix ())
+                        (column-source :index (SInput 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x z q) :var-from-source ((x z) (q))
+                      :sources (
+                        (column-source :index (OutQ 1 0 2) :ver DELTA :prefix (r))
+                        (column-source :index (SInput 0 1) :ver FULL :prefix (r))
+                      ))
+                    (insert-into :schema OutQ :ver NEW :dedup-index (0 1 2) :terms (x q z))
+                )
+                (execute-pipeline :rule Join3c_D0
+                  :sources (tuple
+                    (index-spec :schema OutQ :index (2 1 0) :ver DELTA)
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutQ :index (2 1 0) :ver DELTA)
+                    (index-spec :schema RInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema RInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutQ :index (2 1 0) :ver DELTA)
+                    (index-spec :schema RInput :index (0 1 2) :ver FULL)
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (OutQ 2 1 0) :ver DELTA :prefix ())
+                        (column-source :index (OutQ 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutQ 2 1 0) :ver DELTA :prefix (z))
+                        (column-source :index (RInput 0 1 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var u
+                      :sources (
+                        (column-source :index (RInput 0 1 2) :ver FULL :prefix (y))
+                        (column-source :index (OutQ 0 1 2) :ver FULL :prefix (z))
+                      ))
+                    (cartesian-join :vars (x e o) :var-from-source ((x) (e) (o))
+                      :sources (
+                        (column-source :index (OutQ 2 1 0) :ver DELTA :prefix (z y))
+                        (column-source :index (RInput 0 1 2) :ver FULL :prefix (y u))
+                        (column-source :index (OutQ 0 1 2) :ver FULL :prefix (z u))
+                      ))
+                    (insert-into :schema OutQ :ver NEW :dedup-index (0 1 2) :terms (x e o))
+                )
+                (execute-pipeline :rule Join3c_D2
+                  :sources (tuple
+                    (index-spec :schema OutQ :index (0 1 2) :ver DELTA)
+                    (index-spec :schema OutQ :index (2 1 0) :ver FULL)
+                    (index-spec :schema OutQ :index (0 1 2) :ver DELTA)
+                    (index-spec :schema RInput :index (1 0 2) :ver FULL)
+                    (index-spec :schema OutQ :index (2 1 0) :ver FULL)
+                    (index-spec :schema RInput :index (1 0 2) :ver FULL)
+                    (index-spec :schema OutQ :index (0 1 2) :ver DELTA)
+                    (index-spec :schema OutQ :index (2 1 0) :ver FULL)
+                    (index-spec :schema RInput :index (1 0 2) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema OutQ :index (0 1 2) :ver FULL))
+                    (column-join :var z
+                      :sources (
+                        (column-source :index (OutQ 0 1 2) :ver DELTA :prefix ())
+                        (column-source :index (OutQ 2 1 0) :ver FULL :prefix ())
+                      ))
+                    (column-join :var u
+                      :sources (
+                        (column-source :index (OutQ 0 1 2) :ver DELTA :prefix (z))
+                        (column-source :index (RInput 1 0 2) :ver FULL :prefix ())
+                      ))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (OutQ 2 1 0) :ver FULL :prefix (z))
+                        (column-source :index (RInput 1 0 2) :ver FULL :prefix (u))
+                      ))
+                    (cartesian-join :vars (o x e) :var-from-source ((o) (x) (e))
+                      :sources (
+                        (column-source :index (OutQ 0 1 2) :ver DELTA :prefix (z u))
+                        (column-source :index (OutQ 2 1 0) :ver FULL :prefix (z y))
+                        (column-source :index (RInput 1 0 2) :ver FULL :prefix (u y))
+                      ))
+                    (insert-into :schema OutQ :ver NEW :dedup-index (0 1 2) :terms (x e o))
+                )
+            )
+            (rebuild-index :index (OutP 0 1) :ver NEW)
+            (clear-relation :schema OutP :ver DELTA)
+            (check-size :schema OutP :ver NEW)
+            (compute-delta-index :schema OutP :canonical-index (0 1))
+            (clear-relation :schema OutP :ver NEW)
+            (merge-index :index (OutP 0 1))
+            (rebuild-index-from-index :source (OutP 0 1) :target (OutP 1 0) :ver DELTA)
+            (merge-index :index (OutP 1 0))
+            (rebuild-index :index (OutQ 0 1 2) :ver NEW)
+            (clear-relation :schema OutQ :ver DELTA)
+            (check-size :schema OutQ :ver NEW)
+            (compute-delta-index :schema OutQ :canonical-index (0 1 2))
+            (clear-relation :schema OutQ :ver NEW)
+            (merge-index :index (OutQ 0 1 2))
+            (rebuild-index-from-index :source (OutQ 0 1 2) :target (OutQ 1 0 2) :ver DELTA)
+            (rebuild-index-from-index :source (OutQ 0 1 2) :target (OutQ 2 1 0) :ver DELTA)
+            (merge-index :index (OutQ 2 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel OutP :canonical-index (0 1))
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel OutQ :canonical-index (0 1 2))
+  )
+)

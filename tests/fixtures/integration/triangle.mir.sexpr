@@ -1,0 +1,48 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule Triangle
+              :sources (tuple
+                (index-spec :schema RRel :index (0 1) :ver FULL)
+                (index-spec :schema TRel :index (1 0 2) :ver FULL)
+                (index-spec :schema RRel :index (0 1) :ver FULL)
+                (index-spec :schema SRel :index (0 1 2) :ver FULL)
+                (index-spec :schema SRel :index (0 1 2) :ver FULL)
+                (index-spec :schema TRel :index (1 0 2) :ver FULL)
+                (index-spec :schema SRel :index (0 1 2) :ver FULL)
+                (index-spec :schema TRel :index (1 0 2) :ver FULL))
+              :dests (tuple
+                (index-spec :schema ZRel :index (0 1 2) :ver FULL))
+                (column-join :var x
+                  :sources (
+                    (column-source :index (RRel 0 1) :ver FULL :prefix ())
+                    (column-source :index (TRel 1 0 2) :ver FULL :prefix ())
+                  ))
+                (column-join :var y
+                  :sources (
+                    (column-source :index (RRel 0 1) :ver FULL :prefix (x))
+                    (column-source :index (SRel 0 1 2) :ver FULL :prefix ())
+                  ))
+                (column-join :var z
+                  :sources (
+                    (column-source :index (SRel 0 1 2) :ver FULL :prefix (y))
+                    (column-source :index (TRel 1 0 2) :ver FULL :prefix (x))
+                  ))
+                (cartesian-join :vars (h f) :var-from-source ((h) (f))
+                  :sources (
+                    (column-source :index (SRel 0 1 2) :ver FULL :prefix (y z))
+                    (column-source :index (TRel 1 0 2) :ver FULL :prefix (x z))
+                  ))
+                (insert-into :schema ZRel :ver NEW :dedup-index (0 1 2) :terms (x y z))
+            )
+            (rebuild-index :index (ZRel 0 1 2) :ver NEW)
+            (check-size :schema ZRel :ver NEW)
+            (compute-delta-index :schema ZRel :canonical-index (0 1 2))
+            (clear-relation :schema ZRel :ver NEW)
+            (merge-index :index (ZRel 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel ZRel :canonical-index (0 1 2))
+  )
+)

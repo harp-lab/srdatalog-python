@@ -1,0 +1,81 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule Base
+              :sources (tuple
+                (index-spec :schema Seed :index (1 0) :ver FULL))
+              :dests (tuple
+                (index-spec :schema P :index (0 1) :ver FULL))
+                (scan :vars (y x) :index (Seed 1 0) :ver FULL :prefix ())
+                (insert-into :schema P :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (P 0 1) :ver NEW)
+            (check-size :schema P :ver NEW)
+            (compute-delta-index :schema P :canonical-index (0 1))
+            (clear-relation :schema P :ver NEW)
+            (merge-index :index (P 0 1))
+            (rebuild-index-from-index :source (P 0 1) :target (P 1 0) :ver DELTA)
+            (merge-index :index (P 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel P :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (parallel-group  ;; 2 independent ops
+                (execute-pipeline :rule Compose_D0
+                  :sources (tuple
+                    (index-spec :schema P :index (0 1) :ver DELTA)
+                    (index-spec :schema P :index (0 1) :ver FULL)
+                    (index-spec :schema P :index (0 1) :ver DELTA)
+                    (index-spec :schema P :index (0 1) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema P :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (P 0 1) :ver DELTA :prefix ())
+                        (column-source :index (P 0 1) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (x z) :var-from-source ((x) (z))
+                      :sources (
+                        (column-source :index (P 0 1) :ver DELTA :prefix (y))
+                        (column-source :index (P 0 1) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema P :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+                (execute-pipeline :rule Compose_D1
+                  :sources (tuple
+                    (index-spec :schema P :index (1 0) :ver DELTA)
+                    (index-spec :schema P :index (1 0) :ver FULL)
+                    (index-spec :schema P :index (1 0) :ver DELTA)
+                    (index-spec :schema P :index (1 0) :ver FULL))
+                  :dests (tuple
+                    (index-spec :schema P :index (0 1) :ver FULL))
+                    (column-join :var y
+                      :sources (
+                        (column-source :index (P 1 0) :ver DELTA :prefix ())
+                        (column-source :index (P 1 0) :ver FULL :prefix ())
+                      ))
+                    (cartesian-join :vars (z x) :var-from-source ((z) (x))
+                      :sources (
+                        (column-source :index (P 1 0) :ver DELTA :prefix (y))
+                        (column-source :index (P 1 0) :ver FULL :prefix (y))
+                      ))
+                    (insert-into :schema P :ver NEW :dedup-index (0 1) :terms (x z))
+                )
+            )
+            (rebuild-index :index (P 0 1) :ver NEW)
+            (clear-relation :schema P :ver DELTA)
+            (check-size :schema P :ver NEW)
+            (compute-delta-index :schema P :canonical-index (0 1))
+            (clear-relation :schema P :ver NEW)
+            (merge-index :index (P 0 1))
+            (rebuild-index-from-index :source (P 0 1) :target (P 1 0) :ver DELTA)
+            (merge-index :index (P 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel P :canonical-index (0 1))
+  )
+)

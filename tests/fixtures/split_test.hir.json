@@ -1,0 +1,169 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Q"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "SplitTest",
+            "head": [
+              {
+                "rel": "Q",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "A",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "B",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "split"
+              },
+              {
+                "kind": "relation",
+                "rel": "C",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "SplitTest: (Q x z) <-\n      (A x y),\n      (NOT (B y)),\n      ---,\n      (C x z)",
+          "clauseOrder": [
+            0,
+            3,
+            1,
+            2
+          ],
+          "varOrder": [
+            "x",
+            "y",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "A",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "C",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 3
+            }
+          ],
+          "negations": [
+            {
+              "rel": "B",
+              "version": "FULL",
+              "accessOrder": [
+                "y"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "A": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "B": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "C": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Q": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "_temp_SplitTest": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Q\"]\n  (base-variant :name SplitTest\n  :var-order @[\"x\", \"y\", \"z\"]\n  :clause-order @[0, 3, 1, 2]\n  :head (Q(x, z))\n  :body (A(x, y):@[0, 1] ⋈ C(x, z):@[0, 1] ⋈ ~B(y) ⋈ ---)\n)\n)\n)"
+}

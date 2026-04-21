@@ -1,0 +1,2904 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Insert",
+        "Remove"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "Insert",
+            "head": [
+              {
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "a"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "b"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "InsertInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "a"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "b"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "d"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Insert: (Insert a b c d) <-\n      (InsertInput a b c d)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "a",
+            "b",
+            "c",
+            "d"
+          ],
+          "joins": [
+            {
+              "rel": "InsertInput",
+              "version": "FULL",
+              "accessOrder": [
+                "a",
+                "b",
+                "c",
+                "d"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Remove",
+            "head": [
+              {
+                "rel": "Remove",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "a"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "b"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RemoveInput",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "a"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "b"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Remove: (Remove a b) <-\n      (RemoveInput a b)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "a",
+            "b"
+          ],
+          "joins": [
+            {
+              "rel": "RemoveInput",
+              "version": "FULL",
+              "accessOrder": [
+                "a",
+                "b"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "LaterChild"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "LaterChild",
+            "head": [
+              {
+                "rel": "LaterChild",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);"
+              }
+            ]
+          },
+          "hirText": "LaterChild: (LaterChild ParentCtr ParentN Ctr2 N2) <-\n      (Insert Ctr1 N1 ParentCtr ParentN),\n      (Insert Ctr2 N2 ParentCtr ParentN),\n      (FILTER return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "ParentCtr",
+            "ParentN",
+            "Ctr1",
+            "N1",
+            "Ctr2",
+            "N2"
+          ],
+          "joins": [
+            {
+              "rel": "Insert",
+              "version": "FULL",
+              "accessOrder": [
+                "ParentCtr",
+                "ParentN",
+                "Ctr1",
+                "N1"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                3,
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Insert",
+              "version": "FULL",
+              "accessOrder": [
+                "ParentCtr",
+                "ParentN",
+                "Ctr2",
+                "N2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                3,
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 2,
+      "isRecursive": false,
+      "relations": [
+        "FirstChild",
+        "Sibling"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "FirstChild",
+            "head": [
+              {
+                "rel": "FirstChild",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ChildCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "LaterChild",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "FirstChild: (FirstChild ParentCtr ParentN ChildCtr ChildN) <-\n      (Insert ChildCtr ChildN ParentCtr ParentN),\n      (NOT (LaterChild ParentCtr ParentN ChildCtr ChildN))",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "ChildCtr",
+            "ChildN",
+            "ParentCtr",
+            "ParentN"
+          ],
+          "joins": [
+            {
+              "rel": "Insert",
+              "version": "FULL",
+              "accessOrder": [
+                "ChildCtr",
+                "ChildN",
+                "ParentCtr",
+                "ParentN"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": [
+            {
+              "rel": "LaterChild",
+              "version": "FULL",
+              "accessOrder": [
+                "ChildCtr",
+                "ChildN",
+                "ParentCtr",
+                "ParentN"
+              ],
+              "prefixLen": 4,
+              "index": [
+                2,
+                3,
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        },
+        {
+          "rule": {
+            "name": "Sibling",
+            "head": [
+              {
+                "rel": "Sibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ChildCtr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildN1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildCtr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildN2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ChildCtr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildN1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ChildCtr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ChildN2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Sibling: (Sibling ChildCtr1 ChildN1 ChildCtr2 ChildN2) <-\n      (Insert ChildCtr1 ChildN1 ParentCtr ParentN),\n      (Insert ChildCtr2 ChildN2 ParentCtr ParentN)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "ParentCtr",
+            "ParentN",
+            "ChildCtr1",
+            "ChildN1",
+            "ChildCtr2",
+            "ChildN2"
+          ],
+          "joins": [
+            {
+              "rel": "Insert",
+              "version": "FULL",
+              "accessOrder": [
+                "ParentCtr",
+                "ParentN",
+                "ChildCtr1",
+                "ChildN1"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                3,
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Insert",
+              "version": "FULL",
+              "accessOrder": [
+                "ParentCtr",
+                "ParentN",
+                "ChildCtr2",
+                "ChildN2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                3,
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 3,
+      "isRecursive": false,
+      "relations": [
+        "LaterSibling",
+        "LaterSibling2"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "LaterSibling",
+            "head": [
+              {
+                "rel": "LaterSibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Sibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);"
+              }
+            ]
+          },
+          "hirText": "LaterSibling: (LaterSibling Ctr1 N1 Ctr2 N2) <-\n      (Sibling Ctr1 N1 Ctr2 N2),\n      (FILTER return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "Ctr1",
+            "N1",
+            "Ctr2",
+            "N2"
+          ],
+          "joins": [
+            {
+              "rel": "Sibling",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr1",
+                "N1",
+                "Ctr2",
+                "N2"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "LaterSibling2",
+            "head": [
+              {
+                "rel": "LaterSibling2",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N3"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Sibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Sibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N3"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);"
+              },
+              {
+                "kind": "filter",
+                "code": "return (Ctr2 * 10 + N2) > (Ctr3 * 10 + N3);"
+              }
+            ]
+          },
+          "hirText": "LaterSibling2: (LaterSibling2 Ctr1 N1 Ctr3 N3) <-\n      (Sibling Ctr1 N1 Ctr2 N2),\n      (Sibling Ctr1 N1 Ctr3 N3),\n      (FILTER return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);),\n      (FILTER return (Ctr2 * 10 + N2) > (Ctr3 * 10 + N3);)",
+          "clauseOrder": [
+            0,
+            2,
+            1,
+            3
+          ],
+          "varOrder": [
+            "Ctr1",
+            "N1",
+            "Ctr2",
+            "N2",
+            "Ctr3",
+            "N3"
+          ],
+          "joins": [
+            {
+              "rel": "Sibling",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr1",
+                "N1",
+                "Ctr2",
+                "N2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "Sibling",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr1",
+                "N1",
+                "Ctr3",
+                "N3"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 4,
+      "isRecursive": false,
+      "relations": [
+        "HasNextSibling",
+        "NextSibling"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "NextSibling",
+            "head": [
+              {
+                "rel": "NextSibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "LaterSibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "LaterSibling2",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NextSibling: (NextSibling Ctr1 N1 Ctr2 N2) <-\n      (LaterSibling Ctr1 N1 Ctr2 N2),\n      (NOT (LaterSibling2 Ctr1 N1 Ctr2 N2))",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "Ctr1",
+            "N1",
+            "Ctr2",
+            "N2"
+          ],
+          "joins": [
+            {
+              "rel": "LaterSibling",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr1",
+                "N1",
+                "Ctr2",
+                "N2"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": [
+            {
+              "rel": "LaterSibling2",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr1",
+                "N1",
+                "Ctr2",
+                "N2"
+              ],
+              "prefixLen": 4,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        },
+        {
+          "rule": {
+            "name": "HasNextSibling",
+            "head": [
+              {
+                "rel": "HasNextSibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "SibCtr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "SibN1"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "LaterSibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "SibCtr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "SibN1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "HasNextSibling: (HasNextSibling SibCtr1 SibN1) <-\n      (LaterSibling SibCtr1 SibN1 _gen1 _gen2)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "SibCtr1",
+            "SibN1",
+            "_gen1",
+            "_gen2"
+          ],
+          "joins": [
+            {
+              "rel": "LaterSibling",
+              "version": "FULL",
+              "accessOrder": [
+                "SibCtr1",
+                "SibN1",
+                "_gen1",
+                "_gen2"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 5,
+      "isRecursive": false,
+      "relations": [
+        "NotSiblingInsert"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "NotSiblingInsert",
+            "head": [
+              {
+                "rel": "NotSiblingInsert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "HasNextSibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NotSiblingInsert: (NotSiblingInsert Ctr1 N1 Ctr2 N2) <-\n      (Insert Ctr1 N1 Ctr2 N2),\n      (NOT (HasNextSibling Ctr1 N1))",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "Ctr1",
+            "N1",
+            "Ctr2",
+            "N2"
+          ],
+          "joins": [
+            {
+              "rel": "Insert",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr1",
+                "N1",
+                "Ctr2",
+                "N2"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": [
+            {
+              "rel": "HasNextSibling",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr1",
+                "N1"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 6,
+      "isRecursive": false,
+      "relations": [
+        "NextSiblingAnc"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "NextSiblingAnc1",
+            "head": [
+              {
+                "rel": "NextSiblingAnc",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "StartCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "StartN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "NextSibling",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "StartCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "StartN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NextSiblingAnc1: (NextSiblingAnc StartCtr StartN NextCtr NextN) <-\n      (NextSibling StartCtr StartN NextCtr NextN)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "StartCtr",
+            "StartN",
+            "NextCtr",
+            "NextN"
+          ],
+          "joins": [
+            {
+              "rel": "NextSibling",
+              "version": "FULL",
+              "accessOrder": [
+                "StartCtr",
+                "StartN",
+                "NextCtr",
+                "NextN"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 7,
+      "isRecursive": true,
+      "relations": [
+        "NextSiblingAnc"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "NextSiblingAnc2",
+            "head": [
+              {
+                "rel": "NextSiblingAnc",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "StartCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "StartN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "NextSiblingAnc",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "NotSiblingInsert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "StartCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "StartN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NextSiblingAnc2: (NextSiblingAnc StartCtr StartN NextCtr NextN) <-\n      (NextSiblingAnc ParentCtr ParentN NextCtr NextN),\n      (NotSiblingInsert StartCtr StartN ParentCtr ParentN)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "ParentCtr",
+            "ParentN",
+            "NextCtr",
+            "NextN",
+            "StartCtr",
+            "StartN"
+          ],
+          "joins": [
+            {
+              "rel": "NextSiblingAnc",
+              "version": "DELTA",
+              "accessOrder": [
+                "ParentCtr",
+                "ParentN",
+                "NextCtr",
+                "NextN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "NotSiblingInsert",
+              "version": "FULL",
+              "accessOrder": [
+                "ParentCtr",
+                "ParentN",
+                "StartCtr",
+                "StartN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                3,
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "isRecursive": false,
+      "relations": [
+        "HasChild"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "HasChild",
+            "head": [
+              {
+                "rel": "HasChild",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen4"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ParentN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "HasChild: (HasChild ParentCtr ParentN) <-\n      (Insert _gen3 _gen4 ParentCtr ParentN)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "_gen3",
+            "_gen4",
+            "ParentCtr",
+            "ParentN"
+          ],
+          "joins": [
+            {
+              "rel": "Insert",
+              "version": "FULL",
+              "accessOrder": [
+                "_gen3",
+                "_gen4",
+                "ParentCtr",
+                "ParentN"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 9,
+      "isRecursive": false,
+      "relations": [
+        "Assign",
+        "NextElem"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "NextElem1",
+            "head": [
+              {
+                "rel": "NextElem",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "FirstChild",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NextElem1: (NextElem PrevCtr PrevN NextCtr NextN) <-\n      (FirstChild PrevCtr PrevN NextCtr NextN)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "PrevCtr",
+            "PrevN",
+            "NextCtr",
+            "NextN"
+          ],
+          "joins": [
+            {
+              "rel": "FirstChild",
+              "version": "FULL",
+              "accessOrder": [
+                "PrevCtr",
+                "PrevN",
+                "NextCtr",
+                "NextN"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "NextElem2",
+            "head": [
+              {
+                "rel": "NextElem",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "NextSiblingAnc",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "HasChild",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NextElem2: (NextElem PrevCtr PrevN NextCtr NextN) <-\n      (NextSiblingAnc PrevCtr PrevN NextCtr NextN),\n      (NOT (HasChild PrevCtr PrevN))",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "PrevCtr",
+            "PrevN",
+            "NextCtr",
+            "NextN"
+          ],
+          "joins": [
+            {
+              "rel": "NextSiblingAnc",
+              "version": "FULL",
+              "accessOrder": [
+                "PrevCtr",
+                "PrevN",
+                "NextCtr",
+                "NextN"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": [
+            {
+              "rel": "HasChild",
+              "version": "FULL",
+              "accessOrder": [
+                "PrevCtr",
+                "PrevN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        },
+        {
+          "rule": {
+            "name": "Assign",
+            "head": [
+              {
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ctr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "n"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ctr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "n"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "n"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Insert",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ctr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "n"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen5"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen6"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Assign: (Assign ctr n ctr n n) <-\n      (Insert ctr n _gen5 _gen6)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "ctr",
+            "n",
+            "_gen5",
+            "_gen6"
+          ],
+          "joins": [
+            {
+              "rel": "Insert",
+              "version": "FULL",
+              "accessOrder": [
+                "ctr",
+                "n",
+                "_gen5",
+                "_gen6"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 10,
+      "isRecursive": false,
+      "relations": [
+        "CurrentValue"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "CurrentValue",
+            "head": [
+              {
+                "rel": "CurrentValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ElemCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ElemN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Value"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Assign",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "IDCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "IDN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ElemCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ElemN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Value"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "Remove",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "IDCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "IDN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "CurrentValue: (CurrentValue ElemCtr ElemN Value) <-\n      (Assign IDCtr IDN ElemCtr ElemN Value),\n      (NOT (Remove IDCtr IDN))",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "IDCtr",
+            "IDN",
+            "ElemCtr",
+            "ElemN",
+            "Value"
+          ],
+          "joins": [
+            {
+              "rel": "Assign",
+              "version": "FULL",
+              "accessOrder": [
+                "IDCtr",
+                "IDN",
+                "ElemCtr",
+                "ElemN",
+                "Value"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3,
+                4
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": [
+            {
+              "rel": "Remove",
+              "version": "FULL",
+              "accessOrder": [
+                "IDCtr",
+                "IDN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 11,
+      "isRecursive": false,
+      "relations": [
+        "HasValue"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "HasValue",
+            "head": [
+              {
+                "rel": "HasValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ElemCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ElemN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "CurrentValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ElemCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ElemN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen7"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "HasValue: (HasValue ElemCtr ElemN) <-\n      (CurrentValue ElemCtr ElemN _gen7)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "ElemCtr",
+            "ElemN",
+            "_gen7"
+          ],
+          "joins": [
+            {
+              "rel": "CurrentValue",
+              "version": "FULL",
+              "accessOrder": [
+                "ElemCtr",
+                "ElemN",
+                "_gen7"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 12,
+      "isRecursive": false,
+      "relations": [
+        "NotHasValueNextElem"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "NotHasValueNextElem",
+            "head": [
+              {
+                "rel": "NotHasValueNextElem",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "NextElem",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "HasValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "Ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NotHasValueNextElem: (NotHasValueNextElem Ctr1 N1 Ctr2 N2) <-\n      (NextElem Ctr1 N1 Ctr2 N2),\n      (NOT (HasValue Ctr2 N2))",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "Ctr1",
+            "N1",
+            "Ctr2",
+            "N2"
+          ],
+          "joins": [
+            {
+              "rel": "NextElem",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr1",
+                "N1",
+                "Ctr2",
+                "N2"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": [
+            {
+              "rel": "HasValue",
+              "version": "FULL",
+              "accessOrder": [
+                "Ctr2",
+                "N2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 13,
+      "isRecursive": false,
+      "relations": [
+        "SkipBlank"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "SkipBlank1",
+            "head": [
+              {
+                "rel": "SkipBlank",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "FromCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "FromN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ToCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ToN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "NextElem",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "FromCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "FromN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ToCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ToN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "SkipBlank1: (SkipBlank FromCtr FromN ToCtr ToN) <-\n      (NextElem FromCtr FromN ToCtr ToN)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "FromCtr",
+            "FromN",
+            "ToCtr",
+            "ToN"
+          ],
+          "joins": [
+            {
+              "rel": "NextElem",
+              "version": "FULL",
+              "accessOrder": [
+                "FromCtr",
+                "FromN",
+                "ToCtr",
+                "ToN"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 14,
+      "isRecursive": true,
+      "relations": [
+        "SkipBlank"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "SkipBlank2",
+            "head": [
+              {
+                "rel": "SkipBlank",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "FromCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "FromN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ToCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ToN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "SkipBlank",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ViaCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ViaN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ToCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ToN"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "NotHasValueNextElem",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "FromCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "FromN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ViaCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ViaN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "SkipBlank2: (SkipBlank FromCtr FromN ToCtr ToN) <-\n      (SkipBlank ViaCtr ViaN ToCtr ToN),\n      (NotHasValueNextElem FromCtr FromN ViaCtr ViaN)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "ViaCtr",
+            "ViaN",
+            "ToCtr",
+            "ToN",
+            "FromCtr",
+            "FromN"
+          ],
+          "joins": [
+            {
+              "rel": "SkipBlank",
+              "version": "DELTA",
+              "accessOrder": [
+                "ViaCtr",
+                "ViaN",
+                "ToCtr",
+                "ToN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "NotHasValueNextElem",
+              "version": "FULL",
+              "accessOrder": [
+                "ViaCtr",
+                "ViaN",
+                "FromCtr",
+                "FromN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                3,
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "isRecursive": false,
+      "relations": [
+        "NextVisible"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "NextVisible1",
+            "head": [
+              {
+                "rel": "NextVisible",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "HasValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "SkipBlank",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "HasValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NextVisible1: (NextVisible PrevCtr PrevN NextCtr NextN) <-\n      (HasValue PrevCtr PrevN),\n      (SkipBlank PrevCtr PrevN NextCtr NextN),\n      (HasValue NextCtr NextN)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "PrevCtr",
+            "PrevN",
+            "NextCtr",
+            "NextN"
+          ],
+          "joins": [
+            {
+              "rel": "HasValue",
+              "version": "FULL",
+              "accessOrder": [
+                "PrevCtr",
+                "PrevN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "SkipBlank",
+              "version": "FULL",
+              "accessOrder": [
+                "PrevCtr",
+                "PrevN",
+                "NextCtr",
+                "NextN"
+              ],
+              "prefixLen": 4,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "HasValue",
+              "version": "FULL",
+              "accessOrder": [
+                "NextCtr",
+                "NextN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "NextVisible2",
+            "head": [
+              {
+                "rel": "NextVisible",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "HasValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "SkipBlank",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "PrevCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "PrevN"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "HasValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "NextCtr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "NextN"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "NextVisible2: (NextVisible PrevCtr PrevN NextCtr NextN) <-\n      (HasValue PrevCtr PrevN),\n      (SkipBlank PrevCtr PrevN NextCtr NextN),\n      (HasValue NextCtr NextN)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "PrevCtr",
+            "PrevN",
+            "NextCtr",
+            "NextN"
+          ],
+          "joins": [
+            {
+              "rel": "HasValue",
+              "version": "FULL",
+              "accessOrder": [
+                "PrevCtr",
+                "PrevN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "SkipBlank",
+              "version": "FULL",
+              "accessOrder": [
+                "PrevCtr",
+                "PrevN",
+                "NextCtr",
+                "NextN"
+              ],
+              "prefixLen": 4,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "HasValue",
+              "version": "FULL",
+              "accessOrder": [
+                "NextCtr",
+                "NextN"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 16,
+      "isRecursive": false,
+      "relations": [
+        "Result"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "Result",
+            "head": [
+              {
+                "rel": "Result",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "value"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "NextVisible",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ctr1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen8"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "CurrentValue",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ctr2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "N2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "value"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Result: (Result ctr1 ctr2 value) <-\n      (NextVisible ctr1 _gen8 ctr2 N2),\n      (CurrentValue ctr2 N2 value)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "ctr2",
+            "N2",
+            "ctr1",
+            "_gen8",
+            "value"
+          ],
+          "joins": [
+            {
+              "rel": "NextVisible",
+              "version": "FULL",
+              "accessOrder": [
+                "ctr2",
+                "N2",
+                "ctr1",
+                "_gen8"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                3,
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "CurrentValue",
+              "version": "FULL",
+              "accessOrder": [
+                "ctr2",
+                "N2",
+                "value"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "InsertInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RemoveInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Insert": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Remove": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Assign": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "HasChild": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "LaterChild": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "FirstChild": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Sibling": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "LaterSibling": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "LaterSibling2": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "NextSibling": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "HasNextSibling": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "NotSiblingInsert": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "NextSiblingAnc": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "NextElem": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "NotHasValueNextElem": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "CurrentValue": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "HasValue": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "SkipBlank": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "NextVisible": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Result": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Insert\", \"Remove\"]\n  (base-variant :name Insert\n  :var-order @[\"a\", \"b\", \"c\", \"d\"]\n  :clause-order @[0]\n  :head (Insert(a, b, c, d))\n  :body (InsertInput(a, b, c, d):@[0, 1, 2, 3])\n)\n  (base-variant :name Remove\n  :var-order @[\"a\", \"b\"]\n  :clause-order @[0]\n  :head (Remove(a, b))\n  :body (RemoveInput(a, b):@[0, 1])\n)\n)\n(stratum 1 simple\n  :members @[\"LaterChild\"]\n  (base-variant :name LaterChild\n  :var-order @[\"ParentCtr\", \"ParentN\", \"Ctr1\", \"N1\", \"Ctr2\", \"N2\"]\n  :clause-order @[0, 1, 2]\n  :head (LaterChild(ParentCtr, ParentN, Ctr2, N2))\n  :body (Insert(Ctr1, N1, ParentCtr, ParentN):@[2, 3, 0, 1] ⋈ Insert(Ctr2, N2, ParentCtr, ParentN):@[2, 3, 0, 1] ⋈ (filter((Ctr1, N1, Ctr2, N2)) {.cpp: \"return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);\" .}))\n)\n)\n(stratum 2 simple\n  :members @[\"FirstChild\", \"Sibling\"]\n  (base-variant :name FirstChild\n  :var-order @[\"ChildCtr\", \"ChildN\", \"ParentCtr\", \"ParentN\"]\n  :clause-order @[0, 1]\n  :head (FirstChild(ParentCtr, ParentN, ChildCtr, ChildN))\n  :body (Insert(ChildCtr, ChildN, ParentCtr, ParentN):@[0, 1, 2, 3] ⋈ ~LaterChild(ParentCtr, ParentN, ChildCtr, ChildN))\n)\n  (base-variant :name Sibling\n  :var-order @[\"ParentCtr\", \"ParentN\", \"ChildCtr1\", \"ChildN1\", \"ChildCtr2\", \"ChildN2\"]\n  :clause-order @[0, 1]\n  :head (Sibling(ChildCtr1, ChildN1, ChildCtr2, ChildN2))\n  :body (Insert(ChildCtr1, ChildN1, ParentCtr, ParentN):@[2, 3, 0, 1] ⋈ Insert(ChildCtr2, ChildN2, ParentCtr, ParentN):@[2, 3, 0, 1])\n)\n)\n(stratum 3 simple\n  :members @[\"LaterSibling\", \"LaterSibling2\"]\n  (base-variant :name LaterSibling\n  :var-order @[\"Ctr1\", \"N1\", \"Ctr2\", \"N2\"]\n  :clause-order @[0, 1]\n  :head (LaterSibling(Ctr1, N1, Ctr2, N2))\n  :body (Sibling(Ctr1, N1, Ctr2, N2):@[0, 1, 2, 3] ⋈ (filter((Ctr1, N1, Ctr2, N2)) {.cpp: \"return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);\" .}))\n)\n  (base-variant :name LaterSibling2\n  :var-order @[\"Ctr1\", \"N1\", \"Ctr2\", \"N2\", \"Ctr3\", \"N3\"]\n  :clause-order @[0, 2, 1, 3]\n  :head (LaterSibling2(Ctr1, N1, Ctr3, N3))\n  :body (Sibling(Ctr1, N1, Ctr2, N2):@[0, 1, 2, 3] ⋈ (filter((Ctr1, N1, Ctr2, N2)) {.cpp: \"return (Ctr1 * 10 + N1) > (Ctr2 * 10 + N2);\" .}) ⋈ Sibling(Ctr1, N1, Ctr3, N3):@[0, 1, 2, 3] ⋈ (filter((Ctr2, N2, Ctr3, N3)) {.cpp: \"return (Ctr2 * 10 + N2) > (Ctr3 * 10 + N3);\" .}))\n)\n)\n(stratum 4 simple\n  :members @[\"HasNextSibling\", \"NextSibling\"]\n  (base-variant :name NextSibling\n  :var-order @[\"Ctr1\", \"N1\", \"Ctr2\", \"N2\"]\n  :clause-order @[0, 1]\n  :head (NextSibling(Ctr1, N1, Ctr2, N2))\n  :body (LaterSibling(Ctr1, N1, Ctr2, N2):@[0, 1, 2, 3] ⋈ ~LaterSibling2(Ctr1, N1, Ctr2, N2))\n)\n  (base-variant :name HasNextSibling\n  :var-order @[\"SibCtr1\", \"SibN1\", \"_gen1\", \"_gen2\"]\n  :clause-order @[0]\n  :head (HasNextSibling(SibCtr1, SibN1))\n  :body (LaterSibling(SibCtr1, SibN1, _gen1, _gen2):@[0, 1, 2, 3])\n)\n)\n(stratum 5 simple\n  :members @[\"NotSiblingInsert\"]\n  (base-variant :name NotSiblingInsert\n  :var-order @[\"Ctr1\", \"N1\", \"Ctr2\", \"N2\"]\n  :clause-order @[0, 1]\n  :head (NotSiblingInsert(Ctr1, N1, Ctr2, N2))\n  :body (Insert(Ctr1, N1, Ctr2, N2):@[0, 1, 2, 3] ⋈ ~HasNextSibling(Ctr1, N1))\n)\n)\n(stratum 6 simple\n  :members @[\"NextSiblingAnc\"]\n  (base-variant :name NextSiblingAnc1\n  :var-order @[\"StartCtr\", \"StartN\", \"NextCtr\", \"NextN\"]\n  :clause-order @[0]\n  :head (NextSiblingAnc(StartCtr, StartN, NextCtr, NextN))\n  :body (NextSibling(StartCtr, StartN, NextCtr, NextN):@[0, 1, 2, 3])\n)\n)\n(stratum 7 recursive\n  :members @[\"NextSiblingAnc\"]\n  (recursive-variant :name NextSiblingAnc2\n  :delta-at 0\n  :var-order @[\"ParentCtr\", \"ParentN\", \"NextCtr\", \"NextN\", \"StartCtr\", \"StartN\"]\n  :clause-order @[0, 1]\n  :head (NextSiblingAnc(StartCtr, StartN, NextCtr, NextN))\n  :body (ΔNextSiblingAnc(ParentCtr, ParentN, NextCtr, NextN):@[0, 1, 2, 3] ⋈ NotSiblingInsert(StartCtr, StartN, ParentCtr, ParentN):@[2, 3, 0, 1])\n)\n)\n(stratum 8 simple\n  :members @[\"HasChild\"]\n  (base-variant :name HasChild\n  :var-order @[\"_gen3\", \"_gen4\", \"ParentCtr\", \"ParentN\"]\n  :clause-order @[0]\n  :head (HasChild(ParentCtr, ParentN))\n  :body (Insert(_gen3, _gen4, ParentCtr, ParentN):@[0, 1, 2, 3])\n)\n)\n(stratum 9 simple\n  :members @[\"Assign\", \"NextElem\"]\n  (base-variant :name NextElem1\n  :var-order @[\"PrevCtr\", \"PrevN\", \"NextCtr\", \"NextN\"]\n  :clause-order @[0]\n  :head (NextElem(PrevCtr, PrevN, NextCtr, NextN))\n  :body (FirstChild(PrevCtr, PrevN, NextCtr, NextN):@[0, 1, 2, 3])\n)\n  (base-variant :name NextElem2\n  :var-order @[\"PrevCtr\", \"PrevN\", \"NextCtr\", \"NextN\"]\n  :clause-order @[0, 1]\n  :head (NextElem(PrevCtr, PrevN, NextCtr, NextN))\n  :body (NextSiblingAnc(PrevCtr, PrevN, NextCtr, NextN):@[0, 1, 2, 3] ⋈ ~HasChild(PrevCtr, PrevN))\n)\n  (base-variant :name Assign\n  :var-order @[\"ctr\", \"n\", \"_gen5\", \"_gen6\"]\n  :clause-order @[0]\n  :head (Assign(ctr, n, ctr, n, n))\n  :body (Insert(ctr, n, _gen5, _gen6):@[0, 1, 2, 3])\n)\n)\n(stratum 10 simple\n  :members @[\"CurrentValue\"]\n  (base-variant :name CurrentValue\n  :var-order @[\"IDCtr\", \"IDN\", \"ElemCtr\", \"ElemN\", \"Value\"]\n  :clause-order @[0, 1]\n  :head (CurrentValue(ElemCtr, ElemN, Value))\n  :body (Assign(IDCtr, IDN, ElemCtr, ElemN, Value):@[0, 1, 2, 3, 4] ⋈ ~Remove(IDCtr, IDN))\n)\n)\n(stratum 11 simple\n  :members @[\"HasValue\"]\n  (base-variant :name HasValue\n  :var-order @[\"ElemCtr\", \"ElemN\", \"_gen7\"]\n  :clause-order @[0]\n  :head (HasValue(ElemCtr, ElemN))\n  :body (CurrentValue(ElemCtr, ElemN, _gen7):@[0, 1, 2])\n)\n)\n(stratum 12 simple\n  :members @[\"NotHasValueNextElem\"]\n  (base-variant :name NotHasValueNextElem\n  :var-order @[\"Ctr1\", \"N1\", \"Ctr2\", \"N2\"]\n  :clause-order @[0, 1]\n  :head (NotHasValueNextElem(Ctr1, N1, Ctr2, N2))\n  :body (NextElem(Ctr1, N1, Ctr2, N2):@[0, 1, 2, 3] ⋈ ~HasValue(Ctr2, N2))\n)\n)\n(stratum 13 simple\n  :members @[\"SkipBlank\"]\n  (base-variant :name SkipBlank1\n  :var-order @[\"FromCtr\", \"FromN\", \"ToCtr\", \"ToN\"]\n  :clause-order @[0]\n  :head (SkipBlank(FromCtr, FromN, ToCtr, ToN))\n  :body (NextElem(FromCtr, FromN, ToCtr, ToN):@[0, 1, 2, 3])\n)\n)\n(stratum 14 recursive\n  :members @[\"SkipBlank\"]\n  (recursive-variant :name SkipBlank2\n  :delta-at 0\n  :var-order @[\"ViaCtr\", \"ViaN\", \"ToCtr\", \"ToN\", \"FromCtr\", \"FromN\"]\n  :clause-order @[0, 1]\n  :head (SkipBlank(FromCtr, FromN, ToCtr, ToN))\n  :body (ΔSkipBlank(ViaCtr, ViaN, ToCtr, ToN):@[0, 1, 2, 3] ⋈ NotHasValueNextElem(FromCtr, FromN, ViaCtr, ViaN):@[2, 3, 0, 1])\n)\n)\n(stratum 15 simple\n  :members @[\"NextVisible\"]\n  (base-variant :name NextVisible1\n  :var-order @[\"PrevCtr\", \"PrevN\", \"NextCtr\", \"NextN\"]\n  :clause-order @[0, 1, 2]\n  :head (NextVisible(PrevCtr, PrevN, NextCtr, NextN))\n  :body (HasValue(PrevCtr, PrevN):@[0, 1] ⋈ SkipBlank(PrevCtr, PrevN, NextCtr, NextN):@[0, 1, 2, 3] ⋈ HasValue(NextCtr, NextN):@[0, 1])\n)\n  (base-variant :name NextVisible2\n  :var-order @[\"PrevCtr\", \"PrevN\", \"NextCtr\", \"NextN\"]\n  :clause-order @[0, 1, 2]\n  :head (NextVisible(PrevCtr, PrevN, NextCtr, NextN))\n  :body (HasValue(PrevCtr, PrevN):@[0, 1] ⋈ SkipBlank(PrevCtr, PrevN, NextCtr, NextN):@[0, 1, 2, 3] ⋈ HasValue(NextCtr, NextN):@[0, 1])\n)\n)\n(stratum 16 simple\n  :members @[\"Result\"]\n  (base-variant :name Result\n  :var-order @[\"ctr2\", \"N2\", \"ctr1\", \"_gen8\", \"value\"]\n  :clause-order @[0, 1]\n  :head (Result(ctr1, ctr2, value))\n  :body (NextVisible(ctr1, _gen8, ctr2, N2):@[2, 3, 0, 1] ⋈ CurrentValue(ctr2, N2, value):@[0, 1, 2])\n)\n)\n)"
+}

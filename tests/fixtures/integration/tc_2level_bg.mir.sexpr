@@ -1,0 +1,75 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule EdgeLoad
+              :sources (tuple
+                (index-spec :schema ArcInput :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Edge :index (0 1) :ver FULL))
+                (scan :vars (x y) :index (ArcInput 0 1) :ver FULL :prefix ())
+                (insert-into :schema Edge :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (Edge 0 1) :ver NEW)
+            (check-size :schema Edge :ver NEW)
+            (compute-delta-index :schema Edge :canonical-index (0 1))
+            (clear-relation :schema Edge :ver NEW)
+            (merge-index :index (Edge 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Edge :canonical-index (0 1))
+  )
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule TCBase
+              :sources (tuple
+                (index-spec :schema Edge :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Path :index (1 0) :ver FULL))
+                (scan :vars (x y) :index (Edge 0 1) :ver FULL :prefix ())
+                (insert-into :schema Path :ver NEW :dedup-index (1 0) :terms (x y))
+            )
+            (rebuild-index :index (Path 1 0) :ver NEW)
+            (check-size :schema Path :ver NEW)
+            (compute-delta-index :schema Path :canonical-index (1 0))
+            (clear-relation :schema Path :ver NEW)
+            (merge-index :index (Path 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Path :canonical-index (1 0))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule TCRec_D0
+              :sources (tuple
+                (index-spec :schema Path :index (1 0) :ver DELTA)
+                (index-spec :schema Edge :index (0 1) :ver FULL)
+                (index-spec :schema Path :index (1 0) :ver DELTA)
+                (index-spec :schema Edge :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Path :index (1 0) :ver FULL))
+                (column-join :var y
+                  :sources (
+                    (column-source :index (Path 1 0) :ver DELTA :prefix ())
+                    (column-source :index (Edge 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (x z) :var-from-source ((x) (z))
+                  :sources (
+                    (column-source :index (Path 1 0) :ver DELTA :prefix (y))
+                    (column-source :index (Edge 0 1) :ver FULL :prefix (y))
+                  ))
+                (insert-into :schema Path :ver NEW :dedup-index (1 0) :terms (x z))
+            )
+            (rebuild-index :index (Path 1 0) :ver NEW)
+            (clear-relation :schema Path :ver DELTA)
+            (check-size :schema Path :ver NEW)
+            (compute-delta-index :schema Path :canonical-index (1 0))
+            (clear-relation :schema Path :ver NEW)
+            (merge-index :index (Path 1 0))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Path :canonical-index (1 0))
+  )
+)

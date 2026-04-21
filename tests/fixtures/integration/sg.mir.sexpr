@@ -1,0 +1,75 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule SGBase
+              :sources (tuple
+                (index-spec :schema Arc :index (0 1) :ver FULL)
+                (index-spec :schema Arc :index (0 1) :ver FULL)
+                (index-spec :schema Arc :index (0 1) :ver FULL)
+                (index-spec :schema Arc :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Sg :index (0 1) :ver FULL))
+                (column-join :var p
+                  :sources (
+                    (column-source :index (Arc 0 1) :ver FULL :prefix ())
+                    (column-source :index (Arc 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (x y) :var-from-source ((x) (y))
+                  :sources (
+                    (column-source :index (Arc 0 1) :ver FULL :prefix (p))
+                    (column-source :index (Arc 0 1) :ver FULL :prefix (p))
+                  ))
+                (filter :vars (x y) :code "return x != y;")
+                (insert-into :schema Sg :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (Sg 0 1) :ver NEW)
+            (check-size :schema Sg :ver NEW)
+            (compute-delta-index :schema Sg :canonical-index (0 1))
+            (clear-relation :schema Sg :ver NEW)
+            (merge-index :index (Sg 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Sg :canonical-index (0 1))
+  )
+  (step :recursive true
+        (fixpoint-plan
+            (execute-pipeline :rule SGRec_D1
+              :sources (tuple
+                (index-spec :schema Sg :index (0 1) :ver DELTA)
+                (index-spec :schema Arc :index (0 1) :ver FULL)
+                (index-spec :schema Sg :index (0 1) :ver DELTA)
+                (index-spec :schema Arc :index (0 1) :ver FULL)
+                (index-spec :schema Arc :index (0 1) :ver FULL)
+                (index-spec :schema Arc :index (0 1) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Sg :index (0 1) :ver FULL))
+                (column-join :var p
+                  :sources (
+                    (column-source :index (Sg 0 1) :ver DELTA :prefix ())
+                    (column-source :index (Arc 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var q
+                  :sources (
+                    (column-source :index (Sg 0 1) :ver DELTA :prefix (p))
+                    (column-source :index (Arc 0 1) :ver FULL :prefix ())
+                  ))
+                (cartesian-join :vars (x y) :var-from-source ((x) (y))
+                  :sources (
+                    (column-source :index (Arc 0 1) :ver FULL :prefix (p))
+                    (column-source :index (Arc 0 1) :ver FULL :prefix (q))
+                  ))
+                (insert-into :schema Sg :ver NEW :dedup-index (0 1) :terms (x y))
+            )
+            (rebuild-index :index (Sg 0 1) :ver NEW)
+            (clear-relation :schema Sg :ver DELTA)
+            (check-size :schema Sg :ver NEW)
+            (compute-delta-index :schema Sg :canonical-index (0 1))
+            (clear-relation :schema Sg :ver NEW)
+            (merge-index :index (Sg 0 1))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Sg :canonical-index (0 1))
+  )
+)

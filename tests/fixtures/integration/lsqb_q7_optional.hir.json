@@ -1,0 +1,832 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "Case1",
+        "HasLiker",
+        "HasReply"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "MarkHasReply",
+            "head": [
+              {
+                "rel": "HasReply",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ReplyOf",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "MarkHasReply: (HasReply m) <-\n      (ReplyOf _gen1 m)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "_gen1",
+            "m"
+          ],
+          "joins": [
+            {
+              "rel": "ReplyOf",
+              "version": "FULL",
+              "accessOrder": [
+                "_gen1",
+                "m"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "MarkHasLiker",
+            "head": [
+              {
+                "rel": "HasLiker",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "Likes",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "MarkHasLiker: (HasLiker m) <-\n      (Likes _gen2 m)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "_gen2",
+            "m"
+          ],
+          "joins": [
+            {
+              "rel": "Likes",
+              "version": "FULL",
+              "accessOrder": [
+                "_gen2",
+                "m"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "Case1Both",
+            "head": [
+              {
+                "rel": "Case1",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "comment"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "liker"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "HasTag",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "HasCreator",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ReplyOf",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "comment"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Likes",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "liker"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Case1Both: (Case1 m t c comment liker) <-\n      (HasTag m t),\n      (HasCreator m c),\n      (ReplyOf comment m),\n      (Likes liker m)",
+          "clauseOrder": [
+            0,
+            2,
+            3,
+            1
+          ],
+          "varOrder": [
+            "m",
+            "comment",
+            "liker",
+            "t",
+            "c"
+          ],
+          "joins": [
+            {
+              "rel": "HasTag",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "t"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "HasCreator",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "c"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "ReplyOf",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "comment"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            },
+            {
+              "rel": "Likes",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "liker"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 3
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "Case2",
+        "Case3",
+        "Case4"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "Case2ReplyOnly",
+            "head": [
+              {
+                "rel": "Case2",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "comment"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "HasTag",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "HasCreator",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ReplyOf",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "comment"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "HasLiker",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Case2ReplyOnly: (Case2 m t c comment) <-\n      (HasTag m t),\n      (HasCreator m c),\n      (ReplyOf comment m),\n      (NOT (HasLiker m))",
+          "clauseOrder": [
+            0,
+            2,
+            1,
+            3
+          ],
+          "varOrder": [
+            "m",
+            "comment",
+            "t",
+            "c"
+          ],
+          "joins": [
+            {
+              "rel": "HasTag",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "t"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "HasCreator",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "c"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "ReplyOf",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "comment"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": [
+            {
+              "rel": "HasLiker",
+              "version": "FULL",
+              "accessOrder": [
+                "m"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 3
+            }
+          ]
+        },
+        {
+          "rule": {
+            "name": "Case3LikeOnly",
+            "head": [
+              {
+                "rel": "Case3",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "liker"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "HasTag",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "HasCreator",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "Likes",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "liker"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "HasReply",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Case3LikeOnly: (Case3 m t c liker) <-\n      (HasTag m t),\n      (HasCreator m c),\n      (Likes liker m),\n      (NOT (HasReply m))",
+          "clauseOrder": [
+            0,
+            2,
+            1,
+            3
+          ],
+          "varOrder": [
+            "m",
+            "liker",
+            "t",
+            "c"
+          ],
+          "joins": [
+            {
+              "rel": "HasTag",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "t"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "HasCreator",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "c"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "Likes",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "liker"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": [
+            {
+              "rel": "HasReply",
+              "version": "FULL",
+              "accessOrder": [
+                "m"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 3
+            }
+          ]
+        },
+        {
+          "rule": {
+            "name": "Case4Neither",
+            "head": [
+              {
+                "rel": "Case4",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "HasTag",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "t"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "HasCreator",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "c"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "HasReply",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "HasLiker",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "m"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Case4Neither: (Case4 m t c) <-\n      (HasTag m t),\n      (HasCreator m c),\n      (NOT (HasReply m)),\n      (NOT (HasLiker m))",
+          "clauseOrder": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "varOrder": [
+            "m",
+            "t",
+            "c"
+          ],
+          "joins": [
+            {
+              "rel": "HasTag",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "t"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "HasCreator",
+              "version": "FULL",
+              "accessOrder": [
+                "m",
+                "c"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": [
+            {
+              "rel": "HasReply",
+              "version": "FULL",
+              "accessOrder": [
+                "m"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 2
+            },
+            {
+              "rel": "HasLiker",
+              "version": "FULL",
+              "accessOrder": [
+                "m"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 3
+            }
+          ]
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "HasTag": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "HasCreator": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "ReplyOf": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Likes": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "HasReply": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "HasLiker": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "Case1": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Case2": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Case3": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Case4": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"Case1\", \"HasLiker\", \"HasReply\"]\n  (base-variant :name MarkHasReply\n  :var-order @[\"_gen1\", \"m\"]\n  :clause-order @[0]\n  :head (HasReply(m))\n  :body (ReplyOf(_gen1, m):@[0, 1])\n)\n  (base-variant :name MarkHasLiker\n  :var-order @[\"_gen2\", \"m\"]\n  :clause-order @[0]\n  :head (HasLiker(m))\n  :body (Likes(_gen2, m):@[0, 1])\n)\n  (base-variant :name Case1Both\n  :var-order @[\"m\", \"comment\", \"liker\", \"t\", \"c\"]\n  :clause-order @[0, 2, 3, 1]\n  :head (Case1(m, t, c, comment, liker))\n  :body (HasTag(m, t):@[0, 1] ⋈ ReplyOf(comment, m):@[1, 0] ⋈ Likes(liker, m):@[1, 0] ⋈ HasCreator(m, c):@[0, 1])\n)\n)\n(stratum 1 simple\n  :members @[\"Case2\", \"Case3\", \"Case4\"]\n  (base-variant :name Case2ReplyOnly\n  :var-order @[\"m\", \"comment\", \"t\", \"c\"]\n  :clause-order @[0, 2, 1, 3]\n  :head (Case2(m, t, c, comment))\n  :body (HasTag(m, t):@[0, 1] ⋈ ReplyOf(comment, m):@[1, 0] ⋈ HasCreator(m, c):@[0, 1] ⋈ ~HasLiker(m))\n)\n  (base-variant :name Case3LikeOnly\n  :var-order @[\"m\", \"liker\", \"t\", \"c\"]\n  :clause-order @[0, 2, 1, 3]\n  :head (Case3(m, t, c, liker))\n  :body (HasTag(m, t):@[0, 1] ⋈ Likes(liker, m):@[1, 0] ⋈ HasCreator(m, c):@[0, 1] ⋈ ~HasReply(m))\n)\n  (base-variant :name Case4Neither\n  :var-order @[\"m\", \"t\", \"c\"]\n  :clause-order @[0, 1, 2, 3]\n  :head (Case4(m, t, c))\n  :body (HasTag(m, t):@[0, 1] ⋈ HasCreator(m, c):@[0, 1] ⋈ ~HasReply(m) ⋈ ~HasLiker(m))\n)\n)\n)"
+}

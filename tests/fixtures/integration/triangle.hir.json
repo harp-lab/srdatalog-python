@@ -1,0 +1,184 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "ZRel"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "Triangle",
+            "head": [
+              {
+                "rel": "ZRel",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RRel",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "SRel",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "h"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "TRel",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "f"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "Triangle: (ZRel x y z) <-\n      (RRel x y),\n      (SRel y z h),\n      (TRel z x f)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "x",
+            "y",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "RRel",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "SRel",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z",
+                "h"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "TRel",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "z",
+                "f"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0,
+                2
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "RRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "SRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "TRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ZRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"ZRel\"]\n  (base-variant :name Triangle\n  :var-order @[\"x\", \"y\", \"z\"]\n  :clause-order @[0, 1, 2]\n  :head (ZRel(x, y, z))\n  :body (RRel(x, y):@[0, 1] ⋈ SRel(y, z, h):@[0, 1, 2] ⋈ TRel(z, x, f):@[1, 0, 2])\n)\n)\n)"
+}

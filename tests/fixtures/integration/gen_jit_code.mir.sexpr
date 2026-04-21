@@ -1,0 +1,41 @@
+(program
+  (step :recursive false
+        (fixpoint-plan
+            (execute-pipeline :rule Triangle
+              :sources (tuple
+                (index-spec :schema Edge :index (0 1) :ver FULL)
+                (index-spec :schema Edge :index (1 0) :ver FULL)
+                (index-spec :schema Edge :index (0 1) :ver FULL)
+                (index-spec :schema Edge :index (0 1) :ver FULL)
+                (index-spec :schema Edge :index (0 1) :ver FULL)
+                (index-spec :schema Edge :index (1 0) :ver FULL))
+              :dests (tuple
+                (index-spec :schema Z :index (0 1 2) :ver FULL))
+                (column-join :var x
+                  :sources (
+                    (column-source :index (Edge 0 1) :ver FULL :prefix ())
+                    (column-source :index (Edge 1 0) :ver FULL :prefix ())
+                  ))
+                (column-join :var y
+                  :sources (
+                    (column-source :index (Edge 0 1) :ver FULL :prefix (x))
+                    (column-source :index (Edge 0 1) :ver FULL :prefix ())
+                  ))
+                (column-join :var z
+                  :sources (
+                    (column-source :index (Edge 0 1) :ver FULL :prefix (y))
+                    (column-source :index (Edge 1 0) :ver FULL :prefix (x))
+                  ))
+                (insert-into :schema Z :ver NEW :dedup-index (0 1 2) :terms (x y z))
+            )
+            (rebuild-index :index (Z 0 1 2) :ver NEW)
+            (check-size :schema Z :ver NEW)
+            (compute-delta-index :schema Z :canonical-index (0 1 2))
+            (clear-relation :schema Z :ver NEW)
+            (merge-index :index (Z 0 1 2))
+        )
+  )
+  (step :recursive false
+        (post-stratum-reconstruct-intern-cols :rel Z :canonical-index (0 1 2))
+  )
+)

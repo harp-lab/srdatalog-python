@@ -1,0 +1,4123 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "cfg_node"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "cfg_node_from_edge_src",
+            "head": [
+              {
+                "rel": "cfg_node",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen1"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "cfg_node_from_edge_src: (cfg_node point1) <-\n      (cfg_edge point1 _gen1)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "point1",
+            "_gen1"
+          ],
+          "joins": [
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "point1",
+                "_gen1"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "cfg_node_from_edge_dst",
+            "head": [
+              {
+                "rel": "cfg_node",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "cfg_node_from_edge_dst: (cfg_node point2) <-\n      (cfg_edge _gen2 point2)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "_gen2",
+            "point2"
+          ],
+          "joins": [
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "_gen2",
+                "point2"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "ancestor_path"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "ancestor_path_base",
+            "head": [
+              {
+                "rel": "ancestor_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "child_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "ancestor_path_base: (ancestor_path x y) <-\n      (child_path x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "child_path",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 2,
+      "isRecursive": true,
+      "relations": [
+        "ancestor_path"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "ancestor_path_trans",
+            "head": [
+              {
+                "rel": "ancestor_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "grandparent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ancestor_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "child_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "grandparent"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "ancestor_path_trans: (ancestor_path grandparent child) <-\n      (ancestor_path parent child),\n      (child_path parent grandparent)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "parent",
+            "child",
+            "grandparent"
+          ],
+          "joins": [
+            {
+              "rel": "ancestor_path",
+              "version": "DELTA",
+              "accessOrder": [
+                "parent",
+                "child"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "child_path",
+              "version": "FULL",
+              "accessOrder": [
+                "parent",
+                "grandparent"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "isRecursive": false,
+      "relations": [
+        "path_begins_with_var"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "pbwv_base",
+            "head": [
+              {
+                "rel": "path_begins_with_var",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_is_var",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "pbwv_base: (path_begins_with_var x vr) <-\n      (path_is_var x vr)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "vr"
+          ],
+          "joins": [
+            {
+              "rel": "path_is_var",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "vr"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 4,
+      "isRecursive": true,
+      "relations": [
+        "path_begins_with_var"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "pbwv_ancestor",
+            "head": [
+              {
+                "rel": "path_begins_with_var",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "v"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_begins_with_var",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "v"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ancestor_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "pbwv_ancestor: (path_begins_with_var child v) <-\n      (path_begins_with_var parent v),\n      (ancestor_path parent child)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "parent",
+            "v",
+            "child"
+          ],
+          "joins": [
+            {
+              "rel": "path_begins_with_var",
+              "version": "DELTA",
+              "accessOrder": [
+                "parent",
+                "v"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ancestor_path",
+              "version": "FULL",
+              "accessOrder": [
+                "parent",
+                "child"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "isRecursive": false,
+      "relations": [
+        "path_assigned_at"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "path_assigned_at_base_rule",
+            "head": [
+              {
+                "rel": "path_assigned_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_assigned_at_base",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "path_assigned_at_base_rule: (path_assigned_at x y) <-\n      (path_assigned_at_base x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "path_assigned_at_base",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 6,
+      "isRecursive": true,
+      "relations": [
+        "path_assigned_at"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "path_assigned_at_ancestor",
+            "head": [
+              {
+                "rel": "path_assigned_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_assigned_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ancestor_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "path_assigned_at_ancestor: (path_assigned_at child point) <-\n      (path_assigned_at parent point),\n      (ancestor_path parent child)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "parent",
+            "point",
+            "child"
+          ],
+          "joins": [
+            {
+              "rel": "path_assigned_at",
+              "version": "DELTA",
+              "accessOrder": [
+                "parent",
+                "point"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ancestor_path",
+              "version": "FULL",
+              "accessOrder": [
+                "parent",
+                "child"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "isRecursive": false,
+      "relations": [
+        "path_moved_at"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "path_moved_at_base_rule",
+            "head": [
+              {
+                "rel": "path_moved_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_moved_at_base",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "path_moved_at_base_rule: (path_moved_at x y) <-\n      (path_moved_at_base x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "path_moved_at_base",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 8,
+      "isRecursive": true,
+      "relations": [
+        "path_moved_at"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "path_moved_at_ancestor",
+            "head": [
+              {
+                "rel": "path_moved_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_moved_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ancestor_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "path_moved_at_ancestor: (path_moved_at child point) <-\n      (path_moved_at parent point),\n      (ancestor_path parent child)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "parent",
+            "point",
+            "child"
+          ],
+          "joins": [
+            {
+              "rel": "path_moved_at",
+              "version": "DELTA",
+              "accessOrder": [
+                "parent",
+                "point"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ancestor_path",
+              "version": "FULL",
+              "accessOrder": [
+                "parent",
+                "child"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "isRecursive": false,
+      "relations": [
+        "path_maybe_initialized_on_exit"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "pmioe_assigned",
+            "head": [
+              {
+                "rel": "path_maybe_initialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_assigned_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "pmioe_assigned: (path_maybe_initialized_on_exit path point) <-\n      (path_assigned_at path point)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "path",
+            "point"
+          ],
+          "joins": [
+            {
+              "rel": "path_assigned_at",
+              "version": "FULL",
+              "accessOrder": [
+                "path",
+                "point"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 10,
+      "isRecursive": true,
+      "relations": [
+        "path_maybe_initialized_on_exit"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "pmioe_cfg",
+            "head": [
+              {
+                "rel": "path_maybe_initialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_maybe_initialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "path_moved_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "pmioe_cfg: (path_maybe_initialized_on_exit path point2) <-\n      (path_maybe_initialized_on_exit path point1),\n      (cfg_edge point1 point2),\n      (NOT (path_moved_at path point2))",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "point1",
+            "point2",
+            "path"
+          ],
+          "joins": [
+            {
+              "rel": "path_maybe_initialized_on_exit",
+              "version": "DELTA",
+              "accessOrder": [
+                "point1",
+                "path"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "point1",
+                "point2"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": [
+            {
+              "rel": "path_moved_at",
+              "version": "FULL",
+              "accessOrder": [
+                "point2",
+                "path"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "isRecursive": false,
+      "relations": [
+        "var_maybe_partly_initialized_on_exit"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "vmpioe_from_path",
+            "head": [
+              {
+                "rel": "var_maybe_partly_initialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_maybe_initialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "path_begins_with_var",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "vmpioe_from_path: (var_maybe_partly_initialized_on_exit vr point) <-\n      (path_maybe_initialized_on_exit path point),\n      (path_begins_with_var path vr)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "path",
+            "point",
+            "vr"
+          ],
+          "joins": [
+            {
+              "rel": "path_maybe_initialized_on_exit",
+              "version": "FULL",
+              "accessOrder": [
+                "path",
+                "point"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "path_begins_with_var",
+              "version": "FULL",
+              "accessOrder": [
+                "path",
+                "vr"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 12,
+      "isRecursive": false,
+      "relations": [
+        "var_maybe_partly_initialized_on_entry"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "vmpie_from_exit",
+            "head": [
+              {
+                "rel": "var_maybe_partly_initialized_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "var_maybe_partly_initialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "vmpie_from_exit: (var_maybe_partly_initialized_on_entry vr point2) <-\n      (var_maybe_partly_initialized_on_exit vr point1),\n      (cfg_edge point1 point2)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "point1",
+            "vr",
+            "point2"
+          ],
+          "joins": [
+            {
+              "rel": "var_maybe_partly_initialized_on_exit",
+              "version": "FULL",
+              "accessOrder": [
+                "point1",
+                "vr"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "point1",
+                "point2"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 13,
+      "isRecursive": false,
+      "relations": [
+        "var_drop_live_on_entry"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "vdle_dropped",
+            "head": [
+              {
+                "rel": "var_drop_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "var_dropped_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "var_maybe_partly_initialized_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "vdle_dropped: (var_drop_live_on_entry vr point) <-\n      (var_dropped_at vr point),\n      (var_maybe_partly_initialized_on_entry vr point)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "vr",
+            "point"
+          ],
+          "joins": [
+            {
+              "rel": "var_dropped_at",
+              "version": "FULL",
+              "accessOrder": [
+                "vr",
+                "point"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "var_maybe_partly_initialized_on_entry",
+              "version": "FULL",
+              "accessOrder": [
+                "vr",
+                "point"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 14,
+      "isRecursive": true,
+      "relations": [
+        "var_drop_live_on_entry"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "vdle_cfg",
+            "head": [
+              {
+                "rel": "var_drop_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "v"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "src"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "var_drop_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "v"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "tgt"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "src"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "tgt"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "var_defined_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "v"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "src"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "var_maybe_partly_initialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "v"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "src"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "vdle_cfg: (var_drop_live_on_entry v src) <-\n      (var_drop_live_on_entry v tgt),\n      (cfg_edge src tgt),\n      (NOT (var_defined_at v src)),\n      (var_maybe_partly_initialized_on_exit v src)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            3,
+            2
+          ],
+          "varOrder": [
+            "v",
+            "tgt",
+            "src"
+          ],
+          "joins": [
+            {
+              "rel": "var_drop_live_on_entry",
+              "version": "DELTA",
+              "accessOrder": [
+                "v",
+                "tgt"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "tgt",
+                "src"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "var_maybe_partly_initialized_on_exit",
+              "version": "FULL",
+              "accessOrder": [
+                "v",
+                "src"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 3
+            }
+          ],
+          "negations": [
+            {
+              "rel": "var_defined_at",
+              "version": "FULL",
+              "accessOrder": [
+                "v",
+                "src"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "isRecursive": false,
+      "relations": [
+        "var_live_on_entry"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "vle_used",
+            "head": [
+              {
+                "rel": "var_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "var_used_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "vle_used: (var_live_on_entry vr point) <-\n      (var_used_at vr point)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "vr",
+            "point"
+          ],
+          "joins": [
+            {
+              "rel": "var_used_at",
+              "version": "FULL",
+              "accessOrder": [
+                "vr",
+                "point"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 16,
+      "isRecursive": true,
+      "relations": [
+        "var_live_on_entry"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "vle_cfg",
+            "head": [
+              {
+                "rel": "var_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "var_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "var_defined_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "vle_cfg: (var_live_on_entry vr point1) <-\n      (var_live_on_entry vr point2),\n      (cfg_edge point1 point2),\n      (NOT (var_defined_at vr point1))",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "point2",
+            "vr",
+            "point1"
+          ],
+          "joins": [
+            {
+              "rel": "var_live_on_entry",
+              "version": "DELTA",
+              "accessOrder": [
+                "point2",
+                "vr"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "point2",
+                "point1"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": [
+            {
+              "rel": "var_defined_at",
+              "version": "FULL",
+              "accessOrder": [
+                "vr",
+                "point1"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "isRecursive": false,
+      "relations": [
+        "origin_live_on_entry"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "ole_universal",
+            "head": [
+              {
+                "rel": "origin_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "cfg_node",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "universal_region",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "ole_universal: (origin_live_on_entry origin point) <-\n      (cfg_node point),\n      (universal_region origin)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "point",
+            "origin"
+          ],
+          "joins": [
+            {
+              "rel": "cfg_node",
+              "version": "FULL",
+              "accessOrder": [
+                "point"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "universal_region",
+              "version": "FULL",
+              "accessOrder": [
+                "origin"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "ole_drop",
+            "head": [
+              {
+                "rel": "origin_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "var_drop_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "drop_of_var_derefs_origin",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "ole_drop: (origin_live_on_entry origin point) <-\n      (var_drop_live_on_entry vr point),\n      (drop_of_var_derefs_origin vr origin)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "vr",
+            "point",
+            "origin"
+          ],
+          "joins": [
+            {
+              "rel": "var_drop_live_on_entry",
+              "version": "FULL",
+              "accessOrder": [
+                "vr",
+                "point"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "drop_of_var_derefs_origin",
+              "version": "FULL",
+              "accessOrder": [
+                "vr",
+                "origin"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "ole_use",
+            "head": [
+              {
+                "rel": "origin_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "var_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "use_of_var_derefs_origin",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "vr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "ole_use: (origin_live_on_entry origin point) <-\n      (var_live_on_entry vr point),\n      (use_of_var_derefs_origin vr origin)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "vr",
+            "point",
+            "origin"
+          ],
+          "joins": [
+            {
+              "rel": "var_live_on_entry",
+              "version": "FULL",
+              "accessOrder": [
+                "vr",
+                "point"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "use_of_var_derefs_origin",
+              "version": "FULL",
+              "accessOrder": [
+                "vr",
+                "origin"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 18,
+      "isRecursive": false,
+      "relations": [
+        "subset"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "subset_base_rule",
+            "head": [
+              {
+                "rel": "subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "subset_base",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "subset_base_rule: (subset origin1 origin2 point) <-\n      (subset_base origin1 origin2 point)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "origin1",
+            "origin2",
+            "point"
+          ],
+          "joins": [
+            {
+              "rel": "subset_base",
+              "version": "FULL",
+              "accessOrder": [
+                "origin1",
+                "origin2",
+                "point"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 19,
+      "isRecursive": true,
+      "relations": [
+        "subset"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "subset_trans",
+            "head": [
+              {
+                "rel": "subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "subset_base",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return origin1 != origin3;"
+              }
+            ]
+          },
+          "hirText": "subset_trans: (subset origin1 origin3 point) <-\n      (subset origin1 origin2 point),\n      (subset_base origin2 origin3 point),\n      (FILTER return origin1 != origin3;)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "origin2",
+            "point",
+            "origin1",
+            "origin3"
+          ],
+          "joins": [
+            {
+              "rel": "subset",
+              "version": "DELTA",
+              "accessOrder": [
+                "origin2",
+                "point",
+                "origin1"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                2,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "subset_base",
+              "version": "FULL",
+              "accessOrder": [
+                "origin2",
+                "point",
+                "origin3"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "subset_cfg",
+            "head": [
+              {
+                "rel": "subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "origin_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "origin_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "subset_cfg: (subset origin1 origin2 point2) <-\n      (subset origin1 origin2 point1),\n      (cfg_edge point1 point2),\n      (origin_live_on_entry origin1 point2),\n      (origin_live_on_entry origin2 point2)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "varOrder": [
+            "point1",
+            "point2",
+            "origin1",
+            "origin2"
+          ],
+          "joins": [
+            {
+              "rel": "subset",
+              "version": "DELTA",
+              "accessOrder": [
+                "point1",
+                "origin1",
+                "origin2"
+              ],
+              "prefixLen": 3,
+              "index": [
+                2,
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "point1",
+                "point2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "origin_live_on_entry",
+              "version": "FULL",
+              "accessOrder": [
+                "point2",
+                "origin1"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            },
+            {
+              "rel": "origin_live_on_entry",
+              "version": "FULL",
+              "accessOrder": [
+                "point2",
+                "origin2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 3
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "isRecursive": false,
+      "relations": [
+        "origin_contains_loan_on_entry"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "ocle_issued",
+            "head": [
+              {
+                "rel": "origin_contains_loan_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "loan_issued_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "ocle_issued: (origin_contains_loan_on_entry origin loan point) <-\n      (loan_issued_at loan origin point)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "loan",
+            "origin",
+            "point"
+          ],
+          "joins": [
+            {
+              "rel": "loan_issued_at",
+              "version": "FULL",
+              "accessOrder": [
+                "loan",
+                "origin",
+                "point"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 21,
+      "isRecursive": true,
+      "relations": [
+        "origin_contains_loan_on_entry"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "ocle_subset",
+            "head": [
+              {
+                "rel": "origin_contains_loan_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "origin_contains_loan_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "ocle_subset: (origin_contains_loan_on_entry origin2 loan point) <-\n      (origin_contains_loan_on_entry origin1 loan point),\n      (subset origin1 origin2 point)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "origin1",
+            "point",
+            "loan",
+            "origin2"
+          ],
+          "joins": [
+            {
+              "rel": "origin_contains_loan_on_entry",
+              "version": "DELTA",
+              "accessOrder": [
+                "origin1",
+                "point",
+                "loan"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "subset",
+              "version": "FULL",
+              "accessOrder": [
+                "origin1",
+                "point",
+                "origin2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "ocle_cfg",
+            "head": [
+              {
+                "rel": "origin_contains_loan_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "origin_contains_loan_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "loan_killed_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "origin_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "ocle_cfg: (origin_contains_loan_on_entry origin loan point2) <-\n      (origin_contains_loan_on_entry origin loan point1),\n      (cfg_edge point1 point2),\n      (NOT (loan_killed_at loan point1)),\n      (origin_live_on_entry origin point2)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            3,
+            2
+          ],
+          "varOrder": [
+            "origin",
+            "point1",
+            "point2",
+            "loan"
+          ],
+          "joins": [
+            {
+              "rel": "origin_contains_loan_on_entry",
+              "version": "DELTA",
+              "accessOrder": [
+                "origin",
+                "point1",
+                "loan"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "point1",
+                "point2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "origin_live_on_entry",
+              "version": "FULL",
+              "accessOrder": [
+                "origin",
+                "point2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 3
+            }
+          ],
+          "negations": [
+            {
+              "rel": "loan_killed_at",
+              "version": "FULL",
+              "accessOrder": [
+                "point1",
+                "loan"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "isRecursive": false,
+      "relations": [
+        "placeholder_origin"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "placeholder_origin_rule",
+            "head": [
+              {
+                "rel": "placeholder_origin",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "universal_region",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "placeholder_origin_rule: (placeholder_origin origin) <-\n      (universal_region origin)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "origin"
+          ],
+          "joins": [
+            {
+              "rel": "universal_region",
+              "version": "FULL",
+              "accessOrder": [
+                "origin"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 23,
+      "isRecursive": false,
+      "relations": [
+        "known_placeholder_subset"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "kps_seed",
+            "head": [
+              {
+                "rel": "known_placeholder_subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "known_placeholder_subset_input",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "kps_seed: (known_placeholder_subset x z) <-\n      (known_placeholder_subset_input x z)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "known_placeholder_subset_input",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "z"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 24,
+      "isRecursive": true,
+      "relations": [
+        "known_placeholder_subset"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "kps_transitive",
+            "head": [
+              {
+                "rel": "known_placeholder_subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "known_placeholder_subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "known_placeholder_subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "kps_transitive: (known_placeholder_subset x z) <-\n      (known_placeholder_subset x y),\n      (known_placeholder_subset y z)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "y",
+            "x",
+            "z"
+          ],
+          "joins": [
+            {
+              "rel": "known_placeholder_subset",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "known_placeholder_subset",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "kps_transitive",
+            "head": [
+              {
+                "rel": "known_placeholder_subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "known_placeholder_subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "known_placeholder_subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "z"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "kps_transitive: (known_placeholder_subset x z) <-\n      (known_placeholder_subset x y),\n      (known_placeholder_subset y z)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0
+          ],
+          "varOrder": [
+            "y",
+            "z",
+            "x"
+          ],
+          "joins": [
+            {
+              "rel": "known_placeholder_subset",
+              "version": "FULL",
+              "accessOrder": [
+                "y",
+                "x"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "known_placeholder_subset",
+              "version": "DELTA",
+              "accessOrder": [
+                "y",
+                "z"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "isRecursive": false,
+      "relations": [
+        "loan_live_at"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "loan_live_at_rule",
+            "head": [
+              {
+                "rel": "loan_live_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "origin_contains_loan_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "origin_live_on_entry",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "loan_live_at_rule: (loan_live_at loan point) <-\n      (origin_contains_loan_on_entry origin loan point),\n      (origin_live_on_entry origin point)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "origin",
+            "point",
+            "loan"
+          ],
+          "joins": [
+            {
+              "rel": "origin_contains_loan_on_entry",
+              "version": "FULL",
+              "accessOrder": [
+                "origin",
+                "point",
+                "loan"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "origin_live_on_entry",
+              "version": "FULL",
+              "accessOrder": [
+                "origin",
+                "point"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 26,
+      "isRecursive": false,
+      "relations": [
+        "errors",
+        "subset_error"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "errors_rule",
+            "head": [
+              {
+                "rel": "errors",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "loan_invalidated_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "loan_live_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "loan"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "errors_rule: (errors loan point) <-\n      (loan_invalidated_at loan point),\n      (loan_live_at loan point)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "loan",
+            "point"
+          ],
+          "joins": [
+            {
+              "rel": "loan_invalidated_at",
+              "version": "FULL",
+              "accessOrder": [
+                "loan",
+                "point"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "loan_live_at",
+              "version": "FULL",
+              "accessOrder": [
+                "loan",
+                "point"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "subset_error_rule",
+            "head": [
+              {
+                "rel": "subset_error",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "placeholder_origin",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "placeholder_origin",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "known_placeholder_subset",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "origin1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "origin2"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return origin1 != origin2;"
+              }
+            ]
+          },
+          "hirText": "subset_error_rule: (subset_error origin1 origin2 point) <-\n      (subset origin1 origin2 point),\n      (placeholder_origin origin1),\n      (placeholder_origin origin2),\n      (NOT (known_placeholder_subset origin1 origin2)),\n      (FILTER return origin1 != origin2;)",
+          "clauseOrder": [
+            0,
+            4,
+            1,
+            2,
+            3
+          ],
+          "varOrder": [
+            "origin1",
+            "origin2",
+            "point"
+          ],
+          "joins": [
+            {
+              "rel": "subset",
+              "version": "FULL",
+              "accessOrder": [
+                "origin1",
+                "origin2",
+                "point"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "placeholder_origin",
+              "version": "FULL",
+              "accessOrder": [
+                "origin1"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "placeholder_origin",
+              "version": "FULL",
+              "accessOrder": [
+                "origin2"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": [
+            {
+              "rel": "known_placeholder_subset",
+              "version": "FULL",
+              "accessOrder": [
+                "origin1",
+                "origin2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 3
+            }
+          ]
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 27,
+      "isRecursive": false,
+      "relations": [
+        "path_accessed_at"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "path_accessed_at_base_rule",
+            "head": [
+              {
+                "rel": "path_accessed_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_accessed_at_base",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "x"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "y"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "path_accessed_at_base_rule: (path_accessed_at x y) <-\n      (path_accessed_at_base x y)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "x",
+            "y"
+          ],
+          "joins": [
+            {
+              "rel": "path_accessed_at_base",
+              "version": "FULL",
+              "accessOrder": [
+                "x",
+                "y"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 28,
+      "isRecursive": true,
+      "relations": [
+        "path_accessed_at"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "path_accessed_at_ancestor",
+            "head": [
+              {
+                "rel": "path_accessed_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_accessed_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ancestor_path",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "parent"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "child"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "path_accessed_at_ancestor: (path_accessed_at child point) <-\n      (path_accessed_at parent point),\n      (ancestor_path parent child)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "parent",
+            "point",
+            "child"
+          ],
+          "joins": [
+            {
+              "rel": "path_accessed_at",
+              "version": "DELTA",
+              "accessOrder": [
+                "parent",
+                "point"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ancestor_path",
+              "version": "FULL",
+              "accessOrder": [
+                "parent",
+                "child"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "isRecursive": false,
+      "relations": [
+        "path_maybe_uninitialized_on_exit"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "pmuoe_moved",
+            "head": [
+              {
+                "rel": "path_maybe_uninitialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_moved_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "pmuoe_moved: (path_maybe_uninitialized_on_exit path point) <-\n      (path_moved_at path point)",
+          "clauseOrder": [
+            0
+          ],
+          "varOrder": [
+            "path",
+            "point"
+          ],
+          "joins": [
+            {
+              "rel": "path_moved_at",
+              "version": "FULL",
+              "accessOrder": [
+                "path",
+                "point"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 30,
+      "isRecursive": true,
+      "relations": [
+        "path_maybe_uninitialized_on_exit"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "pmuoe_cfg",
+            "head": [
+              {
+                "rel": "path_maybe_uninitialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_maybe_uninitialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "point1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "path_assigned_at",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "point2"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "pmuoe_cfg: (path_maybe_uninitialized_on_exit path point2) <-\n      (path_maybe_uninitialized_on_exit path point1),\n      (cfg_edge point1 point2),\n      (NOT (path_assigned_at path point2))",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "point1",
+            "point2",
+            "path"
+          ],
+          "joins": [
+            {
+              "rel": "path_maybe_uninitialized_on_exit",
+              "version": "DELTA",
+              "accessOrder": [
+                "point1",
+                "path"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "point1",
+                "point2"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": [
+            {
+              "rel": "path_assigned_at",
+              "version": "FULL",
+              "accessOrder": [
+                "point2",
+                "path"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "isRecursive": false,
+      "relations": [
+        "move_error"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "move_error_rule",
+            "head": [
+              {
+                "rel": "move_error",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "tgt"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "path_maybe_uninitialized_on_exit",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "path"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "src"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "cfg_edge",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "src"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "tgt"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "move_error_rule: (move_error path tgt) <-\n      (path_maybe_uninitialized_on_exit path src),\n      (cfg_edge src tgt)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "src",
+            "path",
+            "tgt"
+          ],
+          "joins": [
+            {
+              "rel": "path_maybe_uninitialized_on_exit",
+              "version": "FULL",
+              "accessOrder": [
+                "src",
+                "path"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "cfg_edge",
+              "version": "FULL",
+              "accessOrder": [
+                "src",
+                "tgt"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "subset_base": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "cfg_edge": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "loan_issued_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "universal_region": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "var_used_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "loan_killed_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "known_placeholder_subset_input": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_dropped_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "drop_of_var_derefs_origin": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_defined_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "child_path": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_moved_at_base": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_assigned_at_base": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_accessed_at_base": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_is_var": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "loan_invalidated_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "use_of_var_derefs_origin": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "subset": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "origin_live_on_entry": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "origin_contains_loan_on_entry": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "loan_live_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "errors": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "placeholder_origin": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "subset_error": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "known_placeholder_subset": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "cfg_node": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "var_live_on_entry": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_drop_live_on_entry": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_maybe_partly_initialized_on_exit": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_maybe_partly_initialized_on_entry": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "ancestor_path": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_moved_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_assigned_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_accessed_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_begins_with_var": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_maybe_initialized_on_exit": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_maybe_uninitialized_on_exit": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "move_error": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    }
+  },
+  "hirSExpr": "(hir-program\n(stratum 0 simple\n  :members @[\"cfg_node\"]\n  (base-variant :name cfg_node_from_edge_src\n  :var-order @[\"point1\", \"_gen1\"]\n  :clause-order @[0]\n  :head (cfg_node(point1))\n  :body (cfg_edge(point1, _gen1):@[0, 1])\n)\n  (base-variant :name cfg_node_from_edge_dst\n  :var-order @[\"_gen2\", \"point2\"]\n  :clause-order @[0]\n  :head (cfg_node(point2))\n  :body (cfg_edge(_gen2, point2):@[0, 1])\n)\n)\n(stratum 1 simple\n  :members @[\"ancestor_path\"]\n  (base-variant :name ancestor_path_base\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (ancestor_path(x, y))\n  :body (child_path(x, y):@[0, 1])\n)\n)\n(stratum 2 recursive\n  :members @[\"ancestor_path\"]\n  (recursive-variant :name ancestor_path_trans\n  :delta-at 0\n  :var-order @[\"parent\", \"child\", \"grandparent\"]\n  :clause-order @[0, 1]\n  :head (ancestor_path(grandparent, child))\n  :body (Δancestor_path(parent, child):@[0, 1] ⋈ child_path(parent, grandparent):@[0, 1])\n)\n)\n(stratum 3 simple\n  :members @[\"path_begins_with_var\"]\n  (base-variant :name pbwv_base\n  :var-order @[\"x\", \"vr\"]\n  :clause-order @[0]\n  :head (path_begins_with_var(x, vr))\n  :body (path_is_var(x, vr):@[0, 1])\n)\n)\n(stratum 4 recursive\n  :members @[\"path_begins_with_var\"]\n  (recursive-variant :name pbwv_ancestor\n  :delta-at 0\n  :var-order @[\"parent\", \"v\", \"child\"]\n  :clause-order @[0, 1]\n  :head (path_begins_with_var(child, v))\n  :body (Δpath_begins_with_var(parent, v):@[0, 1] ⋈ ancestor_path(parent, child):@[0, 1])\n)\n)\n(stratum 5 simple\n  :members @[\"path_assigned_at\"]\n  (base-variant :name path_assigned_at_base_rule\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (path_assigned_at(x, y))\n  :body (path_assigned_at_base(x, y):@[0, 1])\n)\n)\n(stratum 6 recursive\n  :members @[\"path_assigned_at\"]\n  (recursive-variant :name path_assigned_at_ancestor\n  :delta-at 0\n  :var-order @[\"parent\", \"point\", \"child\"]\n  :clause-order @[0, 1]\n  :head (path_assigned_at(child, point))\n  :body (Δpath_assigned_at(parent, point):@[0, 1] ⋈ ancestor_path(parent, child):@[0, 1])\n)\n)\n(stratum 7 simple\n  :members @[\"path_moved_at\"]\n  (base-variant :name path_moved_at_base_rule\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (path_moved_at(x, y))\n  :body (path_moved_at_base(x, y):@[0, 1])\n)\n)\n(stratum 8 recursive\n  :members @[\"path_moved_at\"]\n  (recursive-variant :name path_moved_at_ancestor\n  :delta-at 0\n  :var-order @[\"parent\", \"point\", \"child\"]\n  :clause-order @[0, 1]\n  :head (path_moved_at(child, point))\n  :body (Δpath_moved_at(parent, point):@[0, 1] ⋈ ancestor_path(parent, child):@[0, 1])\n)\n)\n(stratum 9 simple\n  :members @[\"path_maybe_initialized_on_exit\"]\n  (base-variant :name pmioe_assigned\n  :var-order @[\"path\", \"point\"]\n  :clause-order @[0]\n  :head (path_maybe_initialized_on_exit(path, point))\n  :body (path_assigned_at(path, point):@[0, 1])\n)\n)\n(stratum 10 recursive\n  :members @[\"path_maybe_initialized_on_exit\"]\n  (recursive-variant :name pmioe_cfg\n  :delta-at 0\n  :var-order @[\"point1\", \"point2\", \"path\"]\n  :clause-order @[0, 1, 2]\n  :head (path_maybe_initialized_on_exit(path, point2))\n  :body (Δpath_maybe_initialized_on_exit(path, point1):@[1, 0] ⋈ cfg_edge(point1, point2):@[0, 1] ⋈ ~path_moved_at(path, point2))\n)\n)\n(stratum 11 simple\n  :members @[\"var_maybe_partly_initialized_on_exit\"]\n  (base-variant :name vmpioe_from_path\n  :var-order @[\"path\", \"point\", \"vr\"]\n  :clause-order @[0, 1]\n  :head (var_maybe_partly_initialized_on_exit(vr, point))\n  :body (path_maybe_initialized_on_exit(path, point):@[0, 1] ⋈ path_begins_with_var(path, vr):@[0, 1])\n)\n)\n(stratum 12 simple\n  :members @[\"var_maybe_partly_initialized_on_entry\"]\n  (base-variant :name vmpie_from_exit\n  :var-order @[\"point1\", \"vr\", \"point2\"]\n  :clause-order @[0, 1]\n  :head (var_maybe_partly_initialized_on_entry(vr, point2))\n  :body (var_maybe_partly_initialized_on_exit(vr, point1):@[1, 0] ⋈ cfg_edge(point1, point2):@[0, 1])\n)\n)\n(stratum 13 simple\n  :members @[\"var_drop_live_on_entry\"]\n  (base-variant :name vdle_dropped\n  :var-order @[\"vr\", \"point\"]\n  :clause-order @[0, 1]\n  :head (var_drop_live_on_entry(vr, point))\n  :body (var_dropped_at(vr, point):@[0, 1] ⋈ var_maybe_partly_initialized_on_entry(vr, point):@[0, 1])\n)\n)\n(stratum 14 recursive\n  :members @[\"var_drop_live_on_entry\"]\n  (recursive-variant :name vdle_cfg\n  :delta-at 0\n  :var-order @[\"v\", \"tgt\", \"src\"]\n  :clause-order @[0, 1, 3, 2]\n  :head (var_drop_live_on_entry(v, src))\n  :body (Δvar_drop_live_on_entry(v, tgt):@[0, 1] ⋈ cfg_edge(src, tgt):@[1, 0] ⋈ var_maybe_partly_initialized_on_exit(v, src):@[0, 1] ⋈ ~var_defined_at(v, src))\n)\n)\n(stratum 15 simple\n  :members @[\"var_live_on_entry\"]\n  (base-variant :name vle_used\n  :var-order @[\"vr\", \"point\"]\n  :clause-order @[0]\n  :head (var_live_on_entry(vr, point))\n  :body (var_used_at(vr, point):@[0, 1])\n)\n)\n(stratum 16 recursive\n  :members @[\"var_live_on_entry\"]\n  (recursive-variant :name vle_cfg\n  :delta-at 0\n  :var-order @[\"point2\", \"vr\", \"point1\"]\n  :clause-order @[0, 1, 2]\n  :head (var_live_on_entry(vr, point1))\n  :body (Δvar_live_on_entry(vr, point2):@[1, 0] ⋈ cfg_edge(point1, point2):@[1, 0] ⋈ ~var_defined_at(vr, point1))\n)\n)\n(stratum 17 simple\n  :members @[\"origin_live_on_entry\"]\n  (base-variant :name ole_universal\n  :var-order @[\"point\", \"origin\"]\n  :clause-order @[0, 1]\n  :head (origin_live_on_entry(origin, point))\n  :body (cfg_node(point):@[0] ⋈ universal_region(origin):@[0])\n)\n  (base-variant :name ole_drop\n  :var-order @[\"vr\", \"point\", \"origin\"]\n  :clause-order @[0, 1]\n  :head (origin_live_on_entry(origin, point))\n  :body (var_drop_live_on_entry(vr, point):@[0, 1] ⋈ drop_of_var_derefs_origin(vr, origin):@[0, 1])\n)\n  (base-variant :name ole_use\n  :var-order @[\"vr\", \"point\", \"origin\"]\n  :clause-order @[0, 1]\n  :head (origin_live_on_entry(origin, point))\n  :body (var_live_on_entry(vr, point):@[0, 1] ⋈ use_of_var_derefs_origin(vr, origin):@[0, 1])\n)\n)\n(stratum 18 simple\n  :members @[\"subset\"]\n  (base-variant :name subset_base_rule\n  :var-order @[\"origin1\", \"origin2\", \"point\"]\n  :clause-order @[0]\n  :head (subset(origin1, origin2, point))\n  :body (subset_base(origin1, origin2, point):@[0, 1, 2])\n)\n)\n(stratum 19 recursive\n  :members @[\"subset\"]\n  (recursive-variant :name subset_trans\n  :delta-at 0\n  :var-order @[\"origin2\", \"point\", \"origin1\", \"origin3\"]\n  :clause-order @[0, 1, 2]\n  :head (subset(origin1, origin3, point))\n  :body (Δsubset(origin1, origin2, point):@[1, 2, 0] ⋈ subset_base(origin2, origin3, point):@[0, 2, 1] ⋈ (filter((origin1, origin3)) {.cpp: \"return origin1 != origin3;\" .}))\n)\n  (recursive-variant :name subset_cfg\n  :delta-at 0\n  :var-order @[\"point1\", \"point2\", \"origin1\", \"origin2\"]\n  :clause-order @[0, 1, 2, 3]\n  :head (subset(origin1, origin2, point2))\n  :body (Δsubset(origin1, origin2, point1):@[2, 0, 1] ⋈ cfg_edge(point1, point2):@[0, 1] ⋈ origin_live_on_entry(origin1, point2):@[1, 0] ⋈ origin_live_on_entry(origin2, point2):@[1, 0])\n)\n)\n(stratum 20 simple\n  :members @[\"origin_contains_loan_on_entry\"]\n  (base-variant :name ocle_issued\n  :var-order @[\"loan\", \"origin\", \"point\"]\n  :clause-order @[0]\n  :head (origin_contains_loan_on_entry(origin, loan, point))\n  :body (loan_issued_at(loan, origin, point):@[0, 1, 2])\n)\n)\n(stratum 21 recursive\n  :members @[\"origin_contains_loan_on_entry\"]\n  (recursive-variant :name ocle_subset\n  :delta-at 0\n  :var-order @[\"origin1\", \"point\", \"loan\", \"origin2\"]\n  :clause-order @[0, 1]\n  :head (origin_contains_loan_on_entry(origin2, loan, point))\n  :body (Δorigin_contains_loan_on_entry(origin1, loan, point):@[0, 2, 1] ⋈ subset(origin1, origin2, point):@[0, 2, 1])\n)\n  (recursive-variant :name ocle_cfg\n  :delta-at 0\n  :var-order @[\"origin\", \"point1\", \"point2\", \"loan\"]\n  :clause-order @[0, 1, 3, 2]\n  :head (origin_contains_loan_on_entry(origin, loan, point2))\n  :body (Δorigin_contains_loan_on_entry(origin, loan, point1):@[0, 2, 1] ⋈ cfg_edge(point1, point2):@[0, 1] ⋈ origin_live_on_entry(origin, point2):@[0, 1] ⋈ ~loan_killed_at(loan, point1))\n)\n)\n(stratum 22 simple\n  :members @[\"placeholder_origin\"]\n  (base-variant :name placeholder_origin_rule\n  :var-order @[\"origin\"]\n  :clause-order @[0]\n  :head (placeholder_origin(origin))\n  :body (universal_region(origin):@[0])\n)\n)\n(stratum 23 simple\n  :members @[\"known_placeholder_subset\"]\n  (base-variant :name kps_seed\n  :var-order @[\"x\", \"z\"]\n  :clause-order @[0]\n  :head (known_placeholder_subset(x, z))\n  :body (known_placeholder_subset_input(x, z):@[0, 1])\n)\n)\n(stratum 24 recursive\n  :members @[\"known_placeholder_subset\"]\n  (recursive-variant :name kps_transitive\n  :delta-at 0\n  :var-order @[\"y\", \"x\", \"z\"]\n  :clause-order @[0, 1]\n  :head (known_placeholder_subset(x, z))\n  :body (Δknown_placeholder_subset(x, y):@[1, 0] ⋈ known_placeholder_subset(y, z):@[0, 1])\n)\n  (recursive-variant :name kps_transitive\n  :delta-at 1\n  :var-order @[\"y\", \"z\", \"x\"]\n  :clause-order @[1, 0]\n  :head (known_placeholder_subset(x, z))\n  :body (Δknown_placeholder_subset(y, z):@[0, 1] ⋈ known_placeholder_subset(x, y):@[1, 0])\n)\n)\n(stratum 25 simple\n  :members @[\"loan_live_at\"]\n  (base-variant :name loan_live_at_rule\n  :var-order @[\"origin\", \"point\", \"loan\"]\n  :clause-order @[0, 1]\n  :head (loan_live_at(loan, point))\n  :body (origin_contains_loan_on_entry(origin, loan, point):@[0, 2, 1] ⋈ origin_live_on_entry(origin, point):@[0, 1])\n)\n)\n(stratum 26 simple\n  :members @[\"errors\", \"subset_error\"]\n  (base-variant :name errors_rule\n  :var-order @[\"loan\", \"point\"]\n  :clause-order @[0, 1]\n  :head (errors(loan, point))\n  :body (loan_invalidated_at(loan, point):@[0, 1] ⋈ loan_live_at(loan, point):@[0, 1])\n)\n  (base-variant :name subset_error_rule\n  :var-order @[\"origin1\", \"origin2\", \"point\"]\n  :clause-order @[0, 4, 1, 2, 3]\n  :head (subset_error(origin1, origin2, point))\n  :body (subset(origin1, origin2, point):@[0, 1, 2] ⋈ (filter((origin1, origin2)) {.cpp: \"return origin1 != origin2;\" .}) ⋈ placeholder_origin(origin1):@[0] ⋈ placeholder_origin(origin2):@[0] ⋈ ~known_placeholder_subset(origin1, origin2))\n)\n)\n(stratum 27 simple\n  :members @[\"path_accessed_at\"]\n  (base-variant :name path_accessed_at_base_rule\n  :var-order @[\"x\", \"y\"]\n  :clause-order @[0]\n  :head (path_accessed_at(x, y))\n  :body (path_accessed_at_base(x, y):@[0, 1])\n)\n)\n(stratum 28 recursive\n  :members @[\"path_accessed_at\"]\n  (recursive-variant :name path_accessed_at_ancestor\n  :delta-at 0\n  :var-order @[\"parent\", \"point\", \"child\"]\n  :clause-order @[0, 1]\n  :head (path_accessed_at(child, point))\n  :body (Δpath_accessed_at(parent, point):@[0, 1] ⋈ ancestor_path(parent, child):@[0, 1])\n)\n)\n(stratum 29 simple\n  :members @[\"path_maybe_uninitialized_on_exit\"]\n  (base-variant :name pmuoe_moved\n  :var-order @[\"path\", \"point\"]\n  :clause-order @[0]\n  :head (path_maybe_uninitialized_on_exit(path, point))\n  :body (path_moved_at(path, point):@[0, 1])\n)\n)\n(stratum 30 recursive\n  :members @[\"path_maybe_uninitialized_on_exit\"]\n  (recursive-variant :name pmuoe_cfg\n  :delta-at 0\n  :var-order @[\"point1\", \"point2\", \"path\"]\n  :clause-order @[0, 1, 2]\n  :head (path_maybe_uninitialized_on_exit(path, point2))\n  :body (Δpath_maybe_uninitialized_on_exit(path, point1):@[1, 0] ⋈ cfg_edge(point1, point2):@[0, 1] ⋈ ~path_assigned_at(path, point2))\n)\n)\n(stratum 31 simple\n  :members @[\"move_error\"]\n  (base-variant :name move_error_rule\n  :var-order @[\"src\", \"path\", \"tgt\"]\n  :clause-order @[0, 1]\n  :head (move_error(path, tgt))\n  :body (path_maybe_uninitialized_on_exit(path, src):@[1, 0] ⋈ cfg_edge(src, tgt):@[0, 1])\n)\n)\n)"
+}

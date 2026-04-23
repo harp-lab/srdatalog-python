@@ -1,13 +1,13 @@
-'''C++ codegen backend (non-template API).
+'''C++ codegen backend.
 
-Consumes `mir_types.MirNode` IR directly — no parallel node hierarchy.
-Ported from mhk's `python-api-notemplate` branch, adapted to share the
-same MIR types as the HIR→MIR pipeline on this branch.
+The live path is JIT: HIR→MIR→`codegen.jit.*` emits per-rule kernels,
+orchestrator steps, runner struct, and a main.cpp driver. Non-JIT
+submodules at this level are small shared utilities used by that path.
 
 Submodules:
-  schema      — FactDefinition / Pragma / SchemaDefinition (C++ prelude emission)
-  cpp_emit    — free-function emitters keyed on MIR node type (to be added)
-  helpers     — CodeGenContext and view-spec collection (to be added)
-  batchfile   — JIT batch kernel (.cpp) generation (to be added)
-  orchestrator — SRDatalogProgram + orchestrator (.cpp) generation (to be added)
+  schema    — FactDefinition / Pragma / SchemaDefinition (C++ prelude emission)
+  helpers   — view-spec collection + shared C++ string helpers
+  batchfile — pipeline-collection utilities (used by build.py + JIT tests)
+  jit/      — the Nim-faithful JIT codegen backend (orchestrator_jit,
+              complete_runner, main_file, root, instructions, ...)
 '''

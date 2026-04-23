@@ -221,12 +221,19 @@ def emit_build_ninja(
     obj = os.path.join(output_dir, Path(src).stem + ".o")
     object_paths.append(obj)
     stem = Path(src).stem
-    # jit_batch_N.cpp files host `__global__` kernel definitions so
-    # they need the full CUDA two-pass compile. Everything else
-    # (main.cpp, step_body_*, runner_dispatcher) only references
-    # kernels — one host-only pass is enough and halves per-TU
-    # compile time.
-    rule = "cxx" if stem.startswith("jit_batch_") else "cxx_host_only"
+    # Every TU goes through the full two-pass CUDA compile. An earlier
+    # version of this code compiled main.cpp with `--cuda-host-only` to
+    # halve compile time, on the theory that main only references
+    # kernels. That was wrong: main.cpp triggers template instantiations
+    # of thrust/cub helpers (e.g. set_difference, unique, scan) that no
+    # other TU also instantiates with the same template arguments.
+    # Host-only compilation silently dropped their device side, so the
+    # final `.so` was missing ~113 kernels relative to the Nim build
+    # and `cuKernelGetFunction` returned INVALID_HANDLE at runtime when
+    # the fixpoint tried to launch them (observed on doop/batik_interned
+    # after step 8). Matching Nim's pipeline — full CUDA on every TU —
+    # is the correct behavior.
+    rule = "cxx"
     line = f"build {_ninja_escape(obj)}: {rule} {_ninja_escape(src)}"
     if use_pch:
       # Order-only deps (||) — PCH files must exist before the TU

@@ -61,7 +61,7 @@ struct Kernel_ClassInitializer {
           auto _c5 = view_MethodImplemented_0_1_2_3_FULL_VER.get_value(1, idx_3);
           auto mtype = view_MethodImplemented_0_1_2_3_FULL_VER.get_value(2, idx_3);
           auto meth = view_MethodImplemented_0_1_2_3_FULL_VER.get_value(3, idx_3);
-        if (_c4 == 1009 && _c5 == 1010) {
+        if (_c4 == 894110 && _c5 == 3016219) {
         // Emit: ClassInitializer(mtype, meth)
         if (tile.thread_rank() == 0) output.emit_direct(mtype, meth);
         }

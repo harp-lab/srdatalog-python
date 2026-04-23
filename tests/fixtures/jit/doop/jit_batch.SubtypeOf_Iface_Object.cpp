@@ -58,7 +58,7 @@ struct Kernel_SubtypeOf_Iface_Object {
         // WARP MODE: 32 threads cooperatively handle one row
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto s = view_isInterfaceType_IDB_0_FULL_VER.get_value(0, idx_3);
-        auto _hc0 = 1006;
+        auto _hc0 = 427039;
         // Emit: SubtypeOf(s, _hc0)
         if (tile.thread_rank() == 0) output.emit_direct(s, _hc0);
         }

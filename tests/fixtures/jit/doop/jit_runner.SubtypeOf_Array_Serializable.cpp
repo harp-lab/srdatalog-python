@@ -58,7 +58,7 @@ struct JitRunner_SubtypeOf_Array_Serializable {
         // WARP MODE: 32 threads cooperatively handle one row
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto s = view_isArrayType_IDB_0_FULL_VER.get_value(0, idx_3);
-        auto _hc3 = 1008;
+        auto _hc3 = 716731;
         // Emit: SubtypeOf(s, _hc3)
         if (tile.thread_rank() == 0) output_ctx.emit_direct();
         }
@@ -108,7 +108,7 @@ struct JitRunner_SubtypeOf_Array_Serializable {
         // WARP MODE: 32 threads cooperatively handle one row
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto s = view_isArrayType_IDB_0_FULL_VER.get_value(0, idx_3);
-        auto _hc3 = 1008;
+        auto _hc3 = 716731;
         // Emit: SubtypeOf(s, _hc3)
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(s, _hc3);
         }
@@ -158,7 +158,7 @@ struct JitRunner_SubtypeOf_Array_Serializable {
         // WARP MODE: 32 threads cooperatively handle one row
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto s = view_isArrayType_IDB_0_FULL_VER.get_value(0, idx_3);
-        auto _hc3 = 1008;
+        auto _hc3 = 716731;
         // Emit: SubtypeOf(s, _hc3)
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(s, _hc3);
         }

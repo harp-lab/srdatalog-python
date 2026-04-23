@@ -18,7 +18,7 @@ struct JitRunner_RegDefUsed3_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 4;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 3;
+  static constexpr std::size_t NumSources = 5;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -49,7 +49,7 @@ struct JitRunner_RegDefUsed3_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER = views[0];
         auto view_RegDefUseDefUsed_2_1_0_3_FULL_VER = views[1];
-        auto view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[2];
+        auto view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'eaUsed' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -64,16 +64,22 @@ struct JitRunner_RegDefUsed3_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER.num_rows_;
           auto h_RegDefUseLiveVarAtPriorUsed_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER);
           if (!h_RegDefUseLiveVarAtPriorUsed_0_root.valid()) continue;
-          auto h_RegDefUseDefUsed_1_root = HandleType(0, view_RegDefUseDefUsed_2_1_0_3_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_RegDefUseDefUsed_2_1_0_3_FULL_VER);
-          if (!h_RegDefUseDefUsed_1_root.valid()) continue;
-          auto eaUsed = root_val_2;
+          // Segment loop: RegDefUseDefUsed FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_RegDefUseDefUsed_1 = views[1 + _seg_1];
+            view_RegDefUseDefUsed_2_1_0_3_FULL_VER = view_RegDefUseDefUsed_1;
+            auto h_RegDefUseDefUsed_1_root = HandleType(0, view_RegDefUseDefUsed_1.num_rows_, 0).prefix(root_val_2, tile, view_RegDefUseDefUsed_1);
+            if (!h_RegDefUseDefUsed_1_root.valid()) continue;
+            auto eaUsed = root_val_2;
         // Nested ColumnJoin (intersection): bind 'mvar' from 3 sources
         // MIR: (column-join :var mvar :sources ((RegDefUseLiveVarAtPriorUsed :handle 2 :prefix (eaUsed)) (RegDefUseDefUsed :handle 3 :prefix (eaUsed)) (RegDefUseLiveVarUsed :handle 4 :prefix ()) ))
-        auto h_RegDefUseLiveVarAtPriorUsed_2_12 = h_RegDefUseLiveVarAtPriorUsed_0_root;
-        auto h_RegDefUseDefUsed_3_13 = h_RegDefUseDefUsed_1_root;
-        auto h_RegDefUseLiveVarUsed_4_14 = HandleType(0, view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER.num_rows_, 0);
-        auto intersect_15 = intersect_handles(tile, h_RegDefUseLiveVarAtPriorUsed_2_12.iterators(view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER), h_RegDefUseDefUsed_3_13.iterators(view_RegDefUseDefUsed_2_1_0_3_FULL_VER), h_RegDefUseLiveVarUsed_4_14.iterators(view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER));
-        for (auto it_16 = intersect_15.begin(); it_16.valid(); it_16.next()) {
+        for (int _nseg_2 = 0; _nseg_2 < 2; _nseg_2++) {
+          view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[3 + _nseg_2];
+          auto h_RegDefUseLiveVarAtPriorUsed_2_12 = h_RegDefUseLiveVarAtPriorUsed_0_root;
+          auto h_RegDefUseDefUsed_3_13 = h_RegDefUseDefUsed_1_root;
+          auto h_RegDefUseLiveVarUsed_4_14 = HandleType(0, view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER.num_rows_, 0);
+          auto intersect_15 = intersect_handles(tile, h_RegDefUseLiveVarAtPriorUsed_2_12.iterators(view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER), h_RegDefUseDefUsed_3_13.iterators(view_RegDefUseDefUsed_2_1_0_3_FULL_VER), h_RegDefUseLiveVarUsed_4_14.iterators(view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER));
+          for (auto it_16 = intersect_15.begin(); it_16.valid(); it_16.next()) {
           auto mvar = it_16.value();
           auto positions = it_16.positions();
           auto ch_RegDefUseLiveVarAtPriorUsed_2_mvar = h_RegDefUseLiveVarAtPriorUsed_2_12.child_range(positions[0], mvar, tile, view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER);
@@ -112,7 +118,9 @@ struct JitRunner_RegDefUsed3_D0 {
           output_ctx.add_count(lane_share);
         }
         }
+          }
         }
+          }
         }
     thread_counts[thread_id] = output_ctx.count();
   }
@@ -151,7 +159,7 @@ struct JitRunner_RegDefUsed3_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER = views[0];
         auto view_RegDefUseDefUsed_2_1_0_3_FULL_VER = views[1];
-        auto view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[2];
+        auto view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'eaUsed' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -166,16 +174,22 @@ struct JitRunner_RegDefUsed3_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER.num_rows_;
           auto h_RegDefUseLiveVarAtPriorUsed_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER);
           if (!h_RegDefUseLiveVarAtPriorUsed_0_root.valid()) continue;
-          auto h_RegDefUseDefUsed_1_root = HandleType(0, view_RegDefUseDefUsed_2_1_0_3_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_RegDefUseDefUsed_2_1_0_3_FULL_VER);
-          if (!h_RegDefUseDefUsed_1_root.valid()) continue;
-          auto eaUsed = root_val_2;
+          // Segment loop: RegDefUseDefUsed FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_RegDefUseDefUsed_1 = views[1 + _seg_1];
+            view_RegDefUseDefUsed_2_1_0_3_FULL_VER = view_RegDefUseDefUsed_1;
+            auto h_RegDefUseDefUsed_1_root = HandleType(0, view_RegDefUseDefUsed_1.num_rows_, 0).prefix(root_val_2, tile, view_RegDefUseDefUsed_1);
+            if (!h_RegDefUseDefUsed_1_root.valid()) continue;
+            auto eaUsed = root_val_2;
         // Nested ColumnJoin (intersection): bind 'mvar' from 3 sources
         // MIR: (column-join :var mvar :sources ((RegDefUseLiveVarAtPriorUsed :handle 2 :prefix (eaUsed)) (RegDefUseDefUsed :handle 3 :prefix (eaUsed)) (RegDefUseLiveVarUsed :handle 4 :prefix ()) ))
-        auto h_RegDefUseLiveVarAtPriorUsed_2_16 = h_RegDefUseLiveVarAtPriorUsed_0_root;
-        auto h_RegDefUseDefUsed_3_17 = h_RegDefUseDefUsed_1_root;
-        auto h_RegDefUseLiveVarUsed_4_18 = HandleType(0, view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER.num_rows_, 0);
-        auto intersect_19 = intersect_handles(tile, h_RegDefUseLiveVarAtPriorUsed_2_16.iterators(view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER), h_RegDefUseDefUsed_3_17.iterators(view_RegDefUseDefUsed_2_1_0_3_FULL_VER), h_RegDefUseLiveVarUsed_4_18.iterators(view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER));
-        for (auto it_20 = intersect_19.begin(); it_20.valid(); it_20.next()) {
+        for (int _nseg_2 = 0; _nseg_2 < 2; _nseg_2++) {
+          view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[3 + _nseg_2];
+          auto h_RegDefUseLiveVarAtPriorUsed_2_16 = h_RegDefUseLiveVarAtPriorUsed_0_root;
+          auto h_RegDefUseDefUsed_3_17 = h_RegDefUseDefUsed_1_root;
+          auto h_RegDefUseLiveVarUsed_4_18 = HandleType(0, view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER.num_rows_, 0);
+          auto intersect_19 = intersect_handles(tile, h_RegDefUseLiveVarAtPriorUsed_2_16.iterators(view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER), h_RegDefUseDefUsed_3_17.iterators(view_RegDefUseDefUsed_2_1_0_3_FULL_VER), h_RegDefUseLiveVarUsed_4_18.iterators(view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER));
+          for (auto it_20 = intersect_19.begin(); it_20.valid(); it_20.next()) {
           auto mvar = it_20.value();
           auto positions = it_20.positions();
           auto ch_RegDefUseLiveVarAtPriorUsed_2_mvar = h_RegDefUseLiveVarAtPriorUsed_2_16.child_range(positions[0], mvar, tile, view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER);
@@ -226,7 +240,9 @@ struct JitRunner_RegDefUsed3_D0 {
         output_ctx_0.emit_direct(eaDef, mvar, nextEaUsed, nextIndex);
         }
         }
+          }
         }
+          }
         }
   }
 
@@ -265,7 +281,7 @@ struct JitRunner_RegDefUsed3_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER = views[0];
         auto view_RegDefUseDefUsed_2_1_0_3_FULL_VER = views[1];
-        auto view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[2];
+        auto view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'eaUsed' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -280,16 +296,22 @@ struct JitRunner_RegDefUsed3_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER.num_rows_;
           auto h_RegDefUseLiveVarAtPriorUsed_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER);
           if (!h_RegDefUseLiveVarAtPriorUsed_0_root.valid()) continue;
-          auto h_RegDefUseDefUsed_1_root = HandleType(0, view_RegDefUseDefUsed_2_1_0_3_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_RegDefUseDefUsed_2_1_0_3_FULL_VER);
-          if (!h_RegDefUseDefUsed_1_root.valid()) continue;
-          auto eaUsed = root_val_2;
+          // Segment loop: RegDefUseDefUsed FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_RegDefUseDefUsed_1 = views[1 + _seg_1];
+            view_RegDefUseDefUsed_2_1_0_3_FULL_VER = view_RegDefUseDefUsed_1;
+            auto h_RegDefUseDefUsed_1_root = HandleType(0, view_RegDefUseDefUsed_1.num_rows_, 0).prefix(root_val_2, tile, view_RegDefUseDefUsed_1);
+            if (!h_RegDefUseDefUsed_1_root.valid()) continue;
+            auto eaUsed = root_val_2;
         // Nested ColumnJoin (intersection): bind 'mvar' from 3 sources
         // MIR: (column-join :var mvar :sources ((RegDefUseLiveVarAtPriorUsed :handle 2 :prefix (eaUsed)) (RegDefUseDefUsed :handle 3 :prefix (eaUsed)) (RegDefUseLiveVarUsed :handle 4 :prefix ()) ))
-        auto h_RegDefUseLiveVarAtPriorUsed_2_16 = h_RegDefUseLiveVarAtPriorUsed_0_root;
-        auto h_RegDefUseDefUsed_3_17 = h_RegDefUseDefUsed_1_root;
-        auto h_RegDefUseLiveVarUsed_4_18 = HandleType(0, view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER.num_rows_, 0);
-        auto intersect_19 = intersect_handles(tile, h_RegDefUseLiveVarAtPriorUsed_2_16.iterators(view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER), h_RegDefUseDefUsed_3_17.iterators(view_RegDefUseDefUsed_2_1_0_3_FULL_VER), h_RegDefUseLiveVarUsed_4_18.iterators(view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER));
-        for (auto it_20 = intersect_19.begin(); it_20.valid(); it_20.next()) {
+        for (int _nseg_2 = 0; _nseg_2 < 2; _nseg_2++) {
+          view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER = views[3 + _nseg_2];
+          auto h_RegDefUseLiveVarAtPriorUsed_2_16 = h_RegDefUseLiveVarAtPriorUsed_0_root;
+          auto h_RegDefUseDefUsed_3_17 = h_RegDefUseDefUsed_1_root;
+          auto h_RegDefUseLiveVarUsed_4_18 = HandleType(0, view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER.num_rows_, 0);
+          auto intersect_19 = intersect_handles(tile, h_RegDefUseLiveVarAtPriorUsed_2_16.iterators(view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER), h_RegDefUseDefUsed_3_17.iterators(view_RegDefUseDefUsed_2_1_0_3_FULL_VER), h_RegDefUseLiveVarUsed_4_18.iterators(view_RegDefUseLiveVarUsed_1_0_2_3_FULL_VER));
+          for (auto it_20 = intersect_19.begin(); it_20.valid(); it_20.next()) {
           auto mvar = it_20.value();
           auto positions = it_20.positions();
           auto ch_RegDefUseLiveVarAtPriorUsed_2_mvar = h_RegDefUseLiveVarAtPriorUsed_2_16.child_range(positions[0], mvar, tile, view_RegDefUseLiveVarAtPriorUsed_0_2_1_DELTA_VER);
@@ -340,7 +362,9 @@ struct JitRunner_RegDefUsed3_D0 {
         output_ctx_0.emit_direct(eaDef, mvar, nextEaUsed, nextIndex);
         }
         }
+          }
         }
+          }
         }
     output_ctx_0.flush();
   }
@@ -400,14 +424,16 @@ JitRunner_RegDefUsed3_D0::LaunchParams JitRunner_RegDefUsed3_D0::setup(DB& db, u
   {
     auto& rel_1 = get_relation_by_schema<RegDefUseDefUsed, FULL_VER>(db);
     auto& idx_1 = rel_1.ensure_index(SRDatalog::IndexSpec{{2, 1, 0, 3}}, false);
-    p.views_vec.push_back(idx_1.view());
+    p.views_vec.push_back(idx_1.full_view());
+    p.views_vec.push_back(idx_1.head_view());
   }
 
   // Source 4: RegDefUseLiveVarUsed version FULL_VER
   {
     auto& rel_4 = get_relation_by_schema<RegDefUseLiveVarUsed, FULL_VER>(db);
     auto& idx_4 = rel_4.ensure_index(SRDatalog::IndexSpec{{1, 0, 2, 3}}, false);
-    p.views_vec.push_back(idx_4.view());
+    p.views_vec.push_back(idx_4.full_view());
+    p.views_vec.push_back(idx_4.head_view());
   }
 
   // First source for root keys

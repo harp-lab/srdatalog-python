@@ -18,7 +18,7 @@ struct JitRunner_ocle_subset_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 3;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 2;
+  static constexpr std::size_t NumSources = 3;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -63,9 +63,13 @@ struct JitRunner_ocle_subset_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_origin_contains_loan_on_entry_0_2_1_DELTA_VER.num_rows_;
           auto h_origin_contains_loan_on_entry_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_origin_contains_loan_on_entry_0_2_1_DELTA_VER);
           if (!h_origin_contains_loan_on_entry_0_root.valid()) continue;
-          auto h_subset_1_root = HandleType(0, view_subset_0_2_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_subset_0_2_1_FULL_VER);
-          if (!h_subset_1_root.valid()) continue;
-          auto origin1 = root_val_2;
+          // Segment loop: subset FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_subset_1 = views[1 + _seg_1];
+            view_subset_0_2_1_FULL_VER = view_subset_1;
+            auto h_subset_1_root = HandleType(0, view_subset_1.num_rows_, 0).prefix(root_val_2, tile, view_subset_1);
+            if (!h_subset_1_root.valid()) continue;
+            auto origin1 = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point' from 2 sources
         // MIR: (column-join :var point :sources ((origin_contains_loan_on_entry :handle 2 :prefix (origin1)) (subset :handle 3 :prefix (origin1)) ))
         auto h_origin_contains_loan_on_entry_2_8 = h_origin_contains_loan_on_entry_0_root;
@@ -99,6 +103,7 @@ struct JitRunner_ocle_subset_D0 {
           output_ctx.add_count(lane_share);
         }
         }
+          }
         }
     thread_counts[thread_id] = output_ctx.count();
   }
@@ -151,9 +156,13 @@ struct JitRunner_ocle_subset_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_origin_contains_loan_on_entry_0_2_1_DELTA_VER.num_rows_;
           auto h_origin_contains_loan_on_entry_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_origin_contains_loan_on_entry_0_2_1_DELTA_VER);
           if (!h_origin_contains_loan_on_entry_0_root.valid()) continue;
-          auto h_subset_1_root = HandleType(0, view_subset_0_2_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_subset_0_2_1_FULL_VER);
-          if (!h_subset_1_root.valid()) continue;
-          auto origin1 = root_val_2;
+          // Segment loop: subset FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_subset_1 = views[1 + _seg_1];
+            view_subset_0_2_1_FULL_VER = view_subset_1;
+            auto h_subset_1_root = HandleType(0, view_subset_1.num_rows_, 0).prefix(root_val_2, tile, view_subset_1);
+            if (!h_subset_1_root.valid()) continue;
+            auto origin1 = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point' from 2 sources
         // MIR: (column-join :var point :sources ((origin_contains_loan_on_entry :handle 2 :prefix (origin1)) (subset :handle 3 :prefix (origin1)) ))
         auto h_origin_contains_loan_on_entry_2_12 = h_origin_contains_loan_on_entry_0_root;
@@ -197,6 +206,7 @@ struct JitRunner_ocle_subset_D0 {
         output_ctx_0.emit_direct(origin2, loan, point);
         }
         }
+          }
         }
   }
 
@@ -249,9 +259,13 @@ struct JitRunner_ocle_subset_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_origin_contains_loan_on_entry_0_2_1_DELTA_VER.num_rows_;
           auto h_origin_contains_loan_on_entry_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_origin_contains_loan_on_entry_0_2_1_DELTA_VER);
           if (!h_origin_contains_loan_on_entry_0_root.valid()) continue;
-          auto h_subset_1_root = HandleType(0, view_subset_0_2_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_subset_0_2_1_FULL_VER);
-          if (!h_subset_1_root.valid()) continue;
-          auto origin1 = root_val_2;
+          // Segment loop: subset FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_subset_1 = views[1 + _seg_1];
+            view_subset_0_2_1_FULL_VER = view_subset_1;
+            auto h_subset_1_root = HandleType(0, view_subset_1.num_rows_, 0).prefix(root_val_2, tile, view_subset_1);
+            if (!h_subset_1_root.valid()) continue;
+            auto origin1 = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point' from 2 sources
         // MIR: (column-join :var point :sources ((origin_contains_loan_on_entry :handle 2 :prefix (origin1)) (subset :handle 3 :prefix (origin1)) ))
         auto h_origin_contains_loan_on_entry_2_12 = h_origin_contains_loan_on_entry_0_root;
@@ -295,6 +309,7 @@ struct JitRunner_ocle_subset_D0 {
         output_ctx_0.emit_direct(origin2, loan, point);
         }
         }
+          }
         }
     output_ctx_0.flush();
   }
@@ -354,7 +369,8 @@ JitRunner_ocle_subset_D0::LaunchParams JitRunner_ocle_subset_D0::setup(DB& db, u
   {
     auto& rel_1 = get_relation_by_schema<subset, FULL_VER>(db);
     auto& idx_1 = rel_1.ensure_index(SRDatalog::IndexSpec{{0, 2, 1}}, false);
-    p.views_vec.push_back(idx_1.view());
+    p.views_vec.push_back(idx_1.full_view());
+    p.views_vec.push_back(idx_1.head_view());
   }
 
   // First source for root keys

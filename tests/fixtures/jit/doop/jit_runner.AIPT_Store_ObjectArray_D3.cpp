@@ -18,7 +18,7 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 4;
+  static constexpr std::size_t NumSources = 5;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -50,7 +50,7 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
         auto view_VarPointsTo_1_0_DELTA_VER = views[0];
         auto view_ReachableSortedIndex_0_1_FULL_VER = views[1];
         auto view_VarPointsTo_1_0_FULL_VER = views[2];
-        auto view_IsObjectArrayHeap_0_FULL_VER = views[3];
+        auto view_IsObjectArrayHeap_0_FULL_VER = views[4];
 
         // Root ColumnJoin (multi-source intersection): bind 'frm' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -70,10 +70,12 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
           auto frm = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((ReachableSortedIndex :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableSortedIndex_2_10 = h_ReachableSortedIndex_1_root;
-        auto h_VarPointsTo_3_11 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_12 = intersect_handles(tile, h_ReachableSortedIndex_2_10.iterators(view_ReachableSortedIndex_0_1_FULL_VER), h_VarPointsTo_3_11.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_ReachableSortedIndex_2_10 = h_ReachableSortedIndex_1_root;
+          auto h_VarPointsTo_3_11 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_12 = intersect_handles(tile, h_ReachableSortedIndex_2_10.iterators(view_ReachableSortedIndex_0_1_FULL_VER), h_VarPointsTo_3_11.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
           auto base = it_13.value();
           auto positions = it_13.positions();
           auto ch_ReachableSortedIndex_2_base = h_ReachableSortedIndex_2_10.child_range(positions[0], base, tile, view_ReachableSortedIndex_0_1_FULL_VER);
@@ -109,6 +111,7 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
           output_ctx.add_count(lane_share);
         }
         }
+          }
         }
         }
     thread_counts[thread_id] = output_ctx.count();
@@ -149,7 +152,7 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
         auto view_VarPointsTo_1_0_DELTA_VER = views[0];
         auto view_ReachableSortedIndex_0_1_FULL_VER = views[1];
         auto view_VarPointsTo_1_0_FULL_VER = views[2];
-        auto view_IsObjectArrayHeap_0_FULL_VER = views[3];
+        auto view_IsObjectArrayHeap_0_FULL_VER = views[4];
 
         // Root ColumnJoin (multi-source intersection): bind 'frm' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -169,10 +172,12 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
           auto frm = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((ReachableSortedIndex :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableSortedIndex_2_12 = h_ReachableSortedIndex_1_root;
-        auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_14 = intersect_handles(tile, h_ReachableSortedIndex_2_12.iterators(view_ReachableSortedIndex_0_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_ReachableSortedIndex_2_12 = h_ReachableSortedIndex_1_root;
+          auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_14 = intersect_handles(tile, h_ReachableSortedIndex_2_12.iterators(view_ReachableSortedIndex_0_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
           auto base = it_15.value();
           auto positions = it_15.positions();
           auto ch_ReachableSortedIndex_2_base = h_ReachableSortedIndex_2_12.child_range(positions[0], base, tile, view_ReachableSortedIndex_0_1_FULL_VER);
@@ -209,6 +214,7 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
         output_ctx_0.emit_direct(baseheap, heap);
         }
         }
+          }
         }
         }
   }
@@ -249,7 +255,7 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
         auto view_VarPointsTo_1_0_DELTA_VER = views[0];
         auto view_ReachableSortedIndex_0_1_FULL_VER = views[1];
         auto view_VarPointsTo_1_0_FULL_VER = views[2];
-        auto view_IsObjectArrayHeap_0_FULL_VER = views[3];
+        auto view_IsObjectArrayHeap_0_FULL_VER = views[4];
 
         // Root ColumnJoin (multi-source intersection): bind 'frm' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -269,10 +275,12 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
           auto frm = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((ReachableSortedIndex :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableSortedIndex_2_12 = h_ReachableSortedIndex_1_root;
-        auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_14 = intersect_handles(tile, h_ReachableSortedIndex_2_12.iterators(view_ReachableSortedIndex_0_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_ReachableSortedIndex_2_12 = h_ReachableSortedIndex_1_root;
+          auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_14 = intersect_handles(tile, h_ReachableSortedIndex_2_12.iterators(view_ReachableSortedIndex_0_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
           auto base = it_15.value();
           auto positions = it_15.positions();
           auto ch_ReachableSortedIndex_2_base = h_ReachableSortedIndex_2_12.child_range(positions[0], base, tile, view_ReachableSortedIndex_0_1_FULL_VER);
@@ -309,6 +317,7 @@ struct JitRunner_AIPT_Store_ObjectArray_D3 {
         output_ctx_0.emit_direct(baseheap, heap);
         }
         }
+          }
         }
         }
     output_ctx_0.flush();
@@ -376,7 +385,8 @@ JitRunner_AIPT_Store_ObjectArray_D3::LaunchParams JitRunner_AIPT_Store_ObjectArr
   {
     auto& rel_3 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_3 = rel_3.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_3.view());
+    p.views_vec.push_back(idx_3.full_view());
+    p.views_vec.push_back(idx_3.head_view());
   }
 
   // Source 5: IsObjectArrayHeap version FULL_VER

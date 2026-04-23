@@ -18,7 +18,7 @@ struct JitRunner_subset_cfg_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 3;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 3;
+  static constexpr std::size_t NumSources = 4;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -69,11 +69,15 @@ struct JitRunner_subset_cfg_D0 {
           auto point1 = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point2' from 3 sources
         // MIR: (column-join :var point2 :sources ((cfg_edge :handle 2 :prefix (point1)) (origin_live_on_entry :handle 3 :prefix ()) (origin_live_on_entry :handle 4 :prefix ()) ))
-        auto h_cfg_edge_2_9 = h_cfg_edge_1_root;
-        auto h_origin_live_on_entry_3_10 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
-        auto h_origin_live_on_entry_4_11 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_12 = intersect_handles(tile, h_cfg_edge_2_9.iterators(view_cfg_edge_0_1_FULL_VER), h_origin_live_on_entry_3_10.iterators(view_origin_live_on_entry_1_0_FULL_VER), h_origin_live_on_entry_4_11.iterators(view_origin_live_on_entry_1_0_FULL_VER));
-        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_origin_live_on_entry_1_0_FULL_VER = views[2 + _nseg_1];
+          for (int _nseg_2 = 0; _nseg_2 < 2; _nseg_2++) {
+            view_origin_live_on_entry_1_0_FULL_VER = views[2 + _nseg_2];
+            auto h_cfg_edge_2_9 = h_cfg_edge_1_root;
+            auto h_origin_live_on_entry_3_10 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
+            auto h_origin_live_on_entry_4_11 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
+            auto intersect_12 = intersect_handles(tile, h_cfg_edge_2_9.iterators(view_cfg_edge_0_1_FULL_VER), h_origin_live_on_entry_3_10.iterators(view_origin_live_on_entry_1_0_FULL_VER), h_origin_live_on_entry_4_11.iterators(view_origin_live_on_entry_1_0_FULL_VER));
+            for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
           auto point2 = it_13.value();
           auto positions = it_13.positions();
           auto ch_cfg_edge_2_point2 = h_cfg_edge_2_9.child_range(positions[0], point2, tile, view_cfg_edge_0_1_FULL_VER);
@@ -103,6 +107,8 @@ struct JitRunner_subset_cfg_D0 {
         if (tile.thread_rank() == 0) output_ctx.emit_direct();
         }
         }
+            }
+          }
         }
         }
     thread_counts[thread_id] = output_ctx.count();
@@ -162,11 +168,15 @@ struct JitRunner_subset_cfg_D0 {
           auto point1 = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point2' from 3 sources
         // MIR: (column-join :var point2 :sources ((cfg_edge :handle 2 :prefix (point1)) (origin_live_on_entry :handle 3 :prefix ()) (origin_live_on_entry :handle 4 :prefix ()) ))
-        auto h_cfg_edge_2_9 = h_cfg_edge_1_root;
-        auto h_origin_live_on_entry_3_10 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
-        auto h_origin_live_on_entry_4_11 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_12 = intersect_handles(tile, h_cfg_edge_2_9.iterators(view_cfg_edge_0_1_FULL_VER), h_origin_live_on_entry_3_10.iterators(view_origin_live_on_entry_1_0_FULL_VER), h_origin_live_on_entry_4_11.iterators(view_origin_live_on_entry_1_0_FULL_VER));
-        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_origin_live_on_entry_1_0_FULL_VER = views[2 + _nseg_1];
+          for (int _nseg_2 = 0; _nseg_2 < 2; _nseg_2++) {
+            view_origin_live_on_entry_1_0_FULL_VER = views[2 + _nseg_2];
+            auto h_cfg_edge_2_9 = h_cfg_edge_1_root;
+            auto h_origin_live_on_entry_3_10 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
+            auto h_origin_live_on_entry_4_11 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
+            auto intersect_12 = intersect_handles(tile, h_cfg_edge_2_9.iterators(view_cfg_edge_0_1_FULL_VER), h_origin_live_on_entry_3_10.iterators(view_origin_live_on_entry_1_0_FULL_VER), h_origin_live_on_entry_4_11.iterators(view_origin_live_on_entry_1_0_FULL_VER));
+            for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
           auto point2 = it_13.value();
           auto positions = it_13.positions();
           auto ch_cfg_edge_2_point2 = h_cfg_edge_2_9.child_range(positions[0], point2, tile, view_cfg_edge_0_1_FULL_VER);
@@ -196,6 +206,8 @@ struct JitRunner_subset_cfg_D0 {
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(origin1, origin2, point2);
         }
         }
+            }
+          }
         }
         }
   }
@@ -255,11 +267,15 @@ struct JitRunner_subset_cfg_D0 {
           auto point1 = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point2' from 3 sources
         // MIR: (column-join :var point2 :sources ((cfg_edge :handle 2 :prefix (point1)) (origin_live_on_entry :handle 3 :prefix ()) (origin_live_on_entry :handle 4 :prefix ()) ))
-        auto h_cfg_edge_2_9 = h_cfg_edge_1_root;
-        auto h_origin_live_on_entry_3_10 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
-        auto h_origin_live_on_entry_4_11 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_12 = intersect_handles(tile, h_cfg_edge_2_9.iterators(view_cfg_edge_0_1_FULL_VER), h_origin_live_on_entry_3_10.iterators(view_origin_live_on_entry_1_0_FULL_VER), h_origin_live_on_entry_4_11.iterators(view_origin_live_on_entry_1_0_FULL_VER));
-        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_origin_live_on_entry_1_0_FULL_VER = views[2 + _nseg_1];
+          for (int _nseg_2 = 0; _nseg_2 < 2; _nseg_2++) {
+            view_origin_live_on_entry_1_0_FULL_VER = views[2 + _nseg_2];
+            auto h_cfg_edge_2_9 = h_cfg_edge_1_root;
+            auto h_origin_live_on_entry_3_10 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
+            auto h_origin_live_on_entry_4_11 = HandleType(0, view_origin_live_on_entry_1_0_FULL_VER.num_rows_, 0);
+            auto intersect_12 = intersect_handles(tile, h_cfg_edge_2_9.iterators(view_cfg_edge_0_1_FULL_VER), h_origin_live_on_entry_3_10.iterators(view_origin_live_on_entry_1_0_FULL_VER), h_origin_live_on_entry_4_11.iterators(view_origin_live_on_entry_1_0_FULL_VER));
+            for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
           auto point2 = it_13.value();
           auto positions = it_13.positions();
           auto ch_cfg_edge_2_point2 = h_cfg_edge_2_9.child_range(positions[0], point2, tile, view_cfg_edge_0_1_FULL_VER);
@@ -289,6 +305,8 @@ struct JitRunner_subset_cfg_D0 {
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(origin1, origin2, point2);
         }
         }
+            }
+          }
         }
         }
     output_ctx_0.flush();
@@ -356,7 +374,8 @@ JitRunner_subset_cfg_D0::LaunchParams JitRunner_subset_cfg_D0::setup(DB& db, uin
   {
     auto& rel_3 = get_relation_by_schema<origin_live_on_entry, FULL_VER>(db);
     auto& idx_3 = rel_3.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_3.view());
+    p.views_vec.push_back(idx_3.full_view());
+    p.views_vec.push_back(idx_3.head_view());
   }
 
   // First source for root keys

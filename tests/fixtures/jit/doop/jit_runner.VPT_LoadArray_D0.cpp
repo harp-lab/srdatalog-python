@@ -18,7 +18,7 @@ struct JitRunner_VPT_LoadArray_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 6;
+  static constexpr std::size_t NumSources = 7;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -50,9 +50,9 @@ struct JitRunner_VPT_LoadArray_D0 {
         auto view_Reachable_0_DELTA_VER = views[0];
         auto view_LoadArrayIndex_2_0_1_FULL_VER = views[1];
         auto view_VarPointsTo_1_0_FULL_VER = views[2];
-        auto view_Var_Type_0_1_FULL_VER = views[3];
-        auto view_ArrayIndexPointsTo_0_1_FULL_VER = views[4];
-        auto view_ArrayTypeCompat_0_1_FULL_VER = views[5];
+        auto view_Var_Type_0_1_FULL_VER = views[4];
+        auto view_ArrayIndexPointsTo_0_1_FULL_VER = views[5];
+        auto view_ArrayTypeCompat_0_1_FULL_VER = views[6];
 
         // Root ColumnJoin (multi-source intersection): bind 'inmeth' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -72,10 +72,12 @@ struct JitRunner_VPT_LoadArray_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((LoadArrayIndex :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_LoadArrayIndex_2_19 = h_LoadArrayIndex_1_root;
-        auto h_VarPointsTo_3_20 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_21 = intersect_handles(tile, h_LoadArrayIndex_2_19.iterators(view_LoadArrayIndex_2_0_1_FULL_VER), h_VarPointsTo_3_20.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_22 = intersect_21.begin(); it_22.valid(); it_22.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_LoadArrayIndex_2_19 = h_LoadArrayIndex_1_root;
+          auto h_VarPointsTo_3_20 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_21 = intersect_handles(tile, h_LoadArrayIndex_2_19.iterators(view_LoadArrayIndex_2_0_1_FULL_VER), h_VarPointsTo_3_20.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_22 = intersect_21.begin(); it_22.valid(); it_22.next()) {
           auto base = it_22.value();
           auto positions = it_22.positions();
           auto ch_LoadArrayIndex_2_base = h_LoadArrayIndex_2_19.child_range(positions[0], base, tile, view_LoadArrayIndex_2_0_1_FULL_VER);
@@ -135,6 +137,7 @@ struct JitRunner_VPT_LoadArray_D0 {
         }
         }
         }
+          }
         }
         }
     thread_counts[thread_id] = output_ctx.count();
@@ -175,9 +178,9 @@ struct JitRunner_VPT_LoadArray_D0 {
         auto view_Reachable_0_DELTA_VER = views[0];
         auto view_LoadArrayIndex_2_0_1_FULL_VER = views[1];
         auto view_VarPointsTo_1_0_FULL_VER = views[2];
-        auto view_Var_Type_0_1_FULL_VER = views[3];
-        auto view_ArrayIndexPointsTo_0_1_FULL_VER = views[4];
-        auto view_ArrayTypeCompat_0_1_FULL_VER = views[5];
+        auto view_Var_Type_0_1_FULL_VER = views[4];
+        auto view_ArrayIndexPointsTo_0_1_FULL_VER = views[5];
+        auto view_ArrayTypeCompat_0_1_FULL_VER = views[6];
 
         // Root ColumnJoin (multi-source intersection): bind 'inmeth' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -197,10 +200,12 @@ struct JitRunner_VPT_LoadArray_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((LoadArrayIndex :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_LoadArrayIndex_2_21 = h_LoadArrayIndex_1_root;
-        auto h_VarPointsTo_3_22 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_23 = intersect_handles(tile, h_LoadArrayIndex_2_21.iterators(view_LoadArrayIndex_2_0_1_FULL_VER), h_VarPointsTo_3_22.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_24 = intersect_23.begin(); it_24.valid(); it_24.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_LoadArrayIndex_2_21 = h_LoadArrayIndex_1_root;
+          auto h_VarPointsTo_3_22 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_23 = intersect_handles(tile, h_LoadArrayIndex_2_21.iterators(view_LoadArrayIndex_2_0_1_FULL_VER), h_VarPointsTo_3_22.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_24 = intersect_23.begin(); it_24.valid(); it_24.next()) {
           auto base = it_24.value();
           auto positions = it_24.positions();
           auto ch_LoadArrayIndex_2_base = h_LoadArrayIndex_2_21.child_range(positions[0], base, tile, view_LoadArrayIndex_2_0_1_FULL_VER);
@@ -261,6 +266,7 @@ struct JitRunner_VPT_LoadArray_D0 {
         }
         }
         }
+          }
         }
         }
   }
@@ -301,9 +307,9 @@ struct JitRunner_VPT_LoadArray_D0 {
         auto view_Reachable_0_DELTA_VER = views[0];
         auto view_LoadArrayIndex_2_0_1_FULL_VER = views[1];
         auto view_VarPointsTo_1_0_FULL_VER = views[2];
-        auto view_Var_Type_0_1_FULL_VER = views[3];
-        auto view_ArrayIndexPointsTo_0_1_FULL_VER = views[4];
-        auto view_ArrayTypeCompat_0_1_FULL_VER = views[5];
+        auto view_Var_Type_0_1_FULL_VER = views[4];
+        auto view_ArrayIndexPointsTo_0_1_FULL_VER = views[5];
+        auto view_ArrayTypeCompat_0_1_FULL_VER = views[6];
 
         // Root ColumnJoin (multi-source intersection): bind 'inmeth' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -323,10 +329,12 @@ struct JitRunner_VPT_LoadArray_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((LoadArrayIndex :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_LoadArrayIndex_2_21 = h_LoadArrayIndex_1_root;
-        auto h_VarPointsTo_3_22 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_23 = intersect_handles(tile, h_LoadArrayIndex_2_21.iterators(view_LoadArrayIndex_2_0_1_FULL_VER), h_VarPointsTo_3_22.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_24 = intersect_23.begin(); it_24.valid(); it_24.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_LoadArrayIndex_2_21 = h_LoadArrayIndex_1_root;
+          auto h_VarPointsTo_3_22 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_23 = intersect_handles(tile, h_LoadArrayIndex_2_21.iterators(view_LoadArrayIndex_2_0_1_FULL_VER), h_VarPointsTo_3_22.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_24 = intersect_23.begin(); it_24.valid(); it_24.next()) {
           auto base = it_24.value();
           auto positions = it_24.positions();
           auto ch_LoadArrayIndex_2_base = h_LoadArrayIndex_2_21.child_range(positions[0], base, tile, view_LoadArrayIndex_2_0_1_FULL_VER);
@@ -387,6 +395,7 @@ struct JitRunner_VPT_LoadArray_D0 {
         }
         }
         }
+          }
         }
         }
     output_ctx_0.flush();
@@ -454,7 +463,8 @@ JitRunner_VPT_LoadArray_D0::LaunchParams JitRunner_VPT_LoadArray_D0::setup(DB& d
   {
     auto& rel_3 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_3 = rel_3.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_3.view());
+    p.views_vec.push_back(idx_3.full_view());
+    p.views_vec.push_back(idx_3.head_view());
   }
 
   // Source 5: Var_Type version FULL_VER

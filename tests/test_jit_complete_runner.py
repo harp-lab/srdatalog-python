@@ -139,6 +139,13 @@ def test_all_runner_fixtures_byte_match():
     except Exception as e:
       errors.append(f"{stem}: MIR build failed: {e}")
       continue
+    # Build the same rel_index_types map that build.py:95 assembles for the
+    # live compile, so gen_complete_runner's pluginViewCount resolves custom
+    # index types (e.g., SRDatalog::GPU::Device2LevelIndex) — without this
+    # the runner falls back to the default plugin's viewCount=1 everywhere
+    # and diverges from the Nim golden by 1 view per FULL_VER reference on
+    # any 2-level-indexed relation.
+    rel_index_types = {r.name: r.index_type for r in prog.relations if getattr(r, "index_type", "")}
     db_name = None
     for ep in _collect_pipelines(mir):
       db_name = _db_name_from_fixture(stem, ep.rule_name)
@@ -159,7 +166,7 @@ def test_all_runner_fixtures_byte_match():
       if not fx.exists():
         continue
       try:
-        _decl, full = gen_complete_runner(ep, db_name)
+        _decl, full = gen_complete_runner(ep, db_name, rel_index_types=rel_index_types)
       except NotImplementedError:
         errors.append(
           f"{stem}/{rule}: unexpected NotImplementedError — add to "

@@ -59,7 +59,7 @@ struct JitRunner_IsObjectArrayHeap_rule {
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto baseheap = view_HeapAllocation_Type_0_1_FULL_VER.get_value(0, idx_3);
           auto _c6 = view_HeapAllocation_Type_0_1_FULL_VER.get_value(1, idx_3);
-        if (_c6 == 1016) {
+        if (_c6 == 522484) {
         // Emit: IsObjectArrayHeap(baseheap)
         if (tile.thread_rank() == 0) output_ctx.emit_direct();
         }
@@ -111,7 +111,7 @@ struct JitRunner_IsObjectArrayHeap_rule {
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto baseheap = view_HeapAllocation_Type_0_1_FULL_VER.get_value(0, idx_3);
           auto _c6 = view_HeapAllocation_Type_0_1_FULL_VER.get_value(1, idx_3);
-        if (_c6 == 1016) {
+        if (_c6 == 522484) {
         // Emit: IsObjectArrayHeap(baseheap)
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(baseheap);
         }
@@ -163,7 +163,7 @@ struct JitRunner_IsObjectArrayHeap_rule {
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto baseheap = view_HeapAllocation_Type_0_1_FULL_VER.get_value(0, idx_3);
           auto _c6 = view_HeapAllocation_Type_0_1_FULL_VER.get_value(1, idx_3);
-        if (_c6 == 1016) {
+        if (_c6 == 522484) {
         // Emit: IsObjectArrayHeap(baseheap)
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(baseheap);
         }

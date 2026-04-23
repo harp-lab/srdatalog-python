@@ -18,7 +18,7 @@ struct JitRunner_VPT_LoadField_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 3;
+  static constexpr std::size_t NumSources = 5;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -49,7 +49,7 @@ struct JitRunner_VPT_LoadField_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_ReachableLoadInstanceField_0_1_2_DELTA_VER = views[0];
         auto view_VarPointsTo_1_0_FULL_VER = views[1];
-        auto view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[2];
+        auto view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'base' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -64,15 +64,21 @@ struct JitRunner_VPT_LoadField_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_ReachableLoadInstanceField_0_1_2_DELTA_VER.num_rows_;
           auto h_ReachableLoadInstanceField_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_ReachableLoadInstanceField_0_1_2_DELTA_VER);
           if (!h_ReachableLoadInstanceField_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto base = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto base = root_val_2;
         // Nested ColumnJoin (intersection): bind 'sig' from 2 sources
         // MIR: (column-join :var sig :sources ((ReachableLoadInstanceField :handle 2 :prefix (base)) (InstanceFieldPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableLoadInstanceField_2_12 = h_ReachableLoadInstanceField_0_root;
-        auto h_InstanceFieldPointsTo_3_13 = HandleType(0, view_InstanceFieldPointsTo_1_2_0_FULL_VER.num_rows_, 0);
-        auto intersect_14 = intersect_handles(tile, h_ReachableLoadInstanceField_2_12.iterators(view_ReachableLoadInstanceField_0_1_2_DELTA_VER), h_InstanceFieldPointsTo_3_13.iterators(view_InstanceFieldPointsTo_1_2_0_FULL_VER));
-        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[3 + _nseg_1];
+          auto h_ReachableLoadInstanceField_2_12 = h_ReachableLoadInstanceField_0_root;
+          auto h_InstanceFieldPointsTo_3_13 = HandleType(0, view_InstanceFieldPointsTo_1_2_0_FULL_VER.num_rows_, 0);
+          auto intersect_14 = intersect_handles(tile, h_ReachableLoadInstanceField_2_12.iterators(view_ReachableLoadInstanceField_0_1_2_DELTA_VER), h_InstanceFieldPointsTo_3_13.iterators(view_InstanceFieldPointsTo_1_2_0_FULL_VER));
+          for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
           auto sig = it_15.value();
           auto positions = it_15.positions();
           auto ch_ReachableLoadInstanceField_2_sig = h_ReachableLoadInstanceField_2_12.child_range(positions[0], sig, tile, view_ReachableLoadInstanceField_0_1_2_DELTA_VER);
@@ -110,7 +116,9 @@ struct JitRunner_VPT_LoadField_D0 {
           output_ctx.add_count(lane_share);
         }
         }
+          }
         }
+          }
         }
     thread_counts[thread_id] = output_ctx.count();
   }
@@ -149,7 +157,7 @@ struct JitRunner_VPT_LoadField_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_ReachableLoadInstanceField_0_1_2_DELTA_VER = views[0];
         auto view_VarPointsTo_1_0_FULL_VER = views[1];
-        auto view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[2];
+        auto view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'base' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -164,15 +172,21 @@ struct JitRunner_VPT_LoadField_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_ReachableLoadInstanceField_0_1_2_DELTA_VER.num_rows_;
           auto h_ReachableLoadInstanceField_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_ReachableLoadInstanceField_0_1_2_DELTA_VER);
           if (!h_ReachableLoadInstanceField_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto base = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto base = root_val_2;
         // Nested ColumnJoin (intersection): bind 'sig' from 2 sources
         // MIR: (column-join :var sig :sources ((ReachableLoadInstanceField :handle 2 :prefix (base)) (InstanceFieldPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableLoadInstanceField_2_16 = h_ReachableLoadInstanceField_0_root;
-        auto h_InstanceFieldPointsTo_3_17 = HandleType(0, view_InstanceFieldPointsTo_1_2_0_FULL_VER.num_rows_, 0);
-        auto intersect_18 = intersect_handles(tile, h_ReachableLoadInstanceField_2_16.iterators(view_ReachableLoadInstanceField_0_1_2_DELTA_VER), h_InstanceFieldPointsTo_3_17.iterators(view_InstanceFieldPointsTo_1_2_0_FULL_VER));
-        for (auto it_19 = intersect_18.begin(); it_19.valid(); it_19.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[3 + _nseg_1];
+          auto h_ReachableLoadInstanceField_2_16 = h_ReachableLoadInstanceField_0_root;
+          auto h_InstanceFieldPointsTo_3_17 = HandleType(0, view_InstanceFieldPointsTo_1_2_0_FULL_VER.num_rows_, 0);
+          auto intersect_18 = intersect_handles(tile, h_ReachableLoadInstanceField_2_16.iterators(view_ReachableLoadInstanceField_0_1_2_DELTA_VER), h_InstanceFieldPointsTo_3_17.iterators(view_InstanceFieldPointsTo_1_2_0_FULL_VER));
+          for (auto it_19 = intersect_18.begin(); it_19.valid(); it_19.next()) {
           auto sig = it_19.value();
           auto positions = it_19.positions();
           auto ch_ReachableLoadInstanceField_2_sig = h_ReachableLoadInstanceField_2_16.child_range(positions[0], sig, tile, view_ReachableLoadInstanceField_0_1_2_DELTA_VER);
@@ -220,7 +234,9 @@ struct JitRunner_VPT_LoadField_D0 {
         output_ctx_0.emit_direct(heap, to);
         }
         }
+          }
         }
+          }
         }
   }
 
@@ -259,7 +275,7 @@ struct JitRunner_VPT_LoadField_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_ReachableLoadInstanceField_0_1_2_DELTA_VER = views[0];
         auto view_VarPointsTo_1_0_FULL_VER = views[1];
-        auto view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[2];
+        auto view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'base' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -274,15 +290,21 @@ struct JitRunner_VPT_LoadField_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_ReachableLoadInstanceField_0_1_2_DELTA_VER.num_rows_;
           auto h_ReachableLoadInstanceField_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_ReachableLoadInstanceField_0_1_2_DELTA_VER);
           if (!h_ReachableLoadInstanceField_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto base = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto base = root_val_2;
         // Nested ColumnJoin (intersection): bind 'sig' from 2 sources
         // MIR: (column-join :var sig :sources ((ReachableLoadInstanceField :handle 2 :prefix (base)) (InstanceFieldPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableLoadInstanceField_2_16 = h_ReachableLoadInstanceField_0_root;
-        auto h_InstanceFieldPointsTo_3_17 = HandleType(0, view_InstanceFieldPointsTo_1_2_0_FULL_VER.num_rows_, 0);
-        auto intersect_18 = intersect_handles(tile, h_ReachableLoadInstanceField_2_16.iterators(view_ReachableLoadInstanceField_0_1_2_DELTA_VER), h_InstanceFieldPointsTo_3_17.iterators(view_InstanceFieldPointsTo_1_2_0_FULL_VER));
-        for (auto it_19 = intersect_18.begin(); it_19.valid(); it_19.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_InstanceFieldPointsTo_1_2_0_FULL_VER = views[3 + _nseg_1];
+          auto h_ReachableLoadInstanceField_2_16 = h_ReachableLoadInstanceField_0_root;
+          auto h_InstanceFieldPointsTo_3_17 = HandleType(0, view_InstanceFieldPointsTo_1_2_0_FULL_VER.num_rows_, 0);
+          auto intersect_18 = intersect_handles(tile, h_ReachableLoadInstanceField_2_16.iterators(view_ReachableLoadInstanceField_0_1_2_DELTA_VER), h_InstanceFieldPointsTo_3_17.iterators(view_InstanceFieldPointsTo_1_2_0_FULL_VER));
+          for (auto it_19 = intersect_18.begin(); it_19.valid(); it_19.next()) {
           auto sig = it_19.value();
           auto positions = it_19.positions();
           auto ch_ReachableLoadInstanceField_2_sig = h_ReachableLoadInstanceField_2_16.child_range(positions[0], sig, tile, view_ReachableLoadInstanceField_0_1_2_DELTA_VER);
@@ -330,7 +352,9 @@ struct JitRunner_VPT_LoadField_D0 {
         output_ctx_0.emit_direct(heap, to);
         }
         }
+          }
         }
+          }
         }
     output_ctx_0.flush();
   }
@@ -390,14 +414,16 @@ JitRunner_VPT_LoadField_D0::LaunchParams JitRunner_VPT_LoadField_D0::setup(DB& d
   {
     auto& rel_1 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_1 = rel_1.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_1.view());
+    p.views_vec.push_back(idx_1.full_view());
+    p.views_vec.push_back(idx_1.head_view());
   }
 
   // Source 3: InstanceFieldPointsTo version FULL_VER
   {
     auto& rel_3 = get_relation_by_schema<InstanceFieldPointsTo, FULL_VER>(db);
     auto& idx_3 = rel_3.ensure_index(SRDatalog::IndexSpec{{1, 2, 0}}, false);
-    p.views_vec.push_back(idx_3.view());
+    p.views_vec.push_back(idx_3.full_view());
+    p.views_vec.push_back(idx_3.head_view());
   }
 
   // First source for root keys

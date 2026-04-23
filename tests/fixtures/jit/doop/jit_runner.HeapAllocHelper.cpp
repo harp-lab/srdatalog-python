@@ -116,7 +116,7 @@ struct JitRunner_HeapAllocHelper {
           auto heap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_6_4.begin() + idx0_9);
           auto baseheap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_7_6.begin() + idx1_10);
 
-        if (baseheaptype != 1016) {
+        if (baseheaptype != 522484) {
         // Emit: HeapAllocSuperType(heap, baseheap)
         output_ctx.emit_direct();
         }
@@ -228,7 +228,7 @@ struct JitRunner_HeapAllocHelper {
           auto heap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_6_4.begin() + idx0_9);
           auto baseheap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_7_6.begin() + idx1_10);
 
-        if (baseheaptype != 1016) {
+        if (baseheaptype != 522484) {
         // Emit: HeapAllocSuperType(heap, baseheap)
         output_ctx_0.emit_direct(heap, baseheap);
         }
@@ -438,7 +438,7 @@ struct JitRunner_HeapAllocHelper {
           auto heap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_6_4.begin() + idx0_9);
           auto baseheap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_7_6.begin() + idx1_10);
 
-        if (baseheaptype != 1016) {
+        if (baseheaptype != 522484) {
         // Emit: HeapAllocSuperType(heap, baseheap)
         output_ctx.emit_direct();
         }
@@ -603,7 +603,7 @@ struct JitRunner_HeapAllocHelper {
           auto heap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_6_4.begin() + idx0_9);
           auto baseheap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_7_6.begin() + idx1_10);
 
-        if (baseheaptype != 1016) {
+        if (baseheaptype != 522484) {
         // Emit: HeapAllocSuperType(heap, baseheap)
         output_ctx_0.emit_direct(heap, baseheap);
         }
@@ -768,7 +768,7 @@ struct JitRunner_HeapAllocHelper {
           auto heap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_6_4.begin() + idx0_9);
           auto baseheap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_7_6.begin() + idx1_10);
 
-        if (baseheaptype != 1016) {
+        if (baseheaptype != 522484) {
         // Emit: HeapAllocSuperType(heap, baseheap)
         output_ctx_0.emit_direct(heap, baseheap);
         }

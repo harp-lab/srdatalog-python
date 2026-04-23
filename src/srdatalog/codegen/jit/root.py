@@ -767,11 +767,20 @@ def jit_root_column_join_block_group(
     "(bg_key_work_end - bg_key_work_start);\n\n"
   )
 
-  # Per-source handle prefix (single-view / DSAI path only).
+  # Per-source handle prefix. Mirrors Nim `jit_root.nim:1192-1287`.
+  # `bg_seg_loop_sources` tracks non-first sources whose index plugin
+  # exposes multiple views on FULL reads (e.g. 2-level HEAD+FULL) — those
+  # sources emit a base-view handle here without a valid-check early-exit,
+  # and the actual per-segment handle is re-emitted inside a segment loop
+  # further below (after warp-row narrowing, before the body).
   handle_var_names: list[str] = []
   view_var_names: list[str] = []
   src_indices: list[int] = []
   src_rel_names: list[str] = []
+  src_index_types: list[str] = []
+  bg_seg_loop_sources: list[
+    tuple[int, int, str, int]
+  ] = []  # (idx_, view_count, seg_var, base_slot)
 
   for idx_, src in enumerate(sources):
     assert isinstance(src, m.ColumnSource)
@@ -783,15 +792,14 @@ def jit_root_column_join_block_group(
     handle_var_names.append(handle_var)
 
     src_index_type = get_rel_index_type(ctx, rel_name)
+    src_index_types.append(src_index_type)
     src_view_count = plugin_view_count(src.version.code, src_index_type)
-    if src_view_count > 1:
-      raise NotImplementedError(
-        "jit_root_column_join_block_group: 2-level non-first source not yet ported"
-      )
     src_base_slot = get_view_slot_base(ctx, src_idx)
     existing_view = ctx.view_vars.get(str(src_idx), "")
     view_var = existing_view if existing_view else gen_view_var_name(rel_name, src_idx)
     view_var_names.append(view_var)
+
+    is_deferred = False
 
     if idx_ == 0:
       # First source: use key_idx as row hint + narrow with root_val.
@@ -813,6 +821,18 @@ def jit_root_column_join_block_group(
         ii + f"auto {handle_var} = HandleType({hint_lo}, {hint_hi}, 0)"
         f".prefix({root_val_var}, tile, {view_var});\n"
       )
+    elif src_view_count > 1:
+      # Defer to segment loop below. Emit base (FULL) view handle here —
+      # the per-segment handle will shadow this inside the segment loop.
+      is_deferred = True
+      seg_var = f"_bg_seg_{idx_}"
+      bg_seg_loop_sources.append((idx_, src_view_count, seg_var, src_base_slot))
+      if not existing_view:
+        code += ii + f"auto {view_var} = {gen_view_access(src_base_slot)};\n"
+      code += (
+        ii + f"auto {handle_var} = {gen_root_handle(view_var, src_index_type)}"
+        f".prefix({root_val_var}, tile, {view_var});\n"
+      )
     else:
       if not existing_view:
         code += ii + f"auto {view_var} = {gen_view_access(src_base_slot)};\n"
@@ -820,10 +840,14 @@ def jit_root_column_join_block_group(
         ii + f"auto {handle_var} = {gen_root_handle(view_var, src_index_type)}"
         f".prefix({root_val_var}, tile, {view_var});\n"
       )
-    code += (
-      ii + f"if (!{gen_valid(handle_var, src_index_type)}) {{ "
-      "bg_remaining_begin = bg_key_work_end; continue; }\n"
-    )
+
+    # Deferred sources skip the early-exit valid check here; the segment
+    # loop will `continue` on invalidity per segment instead.
+    if not is_deferred:
+      code += (
+        ii + f"if (!{gen_valid(handle_var, src_index_type)}) {{ "
+        "bg_remaining_begin = bg_key_work_end; continue; }\n"
+      )
 
   # Warp redistribution within block (row-proportional on first source).
   first_handle = handle_var_names[0]
@@ -875,8 +899,27 @@ def jit_root_column_join_block_group(
   saved_bg_enabled = ctx.bg_enabled
   ctx.bg_enabled = False
 
-  # Bind root var + register narrowed handles under semantic keys.
-  code += ii + f"auto {sanitize_var_name(var_name)} = {root_val_var};\n"
+  # Segment loops for 2-level non-first sources — re-declare view + handle
+  # inside each segment's scope. Mirrors Nim `jit_root.nim:1347-1369`.
+  # `seg_indent` grows by two spaces per loop so the handles/body are at
+  # the correct C++ indent; the logical ctx indent bumps by one per loop
+  # as well so nested emission inside the body gets the right indent.
+  seg_indent = ii
+  for idx_seg, view_count, seg_var, base_slot in bg_seg_loop_sources:
+    code += seg_indent + f"for (int {seg_var} = 0; {seg_var} < {view_count}; {seg_var}++) {{\n"
+    seg_indent = seg_indent + "  "
+    view_var = view_var_names[idx_seg]
+    handle_var = handle_var_names[idx_seg]
+    seg_index_type = src_index_types[idx_seg]
+    code += seg_indent + f"auto {view_var} = views[{base_slot} + {seg_var}];\n"
+    code += (
+      seg_indent + f"auto {handle_var} = {gen_root_handle(view_var, seg_index_type)}"
+      f".prefix({root_val_var}, tile, {view_var});\n"
+    )
+    code += seg_indent + f"if (!{gen_valid(handle_var, seg_index_type)}) continue;\n"
+
+  # Bind root var at the deepest segment-loop indent.
+  code += seg_indent + f"auto {sanitize_var_name(var_name)} = {root_val_var};\n"
   registered_keys: list[str] = []
   registered_numeric: list[int] = []
   for idx_, src in enumerate(sources):
@@ -892,18 +935,32 @@ def jit_root_column_join_block_group(
     ctx.handle_vars[state_key] = handle_var_names[idx_]
     registered_keys.append(state_key)
 
+  # Bump ctx indent by segment-loop count so the body emission sits inside
+  # all opened segment `for` blocks.
+  for _ in bg_seg_loop_sources:
+    inc_indent(ctx)
+
   ctx.bound_vars.append(var_name)
   try:
     code += body
   finally:
     if ctx.bound_vars and ctx.bound_vars[-1] == var_name:
       ctx.bound_vars.pop()
+    for _ in bg_seg_loop_sources:
+      dec_indent(ctx)
     for k in registered_keys:
       ctx.handle_vars.pop(k, None)
     for n in registered_numeric:
       ctx.handle_vars.pop(str(n), None)
     ctx.bg_enabled = saved_bg_enabled
     dec_indent(ctx)
+
+  # Close segment loops innermost-first. Indent per Nim
+  # `jit_root.nim:1389-1392`: close brace sits at `ii` + two spaces per
+  # outer segment level.
+  for seg_idx in range(len(bg_seg_loop_sources) - 1, -1, -1):
+    close_indent = ii + ("  " * seg_idx)
+    code += close_indent + "}\n"
 
   code += ii + "bg_remaining_begin = bg_key_work_end;\n"
   code += i + "}\n"

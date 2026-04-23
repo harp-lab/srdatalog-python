@@ -18,7 +18,7 @@ struct JitRunner_IFPT_Store_D2 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 3;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 4;
+  static constexpr std::size_t NumSources = 5;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -80,10 +80,12 @@ struct JitRunner_IFPT_Store_D2 {
           auto ch_Reachable_3_inmeth = h_Reachable_3_15.child_range(positions[1], inmeth, tile, view_Reachable_0_FULL_VER);
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((StoreInstanceField :handle 4 :prefix (frm inmeth)) (VarPointsTo :handle 5 :prefix ()) ))
-        auto h_StoreInstanceField_4_10 = ch_StoreInstanceField_2_inmeth;
-        auto h_VarPointsTo_5_11 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_12 = intersect_handles(tile, h_StoreInstanceField_4_10.iterators(view_StoreInstanceField_0_3_1_2_FULL_VER), h_VarPointsTo_5_11.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[3 + _nseg_1];
+          auto h_StoreInstanceField_4_10 = ch_StoreInstanceField_2_inmeth;
+          auto h_VarPointsTo_5_11 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_12 = intersect_handles(tile, h_StoreInstanceField_4_10.iterators(view_StoreInstanceField_0_3_1_2_FULL_VER), h_VarPointsTo_5_11.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
           auto base = it_13.value();
           auto positions = it_13.positions();
           auto ch_StoreInstanceField_4_base = h_StoreInstanceField_4_10.child_range(positions[0], base, tile, view_StoreInstanceField_0_3_1_2_FULL_VER);
@@ -112,6 +114,7 @@ struct JitRunner_IFPT_Store_D2 {
           uint32_t lane_share = (lane_1 < lane_total) ? ((lane_total - lane_1 + group_size_2 - 1) / group_size_2) : 0;
           output_ctx.add_count(lane_share);
         }
+          }
         }
         }
         }
@@ -183,10 +186,12 @@ struct JitRunner_IFPT_Store_D2 {
           auto ch_Reachable_3_inmeth = h_Reachable_3_19.child_range(positions[1], inmeth, tile, view_Reachable_0_FULL_VER);
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((StoreInstanceField :handle 4 :prefix (frm inmeth)) (VarPointsTo :handle 5 :prefix ()) ))
-        auto h_StoreInstanceField_4_14 = ch_StoreInstanceField_2_inmeth;
-        auto h_VarPointsTo_5_15 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_16 = intersect_handles(tile, h_StoreInstanceField_4_14.iterators(view_StoreInstanceField_0_3_1_2_FULL_VER), h_VarPointsTo_5_15.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[3 + _nseg_1];
+          auto h_StoreInstanceField_4_14 = ch_StoreInstanceField_2_inmeth;
+          auto h_VarPointsTo_5_15 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_16 = intersect_handles(tile, h_StoreInstanceField_4_14.iterators(view_StoreInstanceField_0_3_1_2_FULL_VER), h_VarPointsTo_5_15.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
           auto base = it_17.value();
           auto positions = it_17.positions();
           auto ch_StoreInstanceField_4_base = h_StoreInstanceField_4_14.child_range(positions[0], base, tile, view_StoreInstanceField_0_3_1_2_FULL_VER);
@@ -223,6 +228,7 @@ struct JitRunner_IFPT_Store_D2 {
         // Emit: InstanceFieldPointsTo(heap, fld, baseheap)
         output_ctx_0.emit_direct(heap, fld, baseheap);
         }
+          }
         }
         }
         }
@@ -294,10 +300,12 @@ struct JitRunner_IFPT_Store_D2 {
           auto ch_Reachable_3_inmeth = h_Reachable_3_19.child_range(positions[1], inmeth, tile, view_Reachable_0_FULL_VER);
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((StoreInstanceField :handle 4 :prefix (frm inmeth)) (VarPointsTo :handle 5 :prefix ()) ))
-        auto h_StoreInstanceField_4_14 = ch_StoreInstanceField_2_inmeth;
-        auto h_VarPointsTo_5_15 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_16 = intersect_handles(tile, h_StoreInstanceField_4_14.iterators(view_StoreInstanceField_0_3_1_2_FULL_VER), h_VarPointsTo_5_15.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[3 + _nseg_1];
+          auto h_StoreInstanceField_4_14 = ch_StoreInstanceField_2_inmeth;
+          auto h_VarPointsTo_5_15 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_16 = intersect_handles(tile, h_StoreInstanceField_4_14.iterators(view_StoreInstanceField_0_3_1_2_FULL_VER), h_VarPointsTo_5_15.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_17 = intersect_16.begin(); it_17.valid(); it_17.next()) {
           auto base = it_17.value();
           auto positions = it_17.positions();
           auto ch_StoreInstanceField_4_base = h_StoreInstanceField_4_14.child_range(positions[0], base, tile, view_StoreInstanceField_0_3_1_2_FULL_VER);
@@ -334,6 +342,7 @@ struct JitRunner_IFPT_Store_D2 {
         // Emit: InstanceFieldPointsTo(heap, fld, baseheap)
         output_ctx_0.emit_direct(heap, fld, baseheap);
         }
+          }
         }
         }
         }
@@ -409,7 +418,8 @@ JitRunner_IFPT_Store_D2::LaunchParams JitRunner_IFPT_Store_D2::setup(DB& db, uin
   {
     auto& rel_5 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_5 = rel_5.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_5.view());
+    p.views_vec.push_back(idx_5.full_view());
+    p.views_vec.push_back(idx_5.head_view());
   }
 
   // First source for root keys

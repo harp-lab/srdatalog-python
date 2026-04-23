@@ -59,7 +59,7 @@ struct Kernel_IsCastableToString_rule {
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto casttype = view_SupertypeOf_0_1_FULL_VER.get_value(0, idx_3);
           auto _c8 = view_SupertypeOf_0_1_FULL_VER.get_value(1, idx_3);
-        if (_c8 == 1014) {
+        if (_c8 == 434817) {
         // Emit: IsCastableToString(casttype)
         if (tile.thread_rank() == 0) output.emit_direct(casttype);
         }

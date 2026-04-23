@@ -18,7 +18,7 @@ struct JitRunner_SFPT_Store_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 3;
+  static constexpr std::size_t NumSources = 4;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -69,10 +69,12 @@ struct JitRunner_SFPT_Store_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'frm' from 2 sources
         // MIR: (column-join :var frm :sources ((StoreStaticField :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_StoreStaticField_2_8 = h_StoreStaticField_1_root;
-        auto h_VarPointsTo_3_9 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_10 = intersect_handles(tile, h_StoreStaticField_2_8.iterators(view_StoreStaticField_2_0_1_FULL_VER), h_VarPointsTo_3_9.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_11 = intersect_10.begin(); it_11.valid(); it_11.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_StoreStaticField_2_8 = h_StoreStaticField_1_root;
+          auto h_VarPointsTo_3_9 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_10 = intersect_handles(tile, h_StoreStaticField_2_8.iterators(view_StoreStaticField_2_0_1_FULL_VER), h_VarPointsTo_3_9.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_11 = intersect_10.begin(); it_11.valid(); it_11.next()) {
           auto frm = it_11.value();
           auto positions = it_11.positions();
           auto ch_StoreStaticField_2_frm = h_StoreStaticField_2_8.child_range(positions[0], frm, tile, view_StoreStaticField_2_0_1_FULL_VER);
@@ -99,6 +101,7 @@ struct JitRunner_SFPT_Store_D0 {
           uint32_t lane_share = (lane_1 < lane_total) ? ((lane_total - lane_1 + group_size_2 - 1) / group_size_2) : 0;
           output_ctx.add_count(lane_share);
         }
+          }
         }
         }
     thread_counts[thread_id] = output_ctx.count();
@@ -158,10 +161,12 @@ struct JitRunner_SFPT_Store_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'frm' from 2 sources
         // MIR: (column-join :var frm :sources ((StoreStaticField :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_StoreStaticField_2_12 = h_StoreStaticField_1_root;
-        auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_14 = intersect_handles(tile, h_StoreStaticField_2_12.iterators(view_StoreStaticField_2_0_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_StoreStaticField_2_12 = h_StoreStaticField_1_root;
+          auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_14 = intersect_handles(tile, h_StoreStaticField_2_12.iterators(view_StoreStaticField_2_0_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
           auto frm = it_15.value();
           auto positions = it_15.positions();
           auto ch_StoreStaticField_2_frm = h_StoreStaticField_2_12.child_range(positions[0], frm, tile, view_StoreStaticField_2_0_1_FULL_VER);
@@ -198,6 +203,7 @@ struct JitRunner_SFPT_Store_D0 {
         // Emit: StaticFieldPointsTo(heap, fld)
         output_ctx_0.emit_direct(heap, fld);
         }
+          }
         }
         }
   }
@@ -257,10 +263,12 @@ struct JitRunner_SFPT_Store_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'frm' from 2 sources
         // MIR: (column-join :var frm :sources ((StoreStaticField :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_StoreStaticField_2_12 = h_StoreStaticField_1_root;
-        auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_14 = intersect_handles(tile, h_StoreStaticField_2_12.iterators(view_StoreStaticField_2_0_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_StoreStaticField_2_12 = h_StoreStaticField_1_root;
+          auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_14 = intersect_handles(tile, h_StoreStaticField_2_12.iterators(view_StoreStaticField_2_0_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
           auto frm = it_15.value();
           auto positions = it_15.positions();
           auto ch_StoreStaticField_2_frm = h_StoreStaticField_2_12.child_range(positions[0], frm, tile, view_StoreStaticField_2_0_1_FULL_VER);
@@ -297,6 +305,7 @@ struct JitRunner_SFPT_Store_D0 {
         // Emit: StaticFieldPointsTo(heap, fld)
         output_ctx_0.emit_direct(heap, fld);
         }
+          }
         }
         }
     output_ctx_0.flush();
@@ -364,7 +373,8 @@ JitRunner_SFPT_Store_D0::LaunchParams JitRunner_SFPT_Store_D0::setup(DB& db, uin
   {
     auto& rel_3 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_3 = rel_3.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_3.view());
+    p.views_vec.push_back(idx_3.full_view());
+    p.views_vec.push_back(idx_3.head_view());
   }
 
   // First source for root keys

@@ -108,7 +108,7 @@ struct Kernel_Precompute0 {
           auto inmeth = view_AssignCast_0_1_2_3_FULL_VER.get_value(3, h_AssignCast_4_4.begin() + idx0_9);
           auto heap = view_HeapAllocation_Type_1_0_FULL_VER.get_value(1, h_HeapAllocation_Type_5_6.begin() + idx1_10);
 
-        if (heaptype != 1014) {
+        if (heaptype != 434817) {
         // Emit: CastTo(frm, to, inmeth, heap)
         output.emit_direct(frm, to, inmeth, heap);
         }

@@ -18,7 +18,7 @@ struct JitRunner_VPT_Cast_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 3;
+  static constexpr std::size_t NumSources = 4;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -69,10 +69,12 @@ struct JitRunner_VPT_Cast_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'frm' from 2 sources
         // MIR: (column-join :var frm :sources ((CastTo :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_CastTo_2_10 = h_CastTo_1_root;
-        auto h_VarPointsTo_3_11 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_12 = intersect_handles(tile, h_CastTo_2_10.iterators(view_CastTo_2_0_3_1_FULL_VER), h_VarPointsTo_3_11.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_CastTo_2_10 = h_CastTo_1_root;
+          auto h_VarPointsTo_3_11 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_12 = intersect_handles(tile, h_CastTo_2_10.iterators(view_CastTo_2_0_3_1_FULL_VER), h_VarPointsTo_3_11.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_13 = intersect_12.begin(); it_13.valid(); it_13.next()) {
           auto frm = it_13.value();
           auto positions = it_13.positions();
           auto ch_CastTo_2_frm = h_CastTo_2_10.child_range(positions[0], frm, tile, view_CastTo_2_0_3_1_FULL_VER);
@@ -108,6 +110,7 @@ struct JitRunner_VPT_Cast_D0 {
           output_ctx.add_count(lane_share);
         }
         }
+          }
         }
         }
     thread_counts[thread_id] = output_ctx.count();
@@ -167,10 +170,12 @@ struct JitRunner_VPT_Cast_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'frm' from 2 sources
         // MIR: (column-join :var frm :sources ((CastTo :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_CastTo_2_12 = h_CastTo_1_root;
-        auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_14 = intersect_handles(tile, h_CastTo_2_12.iterators(view_CastTo_2_0_3_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_CastTo_2_12 = h_CastTo_1_root;
+          auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_14 = intersect_handles(tile, h_CastTo_2_12.iterators(view_CastTo_2_0_3_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
           auto frm = it_15.value();
           auto positions = it_15.positions();
           auto ch_CastTo_2_frm = h_CastTo_2_12.child_range(positions[0], frm, tile, view_CastTo_2_0_3_1_FULL_VER);
@@ -207,6 +212,7 @@ struct JitRunner_VPT_Cast_D0 {
         output_ctx_0.emit_direct(heap, to);
         }
         }
+          }
         }
         }
   }
@@ -266,10 +272,12 @@ struct JitRunner_VPT_Cast_D0 {
           auto inmeth = root_val_2;
         // Nested ColumnJoin (intersection): bind 'frm' from 2 sources
         // MIR: (column-join :var frm :sources ((CastTo :handle 2 :prefix (inmeth)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_CastTo_2_12 = h_CastTo_1_root;
-        auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_14 = intersect_handles(tile, h_CastTo_2_12.iterators(view_CastTo_2_0_3_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[2 + _nseg_1];
+          auto h_CastTo_2_12 = h_CastTo_1_root;
+          auto h_VarPointsTo_3_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_14 = intersect_handles(tile, h_CastTo_2_12.iterators(view_CastTo_2_0_3_1_FULL_VER), h_VarPointsTo_3_13.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
           auto frm = it_15.value();
           auto positions = it_15.positions();
           auto ch_CastTo_2_frm = h_CastTo_2_12.child_range(positions[0], frm, tile, view_CastTo_2_0_3_1_FULL_VER);
@@ -306,6 +314,7 @@ struct JitRunner_VPT_Cast_D0 {
         output_ctx_0.emit_direct(heap, to);
         }
         }
+          }
         }
         }
     output_ctx_0.flush();
@@ -373,7 +382,8 @@ JitRunner_VPT_Cast_D0::LaunchParams JitRunner_VPT_Cast_D0::setup(DB& db, uint32_
   {
     auto& rel_3 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_3 = rel_3.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_3.view());
+    p.views_vec.push_back(idx_3.full_view());
+    p.views_vec.push_back(idx_3.head_view());
   }
 
   // First source for root keys

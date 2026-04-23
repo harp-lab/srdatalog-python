@@ -59,7 +59,7 @@ struct JitRunner_IsStringHeap_rule {
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto heap = view_HeapAllocation_Type_0_1_FULL_VER.get_value(0, idx_3);
           auto _c7 = view_HeapAllocation_Type_0_1_FULL_VER.get_value(1, idx_3);
-        if (_c7 == 1014) {
+        if (_c7 == 434817) {
         // Emit: IsStringHeap(heap)
         if (tile.thread_rank() == 0) output_ctx.emit_direct();
         }
@@ -111,7 +111,7 @@ struct JitRunner_IsStringHeap_rule {
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto heap = view_HeapAllocation_Type_0_1_FULL_VER.get_value(0, idx_3);
           auto _c7 = view_HeapAllocation_Type_0_1_FULL_VER.get_value(1, idx_3);
-        if (_c7 == 1014) {
+        if (_c7 == 434817) {
         // Emit: IsStringHeap(heap)
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(heap);
         }
@@ -163,7 +163,7 @@ struct JitRunner_IsStringHeap_rule {
         for (uint32_t idx_3 = warp_id; idx_3 < degree_2; idx_3 += num_warps) {
           auto heap = view_HeapAllocation_Type_0_1_FULL_VER.get_value(0, idx_3);
           auto _c7 = view_HeapAllocation_Type_0_1_FULL_VER.get_value(1, idx_3);
-        if (_c7 == 1014) {
+        if (_c7 == 434817) {
         // Emit: IsStringHeap(heap)
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(heap);
         }

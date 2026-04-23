@@ -318,11 +318,11 @@
                         (column-source :index (Method_Modifier 1 0) :ver FULL :prefix (meth))
                         (column-source :index (Method_Modifier 1 0) :ver FULL :prefix (meth))
                       ))
-                    (filter :vars (_c0) :code "return _c0 == 1004;")
-                    (filter :vars (_c1) :code "return _c1 == 1005;")
-                    (filter :vars (_c2) :code "return _c2 == 1002;")
-                    (filter :vars (_c3) :code "return _c3 == 1003;")
-                    (filter :vars (meth) :code "return meth != 1011 && meth != 1012 && meth != 1013;")
+                    (filter :vars (_c0) :code "return _c0 == 2979023;")
+                    (filter :vars (_c1) :code "return _c1 == 3018506;")
+                    (filter :vars (_c2) :code "return _c2 == 976234;")
+                    (filter :vars (_c3) :code "return _c3 == 909718;")
+                    (filter :vars (meth) :code "return meth != 590319 && meth != 1138805 && meth != 926489;")
                     (insert-into :schema MainMethodDeclaration :ver NEW :dedup-index (0) :terms (meth))
                 )
                 (execute-pipeline :rule MIBase_Virtual
@@ -523,7 +523,7 @@
                   :dests (tuple
                     (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
                     (scan :vars (s) :index (isInterfaceType_IDB 0) :ver FULL :prefix ())
-                    (constant-bind :var _hc0 :code "1006" :deps ())
+                    (constant-bind :var _hc0 :code "427039" :deps ())
                     (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s _hc0))
                 )
                 (execute-pipeline :rule SubtypeOf_Array_Object
@@ -532,7 +532,7 @@
                   :dests (tuple
                     (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
                     (scan :vars (s) :index (isArrayType_IDB 0) :ver FULL :prefix ())
-                    (constant-bind :var _hc1 :code "1006" :deps ())
+                    (constant-bind :var _hc1 :code "427039" :deps ())
                     (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s _hc1))
                 )
                 (execute-pipeline :rule SubtypeOf_Array_Cloneable
@@ -541,7 +541,7 @@
                   :dests (tuple
                     (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
                     (scan :vars (s) :index (isArrayType_IDB 0) :ver FULL :prefix ())
-                    (constant-bind :var _hc2 :code "1007" :deps ())
+                    (constant-bind :var _hc2 :code "1088934" :deps ())
                     (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s _hc2))
                 )
                 (execute-pipeline :rule SubtypeOf_Array_Serializable
@@ -550,7 +550,7 @@
                   :dests (tuple
                     (index-spec :schema SubtypeOf :index (0 1) :ver FULL))
                     (scan :vars (s) :index (isArrayType_IDB 0) :ver FULL :prefix ())
-                    (constant-bind :var _hc3 :code "1008" :deps ())
+                    (constant-bind :var _hc3 :code "716731" :deps ())
                     (insert-into :schema SubtypeOf :ver NEW :dedup-index (0 1) :terms (s _hc3))
                 )
             )
@@ -787,7 +787,7 @@
                   :dests (tuple
                     (index-spec :schema ClassInitializer :index (0 1) :ver FULL))
                     (scan :vars (_c4 _c5 mtype meth) :index (MethodImplemented 0 1 2 3) :ver FULL :prefix ())
-                    (filter :vars (_c4 _c5) :code "return _c4 == 1009 && _c5 == 1010;")
+                    (filter :vars (_c4 _c5) :code "return _c4 == 894110 && _c5 == 3016219;")
                     (insert-into :schema ClassInitializer :ver NEW :dedup-index (0 1) :terms (mtype meth))
                 )
                 (execute-pipeline :rule IsCastableToString_rule
@@ -796,7 +796,7 @@
                   :dests (tuple
                     (index-spec :schema IsCastableToString :index (0) :ver FULL))
                     (scan :vars (casttype _c8) :index (SupertypeOf 0 1) :ver FULL :prefix ())
-                    (filter :vars (_c8) :code "return _c8 == 1014;")
+                    (filter :vars (_c8) :code "return _c8 == 434817;")
                     (insert-into :schema IsCastableToString :ver NEW :dedup-index (0) :terms (casttype))
                 )
                 (execute-pipeline :rule IsStringHeap_rule
@@ -805,7 +805,7 @@
                   :dests (tuple
                     (index-spec :schema IsStringHeap :index (0) :ver FULL))
                     (scan :vars (heap _c7) :index (HeapAllocation_Type 0 1) :ver FULL :prefix ())
-                    (filter :vars (_c7) :code "return _c7 == 1014;")
+                    (filter :vars (_c7) :code "return _c7 == 434817;")
                     (insert-into :schema IsStringHeap :ver NEW :dedup-index (0) :terms (heap))
                 )
             )
@@ -863,7 +863,7 @@
                         (column-source :index (AssignCast 0 1 2 3) :ver FULL :prefix (casttype))
                         (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (heaptype))
                       ))
-                    (filter :vars (heaptype) :code "return heaptype != 1014;")
+                    (filter :vars (heaptype) :code "return heaptype != 434817;")
                     (insert-into :schema CastTo :ver NEW :dedup-index (2 0 3 1) :terms (frm to inmeth heap))
                 )
                 (execute-pipeline :rule Precompute0_String
@@ -991,7 +991,7 @@
                         (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (heaptype))
                         (column-source :index (HeapAllocation_Type 1 0) :ver FULL :prefix (baseheaptype))
                       ))
-                    (filter :vars (baseheaptype) :code "return baseheaptype != 1016;")
+                    (filter :vars (baseheaptype) :code "return baseheaptype != 522484;")
                     (insert-into :schema HeapAllocSuperType :ver NEW :dedup-index (0 1) :terms (heap baseheap))
                 )
                 (execute-pipeline :rule IsObjectArrayHeap_rule
@@ -1000,7 +1000,7 @@
                   :dests (tuple
                     (index-spec :schema IsObjectArrayHeap :index (0) :ver FULL))
                     (scan :vars (baseheap _c6) :index (HeapAllocation_Type 0 1) :ver FULL :prefix ())
-                    (filter :vars (_c6) :code "return _c6 == 1016;")
+                    (filter :vars (_c6) :code "return _c6 == 522484;")
                     (insert-into :schema IsObjectArrayHeap :ver NEW :dedup-index (0) :terms (baseheap))
                 )
                 (execute-pipeline :rule ArrayTypeCompatPrecompute

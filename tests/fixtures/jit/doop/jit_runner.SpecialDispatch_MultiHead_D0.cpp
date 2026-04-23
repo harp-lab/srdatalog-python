@@ -20,7 +20,7 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
   static constexpr std::size_t OutputArity_1 = 2;
   static constexpr std::size_t OutputArity_2 = 1;
-  static constexpr std::size_t NumSources = 5;
+  static constexpr std::size_t NumSources = 6;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -53,7 +53,7 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
         auto view_SpecialMethodInvocation_Base_0_1_FULL_VER = views[1];
         auto view_MethodInvocation_Method_0_1_FULL_VER = views[2];
         auto view_VarPointsTo_1_0_FULL_VER = views[3];
-        auto view_ThisVar_0_1_FULL_VER = views[4];
+        auto view_ThisVar_0_1_FULL_VER = views[5];
 
         // Root ColumnJoin (multi-source intersection): bind 'invocation' from 3 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -75,10 +75,12 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
           auto invocation = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((SpecialMethodInvocation_Base :handle 3 :prefix (invocation)) (VarPointsTo :handle 4 :prefix ()) ))
-        auto h_SpecialMethodInvocation_Base_3_12 = h_SpecialMethodInvocation_Base_1_root;
-        auto h_VarPointsTo_4_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_14 = intersect_handles(tile, h_SpecialMethodInvocation_Base_3_12.iterators(view_SpecialMethodInvocation_Base_0_1_FULL_VER), h_VarPointsTo_4_13.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[3 + _nseg_1];
+          auto h_SpecialMethodInvocation_Base_3_12 = h_SpecialMethodInvocation_Base_1_root;
+          auto h_VarPointsTo_4_13 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_14 = intersect_handles(tile, h_SpecialMethodInvocation_Base_3_12.iterators(view_SpecialMethodInvocation_Base_0_1_FULL_VER), h_VarPointsTo_4_13.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
           auto base = it_15.value();
           auto positions = it_15.positions();
           auto ch_SpecialMethodInvocation_Base_3_base = h_SpecialMethodInvocation_Base_3_12.child_range(positions[0], base, tile, view_SpecialMethodInvocation_Base_0_1_FULL_VER);
@@ -116,6 +118,7 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
           output_ctx.add_count(lane_share);
         }
         }
+          }
         }
         }
     thread_counts[thread_id] = output_ctx.count();
@@ -177,7 +180,7 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
         auto view_SpecialMethodInvocation_Base_0_1_FULL_VER = views[1];
         auto view_MethodInvocation_Method_0_1_FULL_VER = views[2];
         auto view_VarPointsTo_1_0_FULL_VER = views[3];
-        auto view_ThisVar_0_1_FULL_VER = views[4];
+        auto view_ThisVar_0_1_FULL_VER = views[5];
 
         // Root ColumnJoin (multi-source intersection): bind 'invocation' from 3 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -199,10 +202,12 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
           auto invocation = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((SpecialMethodInvocation_Base :handle 3 :prefix (invocation)) (VarPointsTo :handle 4 :prefix ()) ))
-        auto h_SpecialMethodInvocation_Base_3_24 = h_SpecialMethodInvocation_Base_1_root;
-        auto h_VarPointsTo_4_25 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_26 = intersect_handles(tile, h_SpecialMethodInvocation_Base_3_24.iterators(view_SpecialMethodInvocation_Base_0_1_FULL_VER), h_VarPointsTo_4_25.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[3 + _nseg_1];
+          auto h_SpecialMethodInvocation_Base_3_24 = h_SpecialMethodInvocation_Base_1_root;
+          auto h_VarPointsTo_4_25 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_26 = intersect_handles(tile, h_SpecialMethodInvocation_Base_3_24.iterators(view_SpecialMethodInvocation_Base_0_1_FULL_VER), h_VarPointsTo_4_25.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
           auto base = it_27.value();
           auto positions = it_27.positions();
           auto ch_SpecialMethodInvocation_Base_3_base = h_SpecialMethodInvocation_Base_3_24.child_range(positions[0], base, tile, view_SpecialMethodInvocation_Base_0_1_FULL_VER);
@@ -318,6 +323,7 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
           }
         }
         }
+          }
         }
         }
   }
@@ -375,7 +381,7 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
         auto view_SpecialMethodInvocation_Base_0_1_FULL_VER = views[1];
         auto view_MethodInvocation_Method_0_1_FULL_VER = views[2];
         auto view_VarPointsTo_1_0_FULL_VER = views[3];
-        auto view_ThisVar_0_1_FULL_VER = views[4];
+        auto view_ThisVar_0_1_FULL_VER = views[5];
 
         // Root ColumnJoin (multi-source intersection): bind 'invocation' from 3 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -397,10 +403,12 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
           auto invocation = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((SpecialMethodInvocation_Base :handle 3 :prefix (invocation)) (VarPointsTo :handle 4 :prefix ()) ))
-        auto h_SpecialMethodInvocation_Base_3_16 = h_SpecialMethodInvocation_Base_1_root;
-        auto h_VarPointsTo_4_17 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_18 = intersect_handles(tile, h_SpecialMethodInvocation_Base_3_16.iterators(view_SpecialMethodInvocation_Base_0_1_FULL_VER), h_VarPointsTo_4_17.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_19 = intersect_18.begin(); it_19.valid(); it_19.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[3 + _nseg_1];
+          auto h_SpecialMethodInvocation_Base_3_16 = h_SpecialMethodInvocation_Base_1_root;
+          auto h_VarPointsTo_4_17 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_18 = intersect_handles(tile, h_SpecialMethodInvocation_Base_3_16.iterators(view_SpecialMethodInvocation_Base_0_1_FULL_VER), h_VarPointsTo_4_17.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_19 = intersect_18.begin(); it_19.valid(); it_19.next()) {
           auto base = it_19.value();
           auto positions = it_19.positions();
           auto ch_SpecialMethodInvocation_Base_3_base = h_SpecialMethodInvocation_Base_3_16.child_range(positions[0], base, tile, view_SpecialMethodInvocation_Base_0_1_FULL_VER);
@@ -452,6 +460,7 @@ struct JitRunner_SpecialDispatch_MultiHead_D0 {
         output_ctx_2.emit_direct(tometh);
         }
         }
+          }
         }
         }
     output_ctx_0.flush();
@@ -534,7 +543,8 @@ JitRunner_SpecialDispatch_MultiHead_D0::LaunchParams JitRunner_SpecialDispatch_M
   {
     auto& rel_4 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_4 = rel_4.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_4.view());
+    p.views_vec.push_back(idx_4.full_view());
+    p.views_vec.push_back(idx_4.head_view());
   }
 
   // Source 6: ThisVar version FULL_VER

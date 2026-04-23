@@ -18,7 +18,7 @@ struct JitRunner_vdle_dropped {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 2;
+  static constexpr std::size_t NumSources = 3;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -63,9 +63,13 @@ struct JitRunner_vdle_dropped {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_var_dropped_at_0_1_FULL_VER.num_rows_;
           auto h_var_dropped_at_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_var_dropped_at_0_1_FULL_VER);
           if (!h_var_dropped_at_0_root.valid()) continue;
-          auto h_var_maybe_partly_initialized_on_entry_1_root = HandleType(0, view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER);
-          if (!h_var_maybe_partly_initialized_on_entry_1_root.valid()) continue;
-          auto vr = root_val_2;
+          // Segment loop: var_maybe_partly_initialized_on_entry FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_var_maybe_partly_initialized_on_entry_1 = views[1 + _seg_1];
+            view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER = view_var_maybe_partly_initialized_on_entry_1;
+            auto h_var_maybe_partly_initialized_on_entry_1_root = HandleType(0, view_var_maybe_partly_initialized_on_entry_1.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_entry_1);
+            if (!h_var_maybe_partly_initialized_on_entry_1_root.valid()) continue;
+            auto vr = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point' from 2 sources
         // MIR: (column-join :var point :sources ((var_dropped_at :handle 2 :prefix (vr)) (var_maybe_partly_initialized_on_entry :handle 3 :prefix (vr)) ))
         auto h_var_dropped_at_2_1 = h_var_dropped_at_0_root;
@@ -79,6 +83,7 @@ struct JitRunner_vdle_dropped {
         // Emit: var_drop_live_on_entry(vr, point)
         if (tile.thread_rank() == 0) output_ctx.emit_direct();
         }
+          }
         }
     thread_counts[thread_id] = output_ctx.count();
   }
@@ -131,9 +136,13 @@ struct JitRunner_vdle_dropped {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_var_dropped_at_0_1_FULL_VER.num_rows_;
           auto h_var_dropped_at_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_var_dropped_at_0_1_FULL_VER);
           if (!h_var_dropped_at_0_root.valid()) continue;
-          auto h_var_maybe_partly_initialized_on_entry_1_root = HandleType(0, view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER);
-          if (!h_var_maybe_partly_initialized_on_entry_1_root.valid()) continue;
-          auto vr = root_val_2;
+          // Segment loop: var_maybe_partly_initialized_on_entry FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_var_maybe_partly_initialized_on_entry_1 = views[1 + _seg_1];
+            view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER = view_var_maybe_partly_initialized_on_entry_1;
+            auto h_var_maybe_partly_initialized_on_entry_1_root = HandleType(0, view_var_maybe_partly_initialized_on_entry_1.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_entry_1);
+            if (!h_var_maybe_partly_initialized_on_entry_1_root.valid()) continue;
+            auto vr = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point' from 2 sources
         // MIR: (column-join :var point :sources ((var_dropped_at :handle 2 :prefix (vr)) (var_maybe_partly_initialized_on_entry :handle 3 :prefix (vr)) ))
         auto h_var_dropped_at_2_1 = h_var_dropped_at_0_root;
@@ -147,6 +156,7 @@ struct JitRunner_vdle_dropped {
         // Emit: var_drop_live_on_entry(vr, point)
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(vr, point);
         }
+          }
         }
   }
 
@@ -199,9 +209,13 @@ struct JitRunner_vdle_dropped {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_var_dropped_at_0_1_FULL_VER.num_rows_;
           auto h_var_dropped_at_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_var_dropped_at_0_1_FULL_VER);
           if (!h_var_dropped_at_0_root.valid()) continue;
-          auto h_var_maybe_partly_initialized_on_entry_1_root = HandleType(0, view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER);
-          if (!h_var_maybe_partly_initialized_on_entry_1_root.valid()) continue;
-          auto vr = root_val_2;
+          // Segment loop: var_maybe_partly_initialized_on_entry FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_var_maybe_partly_initialized_on_entry_1 = views[1 + _seg_1];
+            view_var_maybe_partly_initialized_on_entry_0_1_FULL_VER = view_var_maybe_partly_initialized_on_entry_1;
+            auto h_var_maybe_partly_initialized_on_entry_1_root = HandleType(0, view_var_maybe_partly_initialized_on_entry_1.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_entry_1);
+            if (!h_var_maybe_partly_initialized_on_entry_1_root.valid()) continue;
+            auto vr = root_val_2;
         // Nested ColumnJoin (intersection): bind 'point' from 2 sources
         // MIR: (column-join :var point :sources ((var_dropped_at :handle 2 :prefix (vr)) (var_maybe_partly_initialized_on_entry :handle 3 :prefix (vr)) ))
         auto h_var_dropped_at_2_1 = h_var_dropped_at_0_root;
@@ -215,6 +229,7 @@ struct JitRunner_vdle_dropped {
         // Emit: var_drop_live_on_entry(vr, point)
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(vr, point);
         }
+          }
         }
     output_ctx_0.flush();
   }
@@ -274,7 +289,8 @@ JitRunner_vdle_dropped::LaunchParams JitRunner_vdle_dropped::setup(DB& db, uint3
   {
     auto& rel_1 = get_relation_by_schema<var_maybe_partly_initialized_on_entry, FULL_VER>(db);
     auto& idx_1 = rel_1.ensure_index(SRDatalog::IndexSpec{{0, 1}}, false);
-    p.views_vec.push_back(idx_1.view());
+    p.views_vec.push_back(idx_1.full_view());
+    p.views_vec.push_back(idx_1.head_view());
   }
 
   // First source for root keys

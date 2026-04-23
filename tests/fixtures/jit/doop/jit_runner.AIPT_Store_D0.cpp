@@ -18,7 +18,7 @@ struct JitRunner_AIPT_Store_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 3;
+  static constexpr std::size_t NumSources = 4;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -49,7 +49,7 @@ struct JitRunner_AIPT_Store_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_ReachableSortedIndex_0_1_DELTA_VER = views[0];
         auto view_VarPointsTo_1_0_FULL_VER = views[1];
-        auto view_HeapAllocSuperType_1_0_FULL_VER = views[2];
+        auto view_HeapAllocSuperType_1_0_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'frm' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -64,15 +64,21 @@ struct JitRunner_AIPT_Store_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_ReachableSortedIndex_0_1_DELTA_VER.num_rows_;
           auto h_ReachableSortedIndex_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_ReachableSortedIndex_0_1_DELTA_VER);
           if (!h_ReachableSortedIndex_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto frm = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto frm = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((ReachableSortedIndex :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableSortedIndex_2_9 = h_ReachableSortedIndex_0_root;
-        auto h_VarPointsTo_3_10 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_11 = intersect_handles(tile, h_ReachableSortedIndex_2_9.iterators(view_ReachableSortedIndex_0_1_DELTA_VER), h_VarPointsTo_3_10.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_12 = intersect_11.begin(); it_12.valid(); it_12.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[1 + _nseg_1];
+          auto h_ReachableSortedIndex_2_9 = h_ReachableSortedIndex_0_root;
+          auto h_VarPointsTo_3_10 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_11 = intersect_handles(tile, h_ReachableSortedIndex_2_9.iterators(view_ReachableSortedIndex_0_1_DELTA_VER), h_VarPointsTo_3_10.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_12 = intersect_11.begin(); it_12.valid(); it_12.next()) {
           auto base = it_12.value();
           auto positions = it_12.positions();
           auto ch_ReachableSortedIndex_2_base = h_ReachableSortedIndex_2_9.child_range(positions[0], base, tile, view_ReachableSortedIndex_0_1_DELTA_VER);
@@ -101,7 +107,9 @@ struct JitRunner_AIPT_Store_D0 {
         if (tile.thread_rank() == 0) output_ctx.emit_direct();
         }
         }
+          }
         }
+          }
         }
     thread_counts[thread_id] = output_ctx.count();
   }
@@ -140,7 +148,7 @@ struct JitRunner_AIPT_Store_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_ReachableSortedIndex_0_1_DELTA_VER = views[0];
         auto view_VarPointsTo_1_0_FULL_VER = views[1];
-        auto view_HeapAllocSuperType_1_0_FULL_VER = views[2];
+        auto view_HeapAllocSuperType_1_0_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'frm' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -155,15 +163,21 @@ struct JitRunner_AIPT_Store_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_ReachableSortedIndex_0_1_DELTA_VER.num_rows_;
           auto h_ReachableSortedIndex_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_ReachableSortedIndex_0_1_DELTA_VER);
           if (!h_ReachableSortedIndex_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto frm = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto frm = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((ReachableSortedIndex :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableSortedIndex_2_9 = h_ReachableSortedIndex_0_root;
-        auto h_VarPointsTo_3_10 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_11 = intersect_handles(tile, h_ReachableSortedIndex_2_9.iterators(view_ReachableSortedIndex_0_1_DELTA_VER), h_VarPointsTo_3_10.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_12 = intersect_11.begin(); it_12.valid(); it_12.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[1 + _nseg_1];
+          auto h_ReachableSortedIndex_2_9 = h_ReachableSortedIndex_0_root;
+          auto h_VarPointsTo_3_10 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_11 = intersect_handles(tile, h_ReachableSortedIndex_2_9.iterators(view_ReachableSortedIndex_0_1_DELTA_VER), h_VarPointsTo_3_10.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_12 = intersect_11.begin(); it_12.valid(); it_12.next()) {
           auto base = it_12.value();
           auto positions = it_12.positions();
           auto ch_ReachableSortedIndex_2_base = h_ReachableSortedIndex_2_9.child_range(positions[0], base, tile, view_ReachableSortedIndex_0_1_DELTA_VER);
@@ -192,7 +206,9 @@ struct JitRunner_AIPT_Store_D0 {
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(baseheap, heap);
         }
         }
+          }
         }
+          }
         }
   }
 
@@ -231,7 +247,7 @@ struct JitRunner_AIPT_Store_D0 {
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_ReachableSortedIndex_0_1_DELTA_VER = views[0];
         auto view_VarPointsTo_1_0_FULL_VER = views[1];
-        auto view_HeapAllocSuperType_1_0_FULL_VER = views[2];
+        auto view_HeapAllocSuperType_1_0_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'frm' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -246,15 +262,21 @@ struct JitRunner_AIPT_Store_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_ReachableSortedIndex_0_1_DELTA_VER.num_rows_;
           auto h_ReachableSortedIndex_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_ReachableSortedIndex_0_1_DELTA_VER);
           if (!h_ReachableSortedIndex_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto frm = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto frm = root_val_2;
         // Nested ColumnJoin (intersection): bind 'base' from 2 sources
         // MIR: (column-join :var base :sources ((ReachableSortedIndex :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix ()) ))
-        auto h_ReachableSortedIndex_2_9 = h_ReachableSortedIndex_0_root;
-        auto h_VarPointsTo_3_10 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
-        auto intersect_11 = intersect_handles(tile, h_ReachableSortedIndex_2_9.iterators(view_ReachableSortedIndex_0_1_DELTA_VER), h_VarPointsTo_3_10.iterators(view_VarPointsTo_1_0_FULL_VER));
-        for (auto it_12 = intersect_11.begin(); it_12.valid(); it_12.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_VarPointsTo_1_0_FULL_VER = views[1 + _nseg_1];
+          auto h_ReachableSortedIndex_2_9 = h_ReachableSortedIndex_0_root;
+          auto h_VarPointsTo_3_10 = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0);
+          auto intersect_11 = intersect_handles(tile, h_ReachableSortedIndex_2_9.iterators(view_ReachableSortedIndex_0_1_DELTA_VER), h_VarPointsTo_3_10.iterators(view_VarPointsTo_1_0_FULL_VER));
+          for (auto it_12 = intersect_11.begin(); it_12.valid(); it_12.next()) {
           auto base = it_12.value();
           auto positions = it_12.positions();
           auto ch_ReachableSortedIndex_2_base = h_ReachableSortedIndex_2_9.child_range(positions[0], base, tile, view_ReachableSortedIndex_0_1_DELTA_VER);
@@ -283,7 +305,9 @@ struct JitRunner_AIPT_Store_D0 {
         if (tile.thread_rank() == 0) output_ctx_0.emit_direct(baseheap, heap);
         }
         }
+          }
         }
+          }
         }
     output_ctx_0.flush();
   }
@@ -343,7 +367,8 @@ JitRunner_AIPT_Store_D0::LaunchParams JitRunner_AIPT_Store_D0::setup(DB& db, uin
   {
     auto& rel_1 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_1 = rel_1.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_1.view());
+    p.views_vec.push_back(idx_1.full_view());
+    p.views_vec.push_back(idx_1.head_view());
   }
 
   // Source 5: HeapAllocSuperType version FULL_VER

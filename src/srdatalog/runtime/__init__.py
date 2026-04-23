@@ -188,7 +188,49 @@ def cuda_compile_flags(
     "cuda",
     f"--cuda-gpu-arch={gpu_arch}",
     f"--cuda-path={root}",
+    # Match Nim's docker/config.nims passC set so our compiled `.so`
+    # matches the Nim executable's codegen. `-O3` changes GPU codegen
+    # (loop unrolling, register allocation); `-m64` locks ABI bit-width;
+    # the atomic flags keep boost::atomic from switching cmpxchg16b
+    # variants under our feet.
+    "-O3",
+    "-g",
+    "-m64",
+    "-DSRDATALOG_GPU_AVAILABLE=1",
+    "-DENABLE_LOGGING",
+    "-DBOOST_ATOMIC_NO_CMPXCHG16B",
+    "-U__GCC_HAVE_SYNC_COMPARE_AND_SWAP_16",
+    "-Wno-unknown-cuda-version",
   ]
+
+
+def _vendor_lib_dir() -> str | None:
+  '''Locate the vendor boost-static libs.
+
+  The emitted `.so` includes vendor boost HEADERS (version 1.90 by
+  `BOOST_VERSION` in `vendor/include/boost/version.hpp`). Linking the
+  system's `libboost_container.so.1.74` would be an ABI mismatch (16
+  minor versions apart) and surfaces as downstream corruption — in
+  practice, `cuKernelGetFunction: INVALID_HANDLE` on kernel launches.
+
+  Search order:
+    1. `SRDATALOG_VENDOR_LIB` env var — explicit override.
+    2. The in-tree sibling at `<project>/src/srdatalog/runtime/vendor/lib`.
+    3. The upstream Nim repo at `/home/stargazermiao/workspace/SRDatalog/src/srdatalog/vendor/lib`
+       — fallback for dev machines where the wheel's populate_vendor hook
+       hasn't run.
+  '''
+  env = os.environ.get("SRDATALOG_VENDOR_LIB")
+  if env and os.path.isdir(env):
+    return env
+  here = os.path.dirname(os.path.abspath(__file__))
+  local = os.path.join(here, "vendor", "lib")
+  if os.path.isdir(local):
+    return local
+  nim = "/home/stargazermiao/workspace/SRDatalog/src/srdatalog/vendor/lib"
+  if os.path.isdir(nim):
+    return nim
+  return None
 
 
 def cuda_link_flags(cuda_root: str | None = None) -> list[str]:
@@ -201,7 +243,7 @@ def cuda_link_flags(cuda_root: str | None = None) -> list[str]:
     os.path.join(root, "targets", "x86_64-linux", "lib"),
     os.path.join(root, "lib"),
   ]
-  return [f"-L{p}" for p in candidates if os.path.isdir(p)] + [
+  flags = [f"-L{p}" for p in candidates if os.path.isdir(p)] + [
     # rpath embedding — .so stays loadable even when LD_LIBRARY_PATH
     # doesn't include the CUDA lib dir (common on NVIDIA HPC SDK
     # installs that rely on modulefile-set envs).
@@ -209,9 +251,27 @@ def cuda_link_flags(cuda_root: str | None = None) -> list[str]:
     for p in candidates
     if os.path.isdir(p)
   ]
+  vendor = _vendor_lib_dir()
+  if vendor is not None:
+    flags.insert(0, f"-L{vendor}")
+  return flags
 
 
 def cuda_libs() -> list[str]:
   '''`-l<libname>` entries needed to satisfy the runtime's CUDA symbol
-  references (cudaMemcpyAsync, cuLaunchKernel, ...).'''
-  return ["cudart", "cuda"]
+  references (cudaMemcpyAsync, cuLaunchKernel, ...) and the vendored
+  boost libs whose ABI must match the vendored boost headers.
+
+  Boost is listed BEFORE cudart so that the static `.a` in the vendor
+  dir wins over any system `libboost_*.so` on the `-L` search path.
+  '''
+  return [
+    "boost_container",
+    "boost_log",
+    "boost_log_setup",
+    "boost_thread",
+    "boost_filesystem",
+    "boost_atomic",
+    "cudart",
+    "cuda",
+  ]

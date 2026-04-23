@@ -18,7 +18,7 @@ struct JitRunner_vdle_cfg_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 4;
+  static constexpr std::size_t NumSources = 5;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -49,8 +49,8 @@ struct JitRunner_vdle_cfg_D0 {
         // View declarations (deduplicated by spec, 4 unique views)
         auto view_var_drop_live_on_entry_0_1_DELTA_VER = views[0];
         auto view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER = views[1];
-        auto view_cfg_edge_1_0_FULL_VER = views[2];
-        auto view_var_defined_at_0_1_FULL_VER = views[3];
+        auto view_cfg_edge_1_0_FULL_VER = views[3];
+        auto view_var_defined_at_0_1_FULL_VER = views[4];
 
         // Root ColumnJoin (multi-source intersection): bind 'v' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -65,9 +65,13 @@ struct JitRunner_vdle_cfg_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_var_drop_live_on_entry_0_1_DELTA_VER.num_rows_;
           auto h_var_drop_live_on_entry_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_var_drop_live_on_entry_0_1_DELTA_VER);
           if (!h_var_drop_live_on_entry_0_root.valid()) continue;
-          auto h_var_maybe_partly_initialized_on_exit_1_root = HandleType(0, view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER);
-          if (!h_var_maybe_partly_initialized_on_exit_1_root.valid()) continue;
-          auto v = root_val_2;
+          // Segment loop: var_maybe_partly_initialized_on_exit FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_var_maybe_partly_initialized_on_exit_1 = views[1 + _seg_1];
+            view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER = view_var_maybe_partly_initialized_on_exit_1;
+            auto h_var_maybe_partly_initialized_on_exit_1_root = HandleType(0, view_var_maybe_partly_initialized_on_exit_1.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_exit_1);
+            if (!h_var_maybe_partly_initialized_on_exit_1_root.valid()) continue;
+            auto v = root_val_2;
         // Nested ColumnJoin (intersection): bind 'tgt' from 2 sources
         // MIR: (column-join :var tgt :sources ((var_drop_live_on_entry :handle 2 :prefix (v)) (cfg_edge :handle 3 :prefix ()) ))
         auto h_var_drop_live_on_entry_2_6 = h_var_drop_live_on_entry_0_root;
@@ -97,6 +101,7 @@ struct JitRunner_vdle_cfg_D0 {
         }
         }
         }
+          }
         }
     thread_counts[thread_id] = output_ctx.count();
   }
@@ -135,8 +140,8 @@ struct JitRunner_vdle_cfg_D0 {
         // View declarations (deduplicated by spec, 4 unique views)
         auto view_var_drop_live_on_entry_0_1_DELTA_VER = views[0];
         auto view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER = views[1];
-        auto view_cfg_edge_1_0_FULL_VER = views[2];
-        auto view_var_defined_at_0_1_FULL_VER = views[3];
+        auto view_cfg_edge_1_0_FULL_VER = views[3];
+        auto view_var_defined_at_0_1_FULL_VER = views[4];
 
         // Root ColumnJoin (multi-source intersection): bind 'v' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -151,9 +156,13 @@ struct JitRunner_vdle_cfg_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_var_drop_live_on_entry_0_1_DELTA_VER.num_rows_;
           auto h_var_drop_live_on_entry_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_var_drop_live_on_entry_0_1_DELTA_VER);
           if (!h_var_drop_live_on_entry_0_root.valid()) continue;
-          auto h_var_maybe_partly_initialized_on_exit_1_root = HandleType(0, view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER);
-          if (!h_var_maybe_partly_initialized_on_exit_1_root.valid()) continue;
-          auto v = root_val_2;
+          // Segment loop: var_maybe_partly_initialized_on_exit FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_var_maybe_partly_initialized_on_exit_1 = views[1 + _seg_1];
+            view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER = view_var_maybe_partly_initialized_on_exit_1;
+            auto h_var_maybe_partly_initialized_on_exit_1_root = HandleType(0, view_var_maybe_partly_initialized_on_exit_1.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_exit_1);
+            if (!h_var_maybe_partly_initialized_on_exit_1_root.valid()) continue;
+            auto v = root_val_2;
         // Nested ColumnJoin (intersection): bind 'tgt' from 2 sources
         // MIR: (column-join :var tgt :sources ((var_drop_live_on_entry :handle 2 :prefix (v)) (cfg_edge :handle 3 :prefix ()) ))
         auto h_var_drop_live_on_entry_2_6 = h_var_drop_live_on_entry_0_root;
@@ -183,6 +192,7 @@ struct JitRunner_vdle_cfg_D0 {
         }
         }
         }
+          }
         }
   }
 
@@ -221,8 +231,8 @@ struct JitRunner_vdle_cfg_D0 {
         // View declarations (deduplicated by spec, 4 unique views)
         auto view_var_drop_live_on_entry_0_1_DELTA_VER = views[0];
         auto view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER = views[1];
-        auto view_cfg_edge_1_0_FULL_VER = views[2];
-        auto view_var_defined_at_0_1_FULL_VER = views[3];
+        auto view_cfg_edge_1_0_FULL_VER = views[3];
+        auto view_var_defined_at_0_1_FULL_VER = views[4];
 
         // Root ColumnJoin (multi-source intersection): bind 'v' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -237,9 +247,13 @@ struct JitRunner_vdle_cfg_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_var_drop_live_on_entry_0_1_DELTA_VER.num_rows_;
           auto h_var_drop_live_on_entry_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_var_drop_live_on_entry_0_1_DELTA_VER);
           if (!h_var_drop_live_on_entry_0_root.valid()) continue;
-          auto h_var_maybe_partly_initialized_on_exit_1_root = HandleType(0, view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER);
-          if (!h_var_maybe_partly_initialized_on_exit_1_root.valid()) continue;
-          auto v = root_val_2;
+          // Segment loop: var_maybe_partly_initialized_on_exit FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_var_maybe_partly_initialized_on_exit_1 = views[1 + _seg_1];
+            view_var_maybe_partly_initialized_on_exit_0_1_FULL_VER = view_var_maybe_partly_initialized_on_exit_1;
+            auto h_var_maybe_partly_initialized_on_exit_1_root = HandleType(0, view_var_maybe_partly_initialized_on_exit_1.num_rows_, 0).prefix(root_val_2, tile, view_var_maybe_partly_initialized_on_exit_1);
+            if (!h_var_maybe_partly_initialized_on_exit_1_root.valid()) continue;
+            auto v = root_val_2;
         // Nested ColumnJoin (intersection): bind 'tgt' from 2 sources
         // MIR: (column-join :var tgt :sources ((var_drop_live_on_entry :handle 2 :prefix (v)) (cfg_edge :handle 3 :prefix ()) ))
         auto h_var_drop_live_on_entry_2_6 = h_var_drop_live_on_entry_0_root;
@@ -269,6 +283,7 @@ struct JitRunner_vdle_cfg_D0 {
         }
         }
         }
+          }
         }
     output_ctx_0.flush();
   }
@@ -328,7 +343,8 @@ JitRunner_vdle_cfg_D0::LaunchParams JitRunner_vdle_cfg_D0::setup(DB& db, uint32_
   {
     auto& rel_1 = get_relation_by_schema<var_maybe_partly_initialized_on_exit, FULL_VER>(db);
     auto& idx_1 = rel_1.ensure_index(SRDatalog::IndexSpec{{0, 1}}, false);
-    p.views_vec.push_back(idx_1.view());
+    p.views_vec.push_back(idx_1.full_view());
+    p.views_vec.push_back(idx_1.head_view());
   }
 
   // Source 3: cfg_edge version FULL_VER

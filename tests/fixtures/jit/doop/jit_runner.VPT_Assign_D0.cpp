@@ -18,7 +18,7 @@ struct JitRunner_VPT_Assign_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 2;
+  static constexpr std::size_t NumSources = 3;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -63,9 +63,13 @@ struct JitRunner_VPT_Assign_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Assign_0_1_DELTA_VER.num_rows_;
           auto h_Assign_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Assign_0_1_DELTA_VER);
           if (!h_Assign_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto frm = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto frm = root_val_2;
         // Nested CartesianJoin: bind to, heap from 2 source(s)
         // MIR: (cartesian-join :vars (to heap) :sources ((Assign :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix (frm)) ))
         uint32_t lane_1 = tile.thread_rank();
@@ -88,6 +92,7 @@ struct JitRunner_VPT_Assign_D0 {
           uint32_t lane_share = (lane_1 < lane_total) ? ((lane_total - lane_1 + group_size_2 - 1) / group_size_2) : 0;
           output_ctx.add_count(lane_share);
         }
+          }
         }
     thread_counts[thread_id] = output_ctx.count();
   }
@@ -140,9 +145,13 @@ struct JitRunner_VPT_Assign_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Assign_0_1_DELTA_VER.num_rows_;
           auto h_Assign_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Assign_0_1_DELTA_VER);
           if (!h_Assign_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto frm = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto frm = root_val_2;
         // Nested CartesianJoin: bind to, heap from 2 source(s)
         // MIR: (cartesian-join :vars (to heap) :sources ((Assign :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix (frm)) ))
         uint32_t lane_1 = tile.thread_rank();
@@ -175,6 +184,7 @@ struct JitRunner_VPT_Assign_D0 {
         // Emit: VarPointsTo(heap, to)
         output_ctx_0.emit_direct(heap, to);
         }
+          }
         }
   }
 
@@ -227,9 +237,13 @@ struct JitRunner_VPT_Assign_D0 {
           hint_hi_4 = (hint_hi_4 > hint_lo_3) ? hint_hi_4 : view_Assign_0_1_DELTA_VER.num_rows_;
           auto h_Assign_0_root = HandleType(hint_lo_3, hint_hi_4, 0).prefix(root_val_2, tile, view_Assign_0_1_DELTA_VER);
           if (!h_Assign_0_root.valid()) continue;
-          auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1_0_FULL_VER.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1_0_FULL_VER);
-          if (!h_VarPointsTo_1_root.valid()) continue;
-          auto frm = root_val_2;
+          // Segment loop: VarPointsTo FULL_VER has 2 segments (FULL + HEAD)
+          for (int _seg_1 = 0; _seg_1 < 2; _seg_1++) {
+            auto view_VarPointsTo_1 = views[1 + _seg_1];
+            view_VarPointsTo_1_0_FULL_VER = view_VarPointsTo_1;
+            auto h_VarPointsTo_1_root = HandleType(0, view_VarPointsTo_1.num_rows_, 0).prefix(root_val_2, tile, view_VarPointsTo_1);
+            if (!h_VarPointsTo_1_root.valid()) continue;
+            auto frm = root_val_2;
         // Nested CartesianJoin: bind to, heap from 2 source(s)
         // MIR: (cartesian-join :vars (to heap) :sources ((Assign :handle 2 :prefix (frm)) (VarPointsTo :handle 3 :prefix (frm)) ))
         uint32_t lane_1 = tile.thread_rank();
@@ -262,6 +276,7 @@ struct JitRunner_VPT_Assign_D0 {
         // Emit: VarPointsTo(heap, to)
         output_ctx_0.emit_direct(heap, to);
         }
+          }
         }
     output_ctx_0.flush();
   }
@@ -321,7 +336,8 @@ JitRunner_VPT_Assign_D0::LaunchParams JitRunner_VPT_Assign_D0::setup(DB& db, uin
   {
     auto& rel_1 = get_relation_by_schema<VarPointsTo, FULL_VER>(db);
     auto& idx_1 = rel_1.ensure_index(SRDatalog::IndexSpec{{1, 0}}, false);
-    p.views_vec.push_back(idx_1.view());
+    p.views_vec.push_back(idx_1.full_view());
+    p.views_vec.push_back(idx_1.head_view());
   }
 
   // First source for root keys

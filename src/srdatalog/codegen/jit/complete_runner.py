@@ -28,6 +28,13 @@ dedup_hash, balanced scan, fan-out, materialized pipelines.
 
 from __future__ import annotations
 
+# Side-effect import: registers the Device2LevelIndex plugin. Without this,
+# pluginViewCount falls back to the default plugin (view_count=1 for every
+# version) for any relation declared with `index_type="...Device2LevelIndex"`,
+# which silently undercounts NumSources and diverges from the Nim build.
+# Nim gets this registration for free via its import-graph; we need to
+# pin it here because `gen_complete_runner` is the consumer that cares.
+import srdatalog.codegen.jit.indexes.two_level  # noqa: F401
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import CodeGenContext, new_code_gen_context
 from srdatalog.codegen.jit.emit_helpers import (
@@ -37,7 +44,7 @@ from srdatalog.codegen.jit.emit_helpers import (
 )
 from srdatalog.codegen.jit.materialized import is_materialized_pipeline
 from srdatalog.codegen.jit.pipeline import jit_pipeline
-from srdatalog.codegen.jit.plugin import plugin_view_count
+from srdatalog.codegen.jit.plugin import plugin_gen_host_view_setup, plugin_view_count
 from srdatalog.codegen.jit.view_management import (
   build_root_slot_map,
   compute_total_view_count,
@@ -450,10 +457,20 @@ def _gen_kernel_bg_histogram(
 
   # Emit per-root-source narrowing + degree. First source uses
   # hint_lo/hi; later sources use gen_root_handle + prefix.
+  # Non-first sources whose index exposes multiple views on FULL_VER
+  # (e.g. 2-level HEAD+FULL) skip the early-exit valid check — a key
+  # present only in the HEAD segment would have an invalid FULL handle
+  # but still contribute work. Segment degree is summed below.
+  # `view_slot_offsets` was already computed earlier in this function.
+  from srdatalog.codegen.jit.context import gen_root_handle as _gen_rh
+
+  src_view_counts: list[int] = []
   for idx_, src in enumerate(root_sources):
     src_idx = src.handle_start
     rel_name = src.rel_name
     src_index_type = rel_index_types.get(rel_name, "")
+    src_view_count = plugin_view_count(src.version.code, src_index_type)
+    src_view_counts.append(src_view_count)
     handle_var = f"h_{rel_name}_{src_idx}_root"
     # Find view_var for this source.
     idx_str = "_".join(str(v) for v in src.index)
@@ -470,21 +487,51 @@ def _gen_kernel_bg_histogram(
         f"      auto {handle_var} = HandleType(bg_hlo, bg_hhi, 0)"
         f".prefix(bg_hist_root_val, tile, {view_var});\n"
       )
+      code += (
+        f"      if (!{handle_var}.valid()) {{ bg_work_per_key[bg_hist_key] = 0; continue; }}\n"
+      )
     else:
-      from srdatalog.codegen.jit.context import gen_root_handle as _gen_rh
-
       code += (
         f"      auto {handle_var} = {_gen_rh(view_var, src_index_type)}"
         f".prefix(bg_hist_root_val, tile, {view_var});\n"
       )
-    code += f"      if (!{handle_var}.valid()) {{ bg_work_per_key[bg_hist_key] = 0; continue; }}\n"
+      if src_view_count <= 1:
+        code += (
+          f"      if (!{handle_var}.valid()) {{ bg_work_per_key[bg_hist_key] = 0; continue; }}\n"
+        )
+      # else: defer validity check — segment-aware degree accumulation
+      # below will `continue` if every segment is empty.
 
+  # Degree product with segment-aware handling for 2-level non-first sources.
+  # Mirrors Nim `jit_complete_runner.nim:~1230-1260`.
   code += "      uint64_t bg_deg = 1;\n"
-  for src in root_sources:
+  for idx_, src in enumerate(root_sources):
     src_idx = src.handle_start
     rel_name = src.rel_name
+    src_index_type = rel_index_types.get(rel_name, "")
+    src_view_count = src_view_counts[idx_]
     handle_var = f"h_{rel_name}_{src_idx}_root"
-    code += f"      bg_deg *= {handle_var}.degree();\n"
+    if src_view_count > 1 and idx_ > 0:
+      seg_deg_var = f"bg_seg_deg_{idx_}"
+      src_base_slot = view_slot_offsets.get(src_idx, 0)
+      code += f"      uint64_t {seg_deg_var} = {handle_var}.valid() ? {handle_var}.degree() : 0;\n"
+      for seg in range(1, src_view_count):
+        seg_view_var = f"bg_seg_view_{idx_}_{seg}"
+        seg_handle_var = f"bg_seg_h_{idx_}_{seg}"
+        code += "      {\n"
+        code += f"        auto {seg_view_var} = views[{src_base_slot + seg}];\n"
+        code += (
+          f"        auto {seg_handle_var} = {_gen_rh(seg_view_var, src_index_type)}"
+          f".prefix(bg_hist_root_val, tile, {seg_view_var});\n"
+        )
+        code += (
+          f"        if ({seg_handle_var}.valid()) {seg_deg_var} += {seg_handle_var}.degree();\n"
+        )
+        code += "      }\n"
+      code += f"      if ({seg_deg_var} == 0) {{ bg_work_per_key[bg_hist_key] = 0; continue; }}\n"
+      code += f"      bg_deg *= {seg_deg_var};\n"
+    else:
+      code += f"      bg_deg *= {handle_var}.degree();\n"
   code += "      if (tile.thread_rank() == 0) bg_work_per_key[bg_hist_key] = bg_deg;\n"
   code += "    }\n"
   code += "  }\n\n"
@@ -794,13 +841,12 @@ def _gen_view_setup_for_source(
   code += (
     f"    auto& idx_{i} = rel_{i}.ensure_index(SRDatalog::IndexSpec{idx_str}, {force_rebuild});\n"
   )
-  view_count = plugin_view_count(mir_ver, index_type)
-  if view_count == 1:
-    code += f"    {views_var}.push_back(idx_{i}.view());\n"
-  else:
-    # Multi-view plugin (e.g. Device2LevelIndex FULL → 2 views)
-    code += f"    {views_var}.push_back(idx_{i}.head().view());\n"
-    code += f"    {views_var}.push_back(idx_{i}.view());\n"
+  # Push view(s) via the plugin hook — a multi-view plugin (e.g.
+  # Device2LevelIndex on FULL_VER) returns both head and full view
+  # expressions; the single-view default returns just `.view()`.
+  # Mirrors Nim's jit_complete_runner.nim call to pluginGenHostViewSetup.
+  for expr in plugin_gen_host_view_setup(f"idx_{i}", mir_ver, index_type):
+    code += f"    {views_var}.push_back({expr});\n"
   code += "  }\n\n"
   return code
 

@@ -18,7 +18,7 @@ struct JitRunner_ole_drop {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 2;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 2;
+  static constexpr std::size_t NumSources = 3;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -48,7 +48,7 @@ struct JitRunner_ole_drop {
 
         // View declarations (deduplicated by spec, 2 unique views)
         auto view_var_drop_live_on_entry_0_1_FULL_VER = views[0];
-        auto view_drop_of_var_derefs_origin_0_1_FULL_VER = views[1];
+        auto view_drop_of_var_derefs_origin_0_1_FULL_VER = views[2];
 
         // Root ColumnJoin (multi-source intersection): bind 'vr' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -125,7 +125,7 @@ struct JitRunner_ole_drop {
 
         // View declarations (deduplicated by spec, 2 unique views)
         auto view_var_drop_live_on_entry_0_1_FULL_VER = views[0];
-        auto view_drop_of_var_derefs_origin_0_1_FULL_VER = views[1];
+        auto view_drop_of_var_derefs_origin_0_1_FULL_VER = views[2];
 
         // Root ColumnJoin (multi-source intersection): bind 'vr' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -212,7 +212,7 @@ struct JitRunner_ole_drop {
 
         // View declarations (deduplicated by spec, 2 unique views)
         auto view_var_drop_live_on_entry_0_1_FULL_VER = views[0];
-        auto view_drop_of_var_derefs_origin_0_1_FULL_VER = views[1];
+        auto view_drop_of_var_derefs_origin_0_1_FULL_VER = views[2];
 
         // Root ColumnJoin (multi-source intersection): bind 'vr' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -314,7 +314,8 @@ JitRunner_ole_drop::LaunchParams JitRunner_ole_drop::setup(DB& db, uint32_t iter
   {
     auto& rel_0 = get_relation_by_schema<var_drop_live_on_entry, FULL_VER>(db);
     auto& idx_0 = rel_0.ensure_index(SRDatalog::IndexSpec{{0, 1}}, false);
-    p.views_vec.push_back(idx_0.view());
+    p.views_vec.push_back(idx_0.full_view());
+    p.views_vec.push_back(idx_0.head_view());
   }
 
   // Source 1: drop_of_var_derefs_origin version FULL_VER
@@ -331,6 +332,10 @@ JitRunner_ole_drop::LaunchParams JitRunner_ole_drop::setup(DB& db, uint32_t iter
   p.num_unique_root_keys = static_cast<uint32_t>(first_idx.num_unique_root_values());
   p.root_unique_values_ptr = (p.num_unique_root_keys > 0) ? first_idx.root_unique_values().data() : nullptr;
   p.num_full_unique_root_keys = p.num_unique_root_keys;
+  p.num_head_unique_root_keys = static_cast<uint32_t>(first_idx.head_num_unique_root_values());
+  p.head_root_unique_values_ptr = (p.num_head_unique_root_keys > 0) ? first_idx.head_root_unique_values().data() : nullptr;
+  p.num_unique_root_keys += p.num_head_unique_root_keys;
+  p.num_root_keys += first_idx.head().root().degree();
 
   // Copy views to device using provided stream (NOT stream 0)
   p.d_views = SRDatalog::GPU::DeviceArray<ViewType>(p.views_vec.size());

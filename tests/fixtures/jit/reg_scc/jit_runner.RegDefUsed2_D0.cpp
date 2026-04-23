@@ -18,7 +18,7 @@ struct JitRunner_RegDefUsed2_D0 {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 4;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 3;
+  static constexpr std::size_t NumSources = 4;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -69,10 +69,12 @@ struct JitRunner_RegDefUsed2_D0 {
           auto blk = root_val_2;
         // Nested ColumnJoin (intersection): bind 'blockUsed' from 2 sources
         // MIR: (column-join :var blockUsed :sources ((RegDefUseLiveVarAtBlockEnd :handle 2 :prefix (blk)) (RegDefUseLiveVarUsed :handle 3 :prefix ()) ))
-        auto h_RegDefUseLiveVarAtBlockEnd_2_13 = h_RegDefUseLiveVarAtBlockEnd_0_root;
-        auto h_RegDefUseLiveVarUsed_3_14 = HandleType(0, view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER.num_rows_, 0);
-        auto intersect_15 = intersect_handles(tile, h_RegDefUseLiveVarAtBlockEnd_2_13.iterators(view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER), h_RegDefUseLiveVarUsed_3_14.iterators(view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER));
-        for (auto it_16 = intersect_15.begin(); it_16.valid(); it_16.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER = views[2 + _nseg_1];
+          auto h_RegDefUseLiveVarAtBlockEnd_2_13 = h_RegDefUseLiveVarAtBlockEnd_0_root;
+          auto h_RegDefUseLiveVarUsed_3_14 = HandleType(0, view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER.num_rows_, 0);
+          auto intersect_15 = intersect_handles(tile, h_RegDefUseLiveVarAtBlockEnd_2_13.iterators(view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER), h_RegDefUseLiveVarUsed_3_14.iterators(view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER));
+          for (auto it_16 = intersect_15.begin(); it_16.valid(); it_16.next()) {
           auto blockUsed = it_16.value();
           auto positions = it_16.positions();
           auto ch_RegDefUseLiveVarAtBlockEnd_2_blockUsed = h_RegDefUseLiveVarAtBlockEnd_2_13.child_range(positions[0], blockUsed, tile, view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER);
@@ -112,6 +114,7 @@ struct JitRunner_RegDefUsed2_D0 {
           output_ctx.add_count(lane_share);
         }
         }
+          }
         }
         }
     thread_counts[thread_id] = output_ctx.count();
@@ -171,10 +174,12 @@ struct JitRunner_RegDefUsed2_D0 {
           auto blk = root_val_2;
         // Nested ColumnJoin (intersection): bind 'blockUsed' from 2 sources
         // MIR: (column-join :var blockUsed :sources ((RegDefUseLiveVarAtBlockEnd :handle 2 :prefix (blk)) (RegDefUseLiveVarUsed :handle 3 :prefix ()) ))
-        auto h_RegDefUseLiveVarAtBlockEnd_2_17 = h_RegDefUseLiveVarAtBlockEnd_0_root;
-        auto h_RegDefUseLiveVarUsed_3_18 = HandleType(0, view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER.num_rows_, 0);
-        auto intersect_19 = intersect_handles(tile, h_RegDefUseLiveVarAtBlockEnd_2_17.iterators(view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER), h_RegDefUseLiveVarUsed_3_18.iterators(view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER));
-        for (auto it_20 = intersect_19.begin(); it_20.valid(); it_20.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER = views[2 + _nseg_1];
+          auto h_RegDefUseLiveVarAtBlockEnd_2_17 = h_RegDefUseLiveVarAtBlockEnd_0_root;
+          auto h_RegDefUseLiveVarUsed_3_18 = HandleType(0, view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER.num_rows_, 0);
+          auto intersect_19 = intersect_handles(tile, h_RegDefUseLiveVarAtBlockEnd_2_17.iterators(view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER), h_RegDefUseLiveVarUsed_3_18.iterators(view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER));
+          for (auto it_20 = intersect_19.begin(); it_20.valid(); it_20.next()) {
           auto blockUsed = it_20.value();
           auto positions = it_20.positions();
           auto ch_RegDefUseLiveVarAtBlockEnd_2_blockUsed = h_RegDefUseLiveVarAtBlockEnd_2_17.child_range(positions[0], blockUsed, tile, view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER);
@@ -226,6 +231,7 @@ struct JitRunner_RegDefUsed2_D0 {
         output_ctx_0.emit_direct(eaDef, varIdentity, eaUsed, index);
         }
         }
+          }
         }
         }
   }
@@ -285,10 +291,12 @@ struct JitRunner_RegDefUsed2_D0 {
           auto blk = root_val_2;
         // Nested ColumnJoin (intersection): bind 'blockUsed' from 2 sources
         // MIR: (column-join :var blockUsed :sources ((RegDefUseLiveVarAtBlockEnd :handle 2 :prefix (blk)) (RegDefUseLiveVarUsed :handle 3 :prefix ()) ))
-        auto h_RegDefUseLiveVarAtBlockEnd_2_17 = h_RegDefUseLiveVarAtBlockEnd_0_root;
-        auto h_RegDefUseLiveVarUsed_3_18 = HandleType(0, view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER.num_rows_, 0);
-        auto intersect_19 = intersect_handles(tile, h_RegDefUseLiveVarAtBlockEnd_2_17.iterators(view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER), h_RegDefUseLiveVarUsed_3_18.iterators(view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER));
-        for (auto it_20 = intersect_19.begin(); it_20.valid(); it_20.next()) {
+        for (int _nseg_1 = 0; _nseg_1 < 2; _nseg_1++) {
+          view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER = views[2 + _nseg_1];
+          auto h_RegDefUseLiveVarAtBlockEnd_2_17 = h_RegDefUseLiveVarAtBlockEnd_0_root;
+          auto h_RegDefUseLiveVarUsed_3_18 = HandleType(0, view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER.num_rows_, 0);
+          auto intersect_19 = intersect_handles(tile, h_RegDefUseLiveVarAtBlockEnd_2_17.iterators(view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER), h_RegDefUseLiveVarUsed_3_18.iterators(view_RegDefUseLiveVarUsed_0_1_2_3_FULL_VER));
+          for (auto it_20 = intersect_19.begin(); it_20.valid(); it_20.next()) {
           auto blockUsed = it_20.value();
           auto positions = it_20.positions();
           auto ch_RegDefUseLiveVarAtBlockEnd_2_blockUsed = h_RegDefUseLiveVarAtBlockEnd_2_17.child_range(positions[0], blockUsed, tile, view_RegDefUseLiveVarAtBlockEnd_0_1_2_DELTA_VER);
@@ -340,6 +348,7 @@ struct JitRunner_RegDefUsed2_D0 {
         output_ctx_0.emit_direct(eaDef, varIdentity, eaUsed, index);
         }
         }
+          }
         }
         }
     output_ctx_0.flush();
@@ -407,7 +416,8 @@ JitRunner_RegDefUsed2_D0::LaunchParams JitRunner_RegDefUsed2_D0::setup(DB& db, u
   {
     auto& rel_3 = get_relation_by_schema<RegDefUseLiveVarUsed, FULL_VER>(db);
     auto& idx_3 = rel_3.ensure_index(SRDatalog::IndexSpec{{0, 1, 2, 3}}, false);
-    p.views_vec.push_back(idx_3.view());
+    p.views_vec.push_back(idx_3.full_view());
+    p.views_vec.push_back(idx_3.head_view());
   }
 
   // First source for root keys

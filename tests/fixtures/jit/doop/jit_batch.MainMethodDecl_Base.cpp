@@ -119,11 +119,11 @@ struct Kernel_MainMethodDecl_Base {
           auto _c2 = view_Method_Modifier_1_0_FULL_VER.get_value(1, h_Method_Modifier_9_8.begin() + idx2_15);
           auto _c3 = view_Method_Modifier_1_0_FULL_VER.get_value(1, h_Method_Modifier_10_10.begin() + idx3_16);
 
-        if (_c0 == 1004) {
-        if (_c1 == 1005) {
-        if (_c2 == 1002) {
-        if (_c3 == 1003) {
-        if (meth != 1011 && meth != 1012 && meth != 1013) {
+        if (_c0 == 2979023) {
+        if (_c1 == 3018506) {
+        if (_c2 == 976234) {
+        if (_c3 == 909718) {
+        if (meth != 590319 && meth != 1138805 && meth != 926489) {
         // Emit: MainMethodDeclaration(meth)
         output.emit_direct(meth);
         }

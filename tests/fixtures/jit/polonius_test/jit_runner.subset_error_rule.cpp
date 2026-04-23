@@ -18,7 +18,7 @@ struct JitRunner_subset_error_rule {
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 3;
   static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
-  static constexpr std::size_t NumSources = 3;
+  static constexpr std::size_t NumSources = 4;
 
   // Non-template kernel_count (concrete ViewType)
   static __global__ void __launch_bounds__(kBlockSize) kernel_count(
@@ -48,8 +48,8 @@ struct JitRunner_subset_error_rule {
 
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_subset_0_1_2_FULL_VER = views[0];
-        auto view_placeholder_origin_0_FULL_VER = views[1];
-        auto view_known_placeholder_subset_0_1_FULL_VER = views[2];
+        auto view_placeholder_origin_0_FULL_VER = views[2];
+        auto view_known_placeholder_subset_0_1_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'origin1' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -146,8 +146,8 @@ struct JitRunner_subset_error_rule {
 
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_subset_0_1_2_FULL_VER = views[0];
-        auto view_placeholder_origin_0_FULL_VER = views[1];
-        auto view_known_placeholder_subset_0_1_FULL_VER = views[2];
+        auto view_placeholder_origin_0_FULL_VER = views[2];
+        auto view_known_placeholder_subset_0_1_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'origin1' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -244,8 +244,8 @@ struct JitRunner_subset_error_rule {
 
         // View declarations (deduplicated by spec, 3 unique views)
         auto view_subset_0_1_2_FULL_VER = views[0];
-        auto view_placeholder_origin_0_FULL_VER = views[1];
-        auto view_known_placeholder_subset_0_1_FULL_VER = views[2];
+        auto view_placeholder_origin_0_FULL_VER = views[2];
+        auto view_known_placeholder_subset_0_1_FULL_VER = views[3];
 
         // Root ColumnJoin (multi-source intersection): bind 'origin1' from 2 sources
         // Uses root_unique_values + prefix() pattern (like TMP)
@@ -357,7 +357,8 @@ JitRunner_subset_error_rule::LaunchParams JitRunner_subset_error_rule::setup(DB&
   {
     auto& rel_0 = get_relation_by_schema<subset, FULL_VER>(db);
     auto& idx_0 = rel_0.ensure_index(SRDatalog::IndexSpec{{0, 1, 2}}, false);
-    p.views_vec.push_back(idx_0.view());
+    p.views_vec.push_back(idx_0.full_view());
+    p.views_vec.push_back(idx_0.head_view());
   }
 
   // Source 1: placeholder_origin version FULL_VER
@@ -381,6 +382,10 @@ JitRunner_subset_error_rule::LaunchParams JitRunner_subset_error_rule::setup(DB&
   p.num_unique_root_keys = static_cast<uint32_t>(first_idx.num_unique_root_values());
   p.root_unique_values_ptr = (p.num_unique_root_keys > 0) ? first_idx.root_unique_values().data() : nullptr;
   p.num_full_unique_root_keys = p.num_unique_root_keys;
+  p.num_head_unique_root_keys = static_cast<uint32_t>(first_idx.head_num_unique_root_values());
+  p.head_root_unique_values_ptr = (p.num_head_unique_root_keys > 0) ? first_idx.head_root_unique_values().data() : nullptr;
+  p.num_unique_root_keys += p.num_head_unique_root_keys;
+  p.num_root_keys += first_idx.head().root().degree();
 
   // Copy views to device using provided stream (NOT stream 0)
   p.d_views = SRDatalog::GPU::DeviceArray<ViewType>(p.views_vec.size());

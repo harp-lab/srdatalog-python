@@ -598,9 +598,12 @@ Do not edit manually — regenerate via:
 """''')
   out.append("from __future__ import annotations")
   out.append("")
-  imports = ["Filter", "Program", "Relation", "SPLIT", "Var"]
+  # isort order: all-caps (constants) first, then CamelCase, each alphabetical.
+  # Keep in sync with ruff's default sort so generated files pass CI lint.
+  mixed = ["Filter", "Program", "Relation", "Var"]
   if dataset_consts:
-    imports.insert(0, "Const")
+    mixed.insert(0, "Const")
+  imports = ["SPLIT"] + mixed
   out.append(f"from srdatalog.dsl import {', '.join(imports)}")
   out.append("")
   out.append("# ----- Relations ----------------------------------------------")

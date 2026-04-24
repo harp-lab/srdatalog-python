@@ -6,7 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dsl import Const, Filter, Program, Relation, SPLIT, Var
+from srdatalog.dsl import SPLIT, Const, Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 

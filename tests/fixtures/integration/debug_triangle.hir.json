@@ -136,6 +136,14 @@
     }
   ],
   "relations": {
+    "ZRel": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
     "RRel": {
       "semiring": "NoProvenance",
       "types": [
@@ -153,14 +161,6 @@
     "TRel": {
       "semiring": "NoProvenance",
       "types": [
-        "int",
-        "int"
-      ]
-    },
-    "ZRel": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
         "int",
         "int"
       ]

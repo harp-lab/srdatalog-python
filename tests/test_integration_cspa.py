@@ -16,7 +16,6 @@ def build_cspa() -> Program:
   va = Relation("ValueAlias", 2)
   ma = Relation("MemoryAlias", 2)
   return Program(
-    relations=[ai, di, asgn, deref, vf, va, ma],
     rules=[
       (asgn(X, Y) <= ai(X, Y)).named("LoadAssign"),
       (deref(X, Y) <= di(X, Y)).named("LoadDeref"),

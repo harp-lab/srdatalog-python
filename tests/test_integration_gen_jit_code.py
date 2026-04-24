@@ -10,7 +10,6 @@ def build_gen_jit_code() -> Program:
   edge = Relation("Edge", 2)
   z = Relation("Z", 3)
   return Program(
-    relations=[edge, z],
     rules=[
       (z(X, Y, Z) <= edge(X, Y) & edge(Y, Z) & edge(Z, X))
       .named("Triangle")

@@ -2712,23 +2712,16 @@
     }
   ],
   "relations": {
-    "InsertInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "RemoveInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
     "Insert": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "InsertInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -2744,17 +2737,7 @@
         "int"
       ]
     },
-    "Assign": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "HasChild": {
+    "RemoveInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -2840,6 +2823,13 @@
         "int"
       ]
     },
+    "HasChild": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "NextElem": {
       "semiring": "NoProvenance",
       "types": [
@@ -2849,9 +2839,10 @@
         "int"
       ]
     },
-    "NotHasValueNextElem": {
+    "Assign": {
       "semiring": "NoProvenance",
       "types": [
+        "int",
         "int",
         "int",
         "int",
@@ -2869,6 +2860,15 @@
     "HasValue": {
       "semiring": "NoProvenance",
       "types": [
+        "int",
+        "int"
+      ]
+    },
+    "NotHasValueNextElem": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
         "int",
         "int"
       ]

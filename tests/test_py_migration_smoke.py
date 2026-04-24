@@ -58,8 +58,9 @@ def test_program_add():
   X, Y = Var("X"), Var("Y")
   edge = Relation("Edge", 2)
   path = Relation("Path", 2)
-  prog = Program().add(edge, path, path(X, Y) <= edge(X, Y))
-  assert len(prog.relations) == 2
+  prog = Program().add(path(X, Y) <= edge(X, Y))
+  # relations auto-derived from rule atoms: head first (Path), then body (Edge)
+  assert [r.name for r in prog.relations] == ["Path", "Edge"]
   assert len(prog.rules) == 1
 
 

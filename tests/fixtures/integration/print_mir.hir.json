@@ -663,6 +663,13 @@
     }
   ],
   "relations": {
+    "PointsTo": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "AddressOf": {
       "semiring": "NoProvenance",
       "types": [
@@ -685,13 +692,6 @@
       ]
     },
     "Store": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "PointsTo": {
       "semiring": "NoProvenance",
       "types": [
         "int",

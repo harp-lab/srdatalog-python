@@ -751,17 +751,9 @@
     }
   ],
   "relations": {
-    "HasTag": {
+    "HasReply": {
       "semiring": "NoProvenance",
       "types": [
-        "int",
-        "int"
-      ]
-    },
-    "HasCreator": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
         "int"
       ]
     },
@@ -772,22 +764,16 @@
         "int"
       ]
     },
+    "HasLiker": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
     "Likes": {
       "semiring": "NoProvenance",
       "types": [
         "int",
-        "int"
-      ]
-    },
-    "HasReply": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "HasLiker": {
-      "semiring": "NoProvenance",
-      "types": [
         "int"
       ]
     },
@@ -797,6 +783,20 @@
         "int",
         "int",
         "int",
+        "int",
+        "int"
+      ]
+    },
+    "HasTag": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "HasCreator": {
+      "semiring": "NoProvenance",
+      "types": [
         "int",
         "int"
       ]

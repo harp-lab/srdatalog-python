@@ -26,7 +26,6 @@ def build_path_compose_program() -> Program:
   seed = Relation("Seed", 2)
   path = Relation("Path", 2)
   return Program(
-    relations=[seed, path],
     rules=[
       (path(X, Y) <= seed(X, Y)).named("PathSeed"),
       (path(X, Z) <= path(X, Y) & path(Y, Z)).named("PathCompose"),

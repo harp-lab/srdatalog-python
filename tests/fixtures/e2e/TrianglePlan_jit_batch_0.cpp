@@ -25,14 +25,16 @@ using SRDatalog::GPU::JIT::intersect_handles;
 // Project-specific schema definitions (inlined)
 using namespace SRDatalog::AST::Literals;  // For _s string literal
 
+using ZRel = SRDatalog::AST::RelationSchema<decltype("ZRel"_s), NoProvenance, std::tuple<int, int, int>>;
 using RRel = SRDatalog::AST::RelationSchema<decltype("RRel"_s), NoProvenance, std::tuple<int, int>>;
 using SRel = SRDatalog::AST::RelationSchema<decltype("SRel"_s), NoProvenance, std::tuple<int, int, int>>;
 using TRel = SRDatalog::AST::RelationSchema<decltype("TRel"_s), NoProvenance, std::tuple<int, int, int>>;
-using ZRel = SRDatalog::AST::RelationSchema<decltype("ZRel"_s), NoProvenance, std::tuple<int, int, int>>;
+
 
 // DB type alias for JitRunner type derivation
-using TrianglePlan_DB_Blueprint = SRDatalog::AST::Database<RRel, SRel, TRel, ZRel>;
+using TrianglePlan_DB_Blueprint = SRDatalog::AST::Database<ZRel, RRel, SRel, TRel>;
 using TrianglePlan_DB_DeviceDB = SRDatalog::AST::SemiNaiveDatabase<TrianglePlan_DB_Blueprint, SRDatalog::GPU::DeviceRelationType>;
+
 
 // Batch 0 - 1 rules
 
@@ -55,7 +57,7 @@ struct JitRunner_Triangle {
   static constexpr int kBlockSize = 256;
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 3;
-  static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
+  static constexpr std::size_t OutputArity = OutputArity_0;  // Legacy alias
   static constexpr std::size_t NumSources = 3;
 
   // Non-template kernel_count (concrete ViewType)
@@ -523,7 +525,10 @@ JitRunner_Triangle::LaunchParams JitRunner_Triangle::setup(DB& db, uint32_t iter
 
 void JitRunner_Triangle::launch_count(LaunchParams& p, GPU_STREAM_T stream) {
   if (p.num_threads == 0) return;
-  if (p.num_unique_root_keys == 0) { cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream); return; }
+  if (p.num_unique_root_keys == 0) {
+    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);
+    return;
+  }
   kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>(p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys, p.thread_counts_ptr);
 }
 
@@ -564,8 +569,7 @@ void JitRunner_Triangle::launch_materialize(DB& db, LaunchParams& p, uint32_t to
   uint32_t old_size_0 = p.old_size_0;
   kernel_materialize<<<p.num_blocks, kBlockSize, 0, stream>>>(
       p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,
-      p.thread_counts_ptr,
-      dest_rel_0.template interned_column<0>(), prov_ptr, dest_rel_0.interned_stride(), old_size_0);
+      p.thread_counts_ptr, dest_rel_0.template interned_column<0>(), prov_ptr, dest_rel_0.interned_stride(), old_size_0);
 }
 
 // launch_fused: launch fused kernel on given stream (no sync)

@@ -16,7 +16,6 @@ def build_lsqb_q6_bg_test() -> Program:
   hi = Relation("HasInterest", 2)
   path = Relation("PathBG", 4)
   return Program(
-    relations=[k_in, k2_in, hi_in, knows, knows2, hi, path],
     rules=[
       (knows(X, Y) <= k_in(X, Y)).named("KnowsLoad"),
       (knows2(X, Y) <= k2_in(X, Y)).named("Knows2Load"),

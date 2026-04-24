@@ -66,13 +66,6 @@ def build_andersendb_program() -> Program:
   z = Var("z")
 
   return Program(
-    relations=[
-      AddressOf,
-      Assign,
-      Load,
-      Store,
-      PointsTo,
-    ],
     rules=[
       (PointsTo(y, x) <= AddressOf(y, x)).named('Base').with_plan(var_order=['y', 'x']),
       (PointsTo(y, x) <= PointsTo(z, x) & Assign(y, z))

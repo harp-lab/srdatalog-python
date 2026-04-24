@@ -15,7 +15,6 @@ def build_tc_program() -> Program:
   edge = Relation("Edge", 2)
   path = Relation("Path", 2)
   return Program(
-    relations=[arc, edge, path],
     rules=[
       (edge(X, Y) <= arc(X, Y)).named("EdgeLoad"),
       (path(X, Y) <= edge(X, Y)).named("TCBase"),
@@ -68,7 +67,6 @@ def test_rule_with_two_scc_clauses_gets_two_delta_variants():
   seed = Relation("Seed", 2)
   path = Relation("Path", 2)
   prog = Program(
-    relations=[seed, path],
     rules=[
       (path(X, Y) <= seed(X, Y)).named("PathSeed"),
       (path(X, Z) <= path(X, Y) & path(Y, Z)).named("PathCompose"),
@@ -98,7 +96,6 @@ def test_negation_body_clause_is_not_delta_candidate():
   s = Relation("S", 1)
   r = Relation("R", 1)
   prog = Program(
-    relations=[seed, s, r],
     rules=[
       (r(X) <= seed(X)).named("RSeed"),
       (s(X) <= seed(X)).named("SSeed"),
@@ -121,7 +118,6 @@ def test_mutual_recursion_variant_layout():
   a = Relation("A", 1)
   b = Relation("B", 1)
   prog = Program(
-    relations=[seed, a, b],
     rules=[
       (a(X) <= seed(X)).named("ASeed"),
       (a(X) <= b(X)).named("AFromB"),

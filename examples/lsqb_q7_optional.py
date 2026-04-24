@@ -104,18 +104,6 @@ def build_lsqb_q7_db_program() -> Program:
   t = Var("t")
 
   return Program(
-    relations=[
-      HasTag,
-      HasCreator,
-      ReplyOf,
-      Likes,
-      HasReply,
-      HasLiker,
-      Case1,
-      Case2,
-      Case3,
-      Case4,
-    ],
     rules=[
       (HasReply(m) <= ReplyOf(Var("_"), m)).named('MarkHasReply'),
       (HasLiker(m) <= Likes(Var("_"), m)).named('MarkHasLiker'),

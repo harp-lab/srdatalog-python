@@ -15,7 +15,7 @@ Public API. Typical use:
       runtime_include_paths, cuda_include_paths, runtime_defines,
     )
 
-    prog = Program(relations=[...], rules=[...])
+    prog = Program(rules=[...])  # relations auto-derived from rule atoms
     project = build_project(prog, project_name="MyPlan", cache_base="./build")
 
     cfg = CompilerConfig(

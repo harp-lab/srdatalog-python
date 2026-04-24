@@ -86,7 +86,6 @@ Edge = Relation("Edge", 2, input_file="Edge.csv")
 TC   = Relation("TC", 2, print_size=True)
 
 prog = Program(
-  relations=[Edge, TC],
   rules=[
     (TC(x, y) <= Edge(x, y)).named("TC_Base"),
     (TC(x, z) <= TC(x, y) & Edge(y, z)).named("TC_Rec"),

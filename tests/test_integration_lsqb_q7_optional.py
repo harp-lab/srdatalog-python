@@ -25,18 +25,6 @@ def build_lsqb_q7_optional() -> Program:
   case3 = Relation("Case3", 4)
   case4 = Relation("Case4", 3)
   return Program(
-    relations=[
-      has_tag,
-      has_creator,
-      reply_of,
-      likes,
-      has_reply,
-      has_liker,
-      case1,
-      case2,
-      case3,
-      case4,
-    ],
     rules=[
       (has_reply(M) <= reply_of(G1, M)).named("MarkHasReply"),
       (has_liker(M) <= likes(G2, M)).named("MarkHasLiker"),

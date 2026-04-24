@@ -1412,21 +1412,14 @@
     }
   ],
   "relations": {
-    "AssignInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "DerefInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
     "Assign": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "AssignInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -1440,6 +1433,13 @@
         "int"
       ]
     },
+    "DerefInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "ValueFlow": {
       "semiring": "NoProvenance",
       "types": [
@@ -1447,14 +1447,14 @@
         "int"
       ]
     },
-    "ValueAlias": {
+    "MemoryAlias": {
       "semiring": "NoProvenance",
       "types": [
         "int",
         "int"
       ]
     },
-    "MemoryAlias": {
+    "ValueAlias": {
       "semiring": "NoProvenance",
       "types": [
         "int",

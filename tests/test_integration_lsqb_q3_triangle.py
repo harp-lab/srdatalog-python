@@ -18,7 +18,6 @@ def build_lsqb_q3() -> Program:
   po = Relation("IsPartOf", 2)
   tri = Relation("Triangle", 3)
   return Program(
-    relations=[k_in, il_in, po_in, knows, il, po, tri],
     rules=[
       (knows(X, Y) <= k_in(X, Y)).named("KnowsLoad"),
       (il(P, C) <= il_in(P, C)).named("LocLoad"),

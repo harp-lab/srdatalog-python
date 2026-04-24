@@ -11,7 +11,6 @@ def build_lsqb_triangle_count() -> Program:
   knows = Relation("Knows", 2)
   tri = Relation("Triangle", 3)
   return Program(
-    relations=[k_in, knows, tri],
     rules=[
       (knows(X, Y) <= k_in(X, Y)).named("KnowsLoad"),
       (tri(A, B, C) <= knows(A, B) & knows(B, C) & knows(A, C))

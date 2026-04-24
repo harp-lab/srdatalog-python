@@ -85,15 +85,6 @@ def build_lsqb_q6_nosj_db_program() -> Program:
   y = Var("y")
 
   return Program(
-    relations=[
-      KnowsInput,
-      KnowsInput2,
-      HasInterestInput,
-      Knows,
-      Knows2,
-      HasInterest,
-      Path,
-    ],
     rules=[
       (Knows(x, y) <= KnowsInput(x, y)).named('KnowsLoad'),
       (Knows2(x, y) <= KnowsInput2(x, y)).named('Knows2Load'),

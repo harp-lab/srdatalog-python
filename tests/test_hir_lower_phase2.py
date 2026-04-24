@@ -29,7 +29,6 @@ def build_tc() -> Program:
   edge = Relation("Edge", 2)
   path = Relation("Path", 2)
   return Program(
-    relations=[arc, edge, path],
     rules=[
       (edge(X, Y) <= arc(X, Y)).named("EdgeLoad"),
       (path(X, Y) <= edge(X, Y)).named("TCBase"),
@@ -43,7 +42,6 @@ def build_path_compose() -> Program:
   seed = Relation("Seed", 2)
   path = Relation("Path", 2)
   return Program(
-    relations=[seed, path],
     rules=[
       (path(X, Y) <= seed(X, Y)).named("PathSeed"),
       (path(X, Z) <= path(X, Y) & path(Y, Z)).named("PathCompose"),

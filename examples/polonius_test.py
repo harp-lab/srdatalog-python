@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import Filter, Program, Relation, Var
+from srdatalog.dsl import Filter, Program, Relation, SPLIT, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -346,10 +345,6 @@ move_error = Relation(
   print_size=True,
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {}
-
 # ----- Rules: PoloniusDB -----
 
 
@@ -571,9 +566,3 @@ def build_poloniusdb_program() -> Program:
       ).named('move_error_rule'),
     ],
   )
-
-
-def build_poloniusdb(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_poloniusdb_program(), consts), consts

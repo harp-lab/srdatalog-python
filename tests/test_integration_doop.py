@@ -1,23 +1,23 @@
 '''doop_bg_2level.nim -- multi-head rules + dataset_consts.
 
-Uses tests/fixtures/integration/doop_meta.json to resolve dataset_const
-values. The same meta.json was used on the Nim side to generate the
-goldens (via SRDATALOG_DATASET_CONFIG=<path> srdatalog_plan ...), so
-the resolved int literals line up byte-for-byte.
+The `meta` dict is loaded from batik_meta.json (same file used on the
+Nim side at fixture-generation time) so the `Const(meta[...])` bindings
+inside build_doopdb_program resolve to byte-identical integer literals.
 '''
 
+import json
 import sys
 from pathlib import Path
 
 from integration_helpers import FIXTURES, diff_hir, diff_mir
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
-from doop import build_doopdb
+from doop import build_doopdb_program
 
 
 def build_doop():
-  prog, _ = build_doopdb(str(FIXTURES / "doop_meta.json"))
-  return prog
+  meta = json.load((FIXTURES / "doop_meta.json").open())
+  return build_doopdb_program(meta)
 
 
 def test_doop_hir():

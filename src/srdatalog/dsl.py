@@ -60,15 +60,62 @@ class Var:
     return ClauseArg(kind=ArgKind.LVAR, var_name=self.name)
 
 
+class Const:
+  '''A compile-time constant argument wrapping a Python value.
+
+  Prefer this over bare `int` arguments when you want the intent explicit
+  at the call site — e.g., `Method_Modifier(Const(abstract_id), meth)`
+  instead of `Method_Modifier(abstract_id, meth)` where `abstract_id` is
+  a Python int that readers can't tell apart from a pure-Python value.
+
+  For dataset-resolved constants (read from a meta.json at program
+  construction time), this is the recommended shape:
+
+      meta = load_meta("batik_meta.json")
+      ABSTRACT = Const(meta["abstract"])   # Python binding, value baked in
+      Method_Modifier(ABSTRACT, meth)
+
+  `cpp_expr` overrides the auto-derived C++ literal. For `int` it
+  defaults to `str(value)`. Other types require an explicit `cpp_expr`
+  until we need them.
+  '''
+
+  __slots__ = ("cpp_expr", "value")
+
+  def __init__(self, value, cpp_expr: str | None = None):
+    self.value = value
+    if cpp_expr is not None:
+      self.cpp_expr = cpp_expr
+    elif isinstance(value, int) and not isinstance(value, bool):
+      self.cpp_expr = str(value)
+    else:
+      raise TypeError(
+        f"Const({value!r}): cpp_expr required for non-int values (type {type(value).__name__})"
+      )
+
+  def __repr__(self) -> str:
+    return f"Const({self.value!r})"
+
+  def _to_arg(self) -> ClauseArg:
+    return ClauseArg(kind=ArgKind.CONST, const_value=self.value, const_cpp_expr=self.cpp_expr)
+
+
 def _coerce_arg(x) -> ClauseArg:
-  '''Convert a Python value to a ClauseArg. Vars stay vars; ints become consts.'''
+  '''Convert a Python value to a ClauseArg.
+
+  Accepts: Var, Const, a bare int (short-hand for `Const(int)`), or a
+  pre-built ClauseArg. Anything else raises — prefer `Const(...)` or
+  `Var(...)` over relying on implicit coercion.
+  '''
   if isinstance(x, Var):
+    return x._to_arg()
+  if isinstance(x, Const):
     return x._to_arg()
   if isinstance(x, ClauseArg):
     return x
-  if isinstance(x, int):
+  if isinstance(x, int) and not isinstance(x, bool):
     return ClauseArg(kind=ArgKind.CONST, const_value=x, const_cpp_expr=str(x))
-  raise TypeError(f"Unsupported atom argument: {x!r} (expected Var, int, or ClauseArg)")
+  raise TypeError(f"Unsupported atom argument: {x!r} (expected Var, Const, int, or ClauseArg)")
 
 
 def cpp(code: str) -> ClauseArg:

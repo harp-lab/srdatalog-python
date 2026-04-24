@@ -1,7 +1,7 @@
-"""Auto-generated from /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/lsqb_q6_count.nim by tools/nim_to_dsl.py.
+"""Auto-generated from /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/lsqb_q6_nosj.nim by tools/nim_to_dsl.py.
 Do not edit manually — regenerate via:
 
-    python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/lsqb_q6_count.nim --out <this file>
+    python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/lsqb_q6_nosj.nim --out <this file>
 """
 
 from __future__ import annotations
@@ -12,6 +12,15 @@ from srdatalog.dsl import Filter, Program, Relation, SPLIT, Var
 
 KnowsInput = Relation(
   "KnowsInput",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+  input_file="Person_knows_Person.csv",
+)
+KnowsInput2 = Relation(
+  "KnowsInput2",
   2,
   column_types=(
     int,
@@ -30,6 +39,14 @@ HasInterestInput = Relation(
 )
 Knows = Relation(
   "Knows",
+  2,
+  column_types=(
+    int,
+    int,
+  ),
+)
+Knows2 = Relation(
+  "Knows2",
   2,
   column_types=(
     int,
@@ -55,10 +72,10 @@ Path = Relation(
   ),
 )
 
-# ----- Rules: LSQB_Q6_DB -----
+# ----- Rules: LSQB_Q6_NoSJ_DB -----
 
 
-def build_lsqb_q6_db_program() -> Program:
+def build_lsqb_q6_nosj_db_program() -> Program:
   p = Var("p")
   p1 = Var("p1")
   p2 = Var("p2")
@@ -70,19 +87,21 @@ def build_lsqb_q6_db_program() -> Program:
   return Program(
     relations=[
       KnowsInput,
+      KnowsInput2,
       HasInterestInput,
       Knows,
+      Knows2,
       HasInterest,
       Path,
     ],
     rules=[
       (Knows(x, y) <= KnowsInput(x, y)).named('KnowsLoad'),
-      (Knows(y, x) <= KnowsInput(x, y)).named('KnowsLoadRev'),
+      (Knows2(x, y) <= KnowsInput2(x, y)).named('Knows2Load'),
       (HasInterest(p, t) <= HasInterestInput(p, t)).named('InterestLoad'),
       (
         Path(p1, p2, p3, t)
         <= Knows(p1, p2)
-        & Knows(p2, p3)
+        & Knows2(p2, p3)
         & HasInterest(p3, t)
         & Filter(
           (
@@ -93,7 +112,6 @@ def build_lsqb_q6_db_program() -> Program:
         )
       )
       .named('TwoHopPath')
-      .with_plan(var_order=['p2', 'p3', 'p1', 't'])
-      .with_count(),
+      .with_plan(var_order=['p1', 'p2', 'p3', 't']),
     ],
   )

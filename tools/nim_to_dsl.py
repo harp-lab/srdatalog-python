@@ -455,9 +455,15 @@ def _emit_arg(a: str) -> str:
   return _py_ident(a)
 
 
-def _all_vars(rules: list[RuleSpec]) -> set[str]:
+def _all_vars(rules: list[RuleSpec], dataset_const_names: set[str] | None = None) -> set[str]:
   '''Collect every unique var identifier across rules. Used to generate
-  the `x = Var("x")` block inside `build_*()`.'''
+  the `x = Var("x")` block inside `build_*()`.
+
+  `dataset_const_names` is excluded from the result — those get bound
+  as `Const(meta[...])` separately, not `Var(...)`. Without this, LOAD
+  (etc.) would be double-bound and the `Const` binding would shadow
+  silently depending on declaration order.'''
+  excluded = dataset_const_names or set()
   names: set[str] = set()
 
   def collect_atom(a: BodyAtom) -> None:
@@ -465,6 +471,8 @@ def _all_vars(rules: list[RuleSpec]) -> set[str]:
       if arg == "_":
         continue
       if re.match(r"^-?\d+$", arg):
+        continue
+      if arg in excluded:
         continue
       names.add(arg)
 
@@ -476,7 +484,8 @@ def _all_vars(rules: list[RuleSpec]) -> set[str]:
         collect_atom(c)
       elif isinstance(c, FilterClause):
         for v in c.vars:
-          names.add(v)
+          if v not in excluded:
+            names.add(v)
   return names
 
 
@@ -502,9 +511,18 @@ def _emit_plan_kwargs(p: Plan) -> str:
   return ", ".join(parts)
 
 
-def _emit_body_conj(body: list[BodyClauseT]) -> str:
+def _emit_body_conj(body: list[BodyClauseT], dataset_const_names: set[str] | None = None) -> str:
   '''Emit a body as `A & B & C` — negations use `~A`, filters use
-  `Filter((...,), "...")`, the split marker becomes `SPLIT`.'''
+  `Filter((...,), "...")`, the split marker becomes `SPLIT`.
+
+  Filter C++ bodies can reference dataset_const names (e.g.
+  `return x != ABSTRACT;`). With the Const-based build signature, those
+  names are bound to local `Const(meta[...])` values; we rewrite the
+  filter code into an f-string so `{ABSTRACT.value}` interpolates the
+  resolved integer at build-time. Word-boundary match avoids touching
+  identifiers that merely contain a const name as a substring.
+  '''
+  const_names = dataset_const_names or set()
   parts: list[str] = []
   for c in body:
     if isinstance(c, BodyAtom):
@@ -515,13 +533,25 @@ def _emit_body_conj(body: list[BodyClauseT]) -> str:
     elif isinstance(c, FilterClause):
       vs = ", ".join(repr(v) for v in c.vars)
       code_escaped = c.code.replace('\\', '\\\\').replace('"', '\\"').replace("\n", " ")
-      parts.append(f'Filter(({vs},), "{code_escaped}")')
+      uses_const = False
+      if const_names:
+        # Replace word-bounded occurrences with f-string placeholders.
+        pattern = r"\b(" + "|".join(re.escape(n) for n in const_names) + r")\b"
+
+        def _sub(m: re.Match) -> str:
+          nonlocal uses_const
+          uses_const = True
+          return "{" + _py_ident(m.group(1)) + ".value}"
+
+        code_escaped = re.sub(pattern, _sub, code_escaped)
+      prefix = "f" if uses_const else ""
+      parts.append(f'Filter(({vs},), {prefix}"{code_escaped}")')
     elif c == "__SPLIT__":
       parts.append("SPLIT")
   return " & ".join(parts)
 
 
-def _emit_rule(r: RuleSpec) -> list[str]:
+def _emit_rule(r: RuleSpec, dataset_const_names: set[str] | None = None) -> list[str]:
   '''Emit one Python-DSL rule expression.
 
   Single-head: `(head <= body).named(...)`.
@@ -529,8 +559,11 @@ def _emit_rule(r: RuleSpec) -> list[str]:
   operator composes atoms into a HeadGroup, producing one Rule whose
   `heads` carries all atoms. Mirrors Nim's `Rule.head: seq[HeadClause]`
   and lowers to one pipeline with N insert-intos.
+
+  `dataset_const_names` is threaded to `_emit_body_conj` so Filter code
+  containing const references gets rewritten to an f-string.
   '''
-  body_str = _emit_body_conj(r.body)
+  body_str = _emit_body_conj(r.body, dataset_const_names)
   if len(r.heads) == 1:
     head_str = _emit_atom(r.heads[0])
   else:
@@ -565,8 +598,10 @@ Do not edit manually — regenerate via:
 """''')
   out.append("from __future__ import annotations")
   out.append("")
-  out.append("from srdatalog.dsl import Filter, Program, Relation, SPLIT, Var")
-  out.append("from srdatalog.dataset_const import load_meta, resolve_program_consts")
+  imports = ["Filter", "Program", "Relation", "SPLIT", "Var"]
+  if dataset_consts:
+    imports.insert(0, "Const")
+  out.append(f"from srdatalog.dsl import {', '.join(imports)}")
   out.append("")
   out.append("# ----- Relations ----------------------------------------------")
   out.append("")
@@ -582,32 +617,35 @@ Do not edit manually — regenerate via:
       kwargs.append(f'index_type="{r.index_type}"')
     out.append(f"{pyname} = Relation({', '.join(kwargs)})")
   out.append("")
-  out.append("# ----- dataset_const declarations -----------------------------")
-  out.append("")
-  out.append("DATASET_CONST_DECLS = {")
-  for dc in dataset_consts:
-    out.append(f'  "{dc.name}": "{dc.key}",')
-  out.append("}")
-  out.append("")
   out.append(f"# ----- Rules: {schema_name} -----")
   out.append("")
   lower = schema_name.lower()
-  out.append(f"def build_{lower}_program() -> Program:")
-  # Vars
-  all_vars = sorted(_all_vars(rules))
+  if dataset_consts:
+    out.append(f"def build_{lower}_program(meta: dict[str, int]) -> Program:")
+    out.append('  """Build the program, consuming `meta` for dataset_const values.')
+    out.append("")
+    out.append("  `meta` is a `{json_key: int_value}` dict — typically")
+    out.append('  `json.load(open("batik_meta.json"))` or similar. Each declared')
+    out.append("  dataset_const binds to a Python-local `Const(meta[key])` at the top")
+    out.append("  of this function; any missing key raises KeyError loudly here")
+    out.append("  instead of surfacing as silent wrong integers downstream.")
+    out.append('  """')
+  else:
+    out.append(f"def build_{lower}_program() -> Program:")
+  # Vars (excluding dataset_const names — those become `Const(meta[...])` bindings).
+  const_names_set = {dc.name for dc in dataset_consts}
+  all_vars = sorted(_all_vars(rules, const_names_set))
   for v in all_vars:
     py = _py_ident(v)
     out.append(f'  {py} = Var("{v}")')
-  # Dataset consts — present as Var placeholders (substitute via resolve_program_consts).
-  const_names = sorted({dc.name for dc in dataset_consts})
-  if const_names:
+  # Dataset consts — concrete Python bindings resolved from `meta`.
+  sorted_consts = sorted(dataset_consts, key=lambda dc: dc.name)
+  if sorted_consts:
     out.append("")
-    out.append(
-      "  # dataset_consts appear as Var(UPPER_NAME); substitute via resolve_program_consts."
-    )
-    for n in const_names:
-      py = _py_ident(n)
-      out.append(f'  {py} = Var("{n}")')
+    out.append("  # dataset_consts — Python bindings, resolved from meta.json keys.")
+    for dc in sorted_consts:
+      py = _py_ident(dc.name)
+      out.append(f'  {py} = Const(meta["{dc.key}"])')
   out.append("")
   out.append("  return Program(")
   out.append("    relations=[")
@@ -616,16 +654,10 @@ Do not edit manually — regenerate via:
   out.append("    ],")
   out.append("    rules=[")
   for r in rules:
-    for line in _emit_rule(r):
+    for line in _emit_rule(r, const_names_set):
       out.append(f"      {line},")
   out.append("    ],")
   out.append("  )")
-  out.append("")
-  out.append("")
-  out.append(f"def build_{lower}(meta_json_path: str) -> tuple[Program, dict[str, int]]:")
-  out.append('  """Convenience: build the program, load dataset_consts, substitute."""')
-  out.append("  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)")
-  out.append(f"  return resolve_program_consts(build_{lower}_program(), consts), consts")
   out.append("")
   return "\n".join(out)
 

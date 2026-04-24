@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
+from srdatalog.dsl import Const, Filter, Program, Relation, SPLIT, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -580,43 +579,18 @@ IsObjectArrayHeap = Relation("IsObjectArrayHeap", 1, column_types=(int,))
 IsStringHeap = Relation("IsStringHeap", 1, column_types=(int,))
 IsCastableToString = Relation("IsCastableToString", 1, column_types=(int,))
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {
-  "ABSTRACT": "abstract",
-  "PUBLIC": "public",
-  "STATIC": "static",
-  "MAIN": "main",
-  "MAIN_DESCRIPTOR": "main_descriptor",
-  "JAVA_LANG_OBJECT": "java_lang_Object",
-  "JAVA_LANG_CLONEABLE": "java_lang_Cloneable",
-  "JAVA_IO_SERIALIZABLE": "java_io_Serializable",
-  "CLINIT": "clinit",
-  "CLINIT_DESCRIPTOR": "clinit_descriptor",
-  "CLASS_INIT_METHOD": "class_init_method",
-  "REGISTER_NATIVES_METHOD": "register_natives_method",
-  "DESIRED_ASSERTION_STATUS_METHOD": "desiredAssertionStatus_method",
-  "JAVA_LANG_STRING_TYPE": "java_lang_String_type",
-  "JAVA_LANG_CLASS_TYPE": "java_lang_Class_type",
-  "JAVA_LANG_OBJECT_ARRAY": "java_lang_Object_array",
-}
-
 # ----- Rules: DoopDB -----
 
 
-def build_doopdb_program() -> Program:
-  ABSTRACT = Var("ABSTRACT")
-  CLINIT = Var("CLINIT")
-  CLINIT_DESCRIPTOR = Var("CLINIT_DESCRIPTOR")
-  JAVA_IO_SERIALIZABLE = Var("JAVA_IO_SERIALIZABLE")
-  JAVA_LANG_CLONEABLE = Var("JAVA_LANG_CLONEABLE")
-  JAVA_LANG_OBJECT = Var("JAVA_LANG_OBJECT")
-  JAVA_LANG_OBJECT_ARRAY = Var("JAVA_LANG_OBJECT_ARRAY")
-  JAVA_LANG_STRING_TYPE = Var("JAVA_LANG_STRING_TYPE")
-  MAIN = Var("MAIN")
-  MAIN_DESCRIPTOR = Var("MAIN_DESCRIPTOR")
-  PUBLIC = Var("PUBLIC")
-  STATIC = Var("STATIC")
+def build_doopdb_program(meta: dict[str, int]) -> Program:
+  """Build the program, consuming `meta` for dataset_const values.
+
+  `meta` is a `{json_key: int_value}` dict — typically
+  `json.load(open("batik_meta.json"))` or similar. Each declared
+  dataset_const binds to a Python-local `Const(meta[key])` at the top
+  of this function; any missing key raises KeyError loudly here
+  instead of surfacing as silent wrong integers downstream.
+  """
   a = Var("a")
   actual = Var("actual")
   arr = Var("arr")
@@ -665,23 +639,23 @@ def build_doopdb_program() -> Program:
   vr = Var("vr")
   vtype = Var("vtype")
 
-  # dataset_consts appear as Var(UPPER_NAME); substitute via resolve_program_consts.
-  ABSTRACT = Var("ABSTRACT")
-  CLASS_INIT_METHOD = Var("CLASS_INIT_METHOD")
-  CLINIT = Var("CLINIT")
-  CLINIT_DESCRIPTOR = Var("CLINIT_DESCRIPTOR")
-  DESIRED_ASSERTION_STATUS_METHOD = Var("DESIRED_ASSERTION_STATUS_METHOD")
-  JAVA_IO_SERIALIZABLE = Var("JAVA_IO_SERIALIZABLE")
-  JAVA_LANG_CLASS_TYPE = Var("JAVA_LANG_CLASS_TYPE")
-  JAVA_LANG_CLONEABLE = Var("JAVA_LANG_CLONEABLE")
-  JAVA_LANG_OBJECT = Var("JAVA_LANG_OBJECT")
-  JAVA_LANG_OBJECT_ARRAY = Var("JAVA_LANG_OBJECT_ARRAY")
-  JAVA_LANG_STRING_TYPE = Var("JAVA_LANG_STRING_TYPE")
-  MAIN = Var("MAIN")
-  MAIN_DESCRIPTOR = Var("MAIN_DESCRIPTOR")
-  PUBLIC = Var("PUBLIC")
-  REGISTER_NATIVES_METHOD = Var("REGISTER_NATIVES_METHOD")
-  STATIC = Var("STATIC")
+  # dataset_consts — Python bindings, resolved from meta.json keys.
+  ABSTRACT = Const(meta["abstract"])
+  CLASS_INIT_METHOD = Const(meta["class_init_method"])
+  CLINIT = Const(meta["clinit"])
+  CLINIT_DESCRIPTOR = Const(meta["clinit_descriptor"])
+  DESIRED_ASSERTION_STATUS_METHOD = Const(meta["desiredAssertionStatus_method"])
+  JAVA_IO_SERIALIZABLE = Const(meta["java_io_Serializable"])
+  JAVA_LANG_CLASS_TYPE = Const(meta["java_lang_Class_type"])
+  JAVA_LANG_CLONEABLE = Const(meta["java_lang_Cloneable"])
+  JAVA_LANG_OBJECT = Const(meta["java_lang_Object"])
+  JAVA_LANG_OBJECT_ARRAY = Const(meta["java_lang_Object_array"])
+  JAVA_LANG_STRING_TYPE = Const(meta["java_lang_String_type"])
+  MAIN = Const(meta["main"])
+  MAIN_DESCRIPTOR = Const(meta["main_descriptor"])
+  PUBLIC = Const(meta["public"])
+  REGISTER_NATIVES_METHOD = Const(meta["register_natives_method"])
+  STATIC = Const(meta["static"])
 
   return Program(
     relations=[
@@ -799,7 +773,7 @@ def build_doopdb_program() -> Program:
         & Method_Modifier(STATIC, meth)
         & Filter(
           ('meth',),
-          "return meth != CLASS_INIT_METHOD && meth != REGISTER_NATIVES_METHOD && meth != DESIRED_ASSERTION_STATUS_METHOD;",
+          f"return meth != {CLASS_INIT_METHOD.value} && meth != {REGISTER_NATIVES_METHOD.value} && meth != {DESIRED_ASSERTION_STATUS_METHOD.value};",
         )
       ).named('MainMethodDecl_Base'),
       (MethodInvocation_Base(inv, base) <= VirtualMethodInvocation_Base(inv, base)).named(
@@ -869,7 +843,7 @@ def build_doopdb_program() -> Program:
         <= AssignCast(casttype, frm, to, inmeth)
         & SupertypeOf(casttype, heaptype)
         & HeapAllocation_Type(heap, heaptype)
-        & Filter(('heaptype',), "return heaptype != JAVA_LANG_STRING_TYPE;")
+        & Filter(('heaptype',), f"return heaptype != {JAVA_LANG_STRING_TYPE.value};")
       )
       .named('Precompute0')
       .with_plan(
@@ -913,7 +887,7 @@ def build_doopdb_program() -> Program:
         & HeapAllocation_Type(baseheap, baseheaptype)
         & ComponentType(baseheaptype, comptype)
         & SupertypeOf(comptype, heaptype)
-        & Filter(('baseheaptype',), "return baseheaptype != JAVA_LANG_OBJECT_ARRAY;")
+        & Filter(('baseheaptype',), f"return baseheaptype != {JAVA_LANG_OBJECT_ARRAY.value};")
       )
       .named('HeapAllocHelper')
       .with_plan(
@@ -1107,9 +1081,3 @@ def build_doopdb_program() -> Program:
       .with_plan(delta=1, var_order=['base', 'frm', 'baseheap', 'heap'], block_group=True),
     ],
   )
-
-
-def build_doopdb(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_doopdb_program(), consts), consts

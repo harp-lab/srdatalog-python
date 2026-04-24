@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import Program, Relation, Var
+from srdatalog.dsl import Filter, Program, Relation, SPLIT, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -38,10 +37,6 @@ Triangle = Relation(
   ),
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {}
-
 # ----- Rules: Triangle_DB -----
 
 
@@ -66,9 +61,3 @@ def build_triangle_db_program() -> Program:
       .with_count(),
     ],
   )
-
-
-def build_triangle_db(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_triangle_db_program(), consts), consts

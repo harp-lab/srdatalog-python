@@ -1,11 +1,15 @@
 name: Build wheels
 
-# Temporarily restricted to release tags + manual dispatch. The PR
-# trigger was removed while the wheel pipeline is partially broken
-# (populate_vendor.py + manylinux image pull issues) — this workflow
-# will be revisited when the CPU-only engine lands, which is the
-# shape we actually want to package + distribute as a Python wheel.
-# Re-add the `pull_request:` block under that milestone.
+# Trimmed to match what we actually support today:
+#   - Linux x86_64 (CUDA target, all integration tests + doop benchmarks)
+# Expanded when justified:
+#   - Linux aarch64: add when we have an aarch64 integration test
+#     (NVIDIA Jetson / Grace would be the driver).
+#   - macOS (x86_64, arm64): add when the CPU-only engine lands — macOS
+#     has no CUDA toolkit since 11.6, so a GPU-path wheel there would
+#     ship broken artifacts.
+#   - Windows: no build config today, no demand signal.
+# Also: PR trigger stays off; wheels run on release tags + manual dispatch.
 on:
   push:
     tags: ['v*']
@@ -18,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-14]
+        os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v4
       - name: Build wheels

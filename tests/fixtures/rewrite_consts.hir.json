@@ -143,6 +143,12 @@
     }
   ],
   "relations": {
+    "P": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
     "In": {
       "semiring": "NoProvenance",
       "types": [
@@ -151,22 +157,16 @@
         "int"
       ]
     },
-    "In2": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "P": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
     "Q": {
       "semiring": "NoProvenance",
       "types": [
         "int",
+        "int"
+      ]
+    },
+    "In2": {
+      "semiring": "NoProvenance",
+      "types": [
         "int"
       ]
     }

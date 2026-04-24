@@ -28,7 +28,7 @@ def build_split_program() -> Program:
   c = Relation("C", 2)
   q = Relation("Q", 2)
   rule = (q(X, Z) <= a(X, Y) & ~b(Y) & SPLIT & c(X, Z)).named("SplitTest")
-  return Program(relations=[a, b, c, q], rules=[rule])
+  return Program(rules=[rule])
 
 
 # -----------------------------------------------------------------------------

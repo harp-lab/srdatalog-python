@@ -75,7 +75,6 @@ x, y, z = Var("x"), Var("y"), Var("z")
 Edge = Relation("Edge", 2, input_file="Edge.csv")
 Path = Relation("Path", 2, print_size=True)
 prog = Program(
-  relations=[Edge, Path],
   rules=[
     (Path(x, y) <= Edge(x, y)).named("TCBase"),
     (Path(x, z) <= Path(x, y) & Edge(y, z)).named("TCRec"),

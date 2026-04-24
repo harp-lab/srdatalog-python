@@ -203,6 +203,13 @@
     }
   ],
   "relations": {
+    "R": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "Seed": {
       "semiring": "NoProvenance",
       "types": [
@@ -217,13 +224,6 @@
       ]
     },
     "Edge": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "R": {
       "semiring": "NoProvenance",
       "types": [
         "int",

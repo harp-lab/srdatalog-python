@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import Program, Relation, Var
+from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -89,10 +88,6 @@ OutQ = Relation(
   print_size=True,
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {}
-
 # ----- Rules: GalenDB -----
 
 
@@ -108,16 +103,6 @@ def build_galendb_program() -> Program:
   z = Var("z")
 
   return Program(
-    relations=[
-      PInput,
-      QInput,
-      RInput,
-      CInput,
-      UInput,
-      SInput,
-      OutP,
-      OutQ,
-    ],
     rules=[
       (OutP(x, z) <= PInput(x, z)).named('LoadP'),
       (OutQ(x, r, z) <= QInput(x, r, z)).named('LoadQ'),
@@ -133,9 +118,3 @@ def build_galendb_program() -> Program:
       .with_plan(delta=0, var_order=['z', 'y', 'u', 'x', 'e', 'o']),
     ],
   )
-
-
-def build_galendb(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_galendb_program(), consts), consts

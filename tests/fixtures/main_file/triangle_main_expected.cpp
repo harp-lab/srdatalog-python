@@ -1,10 +1,8 @@
-using TrianglePlan_DB = AST::Database<RRel, SRel, TRel, ZRel>;
+using TrianglePlan_DB = AST::Database<ZRel, RRel, SRel, TRel>;
 using namespace SRDatalog::mir::dsl;
 // Device DB type alias (matches batch files)
-using TrianglePlan_DB_Blueprint = SRDatalog::AST::Database<RRel, SRel, TRel, ZRel>;
-using TrianglePlan_DB_DeviceDB =
-    SRDatalog::AST::SemiNaiveDatabase<TrianglePlan_DB_Blueprint,
-                                      SRDatalog::GPU::DeviceRelationType>;
+using TrianglePlan_DB_Blueprint = SRDatalog::AST::Database<ZRel, RRel, SRel, TRel>;
+using TrianglePlan_DB_DeviceDB = SRDatalog::AST::SemiNaiveDatabase<TrianglePlan_DB_Blueprint, SRDatalog::GPU::DeviceRelationType>;
 
 #include "gpu/runtime/gpu_mir_helpers.h"
 #include "gpu/runtime/jit/materialized_join.h"
@@ -20,8 +18,7 @@ struct JitRunner_Triangle {
   using DestSchema = ZRel;
   using SR = NoProvenance;
   using ValueType = typename FirstSchema::intern_value_type;
-  using RelType =
-      std::decay_t<decltype(get_relation_by_schema<FirstSchema, FULL_VER>(std::declval<DB&>()))>;
+  using RelType = std::decay_t<decltype(get_relation_by_schema<FirstSchema, FULL_VER>(std::declval<DB&>()))>;
   using IndexType = typename RelType::IndexTypeInst;
   using ViewType = typename IndexType::NodeView;
   static constexpr auto Layout = SRDatalog::GPU::StorageLayout::SoA;
@@ -58,8 +55,8 @@ struct JitRunner_Triangle {
   static uint32_t scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream = 0);
   static void scan_only(LaunchParams& p, GPU_STREAM_T stream = 0);
   static uint32_t read_total(LaunchParams& p);
-  static void launch_materialize(DB& db, LaunchParams& p, uint32_t total_count,
-                                 GPU_STREAM_T stream = 0);
+  static void launch_materialize(DB& db, LaunchParams& p, uint32_t total_count, GPU_STREAM_T stream = 0);
+
   static void execute(DB& db, uint32_t iteration);
   static void execute_fused(DB& db, uint32_t iteration);
   static void launch_fused(DB& db, LaunchParams& p, GPU_STREAM_T stream = 0);
@@ -67,63 +64,47 @@ struct JitRunner_Triangle {
   static inline uint32_t prev_fused_total_ = 4096;
 };
 
-namespace TrianglePlan_Plans {}
+
+namespace TrianglePlan_Plans {
+}
 
 struct TrianglePlan_Runner {
   using DB = TrianglePlan_DB;
 
   template <typename DB>
-  static void load_data(DB& db, std::string root_dir) {}
+  static void load_data(DB& db, std::string root_dir) {
+  }
 
   template <typename DB>
   static void step_0(DB& db, std::size_t max_iterations) {
     // Build output indexes
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, NEW_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, NEW_VER>>(db, 0);
 
-    using ZRel_canonical_spec_t =
-        SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>;
+    using ZRel_canonical_spec_t = SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>;
     bool _tail_mode = false;
 
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<RRel, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<TRel, std::integer_sequence<int, 1, 0, 2>, FULL_VER>>(db, 0);
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<RRel, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<SRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db, 0);
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<SRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db, 0);
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<TRel, std::integer_sequence<int, 1, 0, 2>, FULL_VER>>(db, 0);
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<SRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db, 0);
-    mir_helpers::create_index_fn<
-        SRDatalog::mir::IndexSpecT<TRel, std::integer_sequence<int, 1, 0, 2>, FULL_VER>>(db, 0);
-    if (_tail_mode)
-      JitRunner_Triangle::execute_fused(db, 0);
-    else
-      JitRunner_Triangle::execute(db, 0);
-    SRDatalog::GPU::mir_helpers::rebuild_index_fn<
-        SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, NEW_VER>>(db);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<RRel, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<TRel, std::integer_sequence<int, 1, 0, 2>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<RRel, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<SRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<SRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<TRel, std::integer_sequence<int, 1, 0, 2>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<SRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db, 0);
+    mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<TRel, std::integer_sequence<int, 1, 0, 2>, FULL_VER>>(db, 0);
+    if (_tail_mode) JitRunner_Triangle::execute_fused(db, 0); else JitRunner_Triangle::execute(db, 0);
+    SRDatalog::GPU::mir_helpers::rebuild_index_fn<SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, NEW_VER>>(db);
     SRDatalog::GPU::mir_helpers::check_size_fn<ZRel, NEW_VER, ZRel_canonical_spec_t>(db);
     nvtxRangePushA("merge");
-    SRDatalog::GPU::mir_helpers::compute_delta_index_fn<
-        SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, NEW_VER>,
-        SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>,
-        SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, DELTA_VER>>(db);
+    SRDatalog::GPU::mir_helpers::compute_delta_index_fn<SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, NEW_VER>, SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>, SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, DELTA_VER>>(db);
     nvtxRangePop();  // merge
     SRDatalog::GPU::mir_helpers::clear_relation_fn<ZRel, NEW_VER>(db);
     nvtxRangePushA("merge");
-    SRDatalog::GPU::mir_helpers::merge_index_fn<
-        SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db);
+    SRDatalog::GPU::mir_helpers::merge_index_fn<SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db);
     nvtxRangePop();  // merge
   }
   template <typename DB>
   static void step_1(DB& db, std::size_t max_iterations) {
-    mir_helpers::reconstruct_fn<
-        SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db);
+    mir_helpers::reconstruct_fn<SRDatalog::mir::IndexSpecT<ZRel, std::integer_sequence<int, 0, 1, 2>, FULL_VER>>(db);
     GPU_DEVICE_SYNCHRONIZE();
   }
   template <typename DB>
@@ -131,17 +112,13 @@ struct TrianglePlan_Runner {
     auto step_0_start = std::chrono::high_resolution_clock::now();
     step_0(db, max_iterations);
     auto step_0_end = std::chrono::high_resolution_clock::now();
-    auto step_0_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(step_0_end - step_0_start);
-    std::cout << "[Step 0 (simple)] " << "Relations: ZRel" << " completed in "
-              << step_0_duration.count() << " ms" << std::endl;
+    auto step_0_duration = std::chrono::duration_cast<std::chrono::milliseconds>(step_0_end - step_0_start);
+    std::cout << "[Step 0 (simple)] " << "Relations: ZRel" << " completed in " << step_0_duration.count() << " ms" << std::endl;
     auto step_1_start = std::chrono::high_resolution_clock::now();
     step_1(db, max_iterations);
     auto step_1_end = std::chrono::high_resolution_clock::now();
-    auto step_1_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(step_1_end - step_1_start);
-    std::cout << "[Step 1 (simple)] " << " completed in " << step_1_duration.count() << " ms"
-              << std::endl;
+    auto step_1_duration = std::chrono::duration_cast<std::chrono::milliseconds>(step_1_end - step_1_start);
+    std::cout << "[Step 1 (simple)] " << " completed in " << step_1_duration.count() << " ms" << std::endl;
   }
 };
 

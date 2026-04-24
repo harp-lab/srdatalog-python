@@ -1,7 +1,7 @@
-"""Auto-generated from /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/tc/tc.nim by tools/nim_to_dsl.py.
+"""Auto-generated from /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/tc/tc_2level_bg.nim by tools/nim_to_dsl.py.
 Do not edit manually — regenerate via:
 
-    python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/tc/tc.nim --out <this file>
+    python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/tc/tc_2level_bg.nim --out <this file>
 """
 
 from __future__ import annotations
@@ -35,12 +35,13 @@ Path = Relation(
     int,
   ),
   print_size=True,
+  index_type="SRDatalog::GPU::Device2LevelIndex",
 )
 
-# ----- Rules: TCDB -----
+# ----- Rules: TC2LBGDB -----
 
 
-def build_tcdb_program() -> Program:
+def build_tc2lbgdb_program() -> Program:
   x = Var("x")
   y = Var("y")
   z = Var("z")
@@ -49,6 +50,8 @@ def build_tcdb_program() -> Program:
     rules=[
       (Edge(x, y) <= ArcInput(x, y)).named('EdgeLoad'),
       (Path(x, y) <= Edge(x, y)).named('TCBase'),
-      (Path(x, z) <= Path(x, y) & Edge(y, z)).named('TCRec'),
+      (Path(x, z) <= Path(x, y) & Edge(y, z))
+      .named('TCRec')
+      .with_plan(delta=0, var_order=['y', 'x', 'z'], block_group=True),
     ],
   )

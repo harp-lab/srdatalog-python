@@ -207,14 +207,14 @@
     }
   ],
   "relations": {
-    "KnowsInput": {
+    "Knows": {
       "semiring": "NoProvenance",
       "types": [
         "int",
         "int"
       ]
     },
-    "Knows": {
+    "KnowsInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",

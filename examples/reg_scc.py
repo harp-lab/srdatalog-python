@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import Program, Relation, Var
+from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -172,10 +171,6 @@ RegDefUseLiveVarAtBlockEnd = Relation(
   index_type="SRDatalog::GPU::Device2LevelIndex",
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {}
-
 # ----- Rules: RegSccDB -----
 
 
@@ -201,24 +196,6 @@ def build_regsccdb_program() -> Program:
   varIdentity = Var("varIdentity")
 
   return Program(
-    relations=[
-      BlockNext,
-      DirectCall,
-      ArchReturnReg,
-      RegDefUseBlockLastDef,
-      RegDefUseDefinedInBlock,
-      RegDefUseFlowDef,
-      RegDefUseLiveVarDef,
-      RegDefUseRefInBlock,
-      RegDefUseReturnBlockEnd,
-      RegDefUseUsed,
-      RegDefUseUsedInBlock,
-      RegDefUseDefUsed,
-      RegDefUseReturnValUsed,
-      RegDefUseLiveVarUsed,
-      RegDefUseLiveVarAtPriorUsed,
-      RegDefUseLiveVarAtBlockEnd,
-    ],
     rules=[
       (
         RegDefUseDefUsed(eaDef, mvar, eaUsed, index)
@@ -289,9 +266,3 @@ def build_regsccdb_program() -> Program:
       ).named('LiveVarAtBlockEnd2'),
     ],
   )
-
-
-def build_regsccdb(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_regsccdb_program(), consts), consts

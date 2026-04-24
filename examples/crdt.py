@@ -6,7 +6,6 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
 from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
@@ -243,10 +242,6 @@ Result = Relation(
   print_size=True,
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {}
-
 # ----- Rules: CRDTDB -----
 
 
@@ -295,30 +290,6 @@ def build_crdtdb_program() -> Program:
   value = Var("value")
 
   return Program(
-    relations=[
-      InsertInput,
-      RemoveInput,
-      Insert,
-      Remove,
-      Assign,
-      HasChild,
-      LaterChild,
-      FirstChild,
-      Sibling,
-      LaterSibling,
-      LaterSibling2,
-      NextSibling,
-      HasNextSibling,
-      NotSiblingInsert,
-      NextSiblingAnc,
-      NextElem,
-      NotHasValueNextElem,
-      CurrentValue,
-      HasValue,
-      SkipBlank,
-      NextVisible,
-      Result,
-    ],
     rules=[
       (Insert(a, b, c, d) <= InsertInput(a, b, c, d)).named('Insert'),
       (Remove(a, b) <= RemoveInput(a, b)).named('Remove'),
@@ -456,9 +427,3 @@ def build_crdtdb_program() -> Program:
       ).named('Result'),
     ],
   )
-
-
-def build_crdtdb(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_crdtdb_program(), consts), consts

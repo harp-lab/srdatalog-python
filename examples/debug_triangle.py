@@ -1,7 +1,7 @@
-"""Auto-generated from /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/triangle.nim by tools/nim_to_dsl.py.
+"""Auto-generated from /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/debug_triangle.nim by tools/nim_to_dsl.py.
 Do not edit manually — regenerate via:
 
-    python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/triangle.nim --out <this file>
+    python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/triangle/debug_triangle.nim --out <this file>
 """
 
 from __future__ import annotations
@@ -20,18 +20,16 @@ RRel = Relation(
 )
 SRel = Relation(
   "SRel",
-  3,
+  2,
   column_types=(
-    int,
     int,
     int,
   ),
 )
 TRel = Relation(
   "TRel",
-  3,
+  2,
   column_types=(
-    int,
     int,
     int,
   ),
@@ -46,20 +44,18 @@ ZRel = Relation(
   ),
 )
 
-# ----- Rules: TriangleDB -----
+# ----- Rules: TriangleDebugDB -----
 
 
-def build_triangledb_program() -> Program:
-  f = Var("f")
-  h = Var("h")
+def build_triangledebugdb_program() -> Program:
   x = Var("x")
   y = Var("y")
   z = Var("z")
 
   return Program(
     rules=[
-      (ZRel(x, y, z) <= RRel(x, y) & SRel(y, z, h) & TRel(z, x, f))
-      .named('Triangle')
+      (ZRel(x, y, z) <= RRel(x, y) & SRel(y, z) & TRel(z, x))
+      .named('TriangleDebug')
       .with_plan(var_order=['x', 'y', 'z']),
     ],
   )

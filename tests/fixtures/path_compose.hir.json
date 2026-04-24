@@ -267,14 +267,14 @@
     }
   ],
   "relations": {
-    "Seed": {
+    "Path": {
       "semiring": "NoProvenance",
       "types": [
         "int",
         "int"
       ]
     },
-    "Path": {
+    "Seed": {
       "semiring": "NoProvenance",
       "types": [
         "int",

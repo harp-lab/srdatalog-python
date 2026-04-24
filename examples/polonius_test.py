@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import Filter, Program, Relation, Var
+from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -346,10 +345,6 @@ move_error = Relation(
   print_size=True,
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {}
-
 # ----- Rules: PoloniusDB -----
 
 
@@ -375,46 +370,6 @@ def build_poloniusdb_program() -> Program:
   z = Var("z")
 
   return Program(
-    relations=[
-      subset_base,
-      cfg_edge,
-      loan_issued_at,
-      universal_region,
-      var_used_at,
-      loan_killed_at,
-      known_placeholder_subset_input,
-      var_dropped_at,
-      drop_of_var_derefs_origin,
-      var_defined_at,
-      child_path,
-      path_moved_at_base,
-      path_assigned_at_base,
-      path_accessed_at_base,
-      path_is_var,
-      loan_invalidated_at,
-      use_of_var_derefs_origin,
-      subset,
-      origin_live_on_entry,
-      origin_contains_loan_on_entry,
-      loan_live_at,
-      errors,
-      placeholder_origin,
-      subset_error,
-      known_placeholder_subset,
-      cfg_node,
-      var_live_on_entry,
-      var_drop_live_on_entry,
-      var_maybe_partly_initialized_on_exit,
-      var_maybe_partly_initialized_on_entry,
-      ancestor_path,
-      path_moved_at,
-      path_assigned_at,
-      path_accessed_at,
-      path_begins_with_var,
-      path_maybe_initialized_on_exit,
-      path_maybe_uninitialized_on_exit,
-      move_error,
-    ],
     rules=[
       (subset(origin1, origin2, point) <= subset_base(origin1, origin2, point)).named(
         'subset_base_rule'
@@ -571,9 +526,3 @@ def build_poloniusdb_program() -> Program:
       ).named('move_error_rule'),
     ],
   )
-
-
-def build_poloniusdb(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_poloniusdb_program(), consts), consts

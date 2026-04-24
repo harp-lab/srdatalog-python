@@ -45,40 +45,39 @@ sys.path.insert(0, str(_HERE))
 
 
 def _load_benchmark(name: str, meta_json: str | None):
-  '''Import `examples/<name>.py` and return a `(program, consts_dict)` tuple.
+  '''Import `examples/<name>.py` and return a `(program, meta_dict)` tuple.
 
-  Prefers `build_<name>(meta_json)` when it exists AND a meta JSON was
-  provided — that path does dataset_const substitution. Otherwise falls
-  back to `build_<name>_program()`.
+  The translator emits `build_<schema>_program(...)`. For benchmarks with
+  dataset_consts that function takes a `meta: dict[str, int]` argument;
+  for benchmarks without, it takes no arguments. We introspect the
+  function's signature to decide which to pass.
   '''
+  import inspect
+  import json
+
   m = importlib.import_module(name)
-  sym_resolved = f"build_{name.lower()}"
-  sym_program = f"build_{name.lower()}_program"
-  # Translator sometimes uses the SCHEMA name rather than the file name
-  # (e.g. doop.py emits `build_doopdb`). Fall back to anything that matches.
-  if not hasattr(m, sym_resolved):
-    sym_resolved = next(
-      (
-        s
-        for s in dir(m)
-        if s.startswith("build_") and not s.endswith("_program") and callable(getattr(m, s))
-      ),
-      "",
-    )
-  if not hasattr(m, sym_program):
-    sym_program = next(
-      (s for s in dir(m) if s.startswith("build_") and s.endswith("_program")),
-      "",
-    )
-  if meta_json and sym_resolved:
-    prog, consts = getattr(m, sym_resolved)(meta_json)
-    return prog, consts
-  if not sym_program:
+  # Translator uses the SCHEMA name rather than the file name (e.g. doop.py
+  # emits `build_doopdb_program`). Find it by suffix.
+  build_fn = next(
+    (getattr(m, s) for s in dir(m) if s.startswith("build_") and s.endswith("_program")),
+    None,
+  )
+  if build_fn is None:
     raise RuntimeError(
-      f"{name}.py: no build_* function found; translator expected "
-      f"build_<name>_program() or build_<name>(meta_json)."
+      f"{name}.py: no build_*_program function found — expected translator output."
     )
-  return getattr(m, sym_program)(), {}
+
+  sig = inspect.signature(build_fn)
+  needs_meta = len(sig.parameters) > 0
+  meta: dict[str, int] = {}
+  if needs_meta:
+    if not meta_json:
+      raise RuntimeError(
+        f"{name}.py: build_*_program requires a meta dict — pass --meta <batik_meta.json>."
+      )
+    meta = json.load(open(meta_json))
+    return build_fn(meta), meta
+  return build_fn(), {}
 
 
 def main() -> int:

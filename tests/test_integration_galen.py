@@ -26,7 +26,6 @@ def build_galen() -> Program:
   outp = Relation("OutP", 2)
   outq = Relation("OutQ", 3)
   return Program(
-    relations=[p_in, q_in, r_in, c_in, u_in, s_in, outp, outq],
     rules=[
       (outp(X, Z) <= p_in(X, Z)).named("LoadP"),
       (outq(X, R, Z) <= q_in(X, R, Z)).named("LoadQ"),

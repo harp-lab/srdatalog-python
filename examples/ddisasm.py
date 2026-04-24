@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
+from srdatalog.dsl import SPLIT, Const, Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -433,23 +432,18 @@ StackDefUseLiveVarAtPriorUsed = Relation(
   print_size=True,
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {
-  "LOAD": "LOAD",
-  "STORE": "STORE",
-  "NONE_ACCESS": "NONE",
-  "PC_RELATIVE": "PCRelative",
-}
-
 # ----- Rules: DdisasmDB -----
 
 
-def build_ddisasmdb_program() -> Program:
-  LOAD = Var("LOAD")
-  NONE_ACCESS = Var("NONE_ACCESS")
-  PC_RELATIVE = Var("PC_RELATIVE")
-  STORE = Var("STORE")
+def build_ddisasmdb_program(meta: dict[str, int]) -> Program:
+  """Build the program, consuming `meta` for dataset_const values.
+
+  `meta` is a `{json_key: int_value}` dict — typically
+  `json.load(open("batik_meta.json"))` or similar. Each declared
+  dataset_const binds to a Python-local `Const(meta[key])` at the top
+  of this function; any missing key raises KeyError loudly here
+  instead of surfacing as silent wrong integers downstream.
+  """
   blk = Var("blk")
   blockEnd = Var("blockEnd")
   blockUsed = Var("blockUsed")
@@ -498,54 +492,13 @@ def build_ddisasmdb_program() -> Program:
   varp = Var("varp")
   varr = Var("varr")
 
-  # dataset_consts appear as Var(UPPER_NAME); substitute via resolve_program_consts.
-  LOAD = Var("LOAD")
-  NONE_ACCESS = Var("NONE_ACCESS")
-  PC_RELATIVE = Var("PC_RELATIVE")
-  STORE = Var("STORE")
+  # dataset_consts — Python bindings, resolved from meta.json keys.
+  LOAD = Const(meta["LOAD"])
+  NONE_ACCESS = Const(meta["NONE"])
+  PC_RELATIVE = Const(meta["PCRelative"])
+  STORE = Const(meta["STORE"])
 
   return Program(
-    relations=[
-      ArchMemoryAccess,
-      ArchRegRegArithOp,
-      ArchReturnReg,
-      BlockNext,
-      BlockLastInstr,
-      CodeInBlock,
-      DirectCall,
-      MayFallthrough,
-      RegDefUseBlockLastDef,
-      RegDefUseDefinedInBlock,
-      RegDefUseFlowDef,
-      RegDefUseLiveVarDef,
-      RegDefUseRefInBlock,
-      RegDefUseReturnBlockEnd,
-      RegDefUseUsed,
-      RegDefUseUsedInBlock,
-      RegUsedFor,
-      RelJumpTableEntryCandidate,
-      StackDefUseDef,
-      StackDefUseDefinedInBlock,
-      StackDefUseLiveVarDef,
-      StackDefUseRefInBlock,
-      StackDefUseUsedInBlock,
-      StackDefUseUsed,
-      StackDefUseLiveVarUsedEDB,
-      JumpTableStart,
-      DefUsedForAddressEDB,
-      StackDefUseBlockLastDef,
-      JumpTableTarget,
-      RegDefUseDefUsed,
-      RegDefUseReturnValUsed,
-      RegDefUseLiveVarUsed,
-      RegDefUseLiveVarAtPriorUsed,
-      RegDefUseLiveVarAtBlockEnd,
-      RegRegArithOpDefs,
-      DefUsedForAddress,
-      StackDefUseDefUsed,
-      StackDefUseLiveVarAtBlockEnd,
-      StackDefUseLiveVarAtPriorUsed,
-    ],
     rules=[
       (
         JumpTableTarget(ea, dest)
@@ -728,9 +681,3 @@ def build_ddisasmdb_program() -> Program:
       ).named('StackLiveVarPriorUsed'),
     ],
   )
-
-
-def build_ddisasmdb(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_ddisasmdb_program(), consts), consts

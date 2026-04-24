@@ -12,7 +12,6 @@ def build_debug_triangle() -> Program:
   tr = Relation("TRel", 2)
   zr = Relation("ZRel", 3)
   return Program(
-    relations=[rr, sr, tr, zr],
     rules=[
       (zr(X, Y, Z) <= rr(X, Y) & sr(Y, Z) & tr(Z, X))
       .named("TriangleDebug")

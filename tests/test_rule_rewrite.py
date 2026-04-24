@@ -103,7 +103,6 @@ def build_rewrite_consts_program() -> Program:
   p = Relation("P", 1)
   q = Relation("Q", 2)
   return Program(
-    relations=[inp, in2, p, q],
     rules=[
       (p(X) <= inp(X, 42, 99)).named("BodyConst"),
       (q(X, 7) <= in2(X)).named("HeadConst"),

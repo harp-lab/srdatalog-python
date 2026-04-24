@@ -22,7 +22,7 @@ def build_agg_program() -> Program:
   r = Relation("R", 2)
   counts = Relation("Counts", 1)
   rule = (counts(CNT) <= count(CNT, r(X, Y))).named("CountR")
-  return Program(relations=[r, counts], rules=[rule])
+  return Program(rules=[rule])
 
 
 # -----------------------------------------------------------------------------

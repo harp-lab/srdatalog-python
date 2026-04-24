@@ -14,7 +14,6 @@ def build_lsqb_q6_count() -> Program:
   hi = Relation("HasInterest", 2)
   path = Relation("Path", 4)
   return Program(
-    relations=[k_in, hi_in, knows, hi, path],
     rules=[
       (knows(X, Y) <= k_in(X, Y)).named("KnowsLoad"),
       (knows(Y, X) <= k_in(X, Y)).named("KnowsLoadRev"),

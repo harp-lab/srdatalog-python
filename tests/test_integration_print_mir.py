@@ -13,7 +13,6 @@ def build_print_mir() -> Program:
   store_r = Relation("Store", 2)
   pt = Relation("PointsTo", 2)
   return Program(
-    relations=[ao, asgn, load_r, store_r, pt],
     rules=[
       (pt(Y, X) <= ao(Y, X)).named("Base").with_plan(var_order=["y", "x"]),
       (pt(Y, X) <= pt(Z, X) & asgn(Y, Z))

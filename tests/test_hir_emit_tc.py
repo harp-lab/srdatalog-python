@@ -119,9 +119,13 @@ def build_tc_hir() -> HirProgram:
 
   return HirProgram(
     strata=[s0, s1, s2],
+    # Rule-first-occurrence order: first rule `Edge <- ArcInput` →
+    # Edge (head), ArcInput (body); second rule adds Path. Matches
+    # normalizeDecls on the Nim side and _derive_relations on the
+    # Python DSL side.
     relation_decls=[
-      RelationDecl(rel_name="ArcInput", types=["int", "int"], semiring="NoProvenance"),
       RelationDecl(rel_name="Edge", types=["int", "int"], semiring="NoProvenance"),
+      RelationDecl(rel_name="ArcInput", types=["int", "int"], semiring="NoProvenance"),
       RelationDecl(rel_name="Path", types=["int", "int"], semiring="NoProvenance"),
     ],
   )

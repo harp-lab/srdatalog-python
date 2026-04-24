@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import Filter, Program, Relation, Var
+from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -57,10 +56,6 @@ Path = Relation(
   print_size=True,
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {}
-
 # ----- Rules: LSQB_Q6_DB -----
 
 
@@ -74,13 +69,6 @@ def build_lsqb_q6_db_program() -> Program:
   y = Var("y")
 
   return Program(
-    relations=[
-      KnowsInput,
-      HasInterestInput,
-      Knows,
-      HasInterest,
-      Path,
-    ],
     rules=[
       (Knows(x, y) <= KnowsInput(x, y)).named('KnowsLoad'),
       (HasInterest(p, t) <= HasInterestInput(p, t)).named('InterestLoad'),
@@ -101,9 +89,3 @@ def build_lsqb_q6_db_program() -> Program:
       .with_plan(var_order=['p1', 'p2', 'p3', 't']),
     ],
   )
-
-
-def build_lsqb_q6_db(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_lsqb_q6_db_program(), consts), consts

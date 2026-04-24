@@ -60,15 +60,62 @@ class Var:
     return ClauseArg(kind=ArgKind.LVAR, var_name=self.name)
 
 
+class Const:
+  '''A compile-time constant argument wrapping a Python value.
+
+  Prefer this over bare `int` arguments when you want the intent explicit
+  at the call site — e.g., `Method_Modifier(Const(abstract_id), meth)`
+  instead of `Method_Modifier(abstract_id, meth)` where `abstract_id` is
+  a Python int that readers can't tell apart from a pure-Python value.
+
+  For dataset-resolved constants (read from a meta.json at program
+  construction time), this is the recommended shape:
+
+      meta = load_meta("batik_meta.json")
+      ABSTRACT = Const(meta["abstract"])   # Python binding, value baked in
+      Method_Modifier(ABSTRACT, meth)
+
+  `cpp_expr` overrides the auto-derived C++ literal. For `int` it
+  defaults to `str(value)`. Other types require an explicit `cpp_expr`
+  until we need them.
+  '''
+
+  __slots__ = ("cpp_expr", "value")
+
+  def __init__(self, value, cpp_expr: str | None = None):
+    self.value = value
+    if cpp_expr is not None:
+      self.cpp_expr = cpp_expr
+    elif isinstance(value, int) and not isinstance(value, bool):
+      self.cpp_expr = str(value)
+    else:
+      raise TypeError(
+        f"Const({value!r}): cpp_expr required for non-int values (type {type(value).__name__})"
+      )
+
+  def __repr__(self) -> str:
+    return f"Const({self.value!r})"
+
+  def _to_arg(self) -> ClauseArg:
+    return ClauseArg(kind=ArgKind.CONST, const_value=self.value, const_cpp_expr=self.cpp_expr)
+
+
 def _coerce_arg(x) -> ClauseArg:
-  '''Convert a Python value to a ClauseArg. Vars stay vars; ints become consts.'''
+  '''Convert a Python value to a ClauseArg.
+
+  Accepts: Var, Const, a bare int (short-hand for `Const(int)`), or a
+  pre-built ClauseArg. Anything else raises — prefer `Const(...)` or
+  `Var(...)` over relying on implicit coercion.
+  '''
   if isinstance(x, Var):
+    return x._to_arg()
+  if isinstance(x, Const):
     return x._to_arg()
   if isinstance(x, ClauseArg):
     return x
-  if isinstance(x, int):
+  if isinstance(x, int) and not isinstance(x, bool):
     return ClauseArg(kind=ArgKind.CONST, const_value=x, const_cpp_expr=str(x))
-  raise TypeError(f"Unsupported atom argument: {x!r} (expected Var, int, or ClauseArg)")
+  raise TypeError(f"Unsupported atom argument: {x!r} (expected Var, Const, int, or ClauseArg)")
 
 
 def cpp(code: str) -> ClauseArg:
@@ -91,6 +138,14 @@ class Atom:
   rel: str
   args: tuple[ClauseArg, ...]
   prov: Provenance = USER_PROVENANCE
+  # Back-reference to the Relation this atom was built from. Set by
+  # Relation.__call__; None for Atoms hand-constructed from just a name
+  # string (rewrite passes that don't have the Relation in scope). Used
+  # by Program to auto-derive its relations list from rules, so users
+  # no longer have to pass relations= in parallel with rules= and risk
+  # drift. Not part of equality / hash: two atoms are equal iff they
+  # have the same rel name and args, regardless of how they were built.
+  relation: Relation | None = field(default=None, compare=False, repr=False)
 
   def __and__(self, other) -> Conjunction:
     '''Compose with Atom / Negation / Filter / Let / Conjunction.'''
@@ -200,6 +255,10 @@ class Agg:
   rel: str
   args: tuple[ClauseArg, ...]
   cpp_type: str = ""
+  # Back-reference to the aggregated Relation, so Program can auto-
+  # derive its decls list. Mirrors Atom.relation — populated by the
+  # `agg()` helper from its rel_atom argument.
+  relation: Relation | None = field(default=None, compare=False, repr=False)
 
   def __and__(self, other: BodyClauseT | Conjunction) -> Conjunction:
     if isinstance(other, Conjunction):
@@ -244,6 +303,7 @@ def agg(result_var, func: str, rel_atom: Atom, cpp_type: str = "") -> Agg:
     rel=rel_atom.rel,
     args=rel_atom.args,
     cpp_type=cpp_type,
+    relation=rel_atom.relation,
   )
 
 
@@ -433,7 +493,11 @@ class Relation:
   def __call__(self, *args) -> Atom:
     if len(args) != self.arity:
       raise ValueError(f"{self.name} expects arity {self.arity}, got {len(args)}")
-    return Atom(rel=self.name, args=tuple(_coerce_arg(a) for a in args))
+    return Atom(
+      rel=self.name,
+      args=tuple(_coerce_arg(a) for a in args),
+      relation=self,
+    )
 
   def __repr__(self) -> str:
     return f"Relation({self.name!r}, arity={self.arity})"
@@ -441,17 +505,61 @@ class Relation:
 
 @dataclass
 class Program:
-  '''A Datalog program: relation decls + rules. Input to the HIR pipeline.'''
+  '''A Datalog program. Takes rules; the relations list is derived from
+  them via the Relation back-ref on each Atom.
 
-  relations: list[Relation] = field(default_factory=list)
+  The previous API took `relations=[...]` in parallel with `rules=[...]`.
+  That was a pure bug generator — if a relation was declared but never
+  used, or used but never declared, the downstream passes silently
+  generated wrong code. With the derived list, the schema is exactly the
+  set of relations referenced by some rule, in rule-first-occurrence
+  order (heads before body, body in source order). This matches the
+  Nim-side normalization in hir.nim:normalizeDecls and keeps byte-match
+  across the two ports.
+  '''
+
   rules: list[Rule] = field(default_factory=list)
+  relations: list[Relation] = field(init=False)
 
-  def add(self, *items: Relation | Rule) -> Program:
+  def __post_init__(self) -> None:
+    self.relations = _derive_relations(self.rules)
+
+  def add(self, *items: Rule) -> Program:
     for it in items:
-      if isinstance(it, Relation):
-        self.relations.append(it)
-      elif isinstance(it, Rule):
+      if isinstance(it, Rule):
         self.rules.append(it)
       else:
         raise TypeError(f"Program.add: unsupported item {it!r}")
+    self.relations = _derive_relations(self.rules)
     return self
+
+
+def _derive_relations(rules: list[Rule]) -> list[Relation]:
+  '''Walk rules in order, yield each Relation the first time it appears.
+
+  Order: for each rule, heads (declaration order) then body clauses
+  (source order, unwrapping Negation/Agg). Atoms without a Relation
+  back-ref (legacy hand-constructed or produced by rewrite passes that
+  lack the Relation in scope) are skipped — those only show up after
+  HIR transforms, never in user-authored top-level programs.
+  '''
+  out: list[Relation] = []
+  seen: set[str] = set()
+
+  def take(rel: Relation | None) -> None:
+    if rel is None or rel.name in seen:
+      return
+    seen.add(rel.name)
+    out.append(rel)
+
+  for rule in rules:
+    for h in rule.heads:
+      take(h.relation)
+    for clause in rule.body:
+      if isinstance(clause, Atom):
+        take(clause.relation)
+      elif isinstance(clause, Negation):
+        take(clause.atom.relation)
+      elif isinstance(clause, Agg):
+        take(clause.relation)
+  return out

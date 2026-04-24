@@ -6,8 +6,7 @@ Do not edit manually — regenerate via:
 
 from __future__ import annotations
 
-from srdatalog.dataset_const import load_meta, resolve_program_consts
-from srdatalog.dsl import Filter, Program, Relation, Var
+from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
 
 # ----- Relations ----------------------------------------------
 
@@ -31,10 +30,6 @@ Sg = Relation(
   index_type="SRDatalog::GPU::Device2LevelIndex",
 )
 
-# ----- dataset_const declarations -----------------------------
-
-DATASET_CONST_DECLS = {}
-
 # ----- Rules: SGDB -----
 
 
@@ -45,10 +40,6 @@ def build_sgdb_program() -> Program:
   y = Var("y")
 
   return Program(
-    relations=[
-      Arc,
-      Sg,
-    ],
     rules=[
       (
         Sg(x, y)
@@ -69,9 +60,3 @@ def build_sgdb_program() -> Program:
       .with_plan(var_order=['p', 'q', 'x', 'y']),
     ],
   )
-
-
-def build_sgdb(meta_json_path: str) -> tuple[Program, dict[str, int]]:
-  """Convenience: build the program, load dataset_consts, substitute."""
-  consts = load_meta(meta_json_path, DATASET_CONST_DECLS)
-  return resolve_program_consts(build_sgdb_program(), consts), consts

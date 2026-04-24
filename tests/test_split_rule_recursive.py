@@ -28,7 +28,6 @@ def build_split_rec_program() -> Program:
   edge = Relation("Edge", 2)
   r = Relation("R", 2)
   return Program(
-    relations=[seed, filter_rel, edge, r],
     rules=[
       (r(X, Y) <= seed(X, Y)).named("RBase"),
       (r(X, Z) <= r(X, Y) & ~filter_rel(Y) & SPLIT & edge(Y, Z)).named("RRec"),

@@ -11,7 +11,6 @@ def build_tc_2level_bg() -> Program:
   edge = Relation("Edge", 2)
   path = Relation("Path", 2)
   return Program(
-    relations=[arc_in, edge, path],
     rules=[
       (edge(X, Y) <= arc_in(X, Y)).named("EdgeLoad"),
       (path(X, Y) <= edge(X, Y)).named("TCBase"),

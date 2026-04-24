@@ -509,28 +509,14 @@
     }
   ],
   "relations": {
-    "KnowsInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "IsLocatedInInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "IsPartOfInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
     "Knows": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "KnowsInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -544,7 +530,21 @@
         "int"
       ]
     },
+    "IsLocatedInInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "IsPartOf": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "IsPartOfInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",

@@ -215,6 +215,13 @@
     }
   ],
   "relations": {
+    "Main": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "R": {
       "semiring": "NoProvenance",
       "types": [
@@ -230,13 +237,6 @@
       ]
     },
     "T": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "Main": {
       "semiring": "NoProvenance",
       "types": [
         "int",

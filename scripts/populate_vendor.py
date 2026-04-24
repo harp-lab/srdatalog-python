@@ -171,8 +171,13 @@ def _extract(tar_path: Path, mappings: list[tuple[str, str]],
     wanted_prefixes = tuple(src for src, _ in mappings)
     members = [m for m in tar.getmembers()
                if any(m.name.startswith(p) for p in wanted_prefixes)]
-    tar.extractall(stage_dir, members=members,
-                   filter="data" if sys.version_info >= (3, 12) else None)
+    # The `filter=` kwarg was added to TarFile.extractall in 3.12 for the
+    # PEP 706 sandboxing feature. On earlier Pythons the kwarg doesn't
+    # exist — passing it (even as None) raises TypeError. Gate the call.
+    if sys.version_info >= (3, 12):
+      tar.extractall(stage_dir, members=members, filter="data")
+    else:
+      tar.extractall(stage_dir, members=members)
   for src, dst in mappings:
     src_path = stage_dir / src
     dst_path = VENDOR / dst

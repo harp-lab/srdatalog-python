@@ -1,14 +1,14 @@
 name: Build wheels
 
+# Temporarily restricted to release tags + manual dispatch. The PR
+# trigger was removed while the wheel pipeline is partially broken
+# (populate_vendor.py + manylinux image pull issues) — this workflow
+# will be revisited when the CPU-only engine lands, which is the
+# shape we actually want to package + distribute as a Python wheel.
+# Re-add the `pull_request:` block under that milestone.
 on:
   push:
     tags: ['v*']
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/populate_vendor.py'
-      - 'pyproject.toml'
-      - '.github/workflows/wheels.yml'
   workflow_dispatch:
 
 jobs:

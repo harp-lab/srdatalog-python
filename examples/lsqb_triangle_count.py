@@ -48,11 +48,6 @@ def build_triangle_db_program() -> Program:
   y = Var("y")
 
   return Program(
-    relations=[
-      KnowsInput,
-      Knows,
-      Triangle,
-    ],
     rules=[
       (Knows(x, y) <= KnowsInput(x, y)).named('KnowsLoad'),
       (Triangle(a, b, c) <= Knows(a, b) & Knows(b, c) & Knows(a, c))

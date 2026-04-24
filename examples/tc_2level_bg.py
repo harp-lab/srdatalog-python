@@ -47,11 +47,6 @@ def build_tc2lbgdb_program() -> Program:
   z = Var("z")
 
   return Program(
-    relations=[
-      ArcInput,
-      Edge,
-      Path,
-    ],
     rules=[
       (Edge(x, y) <= ArcInput(x, y)).named('EdgeLoad'),
       (Path(x, y) <= Edge(x, y)).named('TCBase'),

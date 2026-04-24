@@ -89,15 +89,6 @@ def build_lsqb_q3_db_program() -> Program:
   y = Var("y")
 
   return Program(
-    relations=[
-      KnowsInput,
-      IsLocatedInInput,
-      IsPartOfInput,
-      Knows,
-      IsLocatedIn,
-      IsPartOf,
-      Triangle,
-    ],
     rules=[
       (Knows(x, y) <= KnowsInput(x, y)).named('KnowsLoad'),
       (IsLocatedIn(p, c) <= IsLocatedInInput(p, c)).named('LocLoad'),

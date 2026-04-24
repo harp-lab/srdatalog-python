@@ -57,12 +57,6 @@ def build_triangledb_program() -> Program:
   z = Var("z")
 
   return Program(
-    relations=[
-      RRel,
-      SRel,
-      TRel,
-      ZRel,
-    ],
     rules=[
       (ZRel(x, y, z) <= RRel(x, y) & SRel(y, z, h) & TRel(z, x, f))
       .named('Triangle')

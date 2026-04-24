@@ -1468,6 +1468,13 @@
     }
   ],
   "relations": {
+    "OutP": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "PInput": {
       "semiring": "NoProvenance",
       "types": [
@@ -1475,23 +1482,15 @@
         "int"
       ]
     },
+    "OutQ": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
     "QInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "RInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "CInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -1507,6 +1506,14 @@
         "int"
       ]
     },
+    "CInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
     "SInput": {
       "semiring": "NoProvenance",
       "types": [
@@ -1514,14 +1521,7 @@
         "int"
       ]
     },
-    "OutP": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "OutQ": {
+    "RInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",

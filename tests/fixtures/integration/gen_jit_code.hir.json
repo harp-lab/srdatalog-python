@@ -136,17 +136,17 @@
     }
   ],
   "relations": {
-    "Edge": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
     "Z": {
       "semiring": "NoProvenance",
       "types": [
         "int",
+        "int",
+        "int"
+      ]
+    },
+    "Edge": {
+      "semiring": "NoProvenance",
+      "types": [
         "int",
         "int"
       ]

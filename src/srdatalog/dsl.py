@@ -138,6 +138,14 @@ class Atom:
   rel: str
   args: tuple[ClauseArg, ...]
   prov: Provenance = USER_PROVENANCE
+  # Back-reference to the Relation this atom was built from. Set by
+  # Relation.__call__; None for Atoms hand-constructed from just a name
+  # string (rewrite passes that don't have the Relation in scope). Used
+  # by Program to auto-derive its relations list from rules, so users
+  # no longer have to pass relations= in parallel with rules= and risk
+  # drift. Not part of equality / hash: two atoms are equal iff they
+  # have the same rel name and args, regardless of how they were built.
+  relation: Relation | None = field(default=None, compare=False, repr=False)
 
   def __and__(self, other) -> Conjunction:
     '''Compose with Atom / Negation / Filter / Let / Conjunction.'''
@@ -247,6 +255,10 @@ class Agg:
   rel: str
   args: tuple[ClauseArg, ...]
   cpp_type: str = ""
+  # Back-reference to the aggregated Relation, so Program can auto-
+  # derive its decls list. Mirrors Atom.relation — populated by the
+  # `agg()` helper from its rel_atom argument.
+  relation: Relation | None = field(default=None, compare=False, repr=False)
 
   def __and__(self, other: BodyClauseT | Conjunction) -> Conjunction:
     if isinstance(other, Conjunction):
@@ -291,6 +303,7 @@ def agg(result_var, func: str, rel_atom: Atom, cpp_type: str = "") -> Agg:
     rel=rel_atom.rel,
     args=rel_atom.args,
     cpp_type=cpp_type,
+    relation=rel_atom.relation,
   )
 
 
@@ -480,7 +493,11 @@ class Relation:
   def __call__(self, *args) -> Atom:
     if len(args) != self.arity:
       raise ValueError(f"{self.name} expects arity {self.arity}, got {len(args)}")
-    return Atom(rel=self.name, args=tuple(_coerce_arg(a) for a in args))
+    return Atom(
+      rel=self.name,
+      args=tuple(_coerce_arg(a) for a in args),
+      relation=self,
+    )
 
   def __repr__(self) -> str:
     return f"Relation({self.name!r}, arity={self.arity})"
@@ -488,17 +505,61 @@ class Relation:
 
 @dataclass
 class Program:
-  '''A Datalog program: relation decls + rules. Input to the HIR pipeline.'''
+  '''A Datalog program. Takes rules; the relations list is derived from
+  them via the Relation back-ref on each Atom.
 
-  relations: list[Relation] = field(default_factory=list)
+  The previous API took `relations=[...]` in parallel with `rules=[...]`.
+  That was a pure bug generator — if a relation was declared but never
+  used, or used but never declared, the downstream passes silently
+  generated wrong code. With the derived list, the schema is exactly the
+  set of relations referenced by some rule, in rule-first-occurrence
+  order (heads before body, body in source order). This matches the
+  Nim-side normalization in hir.nim:normalizeDecls and keeps byte-match
+  across the two ports.
+  '''
+
   rules: list[Rule] = field(default_factory=list)
+  relations: list[Relation] = field(init=False)
 
-  def add(self, *items: Relation | Rule) -> Program:
+  def __post_init__(self) -> None:
+    self.relations = _derive_relations(self.rules)
+
+  def add(self, *items: Rule) -> Program:
     for it in items:
-      if isinstance(it, Relation):
-        self.relations.append(it)
-      elif isinstance(it, Rule):
+      if isinstance(it, Rule):
         self.rules.append(it)
       else:
         raise TypeError(f"Program.add: unsupported item {it!r}")
+    self.relations = _derive_relations(self.rules)
     return self
+
+
+def _derive_relations(rules: list[Rule]) -> list[Relation]:
+  '''Walk rules in order, yield each Relation the first time it appears.
+
+  Order: for each rule, heads (declaration order) then body clauses
+  (source order, unwrapping Negation/Agg). Atoms without a Relation
+  back-ref (legacy hand-constructed or produced by rewrite passes that
+  lack the Relation in scope) are skipped — those only show up after
+  HIR transforms, never in user-authored top-level programs.
+  '''
+  out: list[Relation] = []
+  seen: set[str] = set()
+
+  def take(rel: Relation | None) -> None:
+    if rel is None or rel.name in seen:
+      return
+    seen.add(rel.name)
+    out.append(rel)
+
+  for rule in rules:
+    for h in rule.heads:
+      take(h.relation)
+    for clause in rule.body:
+      if isinstance(clause, Atom):
+        take(clause.relation)
+      elif isinstance(clause, Negation):
+        take(clause.atom.relation)
+      elif isinstance(clause, Agg):
+        take(clause.relation)
+  return out

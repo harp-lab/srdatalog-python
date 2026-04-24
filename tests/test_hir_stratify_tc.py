@@ -17,7 +17,6 @@ def build_tc_program() -> Program:
   edge = Relation("Edge", 2)
   path = Relation("Path", 2)
   return Program(
-    relations=[arc, edge, path],
     rules=[
       (edge(X, Y) <= arc(X, Y)).named("EdgeLoad"),
       (path(X, Y) <= edge(X, Y)).named("TCBase"),
@@ -55,10 +54,15 @@ def test_stratify_tc_stratum_2_path_recursive():
   assert [r.name for r in s.stratum_rules] == ["TCRec"]
 
 
-def test_stratify_tc_relation_decls_in_source_order():
+def test_stratify_tc_relation_decls_in_rule_first_occurrence_order():
+  '''Relation decls are now derived from rules, in rule-first-occurrence
+  order: walk each rule head (in order), then body, and take each
+  relation the first time it appears. For TC the first rule is
+  `Edge <- ArcInput` → Edge, ArcInput; second rule adds Path.
+  Matches the Nim side's normalizeDecls ordering.'''
   hir = compile_to_hir(build_tc_program())
   names = [d.rel_name for d in hir.relation_decls]
-  assert names == ["ArcInput", "Edge", "Path"]
+  assert names == ["Edge", "ArcInput", "Path"]
 
 
 def test_stratify_idempotent_across_runs():
@@ -83,7 +87,6 @@ def test_stratify_mutual_recursion_two_relations():
   a = Relation("A", 1)
   b = Relation("B", 1)
   prog = Program(
-    relations=[seed, a, b],
     rules=[
       (a(X) <= seed(X)).named("ASeed"),
       (a(X) <= b(X)).named("AFromB"),
@@ -104,7 +107,7 @@ def test_stratify_mutual_recursion_two_relations():
 
 
 def test_stratify_empty_program():
-  hir = compile_to_hir(Program(relations=[], rules=[]))
+  hir = compile_to_hir(Program(rules=[]))
   assert hir.strata == []
   assert hir.relation_decls == []
 
@@ -129,7 +132,7 @@ if __name__ == "__main__":
     test_stratify_tc_stratum_0_edge_simple,
     test_stratify_tc_stratum_1_path_base,
     test_stratify_tc_stratum_2_path_recursive,
-    test_stratify_tc_relation_decls_in_source_order,
+    test_stratify_tc_relation_decls_in_rule_first_occurrence_order,
     test_stratify_idempotent_across_runs,
     test_stratify_mutual_recursion_two_relations,
     test_stratify_empty_program,

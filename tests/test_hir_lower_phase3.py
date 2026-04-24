@@ -22,7 +22,6 @@ def build_tc() -> Program:
   edge = Relation("Edge", 2)
   path = Relation("Path", 2)
   return Program(
-    relations=[arc, edge, path],
     rules=[
       (edge(X, Y) <= arc(X, Y)).named("EdgeLoad"),
       (path(X, Y) <= edge(X, Y)).named("TCBase"),
@@ -127,7 +126,6 @@ def test_path_compose_recursive_stratum_has_parallel_group():
   seed = Relation("Seed", 2)
   path = Relation("Path", 2)
   p = Program(
-    relations=[seed, path],
     rules=[
       (path(X, Y) <= seed(X, Y)).named("PathSeed"),
       (path(X, Z) <= path(X, Y) & path(Y, Z)).named("PathCompose"),

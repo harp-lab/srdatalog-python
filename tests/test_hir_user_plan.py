@@ -35,7 +35,7 @@ def build_p_with_plan() -> Program:
       ]
     )
   )
-  return Program(relations=[seed, p], rules=[base, compose])
+  return Program(rules=[base, compose])
 
 
 # -----------------------------------------------------------------------------
@@ -83,7 +83,6 @@ def test_count_pragma_propagated_to_variants():
   seed = Relation("Seed", 2)
   p = Relation("P", 2)
   prog = Program(
-    relations=[seed, p],
     rules=[
       (p(X, Y) <= seed(X, Y)).named("Base").with_count(),
     ],
@@ -97,7 +96,6 @@ def test_plan_pragma_flags_propagate_to_variant():
   seed = Relation("Seed", 2)
   p = Relation("P", 2)
   prog = Program(
-    relations=[seed, p],
     rules=[
       (p(X, Y) <= seed(X, Y))
       .named("Base")

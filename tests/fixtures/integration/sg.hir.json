@@ -240,14 +240,14 @@
     }
   ],
   "relations": {
-    "Arc": {
+    "Sg": {
       "semiring": "NoProvenance",
       "types": [
         "int",
         "int"
       ]
     },
-    "Sg": {
+    "Arc": {
       "semiring": "NoProvenance",
       "types": [
         "int",

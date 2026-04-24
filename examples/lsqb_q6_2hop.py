@@ -69,13 +69,6 @@ def build_lsqb_q6_db_program() -> Program:
   y = Var("y")
 
   return Program(
-    relations=[
-      KnowsInput,
-      HasInterestInput,
-      Knows,
-      HasInterest,
-      Path,
-    ],
     rules=[
       (Knows(x, y) <= KnowsInput(x, y)).named('KnowsLoad'),
       (HasInterest(p, t) <= HasInterestInput(p, t)).named('InterestLoad'),

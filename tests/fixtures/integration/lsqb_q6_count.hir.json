@@ -340,20 +340,6 @@
     }
   ],
   "relations": {
-    "KnowsInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "HasInterestInput": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
     "Knows": {
       "semiring": "NoProvenance",
       "types": [
@@ -361,7 +347,21 @@
         "int"
       ]
     },
+    "KnowsInput": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "HasInterest": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "HasInterestInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",

@@ -103,16 +103,6 @@ def build_galendb_program() -> Program:
   z = Var("z")
 
   return Program(
-    relations=[
-      PInput,
-      QInput,
-      RInput,
-      CInput,
-      UInput,
-      SInput,
-      OutP,
-      OutQ,
-    ],
     rules=[
       (OutP(x, z) <= PInput(x, z)).named('LoadP'),
       (OutQ(x, r, z) <= QInput(x, r, z)).named('LoadQ'),

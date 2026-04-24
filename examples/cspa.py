@@ -82,15 +82,6 @@ def build_cspa_db_program() -> Program:
   z = Var("z")
 
   return Program(
-    relations=[
-      AssignInput,
-      DerefInput,
-      Assign,
-      Deref,
-      ValueFlow,
-      ValueAlias,
-      MemoryAlias,
-    ],
     rules=[
       (Assign(x, y) <= AssignInput(x, y)).named('LoadAssign'),
       (Deref(x, y) <= DerefInput(x, y)).named('LoadDeref'),

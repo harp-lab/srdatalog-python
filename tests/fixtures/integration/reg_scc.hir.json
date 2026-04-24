@@ -2004,68 +2004,7 @@
     }
   ],
   "relations": {
-    "BlockNext": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "DirectCall": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "ArchReturnReg": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "RegDefUseBlockLastDef": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "RegDefUseDefinedInBlock": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "RegDefUseFlowDef": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "RegDefUseLiveVarDef": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "RegDefUseRefInBlock": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "RegDefUseReturnBlockEnd": {
+    "RegDefUseDefUsed": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -2082,28 +2021,25 @@
         "int"
       ]
     },
-    "RegDefUseUsedInBlock": {
+    "RegDefUseBlockLastDef": {
       "semiring": "NoProvenance",
       "types": [
-        "int",
         "int",
         "int",
         "int"
       ]
     },
-    "RegDefUseDefUsed": {
+    "RegDefUseLiveVarAtBlockEnd": {
       "semiring": "NoProvenance",
       "types": [
-        "int",
         "int",
         "int",
         "int"
       ]
     },
-    "RegDefUseReturnValUsed": {
+    "RegDefUseLiveVarDef": {
       "semiring": "NoProvenance",
       "types": [
-        "int",
         "int",
         "int",
         "int",
@@ -2127,10 +2063,74 @@
         "int"
       ]
     },
-    "RegDefUseLiveVarAtBlockEnd": {
+    "RegDefUseReturnValUsed": {
       "semiring": "NoProvenance",
       "types": [
         "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseReturnBlockEnd": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ArchReturnReg": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "DirectCall": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseUsedInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseDefinedInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "BlockNext": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseFlowDef": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseRefInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
         "int",
         "int"
       ]

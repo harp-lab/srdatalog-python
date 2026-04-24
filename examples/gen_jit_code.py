@@ -37,10 +37,6 @@ def build_triangledb_program() -> Program:
   z = Var("z")
 
   return Program(
-    relations=[
-      Edge,
-      Z,
-    ],
     rules=[
       (Z(x, y, z) <= Edge(x, y) & Edge(y, z) & Edge(z, x))
       .named('Triangle')

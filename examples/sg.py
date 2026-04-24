@@ -40,10 +40,6 @@ def build_sgdb_program() -> Program:
   y = Var("y")
 
   return Program(
-    relations=[
-      Arc,
-      Sg,
-    ],
     rules=[
       (
         Sg(x, y)

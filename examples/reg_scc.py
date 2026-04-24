@@ -196,24 +196,6 @@ def build_regsccdb_program() -> Program:
   varIdentity = Var("varIdentity")
 
   return Program(
-    relations=[
-      BlockNext,
-      DirectCall,
-      ArchReturnReg,
-      RegDefUseBlockLastDef,
-      RegDefUseDefinedInBlock,
-      RegDefUseFlowDef,
-      RegDefUseLiveVarDef,
-      RegDefUseRefInBlock,
-      RegDefUseReturnBlockEnd,
-      RegDefUseUsed,
-      RegDefUseUsedInBlock,
-      RegDefUseDefUsed,
-      RegDefUseReturnValUsed,
-      RegDefUseLiveVarUsed,
-      RegDefUseLiveVarAtPriorUsed,
-      RegDefUseLiveVarAtBlockEnd,
-    ],
     rules=[
       (
         RegDefUseDefUsed(eaDef, mvar, eaUsed, index)

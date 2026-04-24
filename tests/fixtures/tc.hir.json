@@ -246,14 +246,14 @@
     }
   ],
   "relations": {
-    "ArcInput": {
+    "Edge": {
       "semiring": "NoProvenance",
       "types": [
         "int",
         "int"
       ]
     },
-    "Edge": {
+    "ArcInput": {
       "semiring": "NoProvenance",
       "types": [
         "int",

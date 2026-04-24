@@ -651,10 +651,6 @@ Do not edit manually — regenerate via:
       out.append(f'  {py} = Const(meta["{dc.key}"])')
   out.append("")
   out.append("  return Program(")
-  out.append("    relations=[")
-  for r in relations:
-    out.append(f"      {_py_ident(r.name)},")
-  out.append("    ],")
   out.append("    rules=[")
   for r in rules:
     for line in _emit_rule(r, const_names_set):

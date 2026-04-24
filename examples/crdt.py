@@ -290,30 +290,6 @@ def build_crdtdb_program() -> Program:
   value = Var("value")
 
   return Program(
-    relations=[
-      InsertInput,
-      RemoveInput,
-      Insert,
-      Remove,
-      Assign,
-      HasChild,
-      LaterChild,
-      FirstChild,
-      Sibling,
-      LaterSibling,
-      LaterSibling2,
-      NextSibling,
-      HasNextSibling,
-      NotSiblingInsert,
-      NextSiblingAnc,
-      NextElem,
-      NotHasValueNextElem,
-      CurrentValue,
-      HasValue,
-      SkipBlank,
-      NextVisible,
-      Result,
-    ],
     rules=[
       (Insert(a, b, c, d) <= InsertInput(a, b, c, d)).named('Insert'),
       (Remove(a, b) <= RemoveInput(a, b)).named('Remove'),

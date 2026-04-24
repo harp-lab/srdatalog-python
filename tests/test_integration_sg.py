@@ -19,7 +19,7 @@ def build_sg() -> Program:
     .named("SGRec")
     .with_plan(var_order=["p", "q", "x", "y"])
   )
-  return Program(relations=[arc, sg], rules=[base, rec])
+  return Program(rules=[base, rec])
 
 
 def test_sg_hir():

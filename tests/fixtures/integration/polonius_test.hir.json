@@ -3850,6 +3850,14 @@
     }
   ],
   "relations": {
+    "subset": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
     "subset_base": {
       "semiring": "NoProvenance",
       "types": [
@@ -3858,9 +3866,10 @@
         "int"
       ]
     },
-    "cfg_edge": {
+    "origin_contains_loan_on_entry": {
       "semiring": "NoProvenance",
       "types": [
+        "int",
         "int",
         "int"
       ]
@@ -3873,13 +3882,40 @@
         "int"
       ]
     },
+    "placeholder_origin": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
     "universal_region": {
       "semiring": "NoProvenance",
       "types": [
         "int"
       ]
     },
-    "var_used_at": {
+    "known_placeholder_subset": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "known_placeholder_subset_input": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "cfg_edge": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "origin_live_on_entry": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -3893,7 +3929,70 @@
         "int"
       ]
     },
-    "known_placeholder_subset_input": {
+    "loan_live_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "errors": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "loan_invalidated_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "subset_error": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "cfg_node": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "var_live_on_entry": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_used_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_maybe_partly_initialized_on_entry": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_maybe_partly_initialized_on_exit": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "var_drop_live_on_entry": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -3914,55 +4013,6 @@
         "int"
       ]
     },
-    "var_defined_at": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "child_path": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "path_moved_at_base": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "path_assigned_at_base": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "path_accessed_at_base": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "path_is_var": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "loan_invalidated_at": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
     "use_of_var_derefs_origin": {
       "semiring": "NoProvenance",
       "types": [
@@ -3970,92 +4020,7 @@
         "int"
       ]
     },
-    "subset": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "origin_live_on_entry": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "origin_contains_loan_on_entry": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "loan_live_at": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "errors": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "placeholder_origin": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "subset_error": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "known_placeholder_subset": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "cfg_node": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "var_live_on_entry": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "var_drop_live_on_entry": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "var_maybe_partly_initialized_on_exit": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "var_maybe_partly_initialized_on_entry": {
+    "var_defined_at": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -4069,7 +4034,21 @@
         "int"
       ]
     },
+    "child_path": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "path_moved_at": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_moved_at_base": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -4083,6 +4062,13 @@
         "int"
       ]
     },
+    "path_assigned_at_base": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "path_accessed_at": {
       "semiring": "NoProvenance",
       "types": [
@@ -4090,7 +4076,21 @@
         "int"
       ]
     },
+    "path_accessed_at_base": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "path_begins_with_var": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "path_is_var": {
       "semiring": "NoProvenance",
       "types": [
         "int",

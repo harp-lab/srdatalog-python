@@ -37,7 +37,6 @@ def _build_triangle_program() -> Program:
   T = Relation("TRel", 3, column_types=(int, int, int))
   Z = Relation("ZRel", 3, column_types=(int, int, int))
   return Program(
-    relations=[R, S, T, Z],
     rules=[
       (Z(x, y, z) <= R(x, y) & S(y, z, h) & T(z, x, f)).named("Triangle"),
     ],

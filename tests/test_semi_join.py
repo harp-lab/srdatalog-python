@@ -22,7 +22,7 @@ def build_semi_join_program() -> Program:
   t = Relation("T", 2)
   main = Relation("Main", 2)
   rule = (main(X, Z) <= r(X, Y, Z) & s(Y) & t(X, Z)).named("SJTest").with_semi_join()
-  return Program(relations=[r, s, t, main], rules=[rule])
+  return Program(rules=[rule])
 
 
 # -----------------------------------------------------------------------------

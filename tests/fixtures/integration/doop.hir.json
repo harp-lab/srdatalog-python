@@ -10668,7 +10668,75 @@
     }
   ],
   "relations": {
+    "isType": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "ClassType": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "isReferenceType": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "isClassType_IDB": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "ArrayType": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "isArrayType_IDB": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "InterfaceType": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "isInterfaceType_IDB": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "ApplicationClass": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "DirectSubclass": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "DirectSuperclass": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Superinterface": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -10682,57 +10750,16 @@
         "int"
       ]
     },
-    "MainClass": {
+    "MethodImplemented": {
       "semiring": "NoProvenance",
       "types": [
-        "int"
-      ]
-    },
-    "FormalParam": {
-      "semiring": "NoProvenance",
-      "types": [
+        "int",
         "int",
         "int",
         "int"
       ]
     },
-    "ComponentType": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "AssignReturnValue": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "ActualParam": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "Method_Modifier": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "Var_Type": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "HeapAllocation_Type": {
+    "Method_SimpleName": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -10746,58 +10773,6 @@
         "int"
       ]
     },
-    "ClassType": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "ArrayType": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "InterfaceType": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "Var_DeclaringMethod": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "ApplicationClass": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "ThisVar": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "Field_DeclaringType": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "Method_SimpleName": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
     "Method_DeclaringType": {
       "semiring": "NoProvenance",
       "types": [
@@ -10805,26 +10780,26 @@
         "int"
       ]
     },
-    "Instruction_Method": {
+    "Method_Modifier": {
       "semiring": "NoProvenance",
       "types": [
         "int",
         "int"
       ]
     },
-    "isVirtualMethodInvocation_Insn": {
+    "MainMethodDeclaration": {
       "semiring": "NoProvenance",
       "types": [
         "int"
       ]
     },
-    "isStaticMethodInvocation_Insn": {
+    "MainClass": {
       "semiring": "NoProvenance",
       "types": [
         "int"
       ]
     },
-    "MethodInvocation_Method": {
+    "MethodInvocation_Base": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -10845,165 +10820,6 @@
         "int"
       ]
     },
-    "LoadInstanceField": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "StoreInstanceField": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "LoadStaticField": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "StoreStaticField": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "LoadArrayIndex": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "StoreArrayIndex": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "AssignCast": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "AssignLocal": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "AssignHeapAllocation": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "ReturnVar": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "StaticMethodInvocation": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "VirtualMethodInvocation_SimpleName": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "VirtualMethodInvocation_Descriptor": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "isType": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "isReferenceType": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "isArrayType_IDB": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "isClassType_IDB": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "isInterfaceType_IDB": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "MethodLookup": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "MethodImplemented": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "DirectSubclass": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
     "Subclass": {
       "semiring": "NoProvenance",
       "types": [
@@ -11018,14 +10834,14 @@
         "int"
       ]
     },
-    "Superinterface": {
+    "SubtypeOf": {
       "semiring": "NoProvenance",
       "types": [
         "int",
         "int"
       ]
     },
-    "SubtypeOf": {
+    "ComponentType": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -11046,75 +10862,16 @@
         "int"
       ]
     },
-    "MainMethodDeclaration": {
+    "MethodLookup": {
       "semiring": "NoProvenance",
       "types": [
+        "int",
+        "int",
+        "int",
         "int"
       ]
     },
     "ClassInitializer": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "InitializedClass": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "Assign": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "VarPointsTo": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "InstanceFieldPointsTo": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "StaticFieldPointsTo": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "CallGraphEdge": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "ArrayIndexPointsTo": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "Reachable": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "MethodInvocation_Base": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -11130,12 +10887,47 @@
         "int"
       ]
     },
+    "AssignCast": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "HeapAllocation_Type": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "IsCastableToString": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "IsStringHeap": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
     "HeapHelper": {
       "semiring": "NoProvenance",
       "types": [
         "int",
         "int",
         "int",
+        "int",
+        "int"
+      ]
+    },
+    "ThisVar": {
+      "semiring": "NoProvenance",
+      "types": [
         "int",
         "int"
       ]
@@ -11158,35 +10950,21 @@
         "int"
       ]
     },
+    "VirtualMethodInvocation_SimpleName": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "VirtualMethodInvocation_Descriptor": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
     "HeapAllocSuperType": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "ReachableInstruction": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int"
-      ]
-    },
-    "ReachableSortedIndex": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int"
-      ]
-    },
-    "ReachableLoadInstanceField": {
-      "semiring": "NoProvenance",
-      "types": [
-        "int",
-        "int",
-        "int"
-      ]
-    },
-    "ArrayTypeCompat": {
       "semiring": "NoProvenance",
       "types": [
         "int",
@@ -11199,15 +10977,224 @@
         "int"
       ]
     },
-    "IsStringHeap": {
+    "ArrayTypeCompat": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "InitializedClass": {
       "semiring": "NoProvenance",
       "types": [
         "int"
       ]
     },
-    "IsCastableToString": {
+    "Reachable": {
       "semiring": "NoProvenance",
       "types": [
+        "int"
+      ]
+    },
+    "AssignHeapAllocation": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Instruction_Method": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "MethodInvocation_Method": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "isStaticMethodInvocation_Insn": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "StoreStaticField": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Field_DeclaringType": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "LoadStaticField": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "CallGraphEdge": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "StaticMethodInvocation": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "Assign": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "FormalParam": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ActualParam": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ReturnVar": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "AssignReturnValue": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "VarPointsTo": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "AssignLocal": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ReachableLoadInstanceField": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "LoadInstanceField": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "InstanceFieldPointsTo": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StaticFieldPointsTo": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "LoadArrayIndex": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ArrayIndexPointsTo": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "Var_Type": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "ReachableInstruction": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "StoreInstanceField": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ReachableSortedIndex": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "StoreArrayIndex": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
         "int"
       ]
     }

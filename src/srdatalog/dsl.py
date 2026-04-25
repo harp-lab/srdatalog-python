@@ -533,6 +533,45 @@ class Program:
     self.relations = _derive_relations(self.rules)
     return self
 
+  def _repr_mimebundle_(
+    self, include: object = None, exclude: object = None
+  ) -> dict[str, object]:
+    '''Jupyter display hook.
+
+    Returns a dict mapping mime type → payload. Jupyter / IPython picks
+    the richest renderer available for the mime types present.
+
+    We emit two:
+      - application/vnd.srdatalog.viz+json — the visualization bundle.
+        A Jupyter labextension or VS Code webview registers a renderer
+        for this mime type; without one, Jupyter falls back to text/plain.
+      - text/plain — a one-line summary so the cell isn't blank in
+        non-visualizing UIs (terminal IPython, plain `print(prog)`).
+
+    The viz bundle is the same shape `python -m srdatalog.viz dump`
+    produces, minus the source_locations field (Jupyter cells aren't
+    files, so no AST walk).
+
+    `include` / `exclude` follow the IPython display protocol — when
+    provided, restrict / suppress entries from the returned dict.
+    '''
+    # Local import to avoid cycles (viz.bundle imports pipeline which
+    # imports dsl indirectly via hir).
+    from srdatalog.viz.bundle import get_visualization_bundle
+
+    bundle = get_visualization_bundle(self)
+    out = {
+      "application/vnd.srdatalog.viz+json": bundle,
+      "text/plain": (
+        f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)>"
+      ),
+    }
+    if include:
+      out = {k: v for k, v in out.items() if k in include}
+    if exclude:
+      out = {k: v for k, v in out.items() if k not in exclude}
+    return out
+
 
 def _derive_relations(rules: list[Rule]) -> list[Relation]:
   '''Walk rules in order, yield each Relation the first time it appears.

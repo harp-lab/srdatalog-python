@@ -57,10 +57,11 @@ def test_mimebundle_returns_viz_json_and_text_plain():
   bundle = prog._repr_mimebundle_()
   assert set(bundle) == {VIZ_MIME, "text/plain"}
   payload = bundle[VIZ_MIME]
-  # Bundle is the same shape as python -m srdatalog.viz dump.
+  # Default Jupyter bundle: HIR + MIR + rule summary, no JIT.
   assert "hir" in payload
   assert "mir" in payload
-  assert "jit" in payload
+  assert payload["has_jit"] is False
+  assert "jit" not in payload
   assert payload["rules"][0]["name"] == "TCBase"
 
 

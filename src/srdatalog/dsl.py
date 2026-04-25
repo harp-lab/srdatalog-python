@@ -546,9 +546,10 @@ class Program:
       - text/plain — a one-line summary so the cell isn't blank in
         non-visualizing UIs (terminal IPython, plain `print(prog)`).
 
-    The viz bundle is the same shape `python -m srdatalog.viz dump`
-    produces, minus the source_locations field (Jupyter cells aren't
-    files, so no AST walk).
+    Jupyter default omits the JIT C++ block — on doop that's the
+    difference between a 300 KB and a 3 MB cell output, which matters
+    when re-running cells. Use `prog.show(include_jit=True)` to
+    explicitly request kernels.
 
     `include` / `exclude` follow the IPython display protocol — when
     provided, restrict / suppress entries from the returned dict.
@@ -557,7 +558,7 @@ class Program:
     # imports dsl indirectly via hir).
     from srdatalog.viz.bundle import get_visualization_bundle
 
-    bundle = get_visualization_bundle(self)
+    bundle = get_visualization_bundle(self, include_jit=False)
     out = {
       "application/vnd.srdatalog.viz+json": bundle,
       "text/plain": (f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)>"),
@@ -567,6 +568,34 @@ class Program:
     if exclude:
       out = {k: v for k, v in out.items() if k not in exclude}
     return out
+
+  def show(self, *, include_jit: bool = True) -> None:
+    '''Render this program in Jupyter, optionally with the JIT block.
+
+    The default `_repr_mimebundle_` (triggered by leaving `prog` as the
+    last expression of a cell) emits a JIT-less bundle for speed. Call
+    `prog.show()` when you want the full bundle including per-rule
+    generated C++ kernels — typically when you're inspecting codegen
+    rather than just iterating on the rule structure.
+
+    Requires IPython (only meaningful inside Jupyter / IPython).
+    '''
+    from srdatalog.viz.bundle import get_visualization_bundle
+
+    try:
+      from IPython.display import publish_display_data
+    except ImportError as e:
+      raise RuntimeError("Program.show() requires IPython") from e
+    bundle = get_visualization_bundle(self, include_jit=include_jit)
+    publish_display_data(
+      {
+        "application/vnd.srdatalog.viz+json": bundle,
+        "text/plain": (
+          f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)"
+          f", jit={'on' if include_jit else 'off'}>"
+        ),
+      }
+    )
 
 
 def _derive_relations(rules: list[Rule]) -> list[Relation]:

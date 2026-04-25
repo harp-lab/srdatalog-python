@@ -533,9 +533,7 @@ class Program:
     self.relations = _derive_relations(self.rules)
     return self
 
-  def _repr_mimebundle_(
-    self, include: object = None, exclude: object = None
-  ) -> dict[str, object]:
+  def _repr_mimebundle_(self, include: object = None, exclude: object = None) -> dict[str, object]:
     '''Jupyter display hook.
 
     Returns a dict mapping mime type → payload. Jupyter / IPython picks
@@ -562,9 +560,7 @@ class Program:
     bundle = get_visualization_bundle(self)
     out = {
       "application/vnd.srdatalog.viz+json": bundle,
-      "text/plain": (
-        f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)>"
-      ),
+      "text/plain": (f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)>"),
     }
     if include:
       out = {k: v for k, v in out.items() if k in include}

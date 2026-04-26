@@ -578,6 +578,7 @@ class Program:
     self,
     *,
     rule: str | None = None,
+    delta: int | None = None,
     theme: str = "dark",
     include_jit: bool = True,
     height_px: int = 600,
@@ -589,6 +590,11 @@ class Program:
         cell's `prog` expression already produces). When a string,
         drills into that rule's plan view — variant access patterns,
         clause order, var order with drag-to-reorder.
+      delta: only meaningful with `rule`. Filters to a single
+        variant of the rule — e.g. `delta=0` shows just the variant
+        seeded on body clause 0. Recursive rules emit one variant
+        per body clause for semi-naive evaluation; this is how you
+        isolate one of those "versions". Default None shows all.
       theme: 'dark' (default), 'light', or 'high-contrast'. Controls
         the renderer's color palette inside the iframe — independent
         of VS Code's editor theme.
@@ -598,10 +604,11 @@ class Program:
       height_px: iframe height. Bump for larger rulesets.
 
     Examples:
-      prog.show()                       # ruleset, dark, with JIT
-      prog.show(rule='TCRec')           # per-rule plan view
-      prog.show(theme='light')          # light mode
-      prog.show(rule='VPT_Load', theme='light', height_px=900)
+      prog.show()                              # ruleset, dark, with JIT
+      prog.show(rule='TCRec')                  # all variants of TCRec
+      prog.show(rule='TCRec', delta=0)         # just delta-0 variant
+      prog.show(theme='light')                 # light mode
+      prog.show(rule='VPT_Load', delta=1, theme='light', height_px=900)
 
     Requires IPython.
     '''
@@ -611,18 +618,21 @@ class Program:
       from IPython.display import publish_display_data
     except ImportError as e:
       raise RuntimeError("Program.show() requires IPython") from e
+    delta_str = "all" if delta is None else str(delta)
     publish_display_data(
       {
         "text/html": program_to_html(
           self,
           rule_name=rule,
+          delta=delta,
           theme=theme,
           height_px=height_px,
           include_jit=include_jit,
         ),
         "text/plain": (
           f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)"
-          f", rule={rule or 'all'}, theme={theme}, jit={'on' if include_jit else 'off'}>"
+          f", rule={rule or 'all'}, delta={delta_str}, theme={theme},"
+          f" jit={'on' if include_jit else 'off'}>"
         ),
       }
     )

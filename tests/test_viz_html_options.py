@@ -141,3 +141,108 @@ def test_default_show_invocation_smoke():
   must work without IPython.'''
   out = program_to_html(_tc_program(), rule_name="TCBase", theme="light")
   assert "<iframe" in out
+
+
+# ---------------------------------------------------------------------------
+# Delta-filtered (per-version) view
+# ---------------------------------------------------------------------------
+
+
+def _self_join_program() -> Program:
+  '''A rule whose body has TWO references to a recursive relation —
+  semi-naive evaluation produces one delta variant per such reference,
+  so this gives us deltaIdx ∈ {0, 1} to test against.'''
+  X, Y, Z = Var("x"), Var("y"), Var("z")
+  e = Relation("Edge", 2)
+  tc = Relation("TC", 2)
+  return Program(
+    rules=[
+      (tc(X, Y) <= e(X, Y)).named("TCBase"),
+      # Body[0] = TC(x, y), Body[1] = TC(y, z) — both recursive,
+      # so semi-naive emits two variants: delta seeded on body 0,
+      # then delta seeded on body 1.
+      (tc(X, Z) <= tc(X, Y) & tc(Y, Z)).named("TCSelfJoin"),
+    ]
+  )
+
+
+def test_delta_filter_isolates_single_variant():
+  '''A self-join recursive rule has body length 2 with both sides
+  referencing the recursive relation → 2 delta variants. Asking for
+  delta=0 must return only the deltaIdx=0 variant.'''
+  from srdatalog.viz.bundle import get_visualization_bundle
+
+  bundle = get_visualization_bundle(_self_join_program())
+  payload = _make_plan_payload(bundle, "TCSelfJoin", delta=0)
+  variants = payload["variants"]["variants"]
+  assert len(variants) == 1
+  assert variants[0]["variant"]["deltaIdx"] == 0
+
+
+def test_delta_filter_other_index():
+  '''delta=1 must select the OTHER variant — confirms we're filtering
+  by deltaIdx and not just clamping to 0.'''
+  from srdatalog.viz.bundle import get_visualization_bundle
+
+  bundle = get_visualization_bundle(_self_join_program())
+  payload = _make_plan_payload(bundle, "TCSelfJoin", delta=1)
+  variants = payload["variants"]["variants"]
+  assert len(variants) == 1
+  assert variants[0]["variant"]["deltaIdx"] == 1
+
+
+def test_delta_none_returns_all_variants():
+  '''Default `delta=None` keeps every variant — preserves the
+  pre-delta-filter behavior so existing callers keep working.'''
+  from srdatalog.viz.bundle import get_visualization_bundle
+
+  bundle = get_visualization_bundle(_self_join_program())
+  payload = _make_plan_payload(bundle, "TCSelfJoin")
+  variants = payload["variants"]["variants"]
+  # Both body atoms reference the recursive relation TC → 2 deltas.
+  assert len(variants) == 2
+  assert {v["variant"]["deltaIdx"] for v in variants} == {0, 1}
+
+
+def test_delta_filter_unknown_returns_empty():
+  '''Asking for a delta that doesn't exist (e.g. delta=99 on a body of
+  length 2) is not an error — just an empty plan view. Same UX as
+  asking for an unknown rule name.'''
+  from srdatalog.viz.bundle import get_visualization_bundle
+
+  bundle = get_visualization_bundle(_self_join_program())
+  payload = _make_plan_payload(bundle, "TCSelfJoin", delta=99)
+  assert payload["variants"]["variants"] == []
+
+
+def test_delta_minus_one_selects_base_variants():
+  '''Base (non-recursive) variants don't carry deltaIdx in the JSON.
+  We default the missing field to -1, so `delta=-1` is the way to
+  explicitly select base variants.'''
+  from srdatalog.viz.bundle import get_visualization_bundle
+
+  bundle = get_visualization_bundle(_tc_program())
+  payload = _make_plan_payload(bundle, "TCBase", delta=-1)
+  variants = payload["variants"]["variants"]
+  assert len(variants) == 1
+  assert variants[0]["type"] == "Base"
+
+
+def test_delta_threads_through_program_to_html():
+  '''Smoke: passing delta through the public entry point produces a
+  setPlan iframe with only one variant in the dispatched data.
+
+  The bundle JSON contains many `"deltaIdx": N` substrings (every
+  variant in every recursive stratum), but the dispatched ruleset
+  is in a separate JSON literal. We grep the bootstrap script's
+  `var data = ...` line specifically.'''
+  out = program_to_html(_self_join_program(), rule_name="TCSelfJoin", delta=0)
+  decoded = html_lib.unescape(out)
+  # Isolate the data JSON — it's the line starting `var data = {` in
+  # the bootstrap. Slice from there to the next `;`.
+  i = decoded.find("var data = {")
+  assert i > 0, "bootstrap data line not found"
+  data_line = decoded[i : decoded.find(";", i)]
+  assert '"command": "setPlan"' in data_line
+  assert '"deltaIdx": 0' in data_line
+  assert '"deltaIdx": 1' not in data_line

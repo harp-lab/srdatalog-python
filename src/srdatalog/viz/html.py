@@ -53,6 +53,7 @@ def program_to_html(
   program: Program,
   *,
   rule_name: str | None = None,
+  delta: int | None = None,
   theme: str = "dark",
   height_px: int = 600,
   include_jit: bool = True,
@@ -70,6 +71,12 @@ def program_to_html(
       stratum-grouped). When a string, drill into that one rule's
       plan view — shows variant access patterns, clause order, var
       order with drag-to-reorder.
+    delta: only meaningful with `rule_name`. When None (default),
+      shows every variant of the rule (one per delta seed for
+      recursive rules — semi-naive evaluation produces N variants
+      for N body clauses). When an int, filters to just that
+      variant (delta=0 means "delta seeded on body clause 0").
+      Use to look at one specific version of a rule in isolation.
     theme: 'dark' (default), 'light', or 'high-contrast'. Maps to
       the renderer's setTheme message.
     height_px: iframe height. Default 600px works for most rulesets;
@@ -82,15 +89,17 @@ def program_to_html(
   multiple cells render side-by-side without colliding.
   '''
   bundle = get_visualization_bundle(program, include_jit=include_jit)
-  return _build_iframe(bundle, rule_name=rule_name, theme=theme, height_px=height_px)
+  return _build_iframe(bundle, rule_name=rule_name, delta=delta, theme=theme, height_px=height_px)
 
 
-def _build_iframe(bundle: dict, *, rule_name: str | None, theme: str, height_px: int) -> str:
+def _build_iframe(
+  bundle: dict, *, rule_name: str | None, delta: int | None, theme: str, height_px: int
+) -> str:
   cell_id = f"srdv-{uuid.uuid4().hex[:12]}"
   if rule_name is None:
     payload = _make_ruleset_payload(bundle)
   else:
-    payload = _make_plan_payload(bundle, rule_name)
+    payload = _make_plan_payload(bundle, rule_name, delta=delta)
 
   # The full HTML document inside the iframe. Order matters:
   #   <div id="root"> first (renderer mounts here)
@@ -152,7 +161,7 @@ html, body, #root {{ margin: 0; padding: 0; height: 100%; width: 100%; backgroun
   )
 
 
-def _make_plan_payload(bundle: dict, rule_name: str) -> dict:
+def _make_plan_payload(bundle: dict, rule_name: str, *, delta: int | None = None) -> dict:
   '''Build the `setPlan` message focused on one rule.
 
   Walks every stratum's base + recursive variants, picks out the
@@ -161,9 +170,16 @@ def _make_plan_payload(bundle: dict, rule_name: str) -> dict:
   view shows access patterns, clauseOrder, varOrder with drag-to-
   reorder for each variant.
 
-  If no variant matches the name, the renderer just shows an empty
-  plan view — we don't raise, since the user might be poking at
-  generated rule names that haven't been emitted yet.
+  When `delta` is given, only the variant with `deltaIdx == delta`
+  is included — useful for looking at one specific version of a
+  recursive rule in isolation. Base (non-recursive) variants don't
+  carry a deltaIdx; we treat their absent value as -1 for the
+  comparison, so `delta=-1` selects base variants explicitly.
+
+  If no variant matches the name (or delta filter), the renderer
+  just shows an empty plan view — we don't raise, since the user
+  might be poking at generated rule names that haven't been
+  emitted yet, or at a delta that doesn't exist for the rule.
   '''
   variants: list[dict] = []
   hir = bundle.get("hir", {})
@@ -172,16 +188,19 @@ def _make_plan_payload(bundle: dict, rule_name: str) -> dict:
     is_rec_stratum = bool(stratum.get("isRecursive", False))
     for vlist_key, vtype in (("base", "Base"), ("recursive", "Recursive")):
       for idx, v in enumerate(stratum.get(vlist_key, [])):
-        if (v.get("rule") or {}).get("name") == rule_name:
-          variants.append(
-            {
-              "stratumId": sid,
-              "isRecursiveStratum": is_rec_stratum,
-              "type": vtype,
-              "variantIdx": idx,
-              "variant": v,
-            }
-          )
+        if (v.get("rule") or {}).get("name") != rule_name:
+          continue
+        if delta is not None and v.get("deltaIdx", -1) != delta:
+          continue
+        variants.append(
+          {
+            "stratumId": sid,
+            "isRecursiveStratum": is_rec_stratum,
+            "type": vtype,
+            "variantIdx": idx,
+            "variant": v,
+          }
+        )
   return {
     "command": "setPlan",
     "variants": {

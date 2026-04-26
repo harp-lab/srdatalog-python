@@ -574,30 +574,55 @@ class Program:
       out = {k: v for k, v in out.items() if k not in exclude}
     return out
 
-  def show(self, *, include_jit: bool = True) -> None:
-    '''Render this program in Jupyter, optionally with the JIT block.
+  def show(
+    self,
+    *,
+    rule: str | None = None,
+    theme: str = "dark",
+    include_jit: bool = True,
+    height_px: int = 600,
+  ) -> None:
+    '''Render this program in Jupyter with full options.
 
-    The default `_repr_mimebundle_` (triggered by leaving `prog` as the
-    last expression of a cell) emits a JIT-less bundle for speed. Call
-    `prog.show()` when you want the full bundle including per-rule
-    generated C++ kernels — typically when you're inspecting codegen
-    rather than just iterating on the rule structure.
+    Args:
+      rule: when None, shows the ruleset overview (the default the
+        cell's `prog` expression already produces). When a string,
+        drills into that rule's plan view — variant access patterns,
+        clause order, var order with drag-to-reorder.
+      theme: 'dark' (default), 'light', or 'high-contrast'. Controls
+        the renderer's color palette inside the iframe — independent
+        of VS Code's editor theme.
+      include_jit: include per-rule JIT C++ kernels. Adds ~2-3 MB
+        on doop; off by default in `_repr_mimebundle_` for cell rerun
+        speed, on by default here since you're explicitly invoking.
+      height_px: iframe height. Bump for larger rulesets.
 
-    Requires IPython (only meaningful inside Jupyter / IPython).
+    Examples:
+      prog.show()                       # ruleset, dark, with JIT
+      prog.show(rule='TCRec')           # per-rule plan view
+      prog.show(theme='light')          # light mode
+      prog.show(rule='VPT_Load', theme='light', height_px=900)
+
+    Requires IPython.
     '''
-    from srdatalog.viz.bundle import get_visualization_bundle
+    from srdatalog.viz.html import program_to_html
 
     try:
       from IPython.display import publish_display_data
     except ImportError as e:
       raise RuntimeError("Program.show() requires IPython") from e
-    bundle = get_visualization_bundle(self, include_jit=include_jit)
     publish_display_data(
       {
-        "application/vnd.srdatalog.viz+json": bundle,
+        "text/html": program_to_html(
+          self,
+          rule_name=rule,
+          theme=theme,
+          height_px=height_px,
+          include_jit=include_jit,
+        ),
         "text/plain": (
           f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)"
-          f", jit={'on' if include_jit else 'off'}>"
+          f", rule={rule or 'all'}, theme={theme}, jit={'on' if include_jit else 'off'}>"
         ),
       }
     )

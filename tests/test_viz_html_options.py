@@ -159,28 +159,33 @@ def test_plan_payload_jit_is_filtered_to_rule():
   assert "TCBase" in jit  # the base rule's runner must be present
 
 
-def test_setrule_message_dispatched_before_setplan():
-  '''The renderer's JIT lookup keys off `rule.name`, which only the
-  setRule message populates. We must dispatch setRule before setPlan
-  in the bootstrap so `rule` state is set when the JIT tab renders.'''
+def test_setrule_is_not_dispatched():
+  '''We deliberately do NOT dispatch setRule — it triggers
+  generateGraph(rule), which crashes because the rule object lacks
+  the per-VARIANT `clauseOrder` field generateGraph reads. The JIT
+  tab is populated via the legacy `jitCode` path instead, which
+  doesn't depend on `rule` state.'''
   out = program_to_html(_tc_program(), rule_name="TCBase")
   decoded = html_lib.unescape(out)
-  set_rule_idx = decoded.find('"command": "setRule"')
-  set_plan_idx = decoded.find('"command": "setPlan"')
-  assert set_rule_idx > 0, "setRule message not dispatched"
-  assert set_plan_idx > 0
-  assert set_rule_idx < set_plan_idx
+  # The literal "setRule" string appears in the bundle (renderer's
+  # message switch), but our bootstrap should NOT dispatch one.
+  # Look for the JSON form unique to dispatch.
+  assert '"command": "setRule"' not in decoded
 
 
-def test_ruleset_view_does_not_dispatch_setrule():
-  '''Whole-program (overview) view doesn't need setRule — it uses the
-  setRuleset graph which works without rule state.'''
-  out = program_to_html(_tc_program())  # no rule_name
-  decoded = html_lib.unescape(out)
-  # We default the ruleMsg JS variable to null when no rule. Verify.
-  assert "var ruleMsg = null" in decoded
-  assert '"command": "setRuleset"' in decoded
-  # No setRule message dispatch path activates when ruleMsg is null.
+def test_plan_payload_carries_jitcode_for_legacy_path():
+  '''Without setRule, the renderer's JIT tab uses `jitCode` (a single
+  string of all kernel structs concatenated). Splits on the per-struct
+  comment header banner the codegen emits for each runner.'''
+  from srdatalog.viz.bundle import get_visualization_bundle
+
+  bundle = get_visualization_bundle(_tc_program(), include_jit=True)
+  payload = _make_plan_payload(bundle, "TCBase")
+  jit_code = payload["variants"]["jitCode"]
+  assert "JitRunner_TCBase" in jit_code
+  # Sanity: TCRec's runner is filtered out — only the requested rule's
+  # kernels should be in jitCode.
+  assert "JitRunner_TCRec" not in jit_code
 
 
 def test_per_rule_iframe_size():

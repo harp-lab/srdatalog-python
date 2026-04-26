@@ -98,13 +98,16 @@ def _build_iframe(
   cell_id = f"srdv-{uuid.uuid4().hex[:12]}"
   if rule_name is None:
     payload = _make_ruleset_payload(bundle)
-    rule_payload: dict | None = None
   else:
     payload = _make_plan_payload(bundle, rule_name, delta=delta)
-    # Also emit a setRule message before setPlan — the renderer's JIT
-    # lookup keys off `rule.name`, which only setRule populates. Without
-    # this, the JIT tab shows nothing even when jitByRule is supplied.
-    rule_payload = _make_rule_payload(bundle, rule_name)
+    # We previously also dispatched setRule here so the renderer's JIT
+    # lookup (which keys off rule.name) would work. But setRule also
+    # triggers generateGraph(newRule), which crashes on our payload —
+    # generateGraph needs `clauseOrder` and per-clause `id` fields that
+    # only exist at the per-VARIANT level in the HIR JSON, not at the
+    # rule level. We instead populate the legacy `jitCode` path inside
+    # the plan payload (see _make_plan_payload), which doesn't need
+    # rule state at all.
 
   # The full HTML document inside the iframe. Order matters:
   #   <div id="root"> first (renderer mounts here)
@@ -113,7 +116,6 @@ def _build_iframe(
   #   data dispatch script (sends setTheme + setRuleset/setPlan after
   #     a tick so the listener is wired before the message arrives)
   light_bg = "#ffffff" if theme == "light" else "#1e1e1e"
-  rule_payload_js = "null" if rule_payload is None else json.dumps(rule_payload)
   doc = f"""<!doctype html>
 <html>
 <head>
@@ -136,23 +138,16 @@ html, body, #root {{ margin: 0; padding: 0; height: 100%; width: 100%; backgroun
 <script>
   (function () {{
     var theme = {json.dumps(theme)};
-    var ruleMsg = {rule_payload_js};
     var data = {json.dumps(payload)};
     // Renderer registers its `message` listener inside a useEffect on
     // mount, which runs after the React tree commits. Defer dispatch
     // by a frame so we hit a wired listener instead of the empty
-    // window. Order:
-    //   setTheme — so initial paint uses the chosen palette
-    //   setRule  — populates `rule` state (the JIT lookup keys off
-    //              rule.name; without this the JIT tab is empty)
-    //   setPlan / setRuleset — the actual data view
+    // window. setTheme dispatched first so initial paint uses the
+    // chosen palette.
     function send() {{
       window.dispatchEvent(new MessageEvent("message", {{
         data: {{ command: "setTheme", theme: theme }}
       }}));
-      if (ruleMsg) {{
-        window.dispatchEvent(new MessageEvent("message", {{ data: ruleMsg }}));
-      }}
       window.dispatchEvent(new MessageEvent("message", {{ data: data }}));
     }}
     if (document.readyState === "complete") {{
@@ -221,40 +216,23 @@ def _make_plan_payload(bundle: dict, rule_name: str, *, delta: int | None = None
             "variant": v,
           }
         )
+  filtered_jit = _filter_jit_for_rule(bundle, rule_name)
   return {
     "command": "setPlan",
     "variants": {
       "variants": variants,
       "hirSExpr": _synthesize_hir_sexpr(hir, rule_name=rule_name, delta=delta),
       "mirSExpr": _filter_mir_for_rule(bundle.get("mir", ""), rule_name),
-      "jitByRule": _filter_jit_for_rule(bundle, rule_name),
+      "jitByRule": filtered_jit,
+      # `jitCode` is the legacy single-string path the renderer falls
+      # back to when `rule.name` isn't set (we don't dispatch setRule —
+      # it crashes on our payload — so this is what actually lands in
+      # the JIT tab). The renderer splits it on
+      # `// =====\n// JIT-Generated` markers and shows one struct per
+      # variant in the tab switcher.
+      "jitCode": "\n\n".join(filtered_jit.values()),
     },
   }
-
-
-def _make_rule_payload(bundle: dict, rule_name: str) -> dict | None:
-  '''Build a `setRule` message that primes the renderer's `rule` state.
-
-  The plan view's JIT tab keys off `rule?.name` for its lookup. Plan-
-  only messages don't set `rule`, so the JIT tab silently shows nothing.
-  Sending a setRule before setPlan fixes that.
-
-  We return None when the rule isn't found in the HIR — the caller
-  skips dispatching, and the renderer just shows the plan view's
-  default empty state.
-  '''
-  hir = bundle.get("hir", {})
-  for stratum in hir.get("strata", []):
-    for vlist_key in ("base", "recursive"):
-      for v in stratum.get(vlist_key, []):
-        rule = v.get("rule") or {}
-        if rule.get("name") == rule_name:
-          # Pass through the rule object as-is — it already has
-          # head/body in the shape the renderer expects (we built it
-          # in hir/emit.py to match the Nim emit, which the renderer
-          # was originally designed against).
-          return {"command": "setRule", "rule": rule}
-  return None
 
 
 # ---------------------------------------------------------------------------

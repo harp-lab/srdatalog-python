@@ -31,6 +31,16 @@ dev = [
   "pytest>=7",
   "ruff",
 ]
+# Optional extras for testing Jupyter integration end-to-end. The
+# `test_viz_jupyter.py` layers gate on `importlib.util.find_spec`, so
+# skipping them locally is fine; CI installs `srdatalog[dev,test-jupyter]`
+# to exercise the kernel-roundtrip path.
+test-jupyter = [
+  "ipython>=8",
+  "ipykernel>=6",
+  "nbclient>=0.10",
+  "nbformat>=5",
+]
 docs = [
   "sphinx>=7",
   "furo",

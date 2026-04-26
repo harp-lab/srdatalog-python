@@ -533,6 +533,110 @@ class Program:
     self.relations = _derive_relations(self.rules)
     return self
 
+  def _repr_mimebundle_(self, include: object = None, exclude: object = None) -> dict[str, object]:
+    '''Jupyter display hook.
+
+    Returns a dict mapping mime type → payload. Jupyter / IPython picks
+    the richest renderer available for the mime types present.
+
+    We emit three:
+      - text/html — a self-contained iframe embedding the React-based
+        rule graph renderer (vendored from harp-lab/srdatalog-viz).
+        This is the fancy view; Jupyter Lab and VS Code prefer it.
+      - application/vnd.srdatalog.viz+json — the raw visualization
+        bundle. A future labextension can register a richer renderer
+        for this mime type and override the inline iframe.
+      - text/plain — a one-line summary so the cell isn't blank in
+        non-visualizing UIs (terminal IPython, plain `print(prog)`).
+
+    Jupyter default omits the JIT C++ block — on doop that's the
+    difference between a 300 KB and a 3 MB cell output, which matters
+    when re-running cells. Use `prog.show(include_jit=True)` to
+    explicitly request kernels.
+
+    `include` / `exclude` follow the IPython display protocol — when
+    provided, restrict / suppress entries from the returned dict.
+    '''
+    # Local import to avoid cycles (viz.bundle imports pipeline which
+    # imports dsl indirectly via hir).
+    from srdatalog.viz.bundle import get_visualization_bundle
+    from srdatalog.viz.html import program_to_html
+
+    bundle = get_visualization_bundle(self, include_jit=False)
+    out = {
+      "text/html": program_to_html(self),
+      "application/vnd.srdatalog.viz+json": bundle,
+      "text/plain": (f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)>"),
+    }
+    if include:
+      out = {k: v for k, v in out.items() if k in include}
+    if exclude:
+      out = {k: v for k, v in out.items() if k not in exclude}
+    return out
+
+  def show(
+    self,
+    *,
+    rule: str | None = None,
+    delta: int | None = None,
+    theme: str = "dark",
+    include_jit: bool = True,
+    height_px: int = 600,
+  ) -> None:
+    '''Render this program in Jupyter with full options.
+
+    Args:
+      rule: when None, shows the ruleset overview (the default the
+        cell's `prog` expression already produces). When a string,
+        drills into that rule's plan view — variant access patterns,
+        clause order, var order with drag-to-reorder.
+      delta: only meaningful with `rule`. Filters to a single
+        variant of the rule — e.g. `delta=0` shows just the variant
+        seeded on body clause 0. Recursive rules emit one variant
+        per body clause for semi-naive evaluation; this is how you
+        isolate one of those "versions". Default None shows all.
+      theme: 'dark' (default), 'light', or 'high-contrast'. Controls
+        the renderer's color palette inside the iframe — independent
+        of VS Code's editor theme.
+      include_jit: include per-rule JIT C++ kernels. Adds ~2-3 MB
+        on doop; off by default in `_repr_mimebundle_` for cell rerun
+        speed, on by default here since you're explicitly invoking.
+      height_px: iframe height. Bump for larger rulesets.
+
+    Examples:
+      prog.show()                              # ruleset, dark, with JIT
+      prog.show(rule='TCRec')                  # all variants of TCRec
+      prog.show(rule='TCRec', delta=0)         # just delta-0 variant
+      prog.show(theme='light')                 # light mode
+      prog.show(rule='VPT_Load', delta=1, theme='light', height_px=900)
+
+    Requires IPython.
+    '''
+    from srdatalog.viz.html import program_to_html
+
+    try:
+      from IPython.display import publish_display_data
+    except ImportError as e:
+      raise RuntimeError("Program.show() requires IPython") from e
+    delta_str = "all" if delta is None else str(delta)
+    publish_display_data(
+      {
+        "text/html": program_to_html(
+          self,
+          rule_name=rule,
+          delta=delta,
+          theme=theme,
+          height_px=height_px,
+          include_jit=include_jit,
+        ),
+        "text/plain": (
+          f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)"
+          f", rule={rule or 'all'}, delta={delta_str}, theme={theme},"
+          f" jit={'on' if include_jit else 'off'}>"
+        ),
+      }
+    )
+
 
 def _derive_relations(rules: list[Rule]) -> list[Relation]:
   '''Walk rules in order, yield each Relation the first time it appears.

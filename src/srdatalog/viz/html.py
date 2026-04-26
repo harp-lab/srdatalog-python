@@ -145,10 +145,22 @@ html, body, #root {{ margin: 0; padding: 0; height: 100%; width: 100%; backgroun
     // window. setTheme dispatched first so initial paint uses the
     // chosen palette.
     function send() {{
+      // Theme first.
       window.dispatchEvent(new MessageEvent("message", {{
         data: {{ command: "setTheme", theme: theme }}
       }}));
-      window.dispatchEvent(new MessageEvent("message", {{ data: data }}));
+      // Critical: wait for React to commit the theme state and run its
+      // theme-tracking useEffect (which updates the renderer's internal
+      // `themeRef`). The setRuleset/setPlan handlers read themeRef at
+      // graph-generation time, so dispatching synchronously gives the
+      // graph stale `dark` colors while panels render `light`. Two rAFs
+      // is enough — first lets React commit the setState; second runs
+      // after the post-commit effect updates themeRef.
+      requestAnimationFrame(function () {{
+        requestAnimationFrame(function () {{
+          window.dispatchEvent(new MessageEvent("message", {{ data: data }}));
+        }});
+      }});
     }}
     if (document.readyState === "complete") {{
       requestAnimationFrame(send);

@@ -43,21 +43,20 @@ def test_theme_light_mode():
 
 
 def test_theme_dispatches_before_data():
-  '''The setTheme message must dispatch BEFORE setRuleset/setPlan so
-  the initial paint uses the chosen palette — otherwise the renderer
-  flashes dark for one frame then re-paints.
+  '''The setTheme message must dispatch BEFORE setRuleset/setPlan AND
+  the data dispatch must wait for React to commit the theme update —
+  otherwise the renderer's graph-generation pass reads stale `dark`
+  via themeRef while the surrounding panels render `light`, producing
+  a half-themed mess.
 
-  The data JSON literal is ASSIGNED before the send() function body
-  in source, but EXECUTED after — what matters is dispatch order
-  inside send(). Test the structural order of the two dispatch calls
-  inside the function.'''
+  Implementation: setTheme fires synchronously in send(); the data
+  dispatch is wrapped in two requestAnimationFrame callbacks (one for
+  state commit, one for the post-commit useEffect that updates
+  themeRef). Test the structural order in send().'''
   out = program_to_html(_tc_program(), theme="light")
   decoded = html_lib.unescape(out)
   send_start = decoded.find("function send()")
   assert send_start > 0
-  # send() body has nested `{}` (setTheme dispatch's data object literal),
-  # so slice up to the closing brace at the function's depth — find the
-  # next `if (document.readyState` which is right after send() ends.
   send_end = decoded.find("if (document.readyState", send_start)
   send_body = decoded[send_start:send_end]
   theme_in_body = send_body.find('command: "setTheme"')
@@ -65,6 +64,13 @@ def test_theme_dispatches_before_data():
   assert theme_in_body > 0, f"setTheme not in send(): {send_body[:400]}"
   assert data_in_body > 0
   assert theme_in_body < data_in_body
+  # The data dispatch must be inside (at least one) requestAnimationFrame
+  # so React has time to commit the theme state before the graph generator
+  # reads themeRef. Look for nested rAFs between the two dispatches.
+  between = send_body[theme_in_body:data_in_body]
+  assert "requestAnimationFrame" in between, (
+    f"data dispatch must be deferred via rAF, but send body shows:\n{send_body}"
+  )
 
 
 # ---------------------------------------------------------------------------

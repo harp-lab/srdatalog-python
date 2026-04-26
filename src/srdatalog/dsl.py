@@ -539,10 +539,13 @@ class Program:
     Returns a dict mapping mime type → payload. Jupyter / IPython picks
     the richest renderer available for the mime types present.
 
-    We emit two:
-      - application/vnd.srdatalog.viz+json — the visualization bundle.
-        A Jupyter labextension or VS Code webview registers a renderer
-        for this mime type; without one, Jupyter falls back to text/plain.
+    We emit three:
+      - text/html — a self-contained iframe embedding the React-based
+        rule graph renderer (vendored from harp-lab/srdatalog-viz).
+        This is the fancy view; Jupyter Lab and VS Code prefer it.
+      - application/vnd.srdatalog.viz+json — the raw visualization
+        bundle. A future labextension can register a richer renderer
+        for this mime type and override the inline iframe.
       - text/plain — a one-line summary so the cell isn't blank in
         non-visualizing UIs (terminal IPython, plain `print(prog)`).
 
@@ -557,9 +560,11 @@ class Program:
     # Local import to avoid cycles (viz.bundle imports pipeline which
     # imports dsl indirectly via hir).
     from srdatalog.viz.bundle import get_visualization_bundle
+    from srdatalog.viz.html import program_to_html
 
     bundle = get_visualization_bundle(self, include_jit=False)
     out = {
+      "text/html": program_to_html(self),
       "application/vnd.srdatalog.viz+json": bundle,
       "text/plain": (f"<Program: {len(self.relations)} relation(s), {len(self.rules)} rule(s)>"),
     }

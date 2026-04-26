@@ -52,10 +52,10 @@ def _tc_program() -> Program:
 # ---------------------------------------------------------------------------
 
 
-def test_mimebundle_returns_viz_json_and_text_plain():
+def test_mimebundle_returns_html_viz_json_and_text_plain():
   prog = _tc_program()
   bundle = prog._repr_mimebundle_()
-  assert set(bundle) == {VIZ_MIME, "text/plain"}
+  assert set(bundle) == {"text/html", VIZ_MIME, "text/plain"}
   payload = bundle[VIZ_MIME]
   # Default Jupyter bundle: HIR + MIR + rule summary, no JIT.
   assert "hir" in payload
@@ -63,6 +63,15 @@ def test_mimebundle_returns_viz_json_and_text_plain():
   assert payload["has_jit"] is False
   assert "jit" not in payload
   assert payload["rules"][0]["name"] == "TCBase"
+  # text/html is the renderer-iframe blob — must contain the bundle's
+  # mounting div and our srcdoc-escaped renderer script.
+  html = bundle["text/html"]
+  assert "<iframe" in html
+  assert "srcdoc=" in html
+  assert "sandbox=" in html
+  # Quick sanity: the rule names are inlined in the dispatched data.
+  assert "TCBase" in html
+  assert "TCRec" in html
 
 
 def test_mimebundle_text_plain_is_summary():
@@ -82,7 +91,7 @@ def test_mimebundle_include_restricts():
 def test_mimebundle_exclude_drops():
   prog = _tc_program()
   no_text = prog._repr_mimebundle_(exclude={"text/plain"})
-  assert set(no_text) == {VIZ_MIME}
+  assert set(no_text) == {"text/html", VIZ_MIME}
 
 
 def test_mimebundle_empty_program():
@@ -90,6 +99,9 @@ def test_mimebundle_empty_program():
   assert bundle["text/plain"] == "<Program: 0 relation(s), 0 rule(s)>"
   assert bundle[VIZ_MIME]["rules"] == []
   assert bundle[VIZ_MIME]["relations"] == []
+  # Empty program still gets an iframe (the renderer just shows
+  # an empty graph). The bundle dispatches an empty rules list.
+  assert "<iframe" in bundle["text/html"]
 
 
 # ---------------------------------------------------------------------------

@@ -98,8 +98,13 @@ def _build_iframe(
   cell_id = f"srdv-{uuid.uuid4().hex[:12]}"
   if rule_name is None:
     payload = _make_ruleset_payload(bundle)
+    rule_payload: dict | None = None
   else:
     payload = _make_plan_payload(bundle, rule_name, delta=delta)
+    # Also emit a setRule message before setPlan — the renderer's JIT
+    # lookup keys off `rule.name`, which only setRule populates. Without
+    # this, the JIT tab shows nothing even when jitByRule is supplied.
+    rule_payload = _make_rule_payload(bundle, rule_name)
 
   # The full HTML document inside the iframe. Order matters:
   #   <div id="root"> first (renderer mounts here)
@@ -108,6 +113,7 @@ def _build_iframe(
   #   data dispatch script (sends setTheme + setRuleset/setPlan after
   #     a tick so the listener is wired before the message arrives)
   light_bg = "#ffffff" if theme == "light" else "#1e1e1e"
+  rule_payload_js = "null" if rule_payload is None else json.dumps(rule_payload)
   doc = f"""<!doctype html>
 <html>
 <head>
@@ -130,15 +136,23 @@ html, body, #root {{ margin: 0; padding: 0; height: 100%; width: 100%; backgroun
 <script>
   (function () {{
     var theme = {json.dumps(theme)};
+    var ruleMsg = {rule_payload_js};
     var data = {json.dumps(payload)};
     // Renderer registers its `message` listener inside a useEffect on
     // mount, which runs after the React tree commits. Defer dispatch
     // by a frame so we hit a wired listener instead of the empty
-    // window. setTheme first so initial paint is in the chosen palette.
+    // window. Order:
+    //   setTheme — so initial paint uses the chosen palette
+    //   setRule  — populates `rule` state (the JIT lookup keys off
+    //              rule.name; without this the JIT tab is empty)
+    //   setPlan / setRuleset — the actual data view
     function send() {{
       window.dispatchEvent(new MessageEvent("message", {{
         data: {{ command: "setTheme", theme: theme }}
       }}));
+      if (ruleMsg) {{
+        window.dispatchEvent(new MessageEvent("message", {{ data: ruleMsg }}));
+      }}
       window.dispatchEvent(new MessageEvent("message", {{ data: data }}));
     }}
     if (document.readyState === "complete") {{
@@ -180,6 +194,12 @@ def _make_plan_payload(bundle: dict, rule_name: str, *, delta: int | None = None
   just shows an empty plan view — we don't raise, since the user
   might be poking at generated rule names that haven't been
   emitted yet, or at a delta that doesn't exist for the rule.
+
+  hirSExpr / mirSExpr / jitByRule are FILTERED to the requested rule
+  so the per-rule view's HIR / MIR / JIT tabs only show that rule's
+  content. The renderer's `splitSExprs` parses each as top-level
+  S-expressions and matches `:name X` markers to pick the variant
+  for the selected sidebar entry.
   '''
   variants: list[dict] = []
   hir = bundle.get("hir", {})
@@ -205,11 +225,173 @@ def _make_plan_payload(bundle: dict, rule_name: str, *, delta: int | None = None
     "command": "setPlan",
     "variants": {
       "variants": variants,
-      "hirSExpr": json.dumps(hir, indent=2),
-      "mirSExpr": bundle.get("mir", ""),
-      "jitByRule": bundle.get("jit", {}) if bundle.get("has_jit") else {},
+      "hirSExpr": _synthesize_hir_sexpr(hir, rule_name=rule_name, delta=delta),
+      "mirSExpr": _filter_mir_for_rule(bundle.get("mir", ""), rule_name),
+      "jitByRule": _filter_jit_for_rule(bundle, rule_name),
     },
   }
+
+
+def _make_rule_payload(bundle: dict, rule_name: str) -> dict | None:
+  '''Build a `setRule` message that primes the renderer's `rule` state.
+
+  The plan view's JIT tab keys off `rule?.name` for its lookup. Plan-
+  only messages don't set `rule`, so the JIT tab silently shows nothing.
+  Sending a setRule before setPlan fixes that.
+
+  We return None when the rule isn't found in the HIR — the caller
+  skips dispatching, and the renderer just shows the plan view's
+  default empty state.
+  '''
+  hir = bundle.get("hir", {})
+  for stratum in hir.get("strata", []):
+    for vlist_key in ("base", "recursive"):
+      for v in stratum.get(vlist_key, []):
+        rule = v.get("rule") or {}
+        if rule.get("name") == rule_name:
+          # Pass through the rule object as-is — it already has
+          # head/body in the shape the renderer expects (we built it
+          # in hir/emit.py to match the Nim emit, which the renderer
+          # was originally designed against).
+          return {"command": "setRule", "rule": rule}
+  return None
+
+
+# ---------------------------------------------------------------------------
+# Per-rule HIR / MIR / JIT extractors
+# ---------------------------------------------------------------------------
+
+
+def _synthesize_hir_sexpr(
+  hir_obj: dict, *, rule_name: str | None = None, delta: int | None = None
+) -> str:
+  '''Synthesize per-variant HIR S-expressions the renderer can parse.
+
+  The renderer's HIR tab runs `splitSExprs` on this string and pulls
+  out top-level S-expressions, then filters them by `:name X` markers
+  to pick the variant for the selected sidebar entry.
+
+  We don't have a true HIR S-expr printer on the Python side (the
+  Nim port emitted one for debug purposes; we documented it as
+  intentionally skipped because byte-match goldens don't include it).
+  Instead we wrap each variant's `hirText` field — which IS the per-
+  rule textual rep we already maintain — into a small enclosing
+  S-expression carrying the metadata the renderer needs.
+
+  Format: `(variant :name <name> :delta <int> :stratum <int> :type <Base|Recursive>
+              <hir-text>)`
+
+  Note `hirText` itself is NOT a valid S-expression (it has `:` and
+  `<-`), but the renderer's tokenizer is permissive — it just collects
+  the substring between matched parens and shows it verbatim.
+  '''
+  parts: list[str] = []
+  for stratum in hir_obj.get("strata", []):
+    sid = stratum["id"]
+    for vlist_key, vtype in (("base", "Base"), ("recursive", "Recursive")):
+      for v in stratum.get(vlist_key, []):
+        rname = (v.get("rule") or {}).get("name", "")
+        if rule_name is not None and rname != rule_name:
+          continue
+        if delta is not None and v.get("deltaIdx", -1) != delta:
+          continue
+        d = v.get("deltaIdx", -1)
+        text = v.get("hirText", "")
+        parts.append(f"(variant :name {rname} :delta {d} :stratum {sid} :type {vtype}\n  {text})")
+  return "\n\n".join(parts)
+
+
+def _filter_mir_for_rule(full_mir: str, rule_name: str) -> str:
+  '''Extract `(execute-pipeline :rule X ...)` blocks for X (and X_DN
+  delta variants) from the full MIR S-expression, joined with blank
+  lines so `splitSExprs` returns one per variant.
+
+  The full MIR has a tree like
+      (program (step ... (fixpoint-plan (execute-pipeline :rule X ...) ...)) ...)
+  We don't parse the whole tree — just walk it once, paren-balanced,
+  and collect every `(execute-pipeline ...)` whose `:rule` keyword
+  matches `rule_name` or `rule_name_D<digits>`.
+  '''
+  if not full_mir:
+    return ""
+  marker = "(execute-pipeline"
+  parts: list[str] = []
+  i = 0
+  while True:
+    start = full_mir.find(marker, i)
+    if start < 0:
+      break
+    end = _matching_paren_end(full_mir, start)
+    if end < 0:
+      break
+    block = full_mir[start:end]
+    rule_for_block = _extract_rule_kw(block)
+    if rule_for_block == rule_name or (
+      rule_for_block.startswith(rule_name + "_D") and rule_for_block[len(rule_name) + 2 :].isdigit()
+    ):
+      parts.append(block)
+    i = end
+  return "\n\n".join(parts)
+
+
+def _matching_paren_end(s: str, start: int) -> int:
+  '''Index just past the `)` that matches the `(` at s[start].'''
+  if start >= len(s) or s[start] != "(":
+    return -1
+  depth = 0
+  in_string = False
+  i = start
+  while i < len(s):
+    c = s[i]
+    if in_string:
+      if c == '"' and s[i - 1] != "\\":
+        in_string = False
+    elif c == '"':
+      in_string = True
+    elif c == "(":
+      depth += 1
+    elif c == ")":
+      depth -= 1
+      if depth == 0:
+        return i + 1
+    i += 1
+  return -1
+
+
+def _extract_rule_kw(block: str) -> str:
+  '''Pull the value following ":rule " from an execute-pipeline block.'''
+  marker = ":rule "
+  idx = block.find(marker)
+  if idx < 0:
+    return ""
+  rest = block[idx + len(marker) :]
+  # Atom up to whitespace or `)`.
+  end = 0
+  while end < len(rest) and rest[end] not in " \t\n\r)":
+    end += 1
+  return rest[:end]
+
+
+def _filter_jit_for_rule(bundle: dict, rule_name: str) -> dict:
+  '''Restrict the bundle's per-runner JIT map to the requested rule.
+
+  Recursive rules emit one runner per delta variant, named
+  `<rule>_D<n>`. Non-recursive rules emit a single runner named
+  `<rule>`. We keep both shapes plus any `_SJ_*` semi-join helpers
+  the renderer follows downstream.
+  '''
+  if not bundle.get("has_jit"):
+    return {}
+  jit = bundle.get("jit") or {}
+  out: dict[str, str] = {}
+  for k, v in jit.items():
+    if k == rule_name or (k.startswith(rule_name + "_D") and k[len(rule_name) + 2 :].isdigit()):
+      out[k] = v
+    elif k.startswith("_SJ_"):
+      # Keep all SJ helpers — the renderer cross-references them and
+      # will only display the ones the selected variant actually uses.
+      out[k] = v
+  return out
 
 
 def _make_ruleset_payload(bundle: dict) -> dict:

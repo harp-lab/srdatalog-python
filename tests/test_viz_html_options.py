@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import html as html_lib
-import json
 
 from srdatalog.dsl import Program, Relation, Var
 from srdatalog.viz.html import _make_plan_payload, program_to_html
@@ -56,11 +55,14 @@ def test_theme_dispatches_before_data():
   decoded = html_lib.unescape(out)
   send_start = decoded.find("function send()")
   assert send_start > 0
-  send_body = decoded[send_start : decoded.find("}", send_start + 200) + 1]
-  # The setTheme dispatch must precede the data dispatch within send().
+  # send() body has nested `{}` (setTheme dispatch's data object literal),
+  # so slice up to the closing brace at the function's depth — find the
+  # next `if (document.readyState` which is right after send() ends.
+  send_end = decoded.find("if (document.readyState", send_start)
+  send_body = decoded[send_start:send_end]
   theme_in_body = send_body.find('command: "setTheme"')
   data_in_body = send_body.find("data: data")
-  assert theme_in_body > 0, f"setTheme not in send(): {send_body[:300]}"
+  assert theme_in_body > 0, f"setTheme not in send(): {send_body[:400]}"
   assert data_in_body > 0
   assert theme_in_body < data_in_body
 
@@ -110,20 +112,75 @@ def test_rule_name_unknown_returns_empty_variants():
   assert payload["command"] == "setPlan"
 
 
-def test_plan_payload_carries_hir_and_mir_text():
-  '''The renderer's plan view has tabs for HIR S-expr / MIR / JIT.
-  The setPlan message must wire those payloads through.'''
+def test_plan_payload_hir_is_per_variant_sexpr():
+  '''The renderer's HIR tab parses hirSExpr via splitSExprs and matches
+  `:name X` to pick a variant. We must emit per-variant S-expressions
+  with `:name` markers, not the full HIR JSON.'''
   from srdatalog.viz.bundle import get_visualization_bundle
 
   bundle = get_visualization_bundle(_tc_program())
   payload = _make_plan_payload(bundle, "TCBase")
-  inner = payload["variants"]
-  assert "hirSExpr" in inner
-  assert "mirSExpr" in inner
-  assert inner["mirSExpr"].startswith("(program")  # MIR S-expr
-  # hirSExpr is the HIR JSON pretty-printed for the renderer's HIR tab.
-  hir_obj = json.loads(inner["hirSExpr"])
-  assert "strata" in hir_obj
+  hir_sexpr = payload["variants"]["hirSExpr"]
+  assert hir_sexpr.startswith("(variant"), f"expected S-expr, got: {hir_sexpr[:80]!r}"
+  assert ":name TCBase" in hir_sexpr
+  # Must NOT contain other rules' markers — TCBase only.
+  assert ":name TCRec" not in hir_sexpr
+
+
+def test_plan_payload_mir_is_filtered_to_rule():
+  '''MIR tab must only show execute-pipeline blocks for the requested
+  rule (and its _DN delta variants), NOT the whole-program MIR.'''
+  from srdatalog.viz.bundle import get_visualization_bundle
+
+  bundle = get_visualization_bundle(_tc_program())
+  payload = _make_plan_payload(bundle, "TCRec")
+  mir = payload["variants"]["mirSExpr"]
+  # Only TCRec's pipelines (TCRec or TCRec_D0/_D1/...) should appear.
+  assert ":rule TCRec" in mir or ":rule TCRec_D" in mir
+  # Other rules must be excluded from this view.
+  assert ":rule TCBase" not in mir
+  # And no `(program ...)` wrapper — that's whole-program output.
+  assert not mir.lstrip().startswith("(program")
+
+
+def test_plan_payload_jit_is_filtered_to_rule():
+  '''JIT tab must only carry runners for the requested rule (matching
+  base name or `<name>_D<n>` delta-suffixed). Other rules' kernels
+  are excluded so the user isn't drowning in unrelated code.'''
+  from srdatalog.viz.bundle import get_visualization_bundle
+
+  bundle = get_visualization_bundle(_tc_program(), include_jit=True)
+  payload = _make_plan_payload(bundle, "TCBase")
+  jit = payload["variants"]["jitByRule"]
+  for key in jit:
+    assert key == "TCBase" or key.startswith("TCBase_D") or key.startswith("_SJ_"), (
+      f"unexpected JIT key in TCBase view: {key!r}"
+    )
+  assert "TCBase" in jit  # the base rule's runner must be present
+
+
+def test_setrule_message_dispatched_before_setplan():
+  '''The renderer's JIT lookup keys off `rule.name`, which only the
+  setRule message populates. We must dispatch setRule before setPlan
+  in the bootstrap so `rule` state is set when the JIT tab renders.'''
+  out = program_to_html(_tc_program(), rule_name="TCBase")
+  decoded = html_lib.unescape(out)
+  set_rule_idx = decoded.find('"command": "setRule"')
+  set_plan_idx = decoded.find('"command": "setPlan"')
+  assert set_rule_idx > 0, "setRule message not dispatched"
+  assert set_plan_idx > 0
+  assert set_rule_idx < set_plan_idx
+
+
+def test_ruleset_view_does_not_dispatch_setrule():
+  '''Whole-program (overview) view doesn't need setRule — it uses the
+  setRuleset graph which works without rule state.'''
+  out = program_to_html(_tc_program())  # no rule_name
+  decoded = html_lib.unescape(out)
+  # We default the ruleMsg JS variable to null when no rule. Verify.
+  assert "var ruleMsg = null" in decoded
+  assert '"command": "setRuleset"' in decoded
+  # No setRule message dispatch path activates when ruleMsg is null.
 
 
 def test_per_rule_iframe_size():

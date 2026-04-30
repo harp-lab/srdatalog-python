@@ -63,9 +63,7 @@ def generate_insert_into(head: Atom, canonical_index: list[int]) -> mir.InsertIn
   '''Mirror Nim generateInsertInto. Emits to NEW_VER (always) with the
   stratum's canonical index for the head relation.
   '''
-  head_vars = [
-    a.var_name for a in head.args if a.kind is ArgKind.LVAR and a.var_name is not None
-  ]
+  head_vars = [a.var_name for a in head.args if a.kind is ArgKind.LVAR and a.var_name is not None]
   return mir.InsertInto(
     rel_name=head.rel,
     version=Version.NEW,

@@ -31,6 +31,7 @@ class JitProjectLayout(TypedDict):
   schema_header: str
   kernel_header: str
 
+
 # Match Nim's RULES_PER_BATCH default (jit_file.nim:30). Override via
 # env `SRDATALOG_RULES_PER_BATCH=N`.
 _DEFAULT_RULES_PER_BATCH = int(os.environ.get("SRDATALOG_RULES_PER_BATCH", "8"))

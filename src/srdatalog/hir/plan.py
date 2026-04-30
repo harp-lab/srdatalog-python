@@ -93,9 +93,7 @@ def _clause_lvar_names(body) -> list[str]:
   if isinstance(body, Atom):
     return [a.var_name for a in body.args if a.kind is ArgKind.LVAR and a.var_name is not None]
   if isinstance(body, Negation):
-    return [
-      a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR and a.var_name is not None
-    ]
+    return [a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR and a.var_name is not None]
   if isinstance(body, Filter):
     return list(body.vars)
   if isinstance(body, Let):
@@ -115,9 +113,7 @@ def _get_dependencies(body) -> set[str]:
   - Let: every var in its `deps` list (NOT the var it binds).
   '''
   if isinstance(body, Negation):
-    return {
-      a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR and a.var_name is not None
-    }
+    return {a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR and a.var_name is not None}
   if isinstance(body, Filter):
     return set(body.vars)
   if isinstance(body, Let):

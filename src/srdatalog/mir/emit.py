@@ -14,6 +14,8 @@ cases to src/srdatalog/mir/printer.nim first.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import srdatalog.mir.types as m
 from srdatalog.hir.types import Version
 
@@ -83,7 +85,7 @@ def _flatten_specs(node: m.MirNode) -> str:
   return _index_spec(node)
 
 
-def _index_specs_tuple(nodes: list[m.MirNode], indent: int = 0) -> str:
+def _index_specs_tuple(nodes: Sequence[m.MirNode], indent: int = 0) -> str:
   '''Mirror printIndexSpecsTuple.'''
   prefix = "  " * indent
   if not nodes:

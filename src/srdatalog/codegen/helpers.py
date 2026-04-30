@@ -15,6 +15,7 @@ m.Negation, m.Aggregate))`.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 import srdatalog.mir.types as m
@@ -56,7 +57,7 @@ class CodeGenContext:
   cartesian_bound_vars: list[str] = field(default_factory=list)
   view_vars: dict = field(default_factory=dict)
 
-  def set_output_vars(self, dests: list[m.MirNode]) -> None:
+  def set_output_vars(self, dests: Sequence[m.InsertInto]) -> None:
     '''Each dest relation points at an OutputContext var; the first
     dest is the "active" one named `output_ctx`, subsequent dests share
     the buffer and record nothing during the count phase.
@@ -151,7 +152,7 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
 
 
 def find_source_idx(
-  specs: list[m.MirNode],
+  specs: Sequence[m.MirNode],
   rel_name: str,
   index: list[int],
   version: Version | None,

@@ -148,13 +148,9 @@ def _insert_source_specs_count(num_sources: int) -> str:
   return f"static constexpr std::size_t NumSources = {num_sources};\n\n"
 
 
-def _dest_arity(dest: m.MirNode) -> int:
-  '''Columns written by an InsertInto (or arity of a leaf dest).'''
-  if isinstance(dest, m.InsertInto):
-    return len(dest.index)
-  if hasattr(dest, "index"):
-    return len(dest.index)
-  return 0
+def _dest_arity(dest: m.InsertInto) -> int:
+  '''Columns written by an InsertInto.'''
+  return len(dest.index)
 
 
 def _first_dest_rel(pipeline: m.ExecutePipeline) -> str:

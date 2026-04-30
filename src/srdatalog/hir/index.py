@@ -122,6 +122,7 @@ def select_indices(hir: HirProgram) -> HirProgram:
     if stratum.is_recursive:
       delta_idx = _collect_indices_from_variants(stratum.recursive_variants, Version.DELTA)
       full_idx = _collect_indices_from_variants(stratum.recursive_variants, Version.FULL)
+      all_idx = {}
     else:
       delta_idx = {}
       full_idx = {}

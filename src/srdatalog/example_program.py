@@ -27,24 +27,24 @@ instructions = MirInstructions(
           dests=[dest_1_index_spec],
           body=[
             ColumnJoin(
-              vars=("x"),
+              vars=("x",),
               sources=[
                 ColumnSource(FactIndex(RREL, [0, 1]), Version.FULL),
                 ColumnSource(FactIndex(TREL, [1, 0]), Version.FULL),
               ],
             ),
             ColumnJoin(
-              vars=("y"),
+              vars=("y",),
               sources=[
-                ColumnSource(FactIndex(RREL, [0, 1]), Version.FULL, prefix=('x')),
+                ColumnSource(FactIndex(RREL, [0, 1]), Version.FULL, prefix=("x",)),
                 ColumnSource(FactIndex(SREL, [0, 1]), Version.FULL),
               ],
             ),
             ColumnJoin(
-              vars=("z"),
+              vars=("z",),
               sources=[
-                ColumnSource(FactIndex(SREL, [0, 1]), Version.FULL, prefix=('y')),
-                ColumnSource(FactIndex(TREL, [1, 0]), Version.FULL, prefix=('x')),
+                ColumnSource(FactIndex(SREL, [0, 1]), Version.FULL, prefix=("y",)),
+                ColumnSource(FactIndex(TREL, [1, 0]), Version.FULL, prefix=("x",)),
               ],
             ),
             InsertInto(fact=FactIndex(ZREL, [0, 1, 2]), version=Version.NEW, terms=("x", "y", "z")),
@@ -76,6 +76,7 @@ program.compile_to_file()
 # program.set_file_location(binary_loc="/home/miakerchen/SRDatalog/python/output/Triangle.so", header_loc="/home/miakerchen/SRDatalog/python/output/Triangle.h", compile_type="shared")
 
 triangle = program.open_ffi()
+assert triangle is not None, "open_ffi failed — see error above"
 
 triangle.load_data("/home/miakerchen/SRDatalog/python/test_data/triangle")
 triangle.run()

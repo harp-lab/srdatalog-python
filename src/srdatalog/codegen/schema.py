@@ -41,7 +41,7 @@ class FactDefinition:
   pragmas: dict[Pragma, Any] = field(default_factory=dict)
 
   def __str__(self) -> str:
-    semiring = self.pragmas.get("semiring", "BooleanSR")
+    semiring = self.pragmas.get(Pragma.SEMIRING, "BooleanSR")
     params_str = ", ".join(p.__name__ for p in self.params)
     return (
       f'using {self.name} = AST::RelationSchema<decltype("{self.name}"_s), '
@@ -65,7 +65,7 @@ class SchemaDefinition:
     '''
     parts: list[str] = []
     for fact in self.facts:
-      semiring = fact.pragmas.get("semiring", "BooleanSR")
+      semiring = fact.pragmas.get(Pragma.SEMIRING, "BooleanSR")
       params_str = ", ".join(p.__name__ for p in fact.params)
       parts.append(
         f'using {fact.name} = SRDatalog::AST::RelationSchema<'

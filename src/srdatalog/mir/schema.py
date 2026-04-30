@@ -23,7 +23,7 @@ class FactDefinition:
   pragmas: dict[Pragma, Any] = field(default_factory=dict)
 
   def __str__(self):
-    semiring = self.pragmas["semiring"] if "semiring" in self.pragmas else "BooleanSR"
+    semiring = self.pragmas.get(Pragma.SEMIRING, "BooleanSR")
     return f"using {self.name} = AST::RelationSchema<decltype(\"{self.name}\"_s), {semiring}, std::tuple<{', '.join(p.__name__ for p in self.params)}>>;"
 
 

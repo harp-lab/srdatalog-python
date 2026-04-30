@@ -116,10 +116,13 @@ def _rule_obj(rule: Rule) -> dict:
 def _arg_text(a: ClauseArg) -> str:
   '''Mirrors argToText in json_printer.nim.'''
   if a.kind is ArgKind.LVAR:
+    assert a.var_name is not None
     return a.var_name
   if a.kind is ArgKind.CONST:
+    assert a.const_cpp_expr is not None
     return a.const_cpp_expr
   if a.kind is ArgKind.CPP_CODE:
+    assert a.cpp_code is not None
     return "{" + a.cpp_code + "}"
   raise ValueError(f"Unknown ArgKind: {a.kind}")
 
@@ -148,7 +151,7 @@ def _rule_text(rule: Rule) -> str:
       body_parts.append("---")
     else:
       body_parts.append("(" + b.rel + " " + " ".join(_arg_text(x) for x in b.args) + ")")
-  return rule.name + ": " + head + " <-\n      " + ",\n      ".join(body_parts)
+  return (rule.name or "") + ": " + head + " <-\n      " + ",\n      ".join(body_parts)
 
 
 def _access_obj(ap: AccessPattern) -> dict:

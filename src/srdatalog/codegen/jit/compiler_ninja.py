@@ -30,6 +30,7 @@ import subprocess
 import time
 from pathlib import Path
 
+from srdatalog.codegen.jit.cache import JitProjectLayout
 from srdatalog.codegen.jit.compiler import (
   BuildResult,
   CompilerConfig,
@@ -73,7 +74,7 @@ def _join_flags(flags: list[str]) -> str:
 
 
 def emit_build_ninja(
-  project_result: dict,
+  project_result: JitProjectLayout,
   config: CompilerConfig,
   *,
   use_pch: bool = False,
@@ -203,6 +204,7 @@ def emit_build_ninja(
 
   # Build statements.
   if use_pch:
+    assert pch_header is not None  # use_pch=True implies pch_header was found
     host_line = (
       f"build {_ninja_escape(pch_host_obj)}: pch_host "
       f"{_ninja_escape(pch_stub_path)} | {_ninja_escape(pch_header)}"
@@ -282,7 +284,7 @@ def _locate_ninja_binary() -> str:
 
 
 def compile_jit_project_ninja(
-  project_result: dict,
+  project_result: JitProjectLayout,
   config: CompilerConfig | None = None,
   *,
   use_pch: bool = False,

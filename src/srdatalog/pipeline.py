@@ -26,7 +26,7 @@ from srdatalog.hir import compile_to_hir, compile_to_mir
 if TYPE_CHECKING:
   from srdatalog.dsl import Program
   from srdatalog.hir.types import HirProgram
-  from srdatalog.mir.nodes import Program as MirProgram
+  from srdatalog.mir.types import Program as MirProgram
 
 
 # Per-relation index type → header file. Registered at emit time

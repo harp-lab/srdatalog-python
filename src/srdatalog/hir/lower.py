@@ -63,7 +63,9 @@ def generate_insert_into(head: Atom, canonical_index: list[int]) -> mir.InsertIn
   '''Mirror Nim generateInsertInto. Emits to NEW_VER (always) with the
   stratum's canonical index for the head relation.
   '''
-  head_vars = [a.var_name for a in head.args if a.kind is ArgKind.LVAR]
+  head_vars = [
+    a.var_name for a in head.args if a.kind is ArgKind.LVAR and a.var_name is not None
+  ]
   return mir.InsertInto(
     rel_name=head.rel,
     version=Version.NEW,
@@ -95,7 +97,7 @@ def _lower_multi_clause_body(
   for jv in var_order:
     if jv not in join_vars_set:
       continue
-    sources: list[mir.MirNode] = []
+    sources: list[mir.ColumnSource] = []
     for p in variant.access_patterns:
       if jv in p.access_order and p.rel_name:
         prefix = [v for v in p.access_order if v in bound_vars]
@@ -134,7 +136,7 @@ def _lower_multi_clause_body(
   for body in rule.body:
     if isinstance(body, Atom):
       for arg in body.args:
-        if arg.kind is ArgKind.LVAR:
+        if arg.kind is ArgKind.LVAR and arg.var_name is not None:
           v = arg.var_name
           if v not in join_vars_set and v not in indep_set and v not in negation_only_vars:
             independent_vars.append(v)
@@ -142,7 +144,7 @@ def _lower_multi_clause_body(
 
   # --- CartesianJoin (if any independent vars) ---
   if independent_vars:
-    cart_sources: list[mir.MirNode] = []
+    cart_sources: list[mir.ColumnSource] = []
     var_from_source: list[list[str]] = []
     for p in variant.access_patterns:
       has_indep = any(v in indep_set for v in p.access_order)
@@ -378,12 +380,12 @@ def lower_split_below(
   head_vars: set[str] = set()
   for head in rule.heads:
     for a in head.args:
-      if a.kind is ArgKind.LVAR:
+      if a.kind is ArgKind.LVAR and a.var_name is not None:
         head_vars.add(a.var_name)
 
   if below_patterns:
     cart_vars: list[str] = []
-    cart_sources: list[mir.MirNode] = []
+    cart_sources: list[mir.ColumnSource] = []
     cart_var_from_source: list[list[str]] = []
     for p in below_patterns:
       p_vars: list[str] = []
@@ -564,7 +566,10 @@ def generate_loop_maintenance(
 # -----------------------------------------------------------------------------
 
 
-def _extract_pipeline_sources(op: mir.MirNode, out: list[mir.MirNode]) -> None:
+def _extract_pipeline_sources(
+  op: mir.MirNode,
+  out: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate],
+) -> None:
   '''Recursively pull source specs out of a pipeline op. Mirrors the
   extractSources inner proc of Nim's wrapInExecutePipeline: joins are
   flattened, leaves are added directly.
@@ -601,8 +606,8 @@ def wrap_in_execute_pipeline(
   specs (flattened through ColumnJoin/CartesianJoin) and dest specs
   (InsertInto nodes).
   '''
-  sources: list[mir.MirNode] = []
-  dests: list[mir.MirNode] = []
+  sources: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
+  dests: list[mir.InsertInto] = []
   for op in pipeline:
     _extract_pipeline_sources(op, sources)
     if isinstance(op, mir.InsertInto):

@@ -38,6 +38,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from srdatalog.codegen.jit.cache import JitProjectLayout
+
 # -----------------------------------------------------------------------------
 # EntryPoint spec
 # -----------------------------------------------------------------------------
@@ -249,7 +251,7 @@ def gen_runtime_shim_template(
 
 
 def build_and_load(
-  project_result: dict[str, Any],
+  project_result: JitProjectLayout,
   entry_points: Sequence[EntryPoint],
   compiler_config: Any | None = None,  # CompilerConfig; avoid circular import
   *,

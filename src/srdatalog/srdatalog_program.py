@@ -98,8 +98,8 @@ class SRDatalogProgram:
       script_dir = Path(__file__).resolve().parent / "output"
       script_dir.mkdir(exist_ok=True)
       dest_file = str(script_dir) + "/" + self.name + ".cpp"
-      # in case we also want to generate the header, set that path as well
-      dest_header_file = str(script_dir) + "/" + self.name + ".h"
+    # Header path always derived from the .cpp path.
+    dest_header_file = str(Path(dest_file).with_suffix(".h"))
 
     with open(dest_file, 'w') as file:
       file.write(self.generate(main, include_cffi_api=generate_cffi))
@@ -221,10 +221,10 @@ class SRDatalogProgram:
 
   def set_file_location(
     self,
-    source_loc: str = None,
-    binary_loc: str = None,
-    header_loc: str = None,
-    compile_type: str = None,
+    source_loc: str | None = None,
+    binary_loc: str | None = None,
+    header_loc: str | None = None,
+    compile_type: str | None = None,
   ):
     '''Use this function to set the file locations for the source, binary, and header files if you've already generated/compiled them in a previous run.
     Useful for setting locations for using open_cffi without having to recompile the program.

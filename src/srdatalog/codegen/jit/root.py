@@ -263,6 +263,7 @@ def jit_root_cartesian_join(
   previous_cart_bound = list(ctx.cartesian_bound_vars)
   ctx.cartesian_bound_vars.extend(var_names)
 
+  var_idx_cursor = 0
   try:
     # Index decomposition — row-major.
     idx_vars = [gen_unique_name(ctx, f"idx{s}") for s in range(num_sources)]
@@ -283,7 +284,6 @@ def jit_root_cartesian_join(
     code += "\n"
 
     # Bind vars from each source. `numVarsFromSrc = src.csIndex.len - src.csPrefixVars.len`.
-    var_idx_cursor = 0
     for src_idx, src in enumerate(sources):
       assert isinstance(src, m.ColumnSource)
       num_vars_from_src = len(src.index) - len(src.prefix_vars)

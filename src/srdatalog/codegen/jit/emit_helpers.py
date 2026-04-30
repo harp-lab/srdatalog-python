@@ -22,7 +22,7 @@ style: the body is pre-rendered before being wrapped.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
@@ -64,17 +64,11 @@ class BalancedScanInfo:
 
   group_var: str = ""
   src1_rel_name: str = ""
-  src1_index: list[int] = None
+  src1_index: list[int] = field(default_factory=list)
   src1_handle_idx: int = -1
   src2_rel_name: str = ""
-  src2_index: list[int] = None
+  src2_index: list[int] = field(default_factory=list)
   src2_handle_idx: int = -1
-
-  def __post_init__(self):
-    if self.src1_index is None:
-      self.src1_index = []
-    if self.src2_index is None:
-      self.src2_index = []
 
 
 def get_balanced_scan_info(ops: list[m.MirNode]) -> BalancedScanInfo:

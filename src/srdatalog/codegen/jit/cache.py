@@ -21,6 +21,15 @@ from __future__ import annotations
 
 import hashlib
 import os
+from typing import TypedDict
+
+
+class JitProjectLayout(TypedDict):
+  dir: str
+  main: str
+  batches: list[str]
+  schema_header: str
+  kernel_header: str
 
 # Match Nim's RULES_PER_BATCH default (jit_file.nim:30). Override via
 # env `SRDATALOG_RULES_PER_BATCH=N`.
@@ -273,7 +282,7 @@ def write_jit_project(
   extra_headers: list[str] | None = None,
   cache_base: str | None = None,
   main_file_name: str = "main.cpp",
-) -> dict[str, object]:
+) -> JitProjectLayout:
   '''Lay out the full .cpp tree for a project.
 
   Args:

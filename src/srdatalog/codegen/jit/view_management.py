@@ -16,6 +16,7 @@ CJ / Cartesian handles.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import srdatalog.mir.types as m
@@ -70,7 +71,7 @@ def _handle_start_of(src_spec: m.MirNode) -> int:
 
 
 def compute_total_view_count(
-  source_specs: list[m.MirNode],
+  source_specs: Sequence[m.MirNode],
   rel_index_types: dict[str, str],
 ) -> int:
   '''Total view slots needed for all unique sources. Nested CJ/Cart
@@ -89,7 +90,7 @@ def compute_total_view_count(
 
 
 def compute_view_slot_offsets(
-  source_specs: list[m.MirNode],
+  source_specs: Sequence[m.MirNode],
   rel_index_types: dict[str, str],
 ) -> dict[int, int]:
   '''Map `handle_idx` → base slot in `views[]`.
@@ -141,7 +142,7 @@ def register_pipeline_handles(
 
 
 def build_root_slot_map(
-  source_specs: list[m.MirNode],
+  source_specs: Sequence[m.MirNode],
   rel_index_types: dict[str, str],
 ) -> dict[str, int]:
   '''Map `<relName>_<VER>_<cols>` → view-slot base for each root source.
@@ -266,7 +267,7 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
 def jit_emit_view_declarations(
   specs: list[ViewSpec],
   ops: list[m.MirNode],
-  ep_source_specs: list[m.MirNode],
+  ep_source_specs: Sequence[m.MirNode],
   ctx: CodeGenContext,
 ) -> str:
   '''Emit the top-of-kernel `auto view_X = views[i];` block.

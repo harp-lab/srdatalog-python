@@ -28,6 +28,8 @@ dedup_hash, balanced scan, fan-out, materialized pipelines.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 # Side-effect import: registers the Device2LevelIndex plugin. Without this,
 # pluginViewCount falls back to the default plugin (view_count=1 for every
 # version) for any relation declared with `index_type="...Device2LevelIndex"`,
@@ -125,7 +127,7 @@ def _root_is_scan(pipeline: list[m.MirNode]) -> bool:
 
 
 def _make_kernel_ctx(
-  source_specs: list[m.MirNode],
+  source_specs: Sequence[m.MirNode],
   pipeline: list[m.MirNode],
   rel_index_types: dict[str, str],
   *,
@@ -1528,7 +1530,7 @@ def _gen_struct_type_aliases(
   db_type_name: str,
   first_schema: str,
   first_version: str,
-  dest_specs: list[m.MirNode],
+  dest_specs: Sequence[m.InsertInto],
   dest_arities: list[int],
   total_view_count: int,
 ) -> str:

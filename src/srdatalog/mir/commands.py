@@ -6,6 +6,7 @@ specialized and must go elsewhere.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -31,7 +32,7 @@ ATTRIBUTES_CONTAINING_CHILDREN = [
 ## Functions
 
 
-def generate_single_vhm(prefixes: tuple[str] = (), cursor: int = -1):
+def generate_single_vhm(prefixes: Sequence[str] = (), cursor: int = -1):
   '''Generates a var-handle-map between prefixes for any function which uses only a single cursor (Scan, Aggregate)'''
   if prefixes == ():  # no prefixes = easy
     return "decltype(boost::hana::make_map())"
@@ -83,7 +84,7 @@ def generate_multi_vhm(sources=[], cursor=-1):
     return "decltype(boost::hana::make_map(" + ", ".join(pairs) + "))"
 
 
-def collect_index_specs(node: MirNode, seen: set = None) -> list[IndexSpec]:
+def collect_index_specs(node: MirNode, seen: set | None = None) -> list[IndexSpec]:
   """Creates IndexSpecs from each RebuildIndex, ColumnSource, or Aggregate node that is in the passed tree"""
   if seen is None:
     seen = set()
@@ -140,11 +141,11 @@ class Version(Enum):
     return self.value[0]
 
   @property
-  def number(self) -> int:
+  def number(self) -> str:
     return self.value[1]
 
   @property
-  def code(self) -> int:
+  def code(self) -> str:
     return self.value[2]
 
 
@@ -185,9 +186,12 @@ class MirInstructions:
   '''
 
   structure: list[Block]
+  name: str = ""
+  cursors_allocated: int = 0
 
-  def __init__(self, structure: list[MirNode]):
+  def __init__(self, structure: list[Block]):
     self.cursors_allocated = 0
+    self.name = ""
     for s in structure:
       self._recursively_set_program(s)
     self.structure = structure
@@ -247,7 +251,7 @@ class IndexSpec(FMirNode):
 
 @dataclass
 class ColumnSource(FMirNode):
-  prefix: tuple[str] = ()
+  prefix: tuple[str, ...] = ()
 
   def __str__(self):
     variable_str = ""
@@ -307,7 +311,7 @@ class MergeRelation(MirNode):
 @dataclass
 class InsertInto(FMirNode):
   # the dedup-index of the MIR corresponds to self.fact.args
-  terms: tuple[str]
+  terms: Sequence[str]
 
   def __str__(self):
     # make index string: if no columns are given, just use name and _new
@@ -325,8 +329,8 @@ class InsertInto(FMirNode):
 
 @dataclass
 class Scan(FMirNode):
-  vars: tuple[str]
-  prefix: tuple[str]
+  vars: Sequence[str]
+  prefix: Sequence[str]
   cursor: int = MISSING_HANDLE
 
   def __str__(self):
@@ -350,9 +354,9 @@ class Scan(FMirNode):
 class ExecutePipeline(MirNode):
   '''Represents a fixpoint execution pipeline'''
 
-  sources: list[IndexSpec]
-  dests: list[IndexSpec]
-  body: list[MirNode]
+  sources: Sequence[IndexSpec]
+  dests: Sequence[IndexSpec]
+  body: Sequence[MirNode]
 
   def __str__(self):
     source_str = "std::tuple<" + ", ".join(str(node) for node in self.sources) + ">"
@@ -374,7 +378,7 @@ class ExecutePipeline(MirNode):
 @dataclass
 class Block(MirNode):
   dests: list[IndexSpec]
-  instructions: list[MirNode]  # a list of primarily ExecutePipelines, as well as other instructions
+  instructions: Sequence[MirNode]  # primarily ExecutePipelines, plus other instructions
   recursive: bool = True
 
   def __str__(self):
@@ -409,8 +413,8 @@ class Block(MirNode):
 
 @dataclass
 class ColumnJoin(MirNode):
-  vars: tuple[str]
-  sources: tuple[ColumnSource]
+  vars: Sequence[str]
+  sources: Sequence[ColumnSource]
   cursor: int = MISSING_HANDLE
 
   def __str__(self):

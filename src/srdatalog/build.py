@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from srdatalog.codegen.jit.cache import write_jit_project
+from srdatalog.codegen.jit.cache import JitProjectLayout, write_jit_project
 from srdatalog.codegen.jit.main_file import (
   gen_extern_c_shim,
   gen_main_file_content,
@@ -47,7 +47,7 @@ def build_project(
   emit_main_file: bool = True,
   shard_step_bodies: bool = False,
   unity: bool = False,
-) -> dict[str, object]:
+) -> JitProjectLayout:
   '''Compile `program` end-to-end and write the .cpp tree.
 
   Args:

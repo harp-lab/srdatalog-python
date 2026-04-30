@@ -1,5 +1,7 @@
 '''This is the definition of the lightweight wrapper class created when using FFI with a SRDatalog program.'''
 
+from typing import Any
+
 from cffi import FFI
 
 
@@ -9,7 +11,9 @@ class DatalogFFI:
 
     # load the header and define the C API
     self.ffi.cdef(open(header_path).read())
-    self.lib = self.ffi.dlopen(binary_path)
+    # `lib`'s attributes (db_new/load/run/db_free) are populated dynamically
+    # by cffi from the `cdef` above; static type checkers can't see them.
+    self.lib: Any = self.ffi.dlopen(binary_path)
 
     self._h = None  # set a default in case db_new fails
     self._h = self.lib.db_new()

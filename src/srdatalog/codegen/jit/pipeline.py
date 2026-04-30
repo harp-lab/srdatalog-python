@@ -44,6 +44,8 @@ that exercise them come online.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import srdatalog.mir.types as m
 from srdatalog.codegen.jit.context import (
   CodeGenContext,
@@ -359,7 +361,7 @@ def jit_nested_pipeline(
 
 def jit_pipeline(
   ops: list[m.MirNode],
-  ep_source_specs: list[m.MirNode],
+  ep_source_specs: Sequence[m.MirNode],
   ctx: CodeGenContext,
 ) -> str:
   '''Top-level pipeline emit. Emits dedup view declarations, sets up

@@ -45,12 +45,12 @@ def analyze_rule(rule: Rule) -> RuleAnalysis:
     if isinstance(body, Negation):
       # Negation vars are tracked but NOT counted for join_vars (it's a filter, not a join).
       for arg in body.atom.args:
-        if arg.kind is ArgKind.LVAR:
+        if arg.kind is ArgKind.LVAR and arg.var_name is not None:
           cvars.add(arg.var_name)
           r.vars.add(arg.var_name)
     elif isinstance(body, Atom):
       for arg in body.args:
-        if arg.kind is ArgKind.LVAR:
+        if arg.kind is ArgKind.LVAR and arg.var_name is not None:
           cvars.add(arg.var_name)
           r.vars.add(arg.var_name)
           positive_count[arg.var_name] = positive_count.get(arg.var_name, 0) + 1
@@ -58,7 +58,7 @@ def analyze_rule(rule: Rule) -> RuleAnalysis:
       # Aggregate args count as positive (like RelClause), plus the
       # result_var is a produced positive var. Mirrors Nim analyzeRule.
       for arg in body.args:
-        if arg.kind is ArgKind.LVAR:
+        if arg.kind is ArgKind.LVAR and arg.var_name is not None:
           cvars.add(arg.var_name)
           r.vars.add(arg.var_name)
           positive_count[arg.var_name] = positive_count.get(arg.var_name, 0) + 1
@@ -70,7 +70,7 @@ def analyze_rule(rule: Rule) -> RuleAnalysis:
 
   for head in rule.heads:
     for arg in head.args:
-      if arg.kind is ArgKind.LVAR:
+      if arg.kind is ArgKind.LVAR and arg.var_name is not None:
         r.head_vars.add(arg.var_name)
 
   for v, c in positive_count.items():
@@ -91,15 +91,17 @@ def _clause_lvar_names(body) -> list[str]:
   last (matches Nim's extractClauseVars). Split contributes nothing.
   '''
   if isinstance(body, Atom):
-    return [a.var_name for a in body.args if a.kind is ArgKind.LVAR]
+    return [a.var_name for a in body.args if a.kind is ArgKind.LVAR and a.var_name is not None]
   if isinstance(body, Negation):
-    return [a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR]
+    return [
+      a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR and a.var_name is not None
+    ]
   if isinstance(body, Filter):
     return list(body.vars)
   if isinstance(body, Let):
     return [body.var_name]
   if isinstance(body, Agg):
-    names = [a.var_name for a in body.args if a.kind is ArgKind.LVAR]
+    names = [a.var_name for a in body.args if a.kind is ArgKind.LVAR and a.var_name is not None]
     names.append(body.result_var)
     return names
   return []  # Split, unknown
@@ -113,7 +115,9 @@ def _get_dependencies(body) -> set[str]:
   - Let: every var in its `deps` list (NOT the var it binds).
   '''
   if isinstance(body, Negation):
-    return {a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR}
+    return {
+      a.var_name for a in body.atom.args if a.kind is ArgKind.LVAR and a.var_name is not None
+    }
   if isinstance(body, Filter):
     return set(body.vars)
   if isinstance(body, Let):
@@ -128,7 +132,7 @@ def _get_produced_vars(body) -> set[str]:
   - Negation / Filter: nothing.
   '''
   if isinstance(body, Atom):
-    return {a.var_name for a in body.args if a.kind is ArgKind.LVAR}
+    return {a.var_name for a in body.args if a.kind is ArgKind.LVAR and a.var_name is not None}
   if isinstance(body, Let):
     return {body.var_name}
   if isinstance(body, Agg):
@@ -251,9 +255,9 @@ def compute_access_pattern(
   clause_vars: set[str] = set()
   const_args: list[tuple[int, int]] = []
   for col, arg in enumerate(atom_args):
-    if arg.kind is ArgKind.LVAR:
+    if arg.kind is ArgKind.LVAR and arg.var_name is not None:
       clause_vars.add(arg.var_name)
-    elif arg.kind is ArgKind.CONST:
+    elif arg.kind is ArgKind.CONST and arg.const_value is not None:
       const_args.append((col, arg.const_value))
 
   access_order: list[str] = [v for v in var_order if v in clause_vars]
@@ -415,7 +419,7 @@ def compute_temp_vars(rule: Rule, split_at: int) -> list[str]:
   # Also include head args (every head for multi-head rules)
   for head in rule.heads:
     for a in head.args:
-      if a.kind is ArgKind.LVAR:
+      if a.kind is ArgKind.LVAR and a.var_name is not None:
         vars_below.add(a.var_name)
   # Include negation clauses' vars from below (Nim does this)
   for i in range(split_at + 1, len(rule.body)):

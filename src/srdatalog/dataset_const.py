@@ -39,6 +39,7 @@ from srdatalog.dsl import (
   Atom,
   ClauseArg,
   Filter,
+  Let,
   Negation,
   Program,
   Rule,
@@ -133,15 +134,12 @@ def _rewrite_clause(clause, consts: dict[str, int]):
   if isinstance(clause, Filter):
     return Filter(vars=clause.vars, code=_rewrite_cpp_code(clause.code, consts))
   # Let / Agg / Split passthrough (add Let rewrite if it ever carries user cpp).
-  if hasattr(clause, "code") and isinstance(getattr(clause, "code", None), str):
-    # Generic best-effort for Let-like nodes with a `code` field.
-    import dataclasses
-
-    if dataclasses.is_dataclass(clause):
-      return dataclasses.replace(
-        clause,
-        code=_rewrite_cpp_code(clause.code, consts),
-      )
+  if isinstance(clause, Let):
+    return Let(
+      var_name=clause.var_name,
+      code=_rewrite_cpp_code(clause.code, consts),
+      deps=clause.deps,
+    )
   return clause
 
 
@@ -168,7 +166,6 @@ def resolve_program_consts(program: Program, consts: dict[str, int]) -> Program:
   if not consts:
     return program
   return Program(
-    relations=list(program.relations),
     rules=[resolve_rule_consts(r, consts) for r in program.rules],
   )
 

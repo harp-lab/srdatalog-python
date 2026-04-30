@@ -18,6 +18,7 @@ This module defines only the DSL surface; lowering to HIR is in hir_passes.py (T
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
@@ -533,7 +534,11 @@ class Program:
     self.relations = _derive_relations(self.rules)
     return self
 
-  def _repr_mimebundle_(self, include: object = None, exclude: object = None) -> dict[str, object]:
+  def _repr_mimebundle_(
+    self,
+    include: Iterable[str] | None = None,
+    exclude: Iterable[str] | None = None,
+  ) -> dict[str, object]:
     '''Jupyter display hook.
 
     Returns a dict mapping mime type → payload. Jupyter / IPython picks
@@ -615,7 +620,7 @@ class Program:
     from srdatalog.viz.html import program_to_html
 
     try:
-      from IPython.display import publish_display_data
+      from IPython.display import publish_display_data  # pyright: ignore[reportMissingImports]
     except ImportError as e:
       raise RuntimeError("Program.show() requires IPython") from e
     delta_str = "all" if delta is None else str(delta)

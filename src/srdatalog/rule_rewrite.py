@@ -134,6 +134,7 @@ def rewrite_head_constants(
           fresh = f"_hc{counter}"
           counter += 1
           new_head_args.append(ClauseArg(kind=ArgKind.LVAR, var_name=fresh))
+          assert arg.const_cpp_expr is not None
           extra_body.append(Let(var_name=fresh, code=arg.const_cpp_expr, deps=()))
           needs_rewrite = True
         else:
@@ -199,14 +200,18 @@ class HeadConstantRewritePass:
 def _clause_vars(clause) -> set[str]:
   '''Var names in an Atom or Negation; empty for Filter/Let.'''
   if isinstance(clause, Atom):
-    return {a.var_name for a in clause.args if a.kind is ArgKind.LVAR}
+    return {a.var_name for a in clause.args if a.kind is ArgKind.LVAR and a.var_name is not None}
   if isinstance(clause, Negation):
-    return {a.var_name for a in clause.atom.args if a.kind is ArgKind.LVAR}
+    return {
+      a.var_name for a in clause.atom.args if a.kind is ArgKind.LVAR and a.var_name is not None
+    }
   return set()
 
 
 def _lvar_name(arg: ClauseArg) -> str:
-  return arg.var_name if arg.kind is ArgKind.LVAR else ""
+  if arg.kind is ArgKind.LVAR and arg.var_name is not None:
+    return arg.var_name
+  return ""
 
 
 def _is_semi_join_candidate(filt, target) -> bool:
@@ -261,6 +266,7 @@ def optimize_semi_joins(
       for j, filt in enumerate(body):
         if i == j or not _is_semi_join_candidate(filt, target):
           continue
+        assert isinstance(filt, Atom)  # _is_semi_join_candidate guarantees this
 
         filter_vars = _clause_vars(filt)
 

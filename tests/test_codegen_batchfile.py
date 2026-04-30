@@ -18,7 +18,7 @@ from srdatalog.codegen.batchfile import (
   generate_runner,
 )
 from srdatalog.codegen.helpers import CodeGenContext
-from srdatalog.codegen.schema import FactDefinition, SchemaDefinition
+from srdatalog.codegen.schema import FactDefinition, Pragma, SchemaDefinition
 from srdatalog.hir.types import Version
 
 
@@ -34,11 +34,11 @@ def _nows(s: str) -> str:
 def test_generate_prelude_andersen():
   schema = SchemaDefinition(
     facts=[
-      FactDefinition("AddressOf", [int, int], pragmas={"semiring": "NoProvenance"}),
-      FactDefinition("Assign", [int, int], pragmas={"semiring": "NoProvenance"}),
-      FactDefinition("Load", [int, int], pragmas={"semiring": "NoProvenance"}),
-      FactDefinition("Store", [int, int], pragmas={"semiring": "NoProvenance"}),
-      FactDefinition("PointsTo", [int, int], pragmas={"semiring": "NoProvenance"}),
+      FactDefinition("AddressOf", [int, int], pragmas={Pragma.SEMIRING: "NoProvenance"}),
+      FactDefinition("Assign", [int, int], pragmas={Pragma.SEMIRING: "NoProvenance"}),
+      FactDefinition("Load", [int, int], pragmas={Pragma.SEMIRING: "NoProvenance"}),
+      FactDefinition("Store", [int, int], pragmas={Pragma.SEMIRING: "NoProvenance"}),
+      FactDefinition("PointsTo", [int, int], pragmas={Pragma.SEMIRING: "NoProvenance"}),
     ]
   )
   actual = generate_prelude(schema, "Andersen")

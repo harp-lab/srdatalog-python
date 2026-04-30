@@ -74,7 +74,7 @@ class ColumnJoin:
   '''(column-join :var x :sources (...))'''
 
   var_name: str
-  sources: list[MirNode]
+  sources: list[ColumnSource]
   handle_start: int = -1
 
 
@@ -83,7 +83,7 @@ class CartesianJoin:
   '''(cartesian-join :vars (...) :var-from-source ((...)) :sources (...))'''
 
   vars: list[str]
-  sources: list[MirNode]
+  sources: list[ColumnSource]
   var_from_source: list[list[str]] = field(default_factory=list)
   handle_start: int = -1
 
@@ -288,8 +288,9 @@ class ExecutePipeline:
   '''(execute-pipeline :rule N :sources (tuple ...) :dests (tuple ...) <body>)'''
 
   pipeline: list[MirNode]
-  source_specs: list[MirNode]  # column-source / aggregate leaves for scheduler
-  dest_specs: list[MirNode]  # insert-into targets
+  # column-source / scan / negation / aggregate leaves for scheduler
+  source_specs: list[Union[ColumnSource, Scan, Negation, Aggregate]]
+  dest_specs: list[InsertInto]  # insert-into targets
   rule_name: str = ""
   clause_order: list[int] = field(default_factory=list)
   use_fan_out: bool = False
@@ -326,8 +327,8 @@ class BalancedScan:
   '''
 
   group_var: str
-  source1: MirNode
-  source2: MirNode
+  source1: ColumnSource
+  source2: ColumnSource
   vars1: list[str] = field(default_factory=list)
   vars2: list[str] = field(default_factory=list)
   handle_start: int = -1
@@ -342,7 +343,7 @@ class PositionedExtract:
   iteration.
   '''
 
-  sources: list[MirNode]
+  sources: list[ColumnSource]
   var_name: str
   bind_vars: list[str] = field(default_factory=list)
 

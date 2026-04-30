@@ -34,7 +34,7 @@ def _regenerate_source_specs(ep: mir.ExecutePipeline) -> None:
   '''
   from srdatalog.hir.lower import _extract_pipeline_sources
 
-  specs: list[mir.MirNode] = []
+  specs: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
   for op in ep.pipeline:
     _extract_pipeline_sources(op, specs)
   ep.source_specs = specs

@@ -15,7 +15,7 @@ def test_fact_definition_default_semiring():
 
 
 def test_fact_definition_custom_semiring():
-  fd = FactDefinition("R", [int], pragmas={"semiring": "MaxSR"})
+  fd = FactDefinition("R", [int], pragmas={Pragma.SEMIRING: "MaxSR"})
   assert str(fd) == ('using R = AST::RelationSchema<decltype("R"_s), MaxSR, std::tuple<int>>;')
 
 

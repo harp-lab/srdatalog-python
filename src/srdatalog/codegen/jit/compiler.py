@@ -38,6 +38,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from srdatalog.codegen.jit.cache import JitProjectLayout
+
 # -----------------------------------------------------------------------------
 # Config
 # -----------------------------------------------------------------------------
@@ -298,7 +300,7 @@ def _artifact_name(project_dir: str, shared: bool) -> str:
 
 
 def compile_jit_project(
-  project_result: dict[str, object],
+  project_result: JitProjectLayout,
   config: CompilerConfig | None = None,
   *,
   use_ninja: bool | None = None,

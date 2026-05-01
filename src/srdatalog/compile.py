@@ -1,20 +1,17 @@
 '''Public compile entry point for the dialect-based codegen.
 
 `compile_pipeline(ep, target='cuda')` emits a complete C++ JIT batch
-file. Two paths:
+file by routing the pipeline through the IIR-sorted-array dialect +
+target.cuda emit, wrapped in the dialect's envelope helpers (file
+prelude, banner, functor struct, view declarations, footer).
 
-  - **Dialect path**: when `_supported_pipeline(ep.pipeline)` is true,
-    routes the inner kernel body through the IIR-sorted-array dialect
-    + target.cuda emit, wrapped by the dialect's own envelope helpers
-    (file prelude, banner, functor struct, view declarations, footer).
+Pipeline shapes the dialect doesn't (yet) handle raise loudly via
+`lower_scan_pipeline` — `_supported_pipeline()` is the authoritative
+scope statement. Adding coverage for a new shape means adding a
+lowering rule, not a fallback.
 
-  - **Legacy fallback**: shapes the dialect doesn't yet handle
-    (e.g., dedup-hash, multi-view, BG, tiled-cartesian when those
-    features start appearing in fixtures) fall through to the
-    legacy `gen_jit_file_content_from_execute_pipeline`.
-
-The byte-equivalence harness in tests/test_byte_equivalence_jit.py
-compares both paths fixture-by-fixture and fails if they diverge.
+The byte-equivalence harness in `tests/test_byte_equivalence_jit.py`
+diffs the dialect output against the upstream Nim goldens.
 
 See:
   - docs/stage2_emitter_audit.md — the per-milestone migration plan.
@@ -32,36 +29,17 @@ Target = Literal['cuda']
 
 
 def compile_pipeline(ep: m.ExecutePipeline, *, target: Target = 'cuda') -> str:
-  '''Compile an MIR ExecutePipeline to target C++ source.
+  '''Compile an MIR ExecutePipeline to target C++ source via the dialect.
 
-  Routes through the dialect framework when the pipeline shape is
-  supported, falls back to the legacy emitter otherwise. The two
-  paths produce byte-equivalent output (modulo `_cpp_norm`
-  normalization) on every fixture in the byte-equivalence harness.
+  Raises ValueError on unsupported targets. Raises (via
+  `lower_scan_pipeline`) on pipeline shapes the dialect doesn't
+  cover — there is no legacy fallback.
   '''
   if target != 'cuda':
     raise ValueError(f'compile_pipeline: unsupported target {target!r}')
 
   # Delayed imports: keep `compile_pipeline` cheap to import for
   # tests that don't actually invoke it.
-  from srdatalog.codegen.jit.file import gen_jit_file_content_from_execute_pipeline
-  from srdatalog.dialects.relation.sorted_array.lowerings import (
-    _supported_pipeline,
-  )
-
-  if not _supported_pipeline(list(ep.pipeline)):
-    # Legacy fallback for shapes the dialect doesn't yet cover.
-    return gen_jit_file_content_from_execute_pipeline(ep)
-
-  return _compile_full_file_via_dialect(ep)
-
-
-def _compile_full_file_via_dialect(ep: m.ExecutePipeline) -> str:
-  '''Emit the complete batch file using the dialect throughout —
-  envelope helpers from `dialects/target/cuda/envelope.py`, body
-  from the sorted_array → cuda lowering. Byte-equivalent (modulo
-  `_cpp_norm`) to `gen_jit_file_content_from_execute_pipeline`.
-  '''
   from srdatalog.dialects.relation.sorted_array.lowerings import (
     LoweringCtx,
     lower_scan_pipeline,

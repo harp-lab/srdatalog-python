@@ -178,15 +178,21 @@ def test_scan_pipeline_dialect_byte_equivalent(stem: str, rule: str):
 
 
 def test_lower_rejects_unsupported_pipeline_shape():
-  '''The lowering raises ValueError for non-[Scan, InsertInto] shapes.
-  This is a structural sanity check — M1 must not silently accept
-  unknown shapes and produce garbage.'''
+  '''The lowering raises ValueError for shapes not yet supported.
+  Sanity check that the dialect doesn't silently accept unknown
+  shapes and emit garbage.'''
   scan = mir.Scan(
     vars=['x'], rel_name='R', version=mir.Version.FULL, index=[0]
   )
-  ctx = LoweringCtx(view_var_names={'-1': 'view_R'})
-
-  with pytest.raises(ValueError, match='supports only'):
-    lower_scan_pipeline([scan], ctx)
-  with pytest.raises(ValueError, match='supports only'):
-    lower_scan_pipeline([scan, scan], ctx)
+  insert = mir.InsertInto(
+    rel_name='R', version=mir.Version.NEW, vars=['x'], index=[0]
+  )
+  # Empty pipeline.
+  with pytest.raises(ValueError, match='unsupported pipeline shape'):
+    lower_scan_pipeline([], LoweringCtx())
+  # Pipeline ending in Scan, not InsertInto.
+  with pytest.raises(ValueError, match='unsupported pipeline shape'):
+    lower_scan_pipeline([scan, scan], LoweringCtx())
+  # Pipeline starting with InsertInto (not a recognized root op).
+  with pytest.raises(ValueError, match='unsupported pipeline shape'):
+    lower_scan_pipeline([insert, insert], LoweringCtx())

@@ -27,8 +27,10 @@ from srdatalog.dialects.iir.cf import (
   Comment,
   GridStrideLoop,
   If,
+  IfContinueIfNot,
   IfReturnIfNot,
   IndentBlock,
+  IntersectIter,
   LaneZeroGuard,
   ParallelFor,
   Phase,
@@ -37,9 +39,13 @@ from srdatalog.dialects.iir.cf import (
   WriteOutput,
 )
 from srdatalog.dialects.relation.sorted_array.ops import (
+  SaChildRange,
   SaDegree,
   SaGetVal,
   SaGetValAt,
+  SaHint,
+  SaIterators,
+  SaPrefCoop,
   SaRoot,
   SaValid,
 )
@@ -84,6 +90,26 @@ def emit(op: Op, ctx: EmitCtx) -> str:
 
     case IfReturnIfNot(cond=cond):
       return f'{ctx.ind()}if (!{emit_expr(cond, ctx)}) return;\n'
+
+    case IfContinueIfNot(cond=cond):
+      return f'{ctx.ind()}if (!{emit_expr(cond, ctx)}) continue;\n'
+
+    case IntersectIter(
+      intersect_var=ivar, iter_var=itvar,
+      iterator_exprs=iters, value_var=vvar, body=body,
+    ):
+      iter_args = ', '.join(emit_expr(e, ctx) for e in iters)
+      preamble = (
+        f'{ctx.ind()}auto {ivar} = intersect_handles({ctx.tile_var}, {iter_args});\n'
+        f'{ctx.ind()}for (auto {itvar} = {ivar}.begin(); '
+        f'{itvar}.valid(); {itvar}.next()) {{\n'
+      )
+      # Body emitted at SAME indent as the for loop (legacy quirk).
+      body_lines = (
+        f'{ctx.ind()}  auto {vvar} = {itvar}.value();\n'
+        f'{ctx.ind()}  auto positions = {itvar}.positions();\n'
+      )
+      return preamble + body_lines + emit(body, ctx) + f'{ctx.ind()}}}\n'
 
     case If(cond=cond, body=body):
       # Body emitted at SAME indent as the wrapping if (legacy
@@ -180,6 +206,18 @@ def emit_expr(op: Op, ctx: EmitCtx) -> str:
 
     case SaGetValAt(handle_name=h, view_name=view, idx_var_name=idx):
       return f'{view}.get_value_at({h}.begin(), {idx})'
+
+    case SaHint(lo_var=lo, hi_var=hi, depth=d):
+      return f'HandleType({lo}, {hi}, {d})'
+
+    case SaPrefCoop(parent=parent, key_var=k, view_name=view):
+      return f'{emit_expr(parent, ctx)}.prefix({k}, {ctx.tile_var}, {view})'
+
+    case SaIterators(handle_name=h, view_name=view):
+      return f'{h}.iterators({view})'
+
+    case SaChildRange(handle_name=h, pos_expr=pos, key_var=k, view_name=view):
+      return f'{h}.child_range({pos}, {k}, {ctx.tile_var}, {view})'
 
     case RawString(text=text):
       return text

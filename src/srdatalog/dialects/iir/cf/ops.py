@@ -93,6 +93,47 @@ class IfReturnIfNot(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class IfContinueIfNot(Op):
+  '''`if (!<cond>) continue;` — the inner-loop validity guard.
+
+  Used inside grid-stride loops over root_unique_values: a failed
+  prefix narrowing on any source means this root_val has no
+  intersection, so skip to the next iteration.
+  '''
+
+  cond: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class IntersectIter(Op):
+  '''Intersect-and-iterate over multiple narrowed handles.
+
+  Lowers (target.cuda) to:
+
+      auto <intersect_var> = intersect_handles(tile, <iter_exprs...>);
+      for (auto <iter_var> = <intersect_var>.begin();
+           <iter_var>.valid(); <iter_var>.next()) {
+        auto <value_var> = <iter_var>.value();
+        auto positions = <iter_var>.positions();
+        <body>
+      }
+
+  `iterator_exprs` are expression-shaped ops (typically SaIterators)
+  that produce the per-source iterator pairs handed to
+  intersect_handles. The literal name `positions` is part of the
+  legacy convention; child_range calls inside the body reference it.
+  '''
+
+  intersect_var: str
+  iter_var: str
+  iterator_exprs: tuple[Op, ...]
+  value_var: str
+  body: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class If(Op):
   '''`if (<cond>) { <body> }` — body emitted at the SAME indent as
   the wrapping `if` (matches the legacy emitter's no-inc-indent

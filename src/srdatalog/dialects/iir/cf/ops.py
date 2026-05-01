@@ -93,6 +93,22 @@ class IfReturnIfNot(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class If(Op):
+  '''`if (<cond>) { <body> }` — body emitted at the SAME indent as
+  the wrapping `if` (matches the legacy emitter's no-inc-indent
+  quirk for filter chains, where the body was rendered before the
+  wrap was applied).
+
+  Use IndentBlock inside `body` if some inner statements need to
+  go deeper than the outer indent.
+  '''
+
+  cond: Op
+  body: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class GridStrideLoop(Op):
   '''Warp-strided grid-stride for-loop with body.
 

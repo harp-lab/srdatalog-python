@@ -1,21 +1,24 @@
-'''M1 byte-equivalence — Scan + InsertInto pipelines via dialect.
+'''Scan-rooted dialect byte-equivalence — covers M1, M2, …
 
-For every fixture whose pipeline shape is `[Scan, InsertInto]` (the
-M1-supported subset), runs:
+For every fixture whose pipeline shape is supported by the
+dialect's `_supported_pipeline` predicate, runs:
 
   legacy = jit_pipeline(pipeline_ops, [], legacy_ctx)   # inner body
   new    = emit(lower_scan_pipeline(pipeline_ops, ctx), emit_ctx)
 
-and asserts byte-equivalence under `_cpp_norm`.
+and asserts byte-equivalence under `_cpp_norm`. As subsequent
+milestones extend `_supported_pipeline`, more fixtures pass instead
+of skipping.
+
+  M1: [Scan, InsertInto]
+  M2: [Scan, (Filter | ConstantBind)*, InsertInto]
 
 Scope: only the inner kernel body. The functor envelope, view
-declarations, and runner remain produced by the legacy emitter; M1
-proves the dialect can produce equivalent inner-body C++ on the
-simplest pipelines, without touching `compile_pipeline`'s codepath.
-
-Once M2-M13 cover all op kinds, `compile_pipeline` flips to route
-through the dialect, and the M0 byte-equivalence harness becomes the
-end-to-end gate.
+declarations, and runner remain produced by the legacy emitter; the
+dialect proves it produces equivalent inner-body C++, without
+touching `compile_pipeline`'s codepath. Once all op kinds are
+covered, `compile_pipeline` flips to route through the dialect and
+the M0 byte-equivalence harness becomes the end-to-end gate.
 '''
 
 from __future__ import annotations

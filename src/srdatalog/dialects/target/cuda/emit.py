@@ -26,6 +26,7 @@ from srdatalog.dialects.iir.cf import (
   Block,
   Comment,
   GridStrideLoop,
+  If,
   IfReturnIfNot,
   IndentBlock,
   LaneZeroGuard,
@@ -83,6 +84,15 @@ def emit(op: Op, ctx: EmitCtx) -> str:
 
     case IfReturnIfNot(cond=cond):
       return f'{ctx.ind()}if (!{emit_expr(cond, ctx)}) return;\n'
+
+    case If(cond=cond, body=body):
+      # Body emitted at SAME indent as the wrapping if (legacy
+      # quirk — body was rendered before the wrap was applied).
+      return (
+        f'{ctx.ind()}if ({emit_expr(cond, ctx)}) {{\n'
+        + emit(body, ctx)
+        + f'{ctx.ind()}}}\n'
+      )
 
     case GridStrideLoop(idx_name=idx, bound=bound, body=body):
       # Body is rendered at the SAME indent as the for-loop preamble.

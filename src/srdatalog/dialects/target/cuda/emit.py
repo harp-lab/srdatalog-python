@@ -248,7 +248,7 @@ def emit_expr(op: Op, ctx: EmitCtx) -> str:
       return f'{view}.get_value({col}, {idx})'
 
     case SaGetValAt(handle_name=h, view_name=view, idx_var_name=idx):
-      return f'{view}.get_value_at({h}.begin(), {idx})'
+      return f'{h}.get_value_at({view}, {idx})'
 
     case SaHint(lo_var=lo, hi_var=hi, depth=d):
       return f'HandleType({lo}, {hi}, {d})'

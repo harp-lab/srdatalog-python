@@ -44,6 +44,7 @@ from srdatalog.dialects.relation.sorted_array.ops import (
   SaChildRange,
   SaDegree,
   SaGetVal,
+  SaGetValAt,
   SaGetValAtPos,
   SaHint,
   SaIterators,
@@ -178,11 +179,8 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
     return True
 
   if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
-    # M3+M5+M7 shape: multi-source root CJ; middle can hold
+    # M3+M5+M7+M5.x shape: multi-source root CJ; middle can hold
     # nested CJs / Filter / ConstantBind / Negation / Cartesian.
-    # M5.x: Cart-then-Neg with `neg_pre_narrow` is now supported
-    # (subject to the Negation's const_args being empty — those
-    # need an extra const-prefix step we haven't lowered yet).
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
@@ -191,11 +189,14 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
       if isinstance(op, mir.CartesianJoin):
         continue
       if isinstance(op, mir.Negation):
-        if op.const_args:
-          return False
         continue
       return False
     return True
+
+  if isinstance(head, mir.CartesianJoin):
+    # M7.x: root CartesianJoin followed by trailing InsertIntos.
+    # No middle ops yet (no fixture uses Cart-then-Filter-then-Insert).
+    return len(middle) == 0
 
   return False
 
@@ -223,6 +224,8 @@ def lower_scan_pipeline(
     return _lower_root_scan(head, rest, ctx)
   if isinstance(head, mir.ColumnJoin):
     return _lower_root_cj_multi(head, rest, ctx)
+  if isinstance(head, mir.CartesianJoin):
+    return _lower_root_cart(head, rest, ctx)
 
   raise AssertionError('unreachable')
 
@@ -312,6 +315,204 @@ def _lower_root_scan(
     idx_name=idx_var,
     bound=VarRef(name=degree_var),
     body=Block(stmts=tuple(inner_stmts)),
+  )
+  outer_stmts.append(ParallelFor(strategy='warp_strided', body=loop))
+
+  return Block(stmts=tuple(outer_stmts))
+
+
+# -----------------------------------------------------------------------------
+# Root CartesianJoin (M7.x)
+# -----------------------------------------------------------------------------
+
+
+def _lower_root_cart(
+  cart_op: mir.CartesianJoin,
+  rest: list[mir.MirNode],
+  ctx: LoweringCtx,
+) -> Op:
+  '''Lower a root CartesianJoin.
+
+  Mirrors `jit_root_cartesian_join` in `codegen/jit/root.py`. Differs
+  from nested Cart in several places:
+    - No `lane`/`group_size`; uses `warp_id`/`num_warps` directly via
+      a standard GridStrideLoop.
+    - Per-source handles built from gen_root_handle (no aliases).
+    - `return` (not `continue`) for validity / total-zero checks.
+    - 2-source case: plain row-major decomposition (idx0 = flat/d1,
+      idx1 = flat%d1) — no adaptive `major_is_1`.
+    - Var binds use `<handle>.get_value_at(<view>, <idx>)` (SaGetValAt).
+
+  Counter trajectory mirrors legacy: body is rendered first (with
+  inside_cartesian=True), then scaffold names allocated in the order
+  handle, degree per source, then total, flat_idx, idx vars.
+  '''
+  num_sources = len(cart_op.sources)
+  assert num_sources >= 1
+
+  # Step 1: render body with inside_cartesian=True so InsertInto
+  # drops the lane-0 guard.
+  saved_inside = ctx.inside_cartesian
+  ctx.inside_cartesian = True
+  pushed_var_count = 0
+  for vars_from_src in cart_op.var_from_source:
+    for v in vars_from_src:
+      ctx.bound_vars.append(v)
+      pushed_var_count += 1
+  body_op = _lower_inner_chain(rest, ctx)
+  for _ in range(pushed_var_count):
+    ctx.bound_vars.pop()
+  ctx.inside_cartesian = saved_inside
+
+  # Step 2: allocate scaffold names. Order matches legacy: per
+  # source (handle, degree), then total, flat_idx, idx vars.
+  outer_stmts: list[Op] = []
+  if ctx.debug:
+    outer_stmts.append(
+      Comment(
+        text=f'Root CartesianJoin: bind {", ".join(cart_op.vars)} '
+        f'from {num_sources} source(s)'
+      )
+    )
+    src_debug = ' '.join(
+      f'({s.rel_name} :handle {s.handle_start})'
+      for s in cart_op.sources
+    )
+    outer_stmts.append(
+      Comment(
+        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) '
+        f':sources ({src_debug} ))'
+      )
+    )
+
+  handle_var_names: list[str] = []
+  view_var_names: list[str] = []
+  degree_var_names: list[str] = []
+
+  for src in cart_op.sources:
+    assert isinstance(src, mir.ColumnSource)
+    handle_var = ctx.fresh(f'h_{src.rel_name}_{src.handle_start}')
+    deg_var = ctx.fresh('degree')
+    src_view = ctx.view_var_names.get(str(src.handle_start), '')
+    if not src_view:
+      raise ValueError(
+        f'_lower_root_cart: no view var for source handle_idx '
+        f'{src.handle_start}'
+      )
+    handle_var_names.append(handle_var)
+    view_var_names.append(src_view)
+    degree_var_names.append(deg_var)
+    outer_stmts.append(
+      Bind(name=handle_var, expr=SaRoot(view_name=src_view))
+    )
+  outer_stmts.append(BlankLine())
+
+  # Combined validity check uses `return` (root level), not `continue`.
+  validity_parts = ' || '.join(f'!{h}.valid()' for h in handle_var_names)
+  outer_stmts.append(RawString(text=f'if ({validity_parts}) return;'))
+  outer_stmts.append(BlankLine())
+
+  for i in range(num_sources):
+    outer_stmts.append(
+      Bind(
+        name=degree_var_names[i],
+        expr=SaDegree(handle_name=handle_var_names[i]),
+        type_decl='uint32_t',
+      )
+    )
+
+  total_var = ctx.fresh('total')
+  outer_stmts.append(
+    Bind(
+      name=total_var,
+      expr=RawString(text=' * '.join(degree_var_names)),
+      type_decl='uint32_t',
+    )
+  )
+  outer_stmts.append(RawString(text=f'if ({total_var} == 0) return;'))
+  outer_stmts.append(BlankLine())
+
+  flat_idx_var = ctx.fresh('flat_idx')
+
+  # idx_vars allocation order matches legacy.
+  idx_vars: list[str] = []
+  if num_sources == 1:
+    idx_vars = [ctx.fresh('idx0')]
+  else:
+    idx_vars = [ctx.fresh(f'idx{s}') for s in range(num_sources)]
+
+  # Inner loop body: idx decompose at +1 indent + var-binds at +1 indent
+  # + body at outer indent (legacy quirk).
+  inner_decompose_stmts: list[Op] = []
+  if num_sources == 1:
+    inner_decompose_stmts.append(
+      Bind(
+        name=idx_vars[0],
+        expr=VarRef(name=flat_idx_var),
+        type_decl='uint32_t',
+      )
+    )
+  elif num_sources == 2:
+    # Plain row-major (NO adaptive major_is_1 at root).
+    inner_decompose_stmts.append(
+      Bind(
+        name=idx_vars[0],
+        expr=RawString(text=f'{flat_idx_var} / {degree_var_names[1]}'),
+        type_decl='uint32_t',
+      )
+    )
+    inner_decompose_stmts.append(
+      Bind(
+        name=idx_vars[1],
+        expr=RawString(text=f'{flat_idx_var} % {degree_var_names[1]}'),
+        type_decl='uint32_t',
+      )
+    )
+  else:
+    inner_decompose_stmts.append(
+      CartesianNDecompose(
+        flat_idx_var=flat_idx_var,
+        idx_vars=tuple(idx_vars),
+        deg_vars=tuple(degree_var_names),
+      )
+    )
+
+  inner_decompose_stmts.append(BlankLine())
+
+  # Var binds via SaGetValAt: `<handle>.get_value_at(<view>, <idx>)`.
+  for i, src in enumerate(cart_op.sources):
+    assert isinstance(src, mir.ColumnSource)
+    if i >= len(cart_op.var_from_source):
+      continue
+    for var_name in cart_op.var_from_source[i]:
+      if ctx.is_counting and not _cart_var_used(
+        var_name, [], _trailing_inserts(rest)
+      ):
+        continue
+      inner_decompose_stmts.append(
+        Bind(
+          name=_sanitize_var_name(var_name),
+          expr=SaGetValAt(
+            handle_name=handle_var_names[i],
+            view_name=view_var_names[i],
+            idx_var_name=idx_vars[i],
+          ),
+        )
+      )
+
+  inner_decompose_stmts.append(BlankLine())
+
+  loop_body = Block(
+    stmts=(
+      IndentBlock(extra=1, stmts=tuple(inner_decompose_stmts)),
+      body_op,
+    )
+  )
+
+  loop = GridStrideLoop(
+    idx_name=flat_idx_var,
+    bound=VarRef(name=total_var),
+    body=loop_body,
   )
   outer_stmts.append(ParallelFor(strategy='warp_strided', body=loop))
 
@@ -577,11 +778,6 @@ def _lower_negation(
   with its own bumps; our handle name (if any) is allocated AFTER
   body.
   '''
-  if neg_op.const_args:
-    raise NotImplementedError(
-      f'_lower_negation: const_args not yet lowered; got {neg_op.const_args}'
-    )
-
   src_idx = neg_op.handle_start
   rel_name = neg_op.rel_name
 
@@ -643,6 +839,14 @@ def _lower_negation(
       )
     )
     return Block(stmts=tuple(stmts))
+
+  # Standard path: const_args path not yet lowered here (only the
+  # pre-narrow path above handles const_args).
+  if neg_op.const_args:
+    raise NotImplementedError(
+      f'_lower_negation: standard path with const_args not yet '
+      f'lowered; got {neg_op.const_args}'
+    )
 
   # Standard path. Step 1: render body BEFORE allocating own
   # counter-bumped name.

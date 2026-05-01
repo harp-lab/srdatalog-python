@@ -98,22 +98,37 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
   middle = ops[1:-1]
 
   if isinstance(head, mir.Scan):
-    # M1+M2 shapes
-    return all(
-      isinstance(op, (mir.Filter, mir.ConstantBind)) for op in middle
-    )
+    # M1+M2+M5 shapes
+    for op in middle:
+      if isinstance(op, (mir.Filter, mir.ConstantBind)):
+        continue
+      if isinstance(op, mir.Negation):
+        continue
+      return False
+    return True
 
   if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
-    # M3+M7 shape: multi-source root CJ; middle can hold more
-    # multi-source CJs, Filter, ConstantBind, or a single
-    # nested CartesianJoin (M7 — at most one, no Filter/Bind/Neg
-    # in between yet).
+    # M3+M5+M7 shape: multi-source root CJ; middle can hold
+    # nested CJs / Filter / ConstantBind / Negation / Cartesian.
+    # However Negation immediately following a Cartesian uses the
+    # legacy `neg_pre_narrow` optimization which we don't yet
+    # lower — reject those for now.
+    has_cart = False
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
       if isinstance(op, mir.ColumnJoin) and len(op.sources) >= 2:
         continue
       if isinstance(op, mir.CartesianJoin) and 1 <= len(op.sources) <= 2:
+        has_cart = True
+        continue
+      if isinstance(op, mir.Negation):
+        # Defer Cart-then-Neg pre-narrow handling (M5.x).
+        if has_cart:
+          return False
+        # Const_args: not lowered yet.
+        if op.const_args:
+          return False
         continue
       return False
     return True
@@ -169,6 +184,23 @@ def _lower_root_scan(
   insert_op = rest[-1]
   assert isinstance(insert_op, mir.InsertInto)
 
+  # Step 1: render body BEFORE allocating own counter-bumped names.
+  # Mirrors the legacy `pipeline.py` save/restore around body
+  # rendering — body sees counter starting at the saved value, our
+  # own outer scaffold restarts from the same saved value. Without
+  # this, body ops that bump counter (Negation, nested CJ) get
+  # higher counter values than legacy.
+  pushed_var_count = 0
+  for var_name in scan_op.vars:
+    ctx.bound_vars.append(var_name)
+    pushed_var_count += 1
+  saved_counter = ctx.name_counter
+  body_op = _lower_inner_chain(middle, insert_op, ctx)
+  ctx.name_counter = saved_counter
+  for _ in range(pushed_var_count):
+    ctx.bound_vars.pop()
+
+  # Step 2: allocate own scaffold names.
   outer_stmts: list[Op] = []
 
   if ctx.debug:
@@ -206,13 +238,12 @@ def _lower_root_scan(
         expr=SaGetVal(view_name=view_var, col=col, idx_var_name=idx_var),
       )
     )
-    ctx.bound_vars.append(var_name)
 
   inner_stmts: list[Op] = []
   if var_bind_stmts:
     inner_stmts.append(IndentBlock(extra=1, stmts=tuple(var_bind_stmts)))
 
-  inner_stmts.append(_lower_inner_chain(middle, insert_op, ctx))
+  inner_stmts.append(body_op)
 
   loop = GridStrideLoop(
     idx_name=idx_var,
@@ -441,7 +472,95 @@ def _lower_inner_chain(
   if isinstance(head, mir.CartesianJoin):
     return _lower_nested_cart(head, rest, insert, ctx)
 
+  if isinstance(head, mir.Negation):
+    return _lower_negation(head, rest, insert, ctx)
+
   raise ValueError(f'unsupported inner op: {type(head).__name__}')
+
+
+def _lower_negation(
+  neg_op: mir.Negation,
+  rest: list[mir.MirNode],
+  insert: mir.InsertInto,
+  ctx: LoweringCtx,
+) -> Op:
+  '''Lower an anti-join: body fires only when the narrowed handle is
+  invalid (i.e. the prefix doesn't exist in the negated relation).
+
+  M5 baseline (no flags, no pre-narrow, no const_args):
+    - Build chained-prefix handle: SaPrefCoop nesting from SaRoot.
+    - Wrap body in `If(!handle.valid(), body)`.
+
+  Mirrors `jit_negation` in `codegen/jit/scan_negation.py` for the
+  default (non-pre-narrow, non-WS, non-tiled, non-const-args) path.
+
+  Counter trajectory: like the legacy, the body is rendered FIRST
+  with its own bumps; our handle name is allocated AFTER body.
+  '''
+  if neg_op.const_args:
+    raise NotImplementedError(
+      f'_lower_negation: const_args not yet lowered; got {neg_op.const_args}'
+    )
+
+  src_idx = neg_op.handle_start
+  rel_name = neg_op.rel_name
+
+  view_var = ctx.view_var_names.get(str(src_idx), '')
+  if not view_var:
+    raise ValueError(
+      f'_lower_negation: no view var for handle_idx {src_idx}'
+    )
+
+  # Step 1: render body BEFORE allocating own counter-bumped name.
+  body_op = _lower_inner_chain(rest, insert, ctx)
+
+  # Step 2: allocate the negation handle name.
+  # Legacy: `gen_unique_name(ctx, f"h_{rel_name}_neg_{src_idx}")`
+  # which gives `h_<rel>_neg_<src_idx>_<n>`. Our `fresh()` matches.
+  neg_handle_var = ctx.fresh(f'h_{rel_name}_neg_{src_idx}')
+
+  # Step 3: build the chained prefix expression.
+  # Start from a parent handle (if registered) or a fresh root.
+  parent_handle_name = ctx.handle_vars.get(str(src_idx), '')
+  parent_expr: Op
+  if parent_handle_name:
+    parent_expr = VarRef(name=parent_handle_name)
+  else:
+    parent_expr = SaRoot(view_name=view_var)
+
+  # Apply each prefix variable as a chained SaPrefCoop. M5 only
+  # handles the cooperative path (not inside_cartesian).
+  if ctx.inside_cartesian:
+    raise NotImplementedError(
+      '_lower_negation: inside_cartesian path (prefix_seq) not yet lowered'
+    )
+
+  for var_name in neg_op.prefix_vars:
+    parent_expr = SaPrefCoop(
+      parent=parent_expr,
+      key_var=_sanitize_var_name(var_name),
+      view_name=view_var,
+    )
+
+  # Step 4: build the IIR.
+  stmts: list[Op] = []
+  if ctx.debug:
+    stmts.append(Comment(text=f'Negation: NOT EXISTS in {rel_name}'))
+    stmts.append(
+      Comment(
+        text=f'MIR: (negation :rel {rel_name} :prefix '
+        f'({" ".join(neg_op.prefix_vars)}) :handle {src_idx})'
+      )
+    )
+
+  stmts.append(Bind(name=neg_handle_var, expr=parent_expr))
+  stmts.append(
+    If(
+      cond=RawString(text=f'!{neg_handle_var}.valid()'),
+      body=body_op,
+    )
+  )
+  return Block(stmts=tuple(stmts))
 
 
 def _lower_nested_cart(

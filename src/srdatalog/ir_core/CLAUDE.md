@@ -7,8 +7,7 @@ Full specification in [`docs/ir_lowering_semantics.md`](../../../docs/ir_lowerin
 ## What goes here
 
 Framework code only — no specific dialects. Dialects live in
-[`../dialects/`](../dialects/). Reference interpreters live in
-[`../interpreter/`](../interpreter/).
+[`../dialects/`](../dialects/).
 
 ## Design invariants
 

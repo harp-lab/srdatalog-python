@@ -908,16 +908,24 @@ Build the dialect-agnostic infrastructure. No new compiler features yet.
 - Total: ~600 LOC Python.
 - Test: register a no-op dialect, verify the driver runs cleanly.
 
-## 24. Stage 2 — MIR reference interpreter
+**Note on reference interpreters.** An earlier draft proposed a
+Python interpreter for $\llbracket \cdot \rrbracket_M$ as a separate stage. It
+was dropped: an interpreter validates the *spec*, not the *compiled
+code*. Correctness gates that matter all run against compiled
+output. The transitive trust chain is enough:
 
-Direct executable spec for $\llbracket \cdot \rrbracket_M$ from §6. Used as ground
-truth in property-based tests.
+```
+existing emitter (battle-tested by 887 tests)
+        ↓ byte-equivalence (Stage 2 gate)
+new IIR-sorted-array → target.cuda
+        ↓ runtime equivalence
+new dialects (LSM⟨K⟩, etc.)
+```
 
-- ~500 LOC Python.
-- Test: run interpreter against a corpus of small datalog programs;
-  compare outputs to today's CPU TMP executor as a cross-check.
+If a property-test loop later turns out to need faster ground truth
+than compile-and-run, build a tightly scoped interpreter then.
 
-## 25. Stage 3 — Port GPU codegen as IIR-sorted-array → target.cuda
+## 24. Stage 2 — Port GPU codegen as IIR-sorted-array → target.cuda
 
 The high-stakes step. Re-derive every emission template in the
 existing emitter from the IR lowering rules in §10. Validate by
@@ -935,7 +943,7 @@ revisit the corresponding rule. **Do not move past this gate** with
 non-equivalent emission; that's the rewrite-with-regression failure
 mode the architecture is supposed to prevent.
 
-## 26. Stage 4 — CPU TBB target
+## 25. Stage 3 — CPU TBB target
 
 Add `target.cpp_tbb` lowering for the IIR-sorted-array dialect. New
 parallelism choices: `par.data.tbb_for` instead of `par.data.warp_strided`.
@@ -945,28 +953,29 @@ $\mathbf{Consolidate}$.
 - target.cpp_tbb: ~400 LOC.
 - par.data.tbb_for dialect: ~200 LOC.
 - Memory dialect (mem.arena, hugepage): ~200 LOC.
-- Tests: same MIR programs used in Stage 3 should now also compile
-  to TBB and produce same results as MIR interpreter.
+- Test gate: same MIR programs used in Stage 2 should now also
+  compile to TBB and produce identical outputs to the existing CPU
+  TMP executor on all fixtures.
 
-This is the parallel CPU JIT discussed in earlier design conversations.
-By this point it's a small new lowering on top of established
-infrastructure, not a parallel implementation effort.
+This is the parallel CPU JIT discussed in earlier design
+conversations. By this point it's a small new lowering on top of
+established infrastructure, not a parallel implementation effort.
 
-## 27. Stage 5 — Add LSM⟨K⟩ dialect
+## 26. Stage 4 — Add LSM⟨K⟩ dialect
 
 The proof-of-pluggability stage. Add a new data-structure dialect
 without touching existing ones.
 
 - relation.lsm dialect (§13): ~1000 LOC.
 - Lowerings: lsm → target.cuda (~300 LOC), lsm → target.cpp_tbb (~300 LOC).
-- Test: a relation in a test fixture is annotated as LSM; verify the
-  emitted C++ uses LSM ops; verify program output matches MIR
-  interpreter.
+- Test gate: a relation in a test fixture is annotated as LSM;
+  verify the emitted C++ uses LSM ops; verify program output matches
+  the same fixture run with sorted-array (cross-dialect equivalence).
 
-If Stage 5 requires changes to sorted-array, target dialects, or MIR,
+If Stage 4 requires changes to sorted-array, target dialects, or MIR,
 the architecture failed Property P1 — revisit before proceeding.
 
-## 28. Stage 6+ — Additional dialects on demand
+## 27. Stage 5+ — Additional dialects on demand
 
 - relation.uf (§14) when an equivalence-relation use case appears.
 - relation.bitmap (§15) for dense-domain relations.
@@ -975,17 +984,16 @@ the architecture failed Property P1 — revisit before proceeding.
 
 Each is independent. None blocks others.
 
-## 29. Risk gates summary
+## 28. Risk gates summary
 
 | Gate | What it proves | How |
 |---|---|---|
 | Stage 1 done | Dialect machinery is the right size | Registry test passes |
-| Stage 2 done | MIR semantics is correct | Cross-check vs current TMP exec |
-| Stage 3 done | Rewrite preserves all GPU optimizations | Byte-equivalence on all fixtures |
-| Stage 4 done | CPU JIT works | MIR-interpreter equivalence on all fixtures |
-| Stage 5 done | Architecture admits new dialects | LSM⟨K⟩ added with no edits to existing dialects |
+| Stage 2 done | Rewrite preserves all GPU optimizations | Byte-equivalence with existing emitter on all fixtures |
+| Stage 3 done | CPU JIT works | Runtime equivalence with existing TMP executor on all fixtures |
+| Stage 4 done | Architecture admits new dialects | LSM⟨K⟩ added with no edits to existing dialects + cross-dialect output equivalence |
 
-The Stage 3 gate is non-negotiable. If it fails, the design is wrong,
+The Stage 2 gate is non-negotiable. If it fails, the design is wrong,
 not the implementation.
 
 # Appendix A: Open questions
@@ -1009,7 +1017,7 @@ A3. **Cross-dialect rewrites.** Are there optimizations that span
 A4. **Optimization passes already in production.** The current emitter
    has feature flags (`fan_out_explore`, `tiled_cartesian_enabled`,
    `bg_histogram_mode`). Each must map to either an IR node, a
-   rewrite, or a strategy parameter. Audit before Stage 3.
+   rewrite, or a strategy parameter. Audit before Stage 2.
 
 # Appendix B: Glossary
 
@@ -1021,5 +1029,5 @@ A4. **Optimization passes already in production.** The current emitter
 - **Rewrite** — a transformation within a single dialect.
 - **Verifier** — a per-dialect predicate that catches malformed IR.
 - **Property P1/P2/P3** — pluggability invariants from §4.
-- **Byte-equivalence gate** — Stage 3's no-regression test; emitted C++
+- **Byte-equivalence gate** — Stage 2's no-regression test; emitted C++
   must match existing emitter output on all fixtures.

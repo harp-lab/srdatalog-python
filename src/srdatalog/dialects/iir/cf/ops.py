@@ -297,8 +297,12 @@ class WriteOutput(Op):
 @dataclass(frozen=True, slots=True)
 class AddCount(Op):
   '''Bump the count counter directly. Used by the count-as-product
-  short-circuit (R1) and by counting-only paths.'''
+  short-circuit (R1) and by counting-only paths.
 
+  Lowers to `<output_var>.add_count(<delta>);`.
+  '''
+
+  output_var: str
   delta: Op
 
 

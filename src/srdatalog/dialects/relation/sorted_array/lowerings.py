@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 
 import srdatalog.mir.types as mir
 from srdatalog.dialects.iir.cf import (
+  AddCount,
   Bind,
   BlankLine,
   Block,
@@ -1063,6 +1064,18 @@ def _lower_nested_cart(
 
   total_var = ctx.fresh('total')
 
+  # R1 — count-as-product short-circuit. When counting and the rest is
+  # pure-InsertInto with no following negation, the inner Cartesian
+  # loop is replaced by a closed-form `add_count(lane_share)`. Skips
+  # `flat_idx`, `idx_vars`, `major_is_1` allocations — matching the
+  # legacy `cartesian_as_product` branch in
+  # `instructions.py:jit_nested_cartesian_join`.
+  cartesian_as_product = (
+    ctx.is_counting
+    and not pre_narrow_infos
+    and all(isinstance(op, mir.InsertInto) for op in rest)
+  )
+
   # Allocate const-prefix vars for pre-narrow emissions BEFORE
   # flat_idx — this matches the legacy counter trajectory where
   # const_var allocations happen during the pre-narrow emission
@@ -1074,15 +1087,18 @@ def _lower_nested_cart(
       const_var_names.append(ctx.fresh(f'h_{info.rel_name}_neg_pre_const'))
     pre_narrow_emissions.append((info, const_var_names))
 
-  flat_idx_var = ctx.fresh('flat_idx')
+  flat_idx_var = '' if cartesian_as_product else ctx.fresh('flat_idx')
 
   # idx-var allocation:
   #   1 source -> [idx0]
   #   2 sources -> [idx0, idx1] + major_is_1 (adaptive shape)
   #   N>=3 -> [idx0, idx1, ..., idx{N-1}] (countdown remainder)
+  # R1 elides these — the closed-form add_count needs no per-thread idx.
   idx_vars: list[str] = []
   major_var = ''
-  if num_sources == 1:
+  if cartesian_as_product:
+    pass
+  elif num_sources == 1:
     idx_vars = [ctx.fresh('idx0')]
   elif num_sources == 2:
     idx_vars = [ctx.fresh('idx0'), ctx.fresh('idx1')]
@@ -1207,6 +1223,46 @@ def _lower_nested_cart(
       stmts.append(Bind(name=info.var_name, expr=current_expr))
     stmts.append(BlankLine())
 
+  # R1 short-circuit: emit per-lane add_count, no inner loop.
+  if cartesian_as_product:
+    total_expr = ' * (uint64_t)'.join(degree_var_names)
+    short_circuit_stmts: list[Op] = []
+    if ctx.debug:
+      short_circuit_stmts.append(
+        Comment(text='Count-as-product: per-lane share without inner loop')
+      )
+    short_circuit_stmts.append(RawString(text='{'))
+    short_circuit_stmts.append(
+      IndentBlock(
+        extra=1,
+        stmts=(
+          Bind(
+            name='cap_total',
+            expr=RawString(text=f'(uint64_t){total_expr}'),
+            type_decl='uint64_t',
+          ),
+          Bind(
+            name='lane_total',
+            expr=RawString(text='static_cast<uint32_t>(cap_total)'),
+            type_decl='uint32_t',
+          ),
+          Bind(
+            name='lane_share',
+            expr=RawString(
+              text=f'({lane_var} < lane_total) ? '
+              f'((lane_total - {lane_var} + {group_size_var} - 1) / '
+              f'{group_size_var}) : 0'
+            ),
+            type_decl='uint32_t',
+          ),
+          AddCount(output_var=ctx.output_var, delta=VarRef(name='lane_share')),
+        ),
+      )
+    )
+    short_circuit_stmts.append(RawString(text='}'))
+    stmts.extend(short_circuit_stmts)
+    return Block(stmts=tuple(stmts))
+
   # Cartesian flat loop body: indent +1 stmts (decompose, var-binds)
   # then body at outer (loop) indent (legacy quirk).
   inner_decompose_stmts: list[Op] = []
@@ -1294,15 +1350,7 @@ def _cart_var_used(
   Multi-head: any of the trailing InsertIntos referencing `var_name`
   counts as a usage.
   '''
-  for ins in inserts:
-    if var_name in ins.vars:
-      return True
-  for op in rest:
-    if isinstance(op, mir.Filter) and var_name in op.vars:
-      return True
-    if isinstance(op, mir.ConstantBind) and var_name in op.code:
-      return True
-  return False
+  return any(_var_used_in_op(var_name, op) for op in (*rest, *inserts))
 
 
 def _lower_nested_cj_multi(
@@ -1462,6 +1510,15 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
   if ctx.debug:
     stmts.append(Comment(text=f'Emit: {node.rel_name}({", ".join(vars_list)})'))
 
+  # Multi-head count phase: secondary outputs are flagged
+  # `__skip_counting__` so the runner doesn't double-count rows the
+  # primary already accounted for. Emit a comment in place of the
+  # increment, matching legacy `jit_insert_into`.
+  if ctx.is_counting and out_var == '__skip_counting__':
+    if ctx.debug:
+      stmts.append(Comment(text=f'Skip counting for secondary output {node.rel_name}'))
+    return stmts
+
   if ctx.is_counting:
     body: Op = RawString(text=f'{out_var}.emit_direct();')
   else:
@@ -1490,6 +1547,33 @@ def _filter_expr(code: str) -> str:
   return expr
 
 
+def _var_used_in_op(var_name: str, op: mir.MirNode) -> bool:
+  '''True iff `var_name` is referenced by `op` — covers every MIR op
+  that can introduce or consume a variable name. Mirrors the legacy
+  substring-on-rendered-body check by enumerating every structural
+  position a var name can appear in.'''
+  if isinstance(op, mir.Filter):
+    return var_name in op.vars
+  if isinstance(op, mir.ConstantBind):
+    return var_name in op.code
+  if isinstance(op, mir.ColumnJoin):
+    if var_name == op.var_name:
+      return True
+    return any(var_name in src.prefix_vars for src in op.sources)
+  if isinstance(op, mir.CartesianJoin):
+    for vfs in op.var_from_source:
+      if var_name in vfs:
+        return True
+    return any(var_name in src.prefix_vars for src in op.sources)
+  if isinstance(op, mir.Negation | mir.Aggregate):
+    return var_name in op.prefix_vars
+  if isinstance(op, mir.InsertInto):
+    return var_name in op.vars
+  if isinstance(op, mir.PositionedExtract):
+    return any(var_name in src.prefix_vars for src in op.sources)
+  return False
+
+
 def _scan_var_used(
   var_name: str,
   middle: list[mir.MirNode],
@@ -1498,21 +1582,7 @@ def _scan_var_used(
   '''Counting-phase optimization gate. Returns True iff `var_name`
   is referenced anywhere downstream — in middle ops or any of the
   trailing InsertIntos (multi-head).'''
-  for ins in inserts:
-    if var_name in ins.vars:
-      return True
-  for op in middle:
-    if isinstance(op, mir.Filter) and var_name in op.vars:
-      return True
-    if isinstance(op, mir.ConstantBind) and var_name in op.code:
-      return True
-    if isinstance(op, mir.ColumnJoin):
-      for src in op.sources:
-        if var_name in src.prefix_vars:
-          return True
-      if var_name == op.var_name:
-        return True
-  return False
+  return any(_var_used_in_op(var_name, op) for op in (*middle, *inserts))
 
 
 def _state_key(

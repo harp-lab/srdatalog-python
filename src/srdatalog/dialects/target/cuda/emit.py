@@ -220,8 +220,8 @@ def emit(op: Op, ctx: EmitCtx) -> str:
       args = ', '.join(emit_expr(v, ctx) for v in values)
       return f'{ctx.ind()}{out}.emit_direct({args});\n'
 
-    case AddCount(delta=delta):
-      return f'{ctx.ind()}output.add_count({emit_expr(delta, ctx)});\n'
+    case AddCount(output_var=out, delta=delta):
+      return f'{ctx.ind()}{out}.add_count({emit_expr(delta, ctx)});\n'
 
     case _:
       assert_never(op)

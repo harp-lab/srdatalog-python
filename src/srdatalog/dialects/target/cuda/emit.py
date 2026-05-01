@@ -24,6 +24,8 @@ from srdatalog.dialects.iir.cf import (
   Bind,
   BlankLine,
   Block,
+  Cartesian2DDecompose,
+  CartesianFlatLoop,
   Comment,
   GridStrideLoop,
   If,
@@ -43,6 +45,7 @@ from srdatalog.dialects.relation.sorted_array.ops import (
   SaDegree,
   SaGetVal,
   SaGetValAt,
+  SaGetValAtPos,
   SaHint,
   SaIterators,
   SaPrefCoop,
@@ -118,6 +121,33 @@ def emit(op: Op, ctx: EmitCtx) -> str:
         f'{ctx.ind()}if ({emit_expr(cond, ctx)}) {{\n'
         + emit(body, ctx)
         + f'{ctx.ind()}}}\n'
+      )
+
+    case CartesianFlatLoop(
+      idx_var=idx, bound_var=bound, lane_var=lane,
+      group_size_var=gs, body=body,
+    ):
+      return (
+        f'{ctx.ind()}for (uint32_t {idx} = {lane}; '
+        f'{idx} < {bound}; {idx} += {gs}) {{\n'
+        + emit(body, ctx)
+        + f'{ctx.ind()}}}\n'
+      )
+
+    case Cartesian2DDecompose(
+      major_var=mv, idx0_var=i0, idx1_var=i1,
+      flat_idx_var=fi, deg0_var=d0, deg1_var=d1,
+    ):
+      return (
+        f'{ctx.ind()}const bool {mv} = ({d1} >= {d0});\n'
+        f'{ctx.ind()}uint32_t {i0}, {i1};\n'
+        f'{ctx.ind()}if ({mv}) {{\n'
+        f'{ctx.ind()}  {i0} = {fi} / {d1};\n'
+        f'{ctx.ind()}  {i1} = {fi} % {d1};\n'
+        f'{ctx.ind()}}} else {{\n'
+        f'{ctx.ind()}  {i1} = {fi} / {d0};\n'
+        f'{ctx.ind()}  {i0} = {fi} % {d0};\n'
+        f'{ctx.ind()}}}\n'
       )
 
     case GridStrideLoop(idx_name=idx, bound=bound, body=body):
@@ -218,6 +248,9 @@ def emit_expr(op: Op, ctx: EmitCtx) -> str:
 
     case SaChildRange(handle_name=h, pos_expr=pos, key_var=k, view_name=view):
       return f'{h}.child_range({pos}, {k}, {ctx.tile_var}, {view})'
+
+    case SaGetValAtPos(view_name=view, col=col, handle_name=h, idx_var_name=idx):
+      return f'{view}.get_value({col}, {h}.begin() + {idx})'
 
     case RawString(text=text):
       return text

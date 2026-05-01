@@ -25,6 +25,8 @@ from srdatalog.dialects.iir.cf import (
   Bind,
   BlankLine,
   Block,
+  Cartesian2DDecompose,
+  CartesianFlatLoop,
   Comment,
   GridStrideLoop,
   If,
@@ -41,6 +43,7 @@ from srdatalog.dialects.relation.sorted_array.ops import (
   SaChildRange,
   SaDegree,
   SaGetVal,
+  SaGetValAtPos,
   SaHint,
   SaIterators,
   SaPrefCoop,
@@ -101,12 +104,16 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
     )
 
   if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
-    # M3 shape: multi-source root CJ; middle can hold more
-    # multi-source CJs, Filter, or ConstantBind.
+    # M3+M7 shape: multi-source root CJ; middle can hold more
+    # multi-source CJs, Filter, ConstantBind, or a single
+    # nested CartesianJoin (M7 — at most one, no Filter/Bind/Neg
+    # in between yet).
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
       if isinstance(op, mir.ColumnJoin) and len(op.sources) >= 2:
+        continue
+      if isinstance(op, mir.CartesianJoin) and 1 <= len(op.sources) <= 2:
         continue
       return False
     return True
@@ -431,7 +438,277 @@ def _lower_inner_chain(
   if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
     return _lower_nested_cj_multi(head, rest, insert, ctx)
 
+  if isinstance(head, mir.CartesianJoin):
+    return _lower_nested_cart(head, rest, insert, ctx)
+
   raise ValueError(f'unsupported inner op: {type(head).__name__}')
+
+
+def _lower_nested_cart(
+  cart_op: mir.CartesianJoin,
+  rest: list[mir.MirNode],
+  insert: mir.InsertInto,
+  ctx: LoweringCtx,
+) -> Op:
+  '''Lower a nested CartesianJoin under M7's narrow assumptions:
+    - 1 or 2 sources (no N>=3 yet — countdown decomposition is M7.x).
+    - All sources have full state-key handle reuse (the common case
+      where the outer CJ already narrowed to the same prefix).
+    - No tiled-Cartesian (M8), no count-as-product (separate rule),
+      no negation pre-narrow (M5).
+
+  Mirrors `jit_nested_cartesian_join` in `codegen/jit/instructions.py`.
+  Counter trajectory matches legacy: body is rendered first; outer
+  scaffold names are allocated after.
+
+  Sets `ctx.inside_cartesian = True` while body is rendered so the
+  InsertInto inside skips the lane-0 guard.
+  '''
+  num_sources = len(cart_op.sources)
+  if num_sources < 1 or num_sources > 2:
+    raise NotImplementedError(
+      f'_lower_nested_cart: M7 supports 1-2 sources; got {num_sources}'
+    )
+
+  # Step 1: render body BEFORE allocating own counter-bumped names.
+  # inside_cartesian flips so InsertInto inside drops the lane-0
+  # guard (matches legacy `need_lane0_guard = not ctx.inside_cartesian`).
+  saved_inside = ctx.inside_cartesian
+  ctx.inside_cartesian = True
+  pushed_var_count = 0
+  for vars_from_src in cart_op.var_from_source:
+    for v in vars_from_src:
+      ctx.bound_vars.append(v)
+      pushed_var_count += 1
+  body_op = _lower_inner_chain(rest, insert, ctx)
+  for _ in range(pushed_var_count):
+    ctx.bound_vars.pop()
+  ctx.inside_cartesian = saved_inside
+
+  # Step 2: allocate scaffold names AFTER body. Order matches legacy:
+  # lane, group_size, then per-source (degree, handle), then total.
+  lane_var = ctx.fresh('lane')
+  group_size_var = ctx.fresh('group_size')
+
+  handle_var_names: list[str] = []
+  view_var_names: list[str] = []
+  degree_var_names: list[str] = []
+  # Per source, either an alias-source string (reusing narrowed
+  # handle, comment-suffixed) or None (meaning "fresh root").
+  alias_targets: list[str | None] = []
+
+  for src in cart_op.sources:
+    assert isinstance(src, mir.ColumnSource)
+
+    # Per legacy: degree var allocated first for each source.
+    degree_var_names.append(ctx.fresh('degree'))
+
+    # Look up parent handle by full state-key match. Three cases
+    # mirror the legacy `_nested_cartesian_join`:
+    #   1. exact match -> alias with comment.
+    #   2. no match, no prefix_vars -> fresh root.
+    #   3. no match, has prefix_vars -> chained prefix (M7.x, not yet).
+    parent_state_key = _state_key(
+      src.rel_name, list(src.index), src.prefix_vars, src.version
+    )
+    parent_handle = ctx.handle_vars.get(parent_state_key, '')
+
+    if parent_handle:
+      alias_targets.append(parent_handle)
+    elif not src.prefix_vars:
+      alias_targets.append(None)  # fresh root
+    else:
+      raise NotImplementedError(
+        f'_lower_nested_cart: source {src.rel_name} has prefix '
+        f'{src.prefix_vars} but no full-state-key match; the '
+        f'parent-prefix chained-prefix path isn\'t lowered yet'
+      )
+
+    handle_var_names.append(
+      ctx.fresh(f'h_{src.rel_name}_{src.handle_start}')
+    )
+
+    src_view = ctx.view_var_names.get(str(src.handle_start), '')
+    if not src_view:
+      raise ValueError(
+        f'_lower_nested_cart: no view var for source handle_idx '
+        f'{src.handle_start}'
+      )
+    view_var_names.append(src_view)
+
+  total_var = ctx.fresh('total')
+  flat_idx_var = ctx.fresh('flat_idx')
+
+  # 2-source decomposition allocates idx0, idx1, then major.
+  idx_vars: list[str] = []
+  major_var = ''
+  if num_sources == 1:
+    idx_vars = [ctx.fresh('idx0')]
+  elif num_sources == 2:
+    idx_vars = [ctx.fresh('idx0'), ctx.fresh('idx1')]
+    major_var = ctx.fresh('major_is_1')
+
+  # Step 3: build IIR.
+  stmts: list[Op] = []
+
+  if ctx.debug:
+    vars_bound_str = ', '.join(cart_op.vars)
+    stmts.append(
+      Comment(
+        text=f'Nested CartesianJoin: bind {vars_bound_str} from {num_sources} source(s)'
+      )
+    )
+    src_debug = ' '.join(
+      f'({s.rel_name} :handle {s.handle_start} '
+      f':prefix ({" ".join(s.prefix_vars)}))'
+      for s in cart_op.sources
+    )
+    stmts.append(
+      Comment(
+        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) '
+        f':sources ({src_debug} ))'
+      )
+    )
+
+  stmts.append(
+    Bind(
+      name=lane_var,
+      expr=RawString(text=f'{ctx.tile_var}.thread_rank()'),
+      type_decl='uint32_t',
+    )
+  )
+  stmts.append(
+    Bind(
+      name=group_size_var,
+      expr=RawString(text=f'{ctx.tile_var}.size()'),
+      type_decl='uint32_t',
+    )
+  )
+  stmts.append(BlankLine())
+
+  for i in range(num_sources):
+    if alias_targets[i] is not None:
+      # Reuse narrowed handle from parent (with legacy comment).
+      stmts.append(
+        RawString(
+          text=f'auto {handle_var_names[i]} = {alias_targets[i]};  '
+          f'// reusing narrowed handle'
+        )
+      )
+    else:
+      # Fresh root construction; no comment.
+      stmts.append(
+        Bind(
+          name=handle_var_names[i],
+          expr=SaRoot(view_name=view_var_names[i]),
+        )
+      )
+  stmts.append(BlankLine())
+
+  validity_parts = ' || '.join(f'!{h}.valid()' for h in handle_var_names)
+  stmts.append(RawString(text=f'if ({validity_parts}) continue;'))
+  stmts.append(BlankLine())
+
+  for i in range(num_sources):
+    stmts.append(
+      Bind(
+        name=degree_var_names[i],
+        expr=SaDegree(handle_name=handle_var_names[i]),
+        type_decl='uint32_t',
+      )
+    )
+
+  stmts.append(
+    Bind(
+      name=total_var,
+      expr=RawString(text=' * '.join(degree_var_names)),
+      type_decl='uint32_t',
+    )
+  )
+  stmts.append(RawString(text=f'if ({total_var} == 0) continue;'))
+  stmts.append(BlankLine())
+
+  # Cartesian flat loop body: indent +1 stmts (decompose, var-binds)
+  # then body at outer (loop) indent (legacy quirk).
+  inner_decompose_stmts: list[Op] = []
+  if num_sources == 1:
+    inner_decompose_stmts.append(
+      Bind(
+        name=idx_vars[0],
+        expr=VarRef(name=flat_idx_var),
+        type_decl='uint32_t',
+      )
+    )
+  elif num_sources == 2:
+    inner_decompose_stmts.append(
+      Cartesian2DDecompose(
+        major_var=major_var,
+        idx0_var=idx_vars[0],
+        idx1_var=idx_vars[1],
+        flat_idx_var=flat_idx_var,
+        deg0_var=degree_var_names[0],
+        deg1_var=degree_var_names[1],
+      )
+    )
+
+  inner_decompose_stmts.append(BlankLine())
+
+  for i, src in enumerate(cart_op.sources):
+    assert isinstance(src, mir.ColumnSource)
+    if i >= len(cart_op.var_from_source):
+      continue
+    prefix_len = len(src.prefix_vars)
+    for v_idx, var_name in enumerate(cart_op.var_from_source[i]):
+      if ctx.is_counting and not _cart_var_used(var_name, rest, insert):
+        continue
+      col_idx = prefix_len + v_idx
+      inner_decompose_stmts.append(
+        Bind(
+          name=_sanitize_var_name(var_name),
+          expr=SaGetValAtPos(
+            view_name=view_var_names[i],
+            col=col_idx,
+            handle_name=handle_var_names[i],
+            idx_var_name=idx_vars[i],
+          ),
+        )
+      )
+
+  inner_decompose_stmts.append(BlankLine())
+
+  loop_body = Block(
+    stmts=(
+      IndentBlock(extra=1, stmts=tuple(inner_decompose_stmts)),
+      body_op,
+    )
+  )
+
+  stmts.append(
+    CartesianFlatLoop(
+      idx_var=flat_idx_var,
+      bound_var=total_var,
+      lane_var=lane_var,
+      group_size_var=group_size_var,
+      body=loop_body,
+    )
+  )
+  return Block(stmts=tuple(stmts))
+
+
+def _cart_var_used(
+  var_name: str,
+  rest: list[mir.MirNode],
+  insert: mir.InsertInto,
+) -> bool:
+  '''Counting-phase optimization gate for Cartesian var-binds.'''
+  if var_name in insert.vars:
+    return True
+  for op in rest:
+    if isinstance(op, mir.Filter) and var_name in op.vars:
+      return True
+    if isinstance(op, mir.ConstantBind) and var_name in op.code:
+      return True
+  return False
 
 
 def _lower_nested_cj_multi(

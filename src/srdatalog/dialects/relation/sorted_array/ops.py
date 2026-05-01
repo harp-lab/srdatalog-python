@@ -148,3 +148,22 @@ class SaChildRange(Op):
   pos_expr: str
   key_var: str
   view_name: str
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class SaGetValAtPos(Op):
+  '''Get the value at a column for a row inside a narrowed handle's
+  begin-offset.
+
+  Lowers (target.cuda) to:
+      `<view>.get_value(<col>, <handle>.begin() + <idx_var>)`.
+
+  Used by the nested CartesianJoin to bind per-source vars from
+  the flat-decomposed indices.
+  '''
+
+  view_name: str
+  col: int
+  handle_name: str
+  idx_var_name: str

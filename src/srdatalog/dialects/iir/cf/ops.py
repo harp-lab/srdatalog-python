@@ -106,6 +106,57 @@ class IfContinueIfNot(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class CartesianFlatLoop(Op):
+  '''Flat for-loop over the Cartesian product, partitioned by lane.
+
+  Lowers (target.cuda) to:
+      for (uint32_t <idx_var> = <lane_var>;
+           <idx_var> < <bound_var>;
+           <idx_var> += <group_size_var>) { <body> }
+
+  Used by nested CartesianJoin: each thread in the tile takes a
+  share of the Cartesian product based on its `lane_var =
+  tile.thread_rank()` and stride `group_size_var = tile.size()`.
+  '''
+
+  idx_var: str
+  bound_var: str
+  lane_var: str
+  group_size_var: str
+  body: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Cartesian2DDecompose(Op):
+  '''Adaptive 2-source flat-index decomposition.
+
+  Lowers (target.cuda) to:
+      const bool <major_var> = (<deg1_var> >= <deg0_var>);
+      uint32_t <idx0_var>, <idx1_var>;
+      if (<major_var>) {
+        <idx0_var> = <flat_idx_var> / <deg1_var>;
+        <idx1_var> = <flat_idx_var> % <deg1_var>;
+      } else {
+        <idx1_var> = <flat_idx_var> / <deg0_var>;
+        <idx0_var> = <flat_idx_var> % <deg0_var>;
+      }
+
+  Picking which source is the divisor based on relative size keeps
+  the modulus on the smaller dimension — matches the legacy
+  `_nested_column_join_multi`'s adaptive shape.
+  '''
+
+  major_var: str
+  idx0_var: str
+  idx1_var: str
+  flat_idx_var: str
+  deg0_var: str
+  deg1_var: str
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class IntersectIter(Op):
   '''Intersect-and-iterate over multiple narrowed handles.
 

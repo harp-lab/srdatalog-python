@@ -120,14 +120,52 @@ class LoweringCtx:
 # -----------------------------------------------------------------------------
 
 
+def _trailing_inserts(rest: list[mir.MirNode]) -> list[mir.InsertInto]:
+  '''Return the trailing run of InsertIntos at the end of `rest`.
+
+  Multi-head rules emit several InsertIntos in sequence at the end
+  of the pipeline. The legacy emitter walks them all in order.
+  '''
+  out: list[mir.InsertInto] = []
+  for op in rest:
+    if isinstance(op, mir.InsertInto):
+      out.append(op)
+    elif out:
+      # Non-InsertInto after InsertInto: the trailing run is just
+      # the contiguous tail. Stop here and let the caller decide.
+      break
+  return out
+
+
+def _middle_ops(rest: list[mir.MirNode]) -> list[mir.MirNode]:
+  '''Return `rest` with the trailing InsertIntos stripped off.'''
+  trailing_count = len(_trailing_inserts(rest))
+  return rest[: len(rest) - trailing_count] if trailing_count else list(rest)
+
+
 def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
-  '''True iff the dialect can lower this pipeline shape today.'''
+  '''True iff the dialect can lower this pipeline shape today.
+
+  The pipeline must end in one or more InsertIntos (multi-head rules
+  emit several outputs from the same body). The middle ops between
+  the head op and the first InsertInto are constrained per the
+  milestone (Scan/CJ/Cart/Filter/ConstantBind/Negation).
+  '''
   if len(ops) < 2:
     return False
-  if not isinstance(ops[-1], mir.InsertInto):
+  # Find the start of the trailing InsertInto sequence.
+  insert_start = None
+  for i, op in enumerate(ops):
+    if isinstance(op, mir.InsertInto):
+      insert_start = i
+      break
+  if insert_start is None or insert_start == 0:
+    return False
+  # All ops from insert_start onward must be InsertInto.
+  if not all(isinstance(op, mir.InsertInto) for op in ops[insert_start:]):
     return False
   head = ops[0]
-  middle = ops[1:-1]
+  middle = ops[1:insert_start]
 
   if isinstance(head, mir.Scan):
     # M1+M2+M5 shapes
@@ -206,9 +244,8 @@ def _lower_root_scan(
       f'_lower_root_scan: no view var for handle_idx {handle_idx}'
     )
 
-  middle = list(rest[:-1])
-  insert_op = rest[-1]
-  assert isinstance(insert_op, mir.InsertInto)
+  middle = _middle_ops(rest)
+  trailing = _trailing_inserts(rest)
 
   # Step 1: render body BEFORE allocating own counter-bumped names.
   # Mirrors the legacy `pipeline.py` save/restore around body
@@ -221,7 +258,7 @@ def _lower_root_scan(
     ctx.bound_vars.append(var_name)
     pushed_var_count += 1
   saved_counter = ctx.name_counter
-  body_op = _lower_inner_chain(middle, insert_op, ctx)
+  body_op = _lower_inner_chain(rest, ctx)
   ctx.name_counter = saved_counter
   for _ in range(pushed_var_count):
     ctx.bound_vars.pop()
@@ -256,7 +293,7 @@ def _lower_root_scan(
 
   var_bind_stmts: list[Op] = []
   for col, var_name in enumerate(scan_op.vars):
-    if ctx.is_counting and not _scan_var_used(var_name, middle, insert_op):
+    if ctx.is_counting and not _scan_var_used(var_name, middle, trailing):
       continue
     var_bind_stmts.append(
       Bind(
@@ -334,9 +371,7 @@ def _lower_root_cj_multi(
   # names. Body's counter trajectory starts at the current value
   # (typically 0 at the top of pipeline lowering) and bumps freely.
   saved_counter = ctx.name_counter
-  insert_op = rest[-1]
-  assert isinstance(insert_op, mir.InsertInto)
-  body_op = _lower_inner_chain(list(rest[:-1]), insert_op, ctx)
+  body_op = _lower_inner_chain(rest, ctx)
   # Restore counter so our outer-scope allocations restart from the
   # same value the body started at. Body's bumps are persisted in
   # the IIR's pre-baked names; the counter just gets rewound.
@@ -466,40 +501,57 @@ def _lower_root_cj_multi(
 
 
 def _lower_inner_chain(
-  middle: list[mir.MirNode],
-  insert: mir.InsertInto,
+  rest: list[mir.MirNode],
   ctx: LoweringCtx,
 ) -> Op:
-  '''Lower the chain of post-root ops ending in InsertInto.'''
-  if not middle:
-    return Block(stmts=tuple(_lower_insert_into(insert, ctx)))
+  '''Lower the chain of post-root ops.
 
-  head = middle[0]
-  rest = middle[1:]
+  `rest` may end in one or more InsertIntos (multi-head rules).
+  When the head op is itself an InsertInto, this function emits all
+  trailing InsertIntos in sequence as the terminal body.
+  '''
+  if not rest:
+    raise ValueError('_lower_inner_chain: empty rest')
+
+  head = rest[0]
+  tail = rest[1:]
+
+  if isinstance(head, mir.InsertInto):
+    # Terminal: emit all trailing InsertIntos in order.
+    inserts = _trailing_inserts(rest)
+    if len(inserts) != len(rest):
+      raise ValueError(
+        f'_lower_inner_chain: expected pure InsertInto tail at this '
+        f'point, got {[type(o).__name__ for o in rest]}'
+      )
+    stmts: list[Op] = []
+    for ins in inserts:
+      stmts.extend(_lower_insert_into(ins, ctx))
+    return Block(stmts=tuple(stmts))
 
   if isinstance(head, mir.Filter):
     cond_expr = _filter_expr(head.code)
     return If(
       cond=RawString(text=cond_expr),
-      body=_lower_inner_chain(rest, insert, ctx),
+      body=_lower_inner_chain(tail, ctx),
     )
 
   if isinstance(head, mir.ConstantBind):
     var = _sanitize_var_name(head.var_name)
     bind_stmt = Bind(name=var, expr=RawString(text=head.code))
-    rest_op = _lower_inner_chain(rest, insert, ctx)
+    rest_op = _lower_inner_chain(tail, ctx)
     if isinstance(rest_op, Block):
       return Block(stmts=(bind_stmt, *rest_op.stmts))
     return Block(stmts=(bind_stmt, rest_op))
 
   if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
-    return _lower_nested_cj_multi(head, rest, insert, ctx)
+    return _lower_nested_cj_multi(head, tail, ctx)
 
   if isinstance(head, mir.CartesianJoin):
-    return _lower_nested_cart(head, rest, insert, ctx)
+    return _lower_nested_cart(head, tail, ctx)
 
   if isinstance(head, mir.Negation):
-    return _lower_negation(head, rest, insert, ctx)
+    return _lower_negation(head, tail, ctx)
 
   raise ValueError(f'unsupported inner op: {type(head).__name__}')
 
@@ -507,7 +559,6 @@ def _lower_inner_chain(
 def _lower_negation(
   neg_op: mir.Negation,
   rest: list[mir.MirNode],
-  insert: mir.InsertInto,
   ctx: LoweringCtx,
 ) -> Op:
   '''Lower an anti-join: body fires only when the narrowed handle is
@@ -546,7 +597,7 @@ def _lower_negation(
   if src_idx in ctx.neg_pre_narrow:
     info = ctx.neg_pre_narrow[src_idx]
     # Body rendered first (legacy counter trajectory).
-    body_op = _lower_inner_chain(rest, insert, ctx)
+    body_op = _lower_inner_chain(rest, ctx)
 
     # If there are in-Cartesian vars, allocate a new handle name
     # and apply them via SaPrefSeq chain from info.var_name.
@@ -595,7 +646,7 @@ def _lower_negation(
 
   # Standard path. Step 1: render body BEFORE allocating own
   # counter-bumped name.
-  body_op = _lower_inner_chain(rest, insert, ctx)
+  body_op = _lower_inner_chain(rest, ctx)
 
   # Step 2: allocate the negation handle name.
   neg_handle_var = ctx.fresh(f'h_{rel_name}_neg_{src_idx}')
@@ -701,7 +752,6 @@ def _register_neg_pre_narrow(
 def _lower_nested_cart(
   cart_op: mir.CartesianJoin,
   rest: list[mir.MirNode],
-  insert: mir.InsertInto,
   ctx: LoweringCtx,
 ) -> Op:
   '''Lower a nested CartesianJoin.
@@ -743,7 +793,7 @@ def _lower_nested_cart(
     for v in vars_from_src:
       ctx.bound_vars.append(v)
       pushed_var_count += 1
-  body_op = _lower_inner_chain(rest, insert, ctx)
+  body_op = _lower_inner_chain(rest, ctx)
   for _ in range(pushed_var_count):
     ctx.bound_vars.pop()
   ctx.inside_cartesian = saved_inside
@@ -992,7 +1042,9 @@ def _lower_nested_cart(
       continue
     prefix_len = len(src.prefix_vars)
     for v_idx, var_name in enumerate(cart_op.var_from_source[i]):
-      if ctx.is_counting and not _cart_var_used(var_name, rest, insert):
+      if ctx.is_counting and not _cart_var_used(
+        var_name, rest, _trailing_inserts(rest)
+      ):
         continue
       col_idx = prefix_len + v_idx
       inner_decompose_stmts.append(
@@ -1031,11 +1083,16 @@ def _lower_nested_cart(
 def _cart_var_used(
   var_name: str,
   rest: list[mir.MirNode],
-  insert: mir.InsertInto,
+  inserts: list[mir.InsertInto],
 ) -> bool:
-  '''Counting-phase optimization gate for Cartesian var-binds.'''
-  if var_name in insert.vars:
-    return True
+  '''Counting-phase optimization gate for Cartesian var-binds.
+
+  Multi-head: any of the trailing InsertIntos referencing `var_name`
+  counts as a usage.
+  '''
+  for ins in inserts:
+    if var_name in ins.vars:
+      return True
   for op in rest:
     if isinstance(op, mir.Filter) and var_name in op.vars:
       return True
@@ -1047,7 +1104,6 @@ def _cart_var_used(
 def _lower_nested_cj_multi(
   cj_op: mir.ColumnJoin,
   rest: list[mir.MirNode],
-  insert: mir.InsertInto,
   ctx: LoweringCtx,
 ) -> Op:
   '''Lower a nested multi-source ColumnJoin.
@@ -1088,7 +1144,7 @@ def _lower_nested_cj_multi(
   # Step 2: render body before allocating our own counter-bumped
   # names. Body's bumps persist (legacy semantics for nested
   # contexts: no save/restore at this level).
-  body_op = _lower_inner_chain(rest, insert, ctx)
+  body_op = _lower_inner_chain(rest, ctx)
 
   ctx.bound_vars.pop()
   for k in registered_state_keys:
@@ -1233,11 +1289,14 @@ def _filter_expr(code: str) -> str:
 def _scan_var_used(
   var_name: str,
   middle: list[mir.MirNode],
-  insert: mir.InsertInto,
+  inserts: list[mir.InsertInto],
 ) -> bool:
-  '''Counting-phase optimization gate.'''
-  if var_name in insert.vars:
-    return True
+  '''Counting-phase optimization gate. Returns True iff `var_name`
+  is referenced anywhere downstream — in middle ops or any of the
+  trailing InsertIntos (multi-head).'''
+  for ins in inserts:
+    if var_name in ins.vars:
+      return True
   for op in middle:
     if isinstance(op, mir.Filter) and var_name in op.vars:
       return True

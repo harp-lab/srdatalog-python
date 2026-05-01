@@ -12,14 +12,14 @@ shapes the target lowering produces.
 
 from __future__ import annotations
 
-from srdatalog.dialects.sorted_array.ops import (
+from srdatalog.dialects.relation.sorted_array.ops import (
   SaDegree,
   SaGetVal,
   SaGetValAt,
   SaRoot,
   SaValid,
 )
-from srdatalog.dialects.sorted_array.types import (
+from srdatalog.dialects.relation.sorted_array.types import (
   SaHandle,
   SaView,
 )

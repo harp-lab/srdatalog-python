@@ -15,7 +15,7 @@ docs/stage2_emitter_audit.md for the emission patterns these lower to.
 
 from __future__ import annotations
 
-from srdatalog.dialects.iir_cf.ops import (
+from srdatalog.dialects.iir.cf.ops import (
   AddCount,
   Bind,
   BlankLine,

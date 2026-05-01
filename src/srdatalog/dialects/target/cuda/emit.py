@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from srdatalog.dialects.iir_cf import (
+from srdatalog.dialects.iir.cf import (
   AddCount,
   Bind,
   BlankLine,
@@ -35,7 +35,7 @@ from srdatalog.dialects.iir_cf import (
   VarRef,
   WriteOutput,
 )
-from srdatalog.dialects.sorted_array.ops import (
+from srdatalog.dialects.relation.sorted_array.ops import (
   SaDegree,
   SaGetVal,
   SaGetValAt,

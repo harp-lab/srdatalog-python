@@ -20,7 +20,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import srdatalog.mir.types as mir
-from srdatalog.dialects.iir_cf import (
+from srdatalog.dialects.iir.cf import (
   Bind,
   BlankLine,
   Block,
@@ -33,7 +33,7 @@ from srdatalog.dialects.iir_cf import (
   RawString,
   VarRef,
 )
-from srdatalog.dialects.sorted_array.ops import (
+from srdatalog.dialects.relation.sorted_array.ops import (
   SaDegree,
   SaGetVal,
   SaRoot,

@@ -34,12 +34,12 @@ from srdatalog.codegen.jit.view_management import (
   collect_unique_view_specs,
   jit_emit_view_declarations,
 )
-from srdatalog.dialects.sorted_array.lowerings import (
+from srdatalog.dialects.relation.sorted_array.lowerings import (
   LoweringCtx,
   _supported_pipeline,
   lower_scan_pipeline,
 )
-from srdatalog.dialects.target_cuda.emit import EmitCtx, emit
+from srdatalog.dialects.target.cuda.emit import EmitCtx, emit
 from srdatalog.hir import compile_to_mir
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / 'fixtures' / 'jit'

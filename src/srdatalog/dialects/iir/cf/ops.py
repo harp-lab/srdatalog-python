@@ -157,6 +157,31 @@ class Cartesian2DDecompose(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class CartesianNDecompose(Op):
+  '''Countdown-remainder decomposition for an N-source flat index
+  (N >= 3).
+
+  Lowers (target.cuda) to:
+      uint32_t remaining = <flat_idx>;
+      uint32_t <idx_{N-1}> = remaining % <deg_{N-1}>;
+      remaining /= <deg_{N-1}>;
+      uint32_t <idx_{N-2}> = remaining % <deg_{N-2}>;
+      remaining /= <deg_{N-2}>;
+      ...
+      uint32_t <idx_0> = remaining % <deg_0>;     (no final div)
+
+  The 2-source case has its own adaptive `Cartesian2DDecompose`
+  with `major_is_1` runtime flag — N>=3 doesn't bother with the
+  adaptive branch.
+  '''
+
+  flat_idx_var: str
+  idx_vars: tuple[str, ...]
+  deg_vars: tuple[str, ...]
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class IntersectIter(Op):
   '''Intersect-and-iterate over multiple narrowed handles.
 

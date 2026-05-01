@@ -27,6 +27,7 @@ from srdatalog.dialects.iir.cf import (
   Block,
   Cartesian2DDecompose,
   CartesianFlatLoop,
+  CartesianNDecompose,
   Comment,
   GridStrideLoop,
   If,
@@ -47,11 +48,34 @@ from srdatalog.dialects.relation.sorted_array.ops import (
   SaHint,
   SaIterators,
   SaPrefCoop,
+  SaPrefSeq,
   SaRoot,
   SaValid,
 )
 from srdatalog.hir.types import Version
 from srdatalog.ir_core import Op
+
+
+@dataclass
+class NegPreNarrowInfo:
+  '''Pre-narrowed handle info for a Negation that follows a Cartesian.
+
+  When a Negation's prefix vars are all (or partly) bound *before*
+  the Cartesian, those vars don't change inside the Cartesian loop —
+  so we can apply them once cooperatively before the loop, then
+  cheaply check `valid()` per iteration. The remaining (in-Cartesian)
+  vars are applied per-thread inside the loop via `prefix_seq`.
+
+  Mirrors the legacy `NegPreNarrowInfo` in
+  codegen/jit/context.py.
+  '''
+
+  var_name: str
+  pre_vars: list[str]
+  in_cartesian_vars: list[str]
+  pre_consts: list[tuple[int, int]]
+  view_var: str
+  rel_name: str
 
 
 @dataclass
@@ -77,6 +101,14 @@ class LoweringCtx:
   # handle to alias by the same (rel, cols, prefix_vars, ver) key
   # that the outer CJ used to register it.
   handle_vars: dict[str, str] = field(default_factory=dict)
+  # Cartesian-bound var names. Used to decide which Negation prefix
+  # vars are pre-Cartesian (= bound by an outer scope) vs in-Cartesian
+  # (= bound by the current Cart and per-thread).
+  cartesian_bound_vars: list[str] = field(default_factory=list)
+  # handle_idx -> NegPreNarrowInfo. Populated by `_lower_nested_cart`
+  # before its body renders so that the body's Negation handler can
+  # pick up the pre-allocated handle.
+  neg_pre_narrow: dict[int, NegPreNarrowInfo] = field(default_factory=dict)
 
   def fresh(self, prefix: str) -> str:
     self.name_counter += 1
@@ -110,23 +142,17 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
   if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
     # M3+M5+M7 shape: multi-source root CJ; middle can hold
     # nested CJs / Filter / ConstantBind / Negation / Cartesian.
-    # However Negation immediately following a Cartesian uses the
-    # legacy `neg_pre_narrow` optimization which we don't yet
-    # lower — reject those for now.
-    has_cart = False
+    # M5.x: Cart-then-Neg with `neg_pre_narrow` is now supported
+    # (subject to the Negation's const_args being empty — those
+    # need an extra const-prefix step we haven't lowered yet).
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
       if isinstance(op, mir.ColumnJoin) and len(op.sources) >= 2:
         continue
-      if isinstance(op, mir.CartesianJoin) and 1 <= len(op.sources) <= 2:
-        has_cart = True
+      if isinstance(op, mir.CartesianJoin):
         continue
       if isinstance(op, mir.Negation):
-        # Defer Cart-then-Neg pre-narrow handling (M5.x).
-        if has_cart:
-          return False
-        # Const_args: not lowered yet.
         if op.const_args:
           return False
         continue
@@ -487,15 +513,18 @@ def _lower_negation(
   '''Lower an anti-join: body fires only when the narrowed handle is
   invalid (i.e. the prefix doesn't exist in the negated relation).
 
-  M5 baseline (no flags, no pre-narrow, no const_args):
-    - Build chained-prefix handle: SaPrefCoop nesting from SaRoot.
-    - Wrap body in `If(!handle.valid(), body)`.
+  Two paths:
+    Standard (M5): not preceded by a Cartesian. Build a fresh
+      chained-prefix handle from root and check it.
+    Pre-narrow (M5.x): preceded by a Cartesian whose pre-Cartesian
+      vars are bound earlier. The pre-narrowed handle is declared
+      outside the Cart loop (by `_lower_nested_cart`). The Negation
+      reuses it directly; if there are in-Cartesian vars left over,
+      it applies them via prefix_seq inside the Cart loop.
 
-  Mirrors `jit_negation` in `codegen/jit/scan_negation.py` for the
-  default (non-pre-narrow, non-WS, non-tiled, non-const-args) path.
-
-  Counter trajectory: like the legacy, the body is rendered FIRST
-  with its own bumps; our handle name is allocated AFTER body.
+  Counter trajectory mirrors the legacy: the body is rendered FIRST
+  with its own bumps; our handle name (if any) is allocated AFTER
+  body.
   '''
   if neg_op.const_args:
     raise NotImplementedError(
@@ -511,16 +540,67 @@ def _lower_negation(
       f'_lower_negation: no view var for handle_idx {src_idx}'
     )
 
-  # Step 1: render body BEFORE allocating own counter-bumped name.
+  # Pre-narrow path: a previous Cart already constructed the
+  # pre-narrowed handle. Use it directly (or apply remaining
+  # in-Cartesian vars via prefix_seq).
+  if src_idx in ctx.neg_pre_narrow:
+    info = ctx.neg_pre_narrow[src_idx]
+    # Body rendered first (legacy counter trajectory).
+    body_op = _lower_inner_chain(rest, insert, ctx)
+
+    # If there are in-Cartesian vars, allocate a new handle name
+    # and apply them via SaPrefSeq chain from info.var_name.
+    if info.in_cartesian_vars:
+      narrowed_var = ctx.fresh(f'h_{rel_name}_neg_{src_idx}')
+      narrowed_expr: Op = VarRef(name=info.var_name)
+      for v in info.in_cartesian_vars:
+        narrowed_expr = SaPrefSeq(
+          parent=narrowed_expr,
+          key_var=_sanitize_var_name(v),
+          view_name=info.view_var,
+        )
+    else:
+      narrowed_var = ''
+      narrowed_expr = VarRef(name=info.var_name)
+
+    stmts: list[Op] = []
+    if ctx.debug:
+      stmts.append(Comment(text=f'Negation: NOT EXISTS in {rel_name}'))
+      stmts.append(
+        Comment(
+          text=f'MIR: (negation :rel {rel_name} :prefix '
+          f'({" ".join(neg_op.prefix_vars)}) :handle {src_idx})'
+        )
+      )
+      stmts.append(
+        Comment(
+          text=f'Using pre-narrowed handle (pre-Cartesian vars: '
+          f'{", ".join(info.pre_vars)})'
+        )
+      )
+
+    if narrowed_var:
+      stmts.append(Bind(name=narrowed_var, expr=narrowed_expr))
+      check_var = narrowed_var
+    else:
+      check_var = info.var_name
+
+    stmts.append(
+      If(
+        cond=RawString(text=f'!{check_var}.valid()'),
+        body=body_op,
+      )
+    )
+    return Block(stmts=tuple(stmts))
+
+  # Standard path. Step 1: render body BEFORE allocating own
+  # counter-bumped name.
   body_op = _lower_inner_chain(rest, insert, ctx)
 
   # Step 2: allocate the negation handle name.
-  # Legacy: `gen_unique_name(ctx, f"h_{rel_name}_neg_{src_idx}")`
-  # which gives `h_<rel>_neg_<src_idx>_<n>`. Our `fresh()` matches.
   neg_handle_var = ctx.fresh(f'h_{rel_name}_neg_{src_idx}')
 
   # Step 3: build the chained prefix expression.
-  # Start from a parent handle (if registered) or a fresh root.
   parent_handle_name = ctx.handle_vars.get(str(src_idx), '')
   parent_expr: Op
   if parent_handle_name:
@@ -528,22 +608,23 @@ def _lower_negation(
   else:
     parent_expr = SaRoot(view_name=view_var)
 
-  # Apply each prefix variable as a chained SaPrefCoop. M5 only
-  # handles the cooperative path (not inside_cartesian).
-  if ctx.inside_cartesian:
-    raise NotImplementedError(
-      '_lower_negation: inside_cartesian path (prefix_seq) not yet lowered'
-    )
-
+  # Cooperative prefix outside Cart, sequential prefix_seq inside.
   for var_name in neg_op.prefix_vars:
-    parent_expr = SaPrefCoop(
-      parent=parent_expr,
-      key_var=_sanitize_var_name(var_name),
-      view_name=view_var,
-    )
+    if ctx.inside_cartesian:
+      parent_expr = SaPrefSeq(
+        parent=parent_expr,
+        key_var=_sanitize_var_name(var_name),
+        view_name=view_var,
+      )
+    else:
+      parent_expr = SaPrefCoop(
+        parent=parent_expr,
+        key_var=_sanitize_var_name(var_name),
+        view_name=view_var,
+      )
 
   # Step 4: build the IIR.
-  stmts: list[Op] = []
+  stmts = []
   if ctx.debug:
     stmts.append(Comment(text=f'Negation: NOT EXISTS in {rel_name}'))
     stmts.append(
@@ -563,33 +644,96 @@ def _lower_negation(
   return Block(stmts=tuple(stmts))
 
 
+def _register_neg_pre_narrow(
+  cart_op: mir.CartesianJoin,
+  rest: list[mir.MirNode],
+  ctx: LoweringCtx,
+) -> list[int]:
+  '''Pre-allocate the `info.var_name` for any Negation in `rest`
+  whose prefix vars contain at least one bound BEFORE the Cart.
+
+  Mirrors `_register_negation_pre_narrow` in `pipeline.py`. Returns
+  the list of handle_idx values registered (so the caller can
+  cleanup `ctx.neg_pre_narrow` after body rendering).
+  '''
+  cart_bound_set: set[str] = set()
+  for vfs in cart_op.var_from_source:
+    cart_bound_set.update(vfs)
+
+  registered: list[int] = []
+  for neg_op in rest:
+    if not isinstance(neg_op, mir.Negation):
+      continue
+
+    pre_vars: list[str] = []
+    in_vars: list[str] = []
+    contiguous = True
+    for v in neg_op.prefix_vars:
+      if contiguous and v not in cart_bound_set:
+        pre_vars.append(v)
+      else:
+        contiguous = False
+        in_vars.append(v)
+
+    if not (pre_vars or neg_op.const_args):
+      continue  # no pre-narrow needed
+
+    view_var = ctx.view_var_names.get(str(neg_op.handle_start), '')
+    if not view_var:
+      raise ValueError(
+        f'_register_neg_pre_narrow: no view var for negation '
+        f'handle_idx {neg_op.handle_start}'
+      )
+
+    pre_narrow_var = ctx.fresh(f'h_{neg_op.rel_name}_neg_pre')
+    ctx.neg_pre_narrow[neg_op.handle_start] = NegPreNarrowInfo(
+      var_name=pre_narrow_var,
+      pre_vars=pre_vars,
+      in_cartesian_vars=in_vars,
+      pre_consts=list(neg_op.const_args),
+      view_var=view_var,
+      rel_name=neg_op.rel_name,
+    )
+    registered.append(neg_op.handle_start)
+  return registered
+
+
 def _lower_nested_cart(
   cart_op: mir.CartesianJoin,
   rest: list[mir.MirNode],
   insert: mir.InsertInto,
   ctx: LoweringCtx,
 ) -> Op:
-  '''Lower a nested CartesianJoin under M7's narrow assumptions:
-    - 1 or 2 sources (no N>=3 yet — countdown decomposition is M7.x).
-    - All sources have full state-key handle reuse (the common case
-      where the outer CJ already narrowed to the same prefix).
-    - No tiled-Cartesian (M8), no count-as-product (separate rule),
-      no negation pre-narrow (M5).
+  '''Lower a nested CartesianJoin.
+
+  Coverage:
+    - 1, 2, or N>=3 sources (3+ uses countdown remainder via
+      `CartesianNDecompose`).
+    - Full state-key handle reuse for prefix-bearing sources;
+      fresh root for prefix-empty.
+    - `neg_pre_narrow` registration for following Negations (M5.x).
+    - No tiled-Cartesian (M8), no count-as-product, no const_args
+      in pre-narrow.
 
   Mirrors `jit_nested_cartesian_join` in `codegen/jit/instructions.py`.
-  Counter trajectory matches legacy: body is rendered first; outer
-  scaffold names are allocated after.
-
-  Sets `ctx.inside_cartesian = True` while body is rendered so the
-  InsertInto inside skips the lane-0 guard.
+  Counter trajectory matches legacy: pre-narrow var_names allocated
+  during `_register_neg_pre_narrow`, then body rendered, then own
+  scaffold names.
   '''
   num_sources = len(cart_op.sources)
-  if num_sources < 1 or num_sources > 2:
-    raise NotImplementedError(
-      f'_lower_nested_cart: M7 supports 1-2 sources; got {num_sources}'
-    )
+  if num_sources < 1:
+    raise ValueError('_lower_nested_cart: must have at least 1 source')
 
-  # Step 1: render body BEFORE allocating own counter-bumped names.
+  # Step 1: register neg_pre_narrow info for any Negations in rest.
+  # This bumps counter for each pre-narrow `var_name`, matching
+  # legacy `_register_negation_pre_narrow` which allocates BEFORE
+  # body rendering.
+  saved_cart_bound = list(ctx.cartesian_bound_vars)
+  for vfs in cart_op.var_from_source:
+    ctx.cartesian_bound_vars.extend(vfs)
+  registered_neg_idxs = _register_neg_pre_narrow(cart_op, rest, ctx)
+
+  # Step 2: render body BEFORE allocating own counter-bumped names.
   # inside_cartesian flips so InsertInto inside drops the lane-0
   # guard (matches legacy `need_lane0_guard = not ctx.inside_cartesian`).
   saved_inside = ctx.inside_cartesian
@@ -603,6 +747,14 @@ def _lower_nested_cart(
   for _ in range(pushed_var_count):
     ctx.bound_vars.pop()
   ctx.inside_cartesian = saved_inside
+  ctx.cartesian_bound_vars = saved_cart_bound
+
+  # Snapshot pre-narrow info we registered, then clear from ctx so
+  # nested scopes don't pick up stale entries.
+  pre_narrow_infos: list[NegPreNarrowInfo] = []
+  for h_idx in registered_neg_idxs:
+    pre_narrow_infos.append(ctx.neg_pre_narrow[h_idx])
+    del ctx.neg_pre_narrow[h_idx]
 
   # Step 2: allocate scaffold names AFTER body. Order matches legacy:
   # lane, group_size, then per-source (degree, handle), then total.
@@ -656,9 +808,24 @@ def _lower_nested_cart(
     view_var_names.append(src_view)
 
   total_var = ctx.fresh('total')
+
+  # Allocate const-prefix vars for pre-narrow emissions BEFORE
+  # flat_idx — this matches the legacy counter trajectory where
+  # const_var allocations happen during the pre-narrow emission
+  # block which is between total/0 and flat_idx.
+  pre_narrow_emissions: list[tuple[NegPreNarrowInfo, list[str]]] = []
+  for info in pre_narrow_infos:
+    const_var_names: list[str] = []
+    for _ in info.pre_consts:
+      const_var_names.append(ctx.fresh(f'h_{info.rel_name}_neg_pre_const'))
+    pre_narrow_emissions.append((info, const_var_names))
+
   flat_idx_var = ctx.fresh('flat_idx')
 
-  # 2-source decomposition allocates idx0, idx1, then major.
+  # idx-var allocation:
+  #   1 source -> [idx0]
+  #   2 sources -> [idx0, idx1] + major_is_1 (adaptive shape)
+  #   N>=3 -> [idx0, idx1, ..., idx{N-1}] (countdown remainder)
   idx_vars: list[str] = []
   major_var = ''
   if num_sources == 1:
@@ -666,6 +833,8 @@ def _lower_nested_cart(
   elif num_sources == 2:
     idx_vars = [ctx.fresh('idx0'), ctx.fresh('idx1')]
     major_var = ctx.fresh('major_is_1')
+  else:
+    idx_vars = [ctx.fresh(f'idx{s}') for s in range(num_sources)]
 
   # Step 3: build IIR.
   stmts: list[Op] = []
@@ -747,6 +916,43 @@ def _lower_nested_cart(
   stmts.append(RawString(text=f'if ({total_var} == 0) continue;'))
   stmts.append(BlankLine())
 
+  # Pre-narrow handle bindings — between total/0 check and flat
+  # loop. Each info emits a comment + zero or more const_prefix
+  # binds + the final var_name bind.
+  for info, const_var_names in pre_narrow_emissions:
+    if ctx.debug:
+      stmts.append(
+        Comment(
+          text=f'Pre-narrow negation handle for {info.rel_name} '
+          f'(pre-Cartesian vars: {", ".join(info.pre_vars)})'
+        )
+      )
+    current_expr: Op = SaRoot(view_name=info.view_var)
+    for k, (_col_idx, const_val) in enumerate(info.pre_consts):
+      const_var = const_var_names[k]
+      stmts.append(
+        Bind(
+          name=const_var,
+          expr=SaPrefCoop(
+            parent=current_expr,
+            key_var=str(const_val),
+            view_name=info.view_var,
+          ),
+        )
+      )
+      current_expr = VarRef(name=const_var)
+    if info.pre_vars:
+      for v in info.pre_vars:
+        current_expr = SaPrefCoop(
+          parent=current_expr,
+          key_var=_sanitize_var_name(v),
+          view_name=info.view_var,
+        )
+      stmts.append(Bind(name=info.var_name, expr=current_expr))
+    else:
+      stmts.append(Bind(name=info.var_name, expr=current_expr))
+    stmts.append(BlankLine())
+
   # Cartesian flat loop body: indent +1 stmts (decompose, var-binds)
   # then body at outer (loop) indent (legacy quirk).
   inner_decompose_stmts: list[Op] = []
@@ -767,6 +973,14 @@ def _lower_nested_cart(
         flat_idx_var=flat_idx_var,
         deg0_var=degree_var_names[0],
         deg1_var=degree_var_names[1],
+      )
+    )
+  else:
+    inner_decompose_stmts.append(
+      CartesianNDecompose(
+        flat_idx_var=flat_idx_var,
+        idx_vars=tuple(idx_vars),
+        deg_vars=tuple(degree_var_names),
       )
     )
 

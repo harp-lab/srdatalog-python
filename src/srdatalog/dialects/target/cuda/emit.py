@@ -26,6 +26,7 @@ from srdatalog.dialects.iir.cf import (
   Block,
   Cartesian2DDecompose,
   CartesianFlatLoop,
+  CartesianNDecompose,
   Comment,
   GridStrideLoop,
   If,
@@ -49,6 +50,7 @@ from srdatalog.dialects.relation.sorted_array.ops import (
   SaHint,
   SaIterators,
   SaPrefCoop,
+  SaPrefSeq,
   SaRoot,
   SaValid,
 )
@@ -150,6 +152,17 @@ def emit(op: Op, ctx: EmitCtx) -> str:
         f'{ctx.ind()}}}\n'
       )
 
+    case CartesianNDecompose(
+      flat_idx_var=fi, idx_vars=idxs, deg_vars=degs,
+    ):
+      n = len(idxs)
+      lines = [f'{ctx.ind()}uint32_t remaining = {fi};\n']
+      for k in range(n - 1, -1, -1):
+        lines.append(f'{ctx.ind()}uint32_t {idxs[k]} = remaining % {degs[k]};\n')
+        if k > 0:
+          lines.append(f'{ctx.ind()}remaining /= {degs[k]};\n')
+      return ''.join(lines)
+
     case GridStrideLoop(idx_name=idx, bound=bound, body=body):
       # Body is rendered at the SAME indent as the for-loop preamble.
       # Sub-parts that need increased indent should wrap themselves
@@ -189,13 +202,13 @@ def emit(op: Op, ctx: EmitCtx) -> str:
         return f'{ctx.ind()}if ({ctx.tile_var}.thread_rank() == 0) {body.text}\n'
       # Multi-statement guard — emit a brace block. (Not exercised by M1
       # fixtures; included for completeness.)
-      lines = f'{ctx.ind()}if ({ctx.tile_var}.thread_rank() == 0) {{\n'
+      lz_head = f'{ctx.ind()}if ({ctx.tile_var}.thread_rank() == 0) {{\n'
       ctx.indent_level += 1
       try:
         body_str = emit(body, ctx)
       finally:
         ctx.indent_level -= 1
-      return lines + body_str + f'{ctx.ind()}}}\n'
+      return lz_head + body_str + f'{ctx.ind()}}}\n'
 
     case Comment(text=text):
       return f'{ctx.ind()}// {text}\n'
@@ -242,6 +255,9 @@ def emit_expr(op: Op, ctx: EmitCtx) -> str:
 
     case SaPrefCoop(parent=parent, key_var=k, view_name=view):
       return f'{emit_expr(parent, ctx)}.prefix({k}, {ctx.tile_var}, {view})'
+
+    case SaPrefSeq(parent=parent, key_var=k, view_name=view):
+      return f'{emit_expr(parent, ctx)}.prefix_seq({k}, {view})'
 
     case SaIterators(handle_name=h, view_name=view):
       return f'{h}.iterators({view})'

@@ -25,6 +25,7 @@ from srdatalog.dialects.relation.sorted_array.ops import (
   SaHint,
   SaIterators,
   SaPrefCoop,
+  SaPrefSeq,
   SaRoot,
   SaValid,
 )
@@ -46,6 +47,7 @@ DIALECT = Dialect(
     SaHint,
     SaIterators,
     SaPrefCoop,
+    SaPrefSeq,
     SaRoot,
     SaValid,
   ],
@@ -62,6 +64,7 @@ __all__ = [
   'SaHint',
   'SaIterators',
   'SaPrefCoop',
+  'SaPrefSeq',
   'SaRoot',
   'SaValid',
   'SaView',

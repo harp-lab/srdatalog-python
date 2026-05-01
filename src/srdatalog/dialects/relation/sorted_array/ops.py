@@ -121,6 +121,25 @@ class SaPrefCoop(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class SaPrefSeq(Op):
+  '''Sequential (per-thread) prefix-narrowing on a parent handle.
+
+  Lowers (target.cuda) to:
+      `<parent>.prefix_seq(<key>, <view>)`.
+
+  Used inside a Cartesian loop where each thread already has its
+  own (idx0, idx1, …) decomposition and runs the prefix narrowing
+  independently — the cooperative form would be wrong because the
+  threads don't agree on `key`.
+  '''
+
+  parent: Op
+  key_var: str
+  view_name: str
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class SaIterators(Op):
   '''Iterator pair for a handle, suitable to hand to
   `intersect_handles`.

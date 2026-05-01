@@ -88,10 +88,13 @@ def test_pass_driver_walks_multiple_dialects():
 def test_dialect_carries_op_and_type_classes():
   '''A dialect can list its Op and Type subclasses; the registry
   preserves them. Real dialects use this for verifier dispatch.'''
+  from dataclasses import dataclass
 
+  @dataclass(frozen=True, slots=True)
   class MyOp(Op):
     pass
 
+  @dataclass(frozen=True, slots=True)
   class MyType(Type):
     pass
 
@@ -106,10 +109,13 @@ def test_lowering_and_rewrite_are_registrable():
   '''Lowerings and Rewrites are values that go into a Dialect's lists.
   This test pins down the constructor shape so dialects have a stable
   API to build against.'''
+  from dataclasses import dataclass
 
+  @dataclass(frozen=True, slots=True)
   class SrcOp(Op):
     pass
 
+  @dataclass(frozen=True, slots=True)
   class DstOp(Op):
     pass
 

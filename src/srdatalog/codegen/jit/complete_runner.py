@@ -160,39 +160,37 @@ def _dialect_safe_kernel(
     - dedup-hash WriteOutput variant — N6
     - work-stealing (WCOJTask queue) — N8
     - tiled-Cartesian ballot-reuse — N7
-    - D2L segment loops in *root* CJ multi (the
-      `for (_seg = 0; _seg < 2; _seg++)` wrap around the per-source
-      prefix-narrow + validity-check pattern) — N5.2
     - D2L segment loops in *single-source* nested CJ — N5.3
+    - D2L segment loops in Scan / Negation / Aggregate — N5.4
 
   Slot accounting via `plugin_view_count` is threaded through
-  `compile_kernel_body(rel_index_types=...)` (N5.0), and N5.1 added
-  the multi-source nested-CJ segment-loop wrapper (`D2lSegmentLoop`).
-  D2L pipelines whose only segment-loop need is the *multi-source
-  nested CJ* over a D2L FULL_VER source now lower through the dialect.
-  Pipelines that also need a root-CJ or single-source-nested-CJ
-  segment loop still fall back to legacy.
+  `compile_kernel_body(rel_index_types=...)` (N5.0). N5.1 added the
+  multi-source nested-CJ segment-loop wrapper (`D2lSegmentLoop`),
+  and N5.2 added the root-CJ-multi non-first-source variant of the
+  same op. D2L pipelines whose only segment-loop need is one of
+  those two cases now lower through the dialect; the remaining
+  shapes still fall back to legacy.
   '''
   if node.work_stealing or node.dedup_hash:
     return False
-  return _d2l_only_needs_nested_multi_segment_loop(node, rel_index_types)
+  return _d2l_only_needs_supported_segment_loop(node, rel_index_types)
 
 
-def _d2l_only_needs_nested_multi_segment_loop(
+def _d2l_only_needs_supported_segment_loop(
   node: m.ExecutePipeline,
   rel_index_types: dict[str, str],
 ) -> bool:
-  '''True iff the only D2L FULL_VER fresh-root sources in this
-  pipeline live inside a *nested* multi-source ColumnJoin — the
-  pattern N5.1 covers via `D2lSegmentLoop`. Returns True trivially
-  for non-D2L pipelines (segment loops aren't needed at all).
+  '''True iff every D2L FULL_VER fresh-root source in the pipeline
+  lives in a place the dialect can lower:
+    - Multi-source nested CJ (N5.1).
+    - Root CJ multi non-first source (N5.2).
+
+  Returns True trivially for non-D2L pipelines.
 
   Rejects (kicks back to legacy):
-    - Root CJ multi over a D2L FULL_VER non-first source. That
-      pattern needs a per-segment prefix-narrow + validity-check
-      wrap (N5.2).
-    - Single-source nested CJ over D2L FULL_VER. N5.3.
-    - Negation / Aggregate over D2L FULL_VER. Not yet examined.
+    - Single-source nested CJ over D2L FULL_VER (N5.3).
+    - Scan rooted at D2L FULL_VER (N5.4).
+    - Negation / Aggregate prefix-narrow over D2L FULL_VER (N5.4).
   '''
 
   def _is_multi_view_fresh(src: m.MirNode) -> bool:
@@ -205,30 +203,25 @@ def _d2l_only_needs_nested_multi_segment_loop(
     return _vc(src.version.code, idx_type) > 1
 
   pipeline = list(node.pipeline)
-  # Track which CJ position we're in (0 = root, >0 = nested).
   cj_depth = 0
   for op in pipeline:
     if isinstance(op, m.ColumnJoin):
       if cj_depth == 0:
-        # Root CJ: any multi-view non-first source kicks to legacy.
-        for i, src in enumerate(op.sources):
-          if i > 0 and _is_multi_view_fresh(src):
-            return False
+        # Root CJ: multi-source with multi-view non-first sources is
+        # OK (N5.2). Single-source root CJ with multi-view fresh
+        # source has its own legacy path we haven't ported.
+        if len(op.sources) < 2:
+          for src in op.sources:
+            if _is_multi_view_fresh(src):
+              return False
       else:
         # Nested CJ. Single-source segment loop not yet supported.
         if len(op.sources) < 2:
           for src in op.sources:
             if _is_multi_view_fresh(src):
               return False
-        # Multi-source nested CJ with multi-view fresh roots: OK (N5.1).
       cj_depth += 1
-    elif isinstance(op, m.Scan):
-      # Scan-rooted with multi-view source: not yet supported.
-      idx_type = rel_index_types.get(op.rel_name, '')
-      from srdatalog.dialects.relation.d2l import view_count as _vc
-      if _vc(op.version.code, idx_type) > 1:
-        return False
-    elif isinstance(op, (m.Negation, m.Aggregate)):
+    elif isinstance(op, (m.Scan, m.Negation, m.Aggregate)):
       idx_type = rel_index_types.get(op.rel_name, '')
       from srdatalog.dialects.relation.d2l import view_count as _vc
       if _vc(op.version.code, idx_type) > 1:

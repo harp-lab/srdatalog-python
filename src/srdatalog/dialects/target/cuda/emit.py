@@ -35,6 +35,7 @@ from srdatalog.dialects.iir.cf import (
   IndentBlock,
   IntersectIter,
   LaneZeroGuard,
+  OuterAnchor,
   ParallelFor,
   Phase,
   RawString,
@@ -140,15 +141,23 @@ def emit(op: Op, ctx: EmitCtx) -> str:
 
     case D2lSegmentLoop(
       seg_var=sv, view_var=vv, base_slot=bs,
-      view_count=vc, declare=declare, body=body,
+      view_count=vc, declare=declare,
+      local_view_var=local_vv, body=body,
     ):
-      # for-loop at ctx.ind(); view (re)assign at +1; body at +1 with
-      # segment_depth bumped so a wrapped IntersectIter anchors its
-      # body lines back to the *outer* indent (this segment loop
+      # for-loop at ctx.ind(); view assignment(s) at +1; body at +1
+      # with segment_depth bumped so a wrapped IntersectIter anchors
+      # its body lines back to the *outer* indent (this segment loop
       # doesn't move them deeper).
-      decl_kw = 'auto ' if declare else ''
       head = f'{ctx.ind()}for (int {sv} = 0; {sv} < {vc}; {sv}++) {{\n'
-      assign = f'{ctx.ind()}  {decl_kw}{vv} = views[{bs} + {sv}];\n'
+      inner_ind = ctx.ind() + '  '
+      if local_vv:
+        # Two-line root-CJ shape: fresh local + reassign canonical.
+        assign = f'{inner_ind}auto {local_vv} = views[{bs} + {sv}];\n'
+        if local_vv != vv:
+          assign += f'{inner_ind}{vv} = {local_vv};\n'
+      else:
+        decl_kw = 'auto ' if declare else ''
+        assign = f'{inner_ind}{decl_kw}{vv} = views[{bs} + {sv}];\n'
       ctx.indent_level += 1
       ctx.segment_depth += 1
       try:
@@ -157,6 +166,21 @@ def emit(op: Op, ctx: EmitCtx) -> str:
         ctx.indent_level -= 1
         ctx.segment_depth -= 1
       return head + assign + body_str + f'{ctx.ind()}}}\n'
+
+    case OuterAnchor(body=body):
+      # Drop indent_level by segment_depth (so emit lands at the
+      # surrounding scope's indent) and reset segment_depth to 0
+      # inside body so any inner D2lSegmentLoop / IntersectIter
+      # anchors against this fresh outer base.
+      saved_il = ctx.indent_level
+      saved_sd = ctx.segment_depth
+      ctx.indent_level -= ctx.segment_depth
+      ctx.segment_depth = 0
+      try:
+        return emit(body, ctx)
+      finally:
+        ctx.indent_level = saved_il
+        ctx.segment_depth = saved_sd
 
     case If(cond=cond, body=body):
       # Body emitted at SAME indent as the wrapping if (legacy

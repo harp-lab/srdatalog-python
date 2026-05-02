@@ -37,6 +37,7 @@ from srdatalog.dialects.iir.cf import (
   IndentBlock,
   IntersectIter,
   LaneZeroGuard,
+  OuterAnchor,
   ParallelFor,
   RawString,
   VarRef,
@@ -623,10 +624,32 @@ def _lower_root_cj_multi(
     BlankLine(),
   ]
 
+  # Multi-view non-first sources defer their handle bind to a
+  # segment-loop emission phase below — match legacy `_root_cj_multi`
+  # phase split.
+  segment_loop_sources: list[tuple[int, mir.ColumnSource, int, int]] = []
+  for i, src in enumerate(cj_op.sources):
+    assert isinstance(src, mir.ColumnSource)
+    if i == 0:
+      continue
+    idx_type = ctx.rel_index_types.get(src.rel_name, '')
+    vc = view_count(src.version.code, idx_type)
+    if vc <= 1:
+      continue
+    base_slot = ctx.view_slot_bases.get(str(src.handle_start), src.handle_start)
+    segment_loop_sources.append((i, src, vc, base_slot))
+
+  segment_loop_idxs = {sl[0] for sl in segment_loop_sources}
+
   for i, src in enumerate(cj_op.sources):
     assert isinstance(src, mir.ColumnSource)
     handle_var = source_handle_names[i]
     src_view = source_view_names[i]
+
+    if i in segment_loop_idxs:
+      # Multi-view non-first source: skip phase-1 emission; the
+      # segment loop will own its handle bind + validity check.
+      continue
 
     if i == 0:
       hint_lo = ctx.fresh('hint_lo')
@@ -681,19 +704,70 @@ def _lower_root_cj_multi(
       IfContinueIfNot(cond=SaValid(handle_name=handle_var))
     )
 
-  loop_inner_stmts.append(
-    Bind(
-      name=_sanitize_var_name(cj_op.var_name),
-      expr=VarRef(name=root_val_var),
-    )
+  var_bind_op: Op = Bind(
+    name=_sanitize_var_name(cj_op.var_name),
+    expr=VarRef(name=root_val_var),
   )
 
-  loop_body = Block(
-    stmts=(
-      IndentBlock(extra=1, stmts=tuple(loop_inner_stmts)),
-      body_op,
+  if segment_loop_sources:
+    # Phase 2: open a D2lSegmentLoop per multi-view non-first source,
+    # innermost-first. Each loop's body contains: handle bind +
+    # validity check (using the LOCAL per-segment view var) + the
+    # next inner level. Deepest level holds the var bind followed by
+    # the body_op anchored to the outer indent — so the segment
+    # loop's brace closes AFTER the entire join body, but body_op's
+    # text starts at the surrounding kernel-body indent (legacy
+    # quirk where body was pre-rendered before the segment loop wrap).
+    inner_op: Op = Block(stmts=(var_bind_op, OuterAnchor(body=body_op)))
+    for sl_idx, src, vc, base_slot in reversed(segment_loop_sources):
+      handle_var = source_handle_names[sl_idx]
+      fixed_view = source_view_names[sl_idx]
+      local_view = f'view_{src.rel_name}_{src.handle_start}'
+
+      seg_body_stmts: list[Op] = [
+        Bind(
+          name=handle_var,
+          expr=SaPrefCoop(
+            parent=SaRoot(view_name=local_view),
+            key_var=root_val_var,
+            view_name=local_view,
+          ),
+        ),
+        IfContinueIfNot(cond=SaValid(handle_name=handle_var)),
+        inner_op,
+      ]
+      seg_loop_op: Op = D2lSegmentLoop(
+        seg_var=f'_seg_{sl_idx}',
+        view_var=fixed_view,
+        base_slot=base_slot,
+        view_count=vc,
+        declare=False,
+        local_view_var=local_view,
+        body=Block(stmts=tuple(seg_body_stmts)),
+      )
+      if ctx.debug:
+        seg_comment = Comment(
+          text=f'Segment loop: {src.rel_name} {src.version.code} '
+          f'has {vc} segments (FULL + HEAD)'
+        )
+        inner_op = Block(stmts=(seg_comment, seg_loop_op))
+      else:
+        inner_op = seg_loop_op
+
+    loop_inner_stmts.append(inner_op)
+    # body_op is INSIDE the segment loop chain; the outer Block
+    # holds only the IndentBlock — no trailing body_op here.
+    loop_body = Block(
+      stmts=(IndentBlock(extra=1, stmts=tuple(loop_inner_stmts)),)
     )
-  )
+  else:
+    loop_inner_stmts.append(var_bind_op)
+    loop_body = Block(
+      stmts=(
+        IndentBlock(extra=1, stmts=tuple(loop_inner_stmts)),
+        body_op,
+      )
+    )
 
   loop = GridStrideLoop(
     idx_name=y_idx_var,
@@ -1543,6 +1617,7 @@ def _lower_nested_cj_multi(
         base_slot=base_slot,
         view_count=vc,
         declare=False,
+        local_view_var='',
         body=wrapped,
       )
     stmts.append(wrapped)

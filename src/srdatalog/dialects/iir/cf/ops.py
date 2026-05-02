@@ -334,3 +334,25 @@ class RawString(Op):
   in a later milestone.'''
 
   text: str
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class OuterAnchor(Op):
+  '''Render `body` at the surrounding scope's indent (`ctx.indent_level
+  - ctx.segment_depth`), regardless of how deep the wrapping
+  D2lSegmentLoops have nested.
+
+  Used to embed a CJ-multi body_op INSIDE a root-CJ D2lSegmentLoop's
+  body (so the segment loop's brace closes AFTER the body) while
+  keeping the body's first-line indent at the outer kernel level —
+  matches the legacy `_root_cj_multi` pattern of pre-rendering body
+  at the outer indent and letting the segment loops wrap textually
+  around it.
+
+  Resets `segment_depth` to 0 inside `body` so any further nested
+  IntersectIter / D2lSegmentLoop in body anchors against the new
+  (outer) base.
+  '''
+
+  body: Op

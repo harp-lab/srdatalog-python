@@ -128,6 +128,20 @@ class LoweringCtx:
   # Cartesian ballot-write variant guarded by this var. Set by
   # `_lower_nested_cart` when rendering the tiled-mode body.
   tiled_cartesian_valid_var: str = ''
+  # Work-stealing flag (mirrors legacy `ctx.ws_enabled`). In count
+  # phase, InsertInto emits `<output_var>++` instead of
+  # `<output_var>.emit_direct()` — the WS count uses a per-thread
+  # local counter that the runner aggregates. The legacy emitter has
+  # only this kernel-functor-level WS support; the runner-side WS
+  # scaffolding (WCOJTask queue) was never finished.
+  ws_enabled: bool = False
+  # Work-stealing batched-Cartesian valid var. When set, Filter /
+  # Negation fold their guard into `<v> = <v> && (<cond>);` and
+  # InsertInto materialize emits `<output_var>.emit_warp_coalesced(
+  # tile, <v>, <args>)` — a cooperative warp write instead of a
+  # lane-zero-guarded emit_direct. Mirrors legacy
+  # `ctx.ws_cartesian_valid_var`.
+  ws_cartesian_valid_var: str = ''
   # State-key -> handle var name. Lets nested CJ find the parent
   # handle to alias by the same (rel, cols, prefix_vars, ver) key
   # that the outer CJ used to register it.
@@ -842,14 +856,16 @@ def _lower_inner_chain(
   if isinstance(head, mir.Filter):
     cond_expr = _filter_expr(head.code)
     body_op = _lower_inner_chain(tail, ctx)
-    if ctx.tiled_cartesian_valid_var:
-      # Tiled-Cartesian ballot path: fold into the valid flag
-      # (matches legacy `jit_filter` tiled branch). Avoids
-      # divergence around the cooperative ballot write.
-      v = ctx.tiled_cartesian_valid_var
+    # Tiled-Cartesian ballot path OR WS batched-valid path: fold the
+    # condition into the active valid flag instead of emitting an
+    # `if (cond) {...}` block. Avoids divergence around the
+    # cooperative warp write. Mirrors legacy `jit_filter`
+    # ws_cartesian_valid_var / tiled_cartesian_valid_var branches.
+    fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
+    if fold_var:
       return Block(
         stmts=(
-          RawString(text=f'{v} = {v} && ({cond_expr});'),
+          RawString(text=f'{fold_var} = {fold_var} && ({cond_expr});'),
           body_op,
         )
       )
@@ -1218,9 +1234,11 @@ def _lower_negation(
     else:
       check_var = info.var_name
 
-    if ctx.tiled_cartesian_valid_var:
-      v = ctx.tiled_cartesian_valid_var
-      stmts.append(RawString(text=f'{v} = {v} && (!{check_var}.valid());'))
+    fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
+    if fold_var:
+      stmts.append(
+        RawString(text=f'{fold_var} = {fold_var} && (!{check_var}.valid());')
+      )
       stmts.append(body_op)
     else:
       stmts.append(
@@ -1281,9 +1299,11 @@ def _lower_negation(
     )
 
   stmts.append(Bind(name=neg_handle_var, expr=parent_expr))
-  if ctx.tiled_cartesian_valid_var:
-    v = ctx.tiled_cartesian_valid_var
-    stmts.append(RawString(text=f'{v} = {v} && (!{neg_handle_var}.valid());'))
+  fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
+  if fold_var:
+    stmts.append(
+      RawString(text=f'{fold_var} = {fold_var} && (!{neg_handle_var}.valid());')
+    )
     stmts.append(body_op)
   else:
     stmts.append(
@@ -1985,7 +2005,12 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
     stmts.append(RawString(text='  if (_p) {'))
 
   if ctx.is_counting:
-    body: Op = RawString(text=f'{out_var}.emit_direct();')
+    if ctx.ws_enabled:
+      # WS count: per-thread `local_count` (uint32_t) — `<out>++`
+      # instead of `<out>.emit_direct()`. Lane-0 guard outside Cart.
+      body: Op = RawString(text=f'{out_var}++;')
+    else:
+      body = RawString(text=f'{out_var}.emit_direct();')
     if not ctx.inside_cartesian:
       stmts.append(LaneZeroGuard(body=body))
     else:
@@ -2008,6 +2033,17 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
         )
       )
     stmts.append(RawString(text='}'))
+  elif ctx.ws_cartesian_valid_var:
+    # WS Cartesian batched-valid materialize: emit_warp_coalesced(
+    # tile, valid, args). All threads call cooperatively — no lane-0
+    # guard, valid bit gates the actual write.
+    sanitized = ', '.join(sanitized_list)
+    stmts.append(
+      RawString(
+        text=f'{out_var}.emit_warp_coalesced({ctx.tile_var}, '
+        f'{ctx.ws_cartesian_valid_var}, {sanitized});'
+      )
+    )
   else:
     sanitized = ', '.join(sanitized_list)
     body = RawString(text=f'{out_var}.emit_direct({sanitized});')

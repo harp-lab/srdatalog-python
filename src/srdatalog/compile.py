@@ -170,6 +170,7 @@ def compile_kernel_body(
     output_var_overrides=dict(output_vars) if output_vars else {},
     rel_index_types=dict(rel_index_types) if rel_index_types else {},
     view_slot_bases=base_map,
+    dedup_hash=ep.dedup_hash,
   )
   iir = lower_scan_pipeline(pipeline, lower_ctx)
   emit_ctx = EmitCtx(indent_level=4)

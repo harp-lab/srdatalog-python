@@ -108,6 +108,12 @@ class LoweringCtx:
   # `compile_kernel_body` from `emit_view_declarations` so D2L
   # segment-loop emission can reference the right HEAD/FULL pair.
   view_slot_bases: dict[str, int] = field(default_factory=dict)
+  # When True, InsertInto emit wraps the output write in a
+  # `{ bool _p = dedup_table.try_insert(thread_id, ...); if (_p) {
+  # ... } }` gate, and the materialize-phase write goes through
+  # `atomicAdd(atomic_write_pos, 1u)` + `out_data_0[...]` instead of
+  # `output.emit_direct(...)`. Threaded from `ep.dedup_hash`.
+  dedup_hash: bool = False
   # State-key -> handle var name. Lets nested CJ find the parent
   # handle to alias by the same (rel, cols, prefix_vars, ver) key
   # that the outer CJ used to register it.
@@ -1629,7 +1635,19 @@ def _lower_nested_cj_multi(
 
 
 def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
-  '''Lower an InsertInto under the M1-M3 narrow-flag assumptions.'''
+  '''Lower an InsertInto under the M1-M3 narrow-flag assumptions.
+
+  When `ctx.dedup_hash` is set, the entire emit is wrapped in a
+    `{ bool _p = dedup_table.try_insert(thread_id, v0, ...);
+       if (_p) { <write> } }`
+  gate. In materialize phase the write goes through
+    `[if (lane==0)] { uint32_t pos = atomicAdd(atomic_write_pos, 1u);
+       out_data_0[(pos + out_base_0) + col * out_stride_0] = vN; ... }`
+  instead of `output.emit_direct(...)`. The `out_data_0` /
+  `atomic_write_pos` names are kernel parameters injected by the
+  runner-side dedup_hash plumbing — the dialect treats them as
+  free variables.
+  '''
   out_var = ctx.output_var_overrides.get(node.rel_name, ctx.output_var)
   vars_list = list(node.vars)
 
@@ -1646,16 +1664,50 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
       stmts.append(Comment(text=f'Skip counting for secondary output {node.rel_name}'))
     return stmts
 
+  sanitized_list = [_sanitize_var_name(v) for v in vars_list]
+  use_dedup = ctx.dedup_hash and bool(vars_list)
+
+  if use_dedup:
+    args_str = ', '.join(sanitized_list)
+    stmts.append(
+      RawString(text=f'{{ bool _p = dedup_table.try_insert(thread_id, {args_str});')
+    )
+    stmts.append(RawString(text='  if (_p) {'))
+
   if ctx.is_counting:
     body: Op = RawString(text=f'{out_var}.emit_direct();')
+    if not ctx.inside_cartesian:
+      stmts.append(LaneZeroGuard(body=body))
+    else:
+      stmts.append(body)
+  elif use_dedup:
+    # Materialize + dedup: atomic-add write into out_data_0.
+    # Inner block at SAME indent as the surrounding lines (the
+    # `if (lane==0) {` opener and matching `}` on their own
+    # ctx.ind() lines; per-write rows carry an embedded 2-space
+    # prefix in the RawString text — mirrors legacy emit_helpers).
+    if not ctx.inside_cartesian:
+      stmts.append(RawString(text=f'if ({ctx.tile_var}.thread_rank() == 0) {{'))
+    else:
+      stmts.append(RawString(text='{'))
+    stmts.append(RawString(text='  uint32_t pos = atomicAdd(atomic_write_pos, 1u);'))
+    for col, name in enumerate(sanitized_list):
+      stmts.append(
+        RawString(
+          text=f'  out_data_0[(pos + out_base_0) + {col} * out_stride_0] = {name};'
+        )
+      )
+    stmts.append(RawString(text='}'))
   else:
-    sanitized = ', '.join(_sanitize_var_name(v) for v in vars_list)
+    sanitized = ', '.join(sanitized_list)
     body = RawString(text=f'{out_var}.emit_direct({sanitized});')
+    if not ctx.inside_cartesian:
+      stmts.append(LaneZeroGuard(body=body))
+    else:
+      stmts.append(body)
 
-  if not ctx.inside_cartesian:
-    stmts.append(LaneZeroGuard(body=body))
-  else:
-    stmts.append(body)
+  if use_dedup:
+    stmts.append(RawString(text='} }'))
 
   return stmts
 

@@ -157,7 +157,6 @@ def _dialect_safe_kernel(
   byte-equivalent to the legacy `jit_pipeline` for this kernel.
 
   Today the dialect doesn't model:
-    - dedup-hash WriteOutput variant — N6
     - work-stealing (WCOJTask queue) — N8
     - tiled-Cartesian ballot-reuse — N7
     - D2L segment loops in *single-source* nested CJ — N5.3
@@ -166,12 +165,13 @@ def _dialect_safe_kernel(
   Slot accounting via `plugin_view_count` is threaded through
   `compile_kernel_body(rel_index_types=...)` (N5.0). N5.1 added the
   multi-source nested-CJ segment-loop wrapper (`D2lSegmentLoop`),
-  and N5.2 added the root-CJ-multi non-first-source variant of the
-  same op. D2L pipelines whose only segment-loop need is one of
-  those two cases now lower through the dialect; the remaining
-  shapes still fall back to legacy.
+  N5.2 added the root-CJ-multi non-first-source variant. N6 added
+  the dedup-hash WriteOutput variant: when `ep.dedup_hash` is set,
+  `_lower_insert_into` wraps the write in the
+  `try_insert(thread_id, ...)` gate and routes materialize-phase
+  writes through `atomicAdd(atomic_write_pos, 1u) + out_data_0[...]`.
   '''
-  if node.work_stealing or node.dedup_hash:
+  if node.work_stealing:
     return False
   return _d2l_only_needs_supported_segment_loop(node, rel_index_types)
 

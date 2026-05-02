@@ -226,6 +226,7 @@ def emit_view_declarations(
   indent_level: int = 4,
   debug: bool = True,
   slot_mode: str = 'handle_idx',
+  view_counts: list[int] | None = None,
 ) -> tuple[str, dict[str, str]]:
   '''Emit the top-of-kernel `auto view_X = views[i];` block.
 
@@ -238,18 +239,27 @@ def emit_view_declarations(
     - `'handle_idx'`: use `sp.handle_idx` directly (matches the
       `jit_batch.<rule>.cpp` standalone-kernel goldens, which don't
       apply slot-offset compaction).
-    - `'positional'`: use first-occurrence position (matches the
-      `jit_runner.<rule>.cpp` production goldens for non-D2L
-      pipelines, which compact via `compute_view_slot_offsets`
-      with `plugin_view_count == 1`).
+    - `'positional'`: use cumulative-sum-of-view_counts slot per spec
+      (matches the `jit_runner.<rule>.cpp` production goldens via
+      `compute_view_slot_offsets`).
 
-  D2L (multi-view-per-source) requires `plugin_view_count > 1` and
-  isn't yet modeled here; pipelines exercising it route to legacy
-  via `_dialect_safe_kernel` in `complete_runner`.
+  `view_counts` (per-spec, parallel to `specs`) is the number of
+  physical view slots each spec consumes. Default = all 1s (DSAI).
+  D2L FULL_VER specs consume 2 slots (HEAD + FULL); the dialect's
+  view decl emits the BASE view at the first slot only (the second
+  slot is referenced by BG histogram via `views[base+seg]`).
   '''
   view_vars: dict[str, str] = {}
   if not specs:
     return '', view_vars
+
+  if view_counts is None:
+    view_counts = [1] * len(specs)
+  elif len(view_counts) != len(specs):
+    raise ValueError(
+      f'emit_view_declarations: view_counts length {len(view_counts)} '
+      f'does not match specs length {len(specs)}'
+    )
 
   indent = '  ' * indent_level
   code = ''
@@ -260,8 +270,13 @@ def emit_view_declarations(
     code += indent + f'// View declarations (deduplicated by spec, {len(specs)} unique views)\n'
 
   spec_to_view_var: list[tuple[str, str]] = []
-  for positional_slot, sp in enumerate(specs):
-    slot = positional_slot if slot_mode == 'positional' else sp.handle_idx
+  positional_cursor = 0
+  for sp, vc in zip(specs, view_counts, strict=True):
+    if slot_mode == 'positional':
+      slot = positional_cursor
+      positional_cursor += vc
+    else:
+      slot = sp.handle_idx
     key = _spec_key(sp.rel_name, sp.index, sp.version)
     idx_str = '_'.join(str(v) for v in sp.index)
     view_var = f'view_{sp.rel_name}_{idx_str}' + (f'_{sp.version}' if sp.version else '')

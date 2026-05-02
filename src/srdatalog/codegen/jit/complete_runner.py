@@ -157,16 +157,18 @@ def _dialect_safe_kernel(
   byte-equivalent to the legacy `jit_pipeline` for this kernel.
 
   Today the dialect doesn't model:
-    - multi-view plugin dispatch (D2L / custom index types) — N5
+    - D2L segment loops in nested CJ — N5.x
     - dedup-hash WriteOutput variant — N6
     - work-stealing (WCOJTask queue) — N8
     - tiled-Cartesian ballot-reuse — N7
 
-  So we route to the dialect only when none of those features
-  affect this rule's body emit. (Block-group is fine for the
-  *baseline* kernels — `_gen_kernel_count` etc. — because their
-  ctx has bg_enabled=False; only the bg-specific kernel emitters
-  use BG state.)
+  Slot accounting via `plugin_view_count` is now threaded through
+  `compile_kernel_body(rel_index_types=...)` (N5.0), but D2L FULL_VER
+  also requires a `for (_nseg = 0; _nseg < 2; _nseg++) { view_X =
+  views[base + _nseg]; <cj body> }` wrap around nested CJs that
+  reference the second view — that lowering rule isn't in the
+  dialect yet, so D2L pipelines with nested CJ over a FULL_VER D2L
+  source still fall back to legacy.
   '''
   if node.work_stealing or node.dedup_hash:
     return False
@@ -263,6 +265,7 @@ def _gen_kernel_count(
       is_counting=True,
       output_var_name="output_ctx",
       output_vars=output_vars,
+      rel_index_types=rel_index_types,
     )
   else:
     ctx = _make_kernel_ctx(
@@ -360,6 +363,7 @@ def _gen_kernel_materialize(
       is_counting=False,
       output_var_name=output_var_name,
       output_vars=output_vars,
+      rel_index_types=rel_index_types,
     )
   else:
     ctx = _make_kernel_ctx(
@@ -438,6 +442,7 @@ def _gen_kernel_fused(
         is_counting=False,
         output_var_name="output_ctx_0",
         output_vars=output_vars,
+        rel_index_types=rel_index_types,
       )
     else:
       ctx = _make_kernel_ctx(

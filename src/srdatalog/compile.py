@@ -99,6 +99,7 @@ def compile_kernel_body(
   output_var_name: str = 'output',
   output_vars: dict[str, str] | None = None,
   slot_mode: str = 'positional',
+  rel_index_types: dict[str, str] | None = None,
 ) -> str:
   '''Emit the operator() body for one kernel — view_decls followed by
   the dialect-emitted kernel logic. Caller is responsible for the
@@ -124,7 +125,14 @@ def compile_kernel_body(
       production goldens) or 'handle_idx' (matches the standalone
       `jit_batch.<rule>.cpp` test fixtures emitted via
       `compile_pipeline`). See `emit_view_declarations` docstring.
+
+    rel_index_types: per-relation custom index type (e.g.,
+      `Device2LevelIndex`). Used to compute per-spec view_counts via
+      `relation.d2l` (and any future index dialect) so positional
+      slots advance by 2 per FULL_VER D2L source — matching legacy
+      `compute_view_slot_offsets`. Pass {} or None for plain DSAI.
   '''
+  from srdatalog.dialects.relation.d2l import view_counts_for_specs
   from srdatalog.dialects.relation.sorted_array.lowerings import (
     LoweringCtx,
     lower_scan_pipeline,
@@ -140,8 +148,9 @@ def compile_kernel_body(
   assign_handle_positions(pipeline)
 
   view_specs = collect_unique_view_specs(pipeline)
+  view_counts = view_counts_for_specs(view_specs, rel_index_types or {})
   view_decls, view_vars = emit_view_declarations(
-    view_specs, pipeline, slot_mode=slot_mode,
+    view_specs, pipeline, slot_mode=slot_mode, view_counts=view_counts,
   )
 
   lower_ctx = LoweringCtx(

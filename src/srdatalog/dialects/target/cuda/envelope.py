@@ -270,6 +270,7 @@ def emit_view_declarations(
     code += indent + f'// View declarations (deduplicated by spec, {len(specs)} unique views)\n'
 
   spec_to_view_var: list[tuple[str, str]] = []
+  spec_to_base_slot: dict[str, int] = {}
   positional_cursor = 0
   for sp, vc in zip(specs, view_counts, strict=True):
     if slot_mode == 'positional':
@@ -282,6 +283,7 @@ def emit_view_declarations(
     view_var = f'view_{sp.rel_name}_{idx_str}' + (f'_{sp.version}' if sp.version else '')
     code += indent + f'auto {view_var} = views[{slot}];\n'
     spec_to_view_var.append((key, view_var))
+    spec_to_base_slot[key] = slot
     view_vars[key] = view_var
 
   for op in pipeline:
@@ -291,12 +293,14 @@ def emit_view_declarations(
         for kv_key, view_var in spec_to_view_var:
           if kv_key == k:
             view_vars[str(src.handle_start)] = view_var
+            view_vars[f'__base__{src.handle_start}'] = str(spec_to_base_slot[k])
             break
     elif isinstance(op, m.Scan | m.Negation | m.Aggregate):
       k = _spec_key(op.rel_name, list(op.index), op.version.code)
       for kv_key, view_var in spec_to_view_var:
         if kv_key == k:
           view_vars[str(op.handle_start)] = view_var
+          view_vars[f'__base__{op.handle_start}'] = str(spec_to_base_slot[k])
           break
 
   code += '\n'

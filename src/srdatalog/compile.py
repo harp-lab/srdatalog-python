@@ -153,11 +153,23 @@ def compile_kernel_body(
     view_specs, pipeline, slot_mode=slot_mode, view_counts=view_counts,
   )
 
+  # Split the combined view_vars dict into name-only (handle_idx ->
+  # view_var) and base-slot (handle_idx -> slot) maps. The envelope
+  # emits both into the same dict via a `__base__<idx>` sentinel.
+  name_map = {k: v for k, v in view_vars.items() if k.isdigit()}
+  base_map = {
+    k.removeprefix('__base__'): int(v)
+    for k, v in view_vars.items()
+    if k.startswith('__base__')
+  }
+
   lower_ctx = LoweringCtx(
-    view_var_names={k: v for k, v in view_vars.items() if k.isdigit()},
+    view_var_names=name_map,
     is_counting=is_counting,
     output_var=output_var_name,
     output_var_overrides=dict(output_vars) if output_vars else {},
+    rel_index_types=dict(rel_index_types) if rel_index_types else {},
+    view_slot_bases=base_map,
   )
   iir = lower_scan_pipeline(pipeline, lower_ctx)
   emit_ctx = EmitCtx(indent_level=4)

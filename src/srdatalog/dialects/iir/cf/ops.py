@@ -199,6 +199,14 @@ class IntersectIter(Op):
   that produce the per-source iterator pairs handed to
   intersect_handles. The literal name `positions` is part of the
   legacy convention; child_range calls inside the body reference it.
+
+  Indent quirk under D2L segment loops: the `value`/`positions`
+  lines and the body anchor against the OUTER indent
+  (`ctx.indent_level - ctx.segment_depth`), not against the
+  IntersectIter's own indent. This mirrors the legacy
+  `_nested_column_join_multi` where `seg_indent` is a string-only
+  offset and `ind(ctx)` (the structural indent) is unaffected by
+  segment loops. The emit takes care of this via EmitCtx.segment_depth.
   '''
 
   intersect_var: str

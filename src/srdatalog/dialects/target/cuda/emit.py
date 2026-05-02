@@ -41,6 +41,7 @@ from srdatalog.dialects.iir.cf import (
   VarRef,
   WriteOutput,
 )
+from srdatalog.dialects.relation.d2l.ops import D2lSegmentLoop
 from srdatalog.dialects.relation.sorted_array.ops import (
   SaChildRange,
   SaDegree,
@@ -64,10 +65,18 @@ class EmitCtx:
   - `indent_level`: counts of 2-space units. Legacy emitter starts
     at indent=2 (operator() body); M1 callers pass that in to match.
   - `tile_var`: name of the tile/thread-group variable. "tile" by default.
+  - `segment_depth`: how many `D2lSegmentLoop`s wrap the current
+    point. Lets `IntersectIter` reproduce the legacy
+    `_nested_column_join_multi` indent quirk where segment loops
+    bump the structural indent (alias_binds, intersect at +segs)
+    but the for-iter body lines (auto value, positions, child_binds,
+    body_op) anchor against the *outer* indent (+1, +1, +1, +0
+    respectively).
   '''
 
   indent_level: int = 2
   tile_var: str = 'tile'
+  segment_depth: int = 0
 
   def ind(self) -> str:
     return '  ' * self.indent_level
@@ -109,12 +118,45 @@ def emit(op: Op, ctx: EmitCtx) -> str:
         f'{ctx.ind()}for (auto {itvar} = {ivar}.begin(); '
         f'{itvar}.valid(); {itvar}.next()) {{\n'
       )
-      # Body emitted at SAME indent as the for loop (legacy quirk).
+      # body_lines (auto value, positions) and the body itself anchor
+      # against the *outer* indent — i.e. ctx.indent_level minus the
+      # number of D2lSegmentLoops we're inside. Segment loops bump
+      # ctx.indent_level (so alias_binds + intersect emit deeper) but
+      # NOT the body-line / body-op indent. Mirrors the legacy
+      # `_nested_column_join_multi` ind(ctx) trick.
+      outer_il = ctx.indent_level - ctx.segment_depth
+      outer_ind = '  ' * outer_il
       body_lines = (
-        f'{ctx.ind()}  auto {vvar} = {itvar}.value();\n'
-        f'{ctx.ind()}  auto positions = {itvar}.positions();\n'
+        f'{outer_ind}  auto {vvar} = {itvar}.value();\n'
+        f'{outer_ind}  auto positions = {itvar}.positions();\n'
       )
-      return preamble + body_lines + emit(body, ctx) + f'{ctx.ind()}}}\n'
+      saved_il = ctx.indent_level
+      ctx.indent_level = outer_il
+      try:
+        body_str = emit(body, ctx)
+      finally:
+        ctx.indent_level = saved_il
+      return preamble + body_lines + body_str + f'{ctx.ind()}}}\n'
+
+    case D2lSegmentLoop(
+      seg_var=sv, view_var=vv, base_slot=bs,
+      view_count=vc, declare=declare, body=body,
+    ):
+      # for-loop at ctx.ind(); view (re)assign at +1; body at +1 with
+      # segment_depth bumped so a wrapped IntersectIter anchors its
+      # body lines back to the *outer* indent (this segment loop
+      # doesn't move them deeper).
+      decl_kw = 'auto ' if declare else ''
+      head = f'{ctx.ind()}for (int {sv} = 0; {sv} < {vc}; {sv}++) {{\n'
+      assign = f'{ctx.ind()}  {decl_kw}{vv} = views[{bs} + {sv}];\n'
+      ctx.indent_level += 1
+      ctx.segment_depth += 1
+      try:
+        body_str = emit(body, ctx)
+      finally:
+        ctx.indent_level -= 1
+        ctx.segment_depth -= 1
+      return head + assign + body_str + f'{ctx.ind()}}}\n'
 
     case If(cond=cond, body=body):
       # Body emitted at SAME indent as the wrapping if (legacy

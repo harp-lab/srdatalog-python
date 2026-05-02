@@ -1,5 +1,15 @@
 '''relation.d2l — Device2LevelIndex dialect.
 
+Today this module owns:
+  - `view_count(spec)` and `view_counts_for_specs` — view-slot
+    accounting used by `compile.compile_kernel_body` to populate
+    `view_counts` for the dialect's view declarations.
+  - `D2lSegmentLoop` op (in `ops.py`) — the IIR segment-loop wrapper
+    that lets nested CJ pipelines visit both HEAD and FULL segments
+    of a D2L FULL_VER source.
+
+Legacy-comment header (kept for the design narrative):
+
 A 2-level index: each relation has a HEAD segment (smaller, dense) and
 a FULL segment (the full sorted array). FULL_VER reads expose both
 segments as separate views in `views[]`; iteration over the source
@@ -34,15 +44,13 @@ Planned ops (N5.x):
   D2lSegmentLoop(seg_var, view, body)    iterate over HEAD/FULL
   D2lDualSegmentDegree(handle, view_count)  segment-aware degree sum
 
-Today this module owns one piece — `view_count(spec)` — used by
-`compile.compile_kernel_body` to populate per-spec `view_counts`
-in the dialect's view declarations. The legacy `plugin_view_count`
-is the underlying source until we expand the dialect to host its
-own ops + emit.
+The legacy `plugin_view_count` is the underlying source for
+`view_count` until we expand the dialect to host its own ops + emit.
 '''
 
 from __future__ import annotations
 
+from srdatalog.dialects.relation.d2l.ops import D2lSegmentLoop
 from srdatalog.dialects.target.cuda.envelope import ViewSpec
 
 
@@ -73,4 +81,4 @@ def view_counts_for_specs(
   ]
 
 
-__all__ = ['view_count', 'view_counts_for_specs']
+__all__ = ['D2lSegmentLoop', 'view_count', 'view_counts_for_specs']

@@ -41,6 +41,7 @@ from srdatalog.dialects.iir.cf import (
   RawString,
   VarRef,
 )
+from srdatalog.dialects.relation.d2l import D2lSegmentLoop, view_count
 from srdatalog.dialects.relation.sorted_array.ops import (
   SaChildRange,
   SaDegree,
@@ -99,6 +100,13 @@ class LoweringCtx:
   debug: bool = True
   output_var_overrides: dict[str, str] = field(default_factory=dict)
   bound_vars: list[str] = field(default_factory=list)
+  # rel_name -> custom index type code (e.g. 'Device2LevelIndex').
+  # Empty string / missing entry = plain DSAI single-segment.
+  rel_index_types: dict[str, str] = field(default_factory=dict)
+  # handle_idx (str) -> base slot in views[]. Populated by
+  # `compile_kernel_body` from `emit_view_declarations` so D2L
+  # segment-loop emission can reference the right HEAD/FULL pair.
+  view_slot_bases: dict[str, int] = field(default_factory=dict)
   # State-key -> handle var name. Lets nested CJ find the parent
   # handle to alias by the same (rel, cols, prefix_vars, ver) key
   # that the outer CJ used to register it.
@@ -1450,7 +1458,30 @@ def _lower_nested_cj_multi(
     for hn, vn in zip(source_alias_names, source_view_names)
   )
 
-  # child_range bindings live INSIDE the for-loop body, at +1 indent.
+  # Detect multi-view fresh-root sources (D2L FULL_VER with no
+  # prefix_vars) — each one needs a wrapping `for (_nseg_<i>)` segment
+  # loop that rebinds its view variable to HEAD then FULL.
+  segment_loops: list[tuple[int, mir.ColumnSource, int, int]] = []
+  for i, src in enumerate(cj_op.sources):
+    assert isinstance(src, mir.ColumnSource)
+    if src.prefix_vars:
+      continue
+    idx_type = ctx.rel_index_types.get(src.rel_name, '')
+    vc = view_count(src.version.code, idx_type)
+    if vc <= 1:
+      continue
+    base_slot = ctx.view_slot_bases.get(str(src.handle_start), src.handle_start)
+    segment_loops.append((i, src, vc, base_slot))
+
+  has_segments = bool(segment_loops)
+
+  # child_range bindings live INSIDE the for-loop body. Without
+  # segment loops, the legacy quirk places them at +1 indent (via
+  # IndentBlock(+1)). With segment loops, the loop_body is itself
+  # nested inside a +1-indented Block, which already accounts for
+  # the depth — child_binds emit at the same indent as the surrounding
+  # for-iter, matching the legacy `_nested_column_join_multi`'s
+  # ind(ctx) trick.
   child_bind_stmts: list[Op] = []
   for i, src in enumerate(cj_op.sources):
     assert isinstance(src, mir.ColumnSource)
@@ -1467,7 +1498,7 @@ def _lower_nested_cj_multi(
       )
     )
 
-  loop_body = Block(
+  iter_loop_body = Block(
     stmts=(IndentBlock(extra=1, stmts=tuple(child_bind_stmts)), body_op),
   )
 
@@ -1488,16 +1519,37 @@ def _lower_nested_cj_multi(
       Comment(text=f'MIR: (column-join :var {cj_op.var_name} :sources ({src_debug} ))')
     )
 
-  stmts.extend(alias_bind_stmts)
-  stmts.append(
-    IntersectIter(
-      intersect_var=intersect_var,
-      iter_var=iter_var,
-      iterator_exprs=iterator_exprs,
-      value_var=inner_var_sanitized,
-      body=loop_body,
-    )
+  intersect_iter_op: Op = IntersectIter(
+    intersect_var=intersect_var,
+    iter_var=iter_var,
+    iterator_exprs=iterator_exprs,
+    value_var=inner_var_sanitized,
+    body=iter_loop_body,
   )
+
+  if has_segments:
+    # D2lSegmentLoop bumps ctx.indent_level by 1 (so alias_binds and
+    # IntersectIter emit one level deeper). It also bumps
+    # ctx.segment_depth so IntersectIter knows to anchor its body
+    # lines / body_op back to the surrounding (outer) indent — see
+    # the IntersectIter emit case.
+    wrapped: Op = Block(stmts=(*alias_bind_stmts, intersect_iter_op))
+    # Open segment loops outermost-first (sources[0] outer, sources[-1]
+    # inner) — matches legacy `_nested_column_join_multi`.
+    for sl_idx, src, vc, base_slot in reversed(segment_loops):
+      wrapped = D2lSegmentLoop(
+        seg_var=f'_nseg_{sl_idx}',
+        view_var=ctx.view_var_names[str(src.handle_start)],
+        base_slot=base_slot,
+        view_count=vc,
+        declare=False,
+        body=wrapped,
+      )
+    stmts.append(wrapped)
+  else:
+    stmts.extend(alias_bind_stmts)
+    stmts.append(intersect_iter_op)
+
   return Block(stmts=tuple(stmts))
 
 

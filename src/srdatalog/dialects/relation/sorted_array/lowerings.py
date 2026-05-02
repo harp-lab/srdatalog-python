@@ -40,6 +40,7 @@ from srdatalog.dialects.iir.cf import (
   OuterAnchor,
   ParallelFor,
   RawString,
+  TiledBallotBlock,
   VarRef,
 )
 from srdatalog.dialects.relation.d2l import D2lSegmentLoop, view_count
@@ -54,6 +55,7 @@ from srdatalog.dialects.relation.sorted_array.ops import (
   SaPrefCoop,
   SaPrefSeq,
   SaRoot,
+  SaTiledCartesian2D,
   SaValid,
 )
 from srdatalog.hir.types import Version
@@ -114,6 +116,18 @@ class LoweringCtx:
   # `atomicAdd(atomic_write_pos, 1u)` + `out_data_0[...]` instead of
   # `output.emit_direct(...)`. Threaded from `ep.dedup_hash`.
   dedup_hash: bool = False
+  # When True, eligible 2-source / 1-var-per-source nested Cartesians
+  # in materialize phase emit the `if (total > 32) { tiled smem path }
+  # else { fallback path }` dispatch. Bodies inside both branches use
+  # the `tiled_cartesian_valid_var` ballot-write variant of InsertInto.
+  # Threaded from `_dialect_safe_kernel`'s `tiled_cartesian_eligible`
+  # gate via `compile_kernel_body`.
+  tiled_cartesian: bool = False
+  # Empty (default) — InsertInto emits the standard
+  # `output.emit_direct(...)` write. Non-empty — emits the tiled-
+  # Cartesian ballot-write variant guarded by this var. Set by
+  # `_lower_nested_cart` when rendering the tiled-mode body.
+  tiled_cartesian_valid_var: str = ''
   # State-key -> handle var name. Lets nested CJ find the parent
   # handle to alias by the same (rel, cols, prefix_vars, ver) key
   # that the outer CJ used to register it.
@@ -814,6 +828,12 @@ def _lower_inner_chain(
         f'_lower_inner_chain: expected pure InsertInto tail at this '
         f'point, got {[type(o).__name__ for o in rest]}'
       )
+    # Tiled-Cartesian ballot variant: render the trailing InsertInto
+    # run as a single TiledBallotBlock that owns the ballot setup +
+    # per-output write at once. Replaces the legacy stateful
+    # `tiled_cartesian_ballot_done` flag.
+    if ctx.tiled_cartesian_valid_var:
+      return _lower_tiled_ballot_block(inserts, ctx)
     stmts: list[Op] = []
     for ins in inserts:
       stmts.extend(_lower_insert_into(ins, ctx))
@@ -821,10 +841,19 @@ def _lower_inner_chain(
 
   if isinstance(head, mir.Filter):
     cond_expr = _filter_expr(head.code)
-    return If(
-      cond=RawString(text=cond_expr),
-      body=_lower_inner_chain(tail, ctx),
-    )
+    body_op = _lower_inner_chain(tail, ctx)
+    if ctx.tiled_cartesian_valid_var:
+      # Tiled-Cartesian ballot path: fold into the valid flag
+      # (matches legacy `jit_filter` tiled branch). Avoids
+      # divergence around the cooperative ballot write.
+      v = ctx.tiled_cartesian_valid_var
+      return Block(
+        stmts=(
+          RawString(text=f'{v} = {v} && ({cond_expr});'),
+          body_op,
+        )
+      )
+    return If(cond=RawString(text=cond_expr), body=body_op)
 
   if isinstance(head, mir.ConstantBind):
     var = _sanitize_var_name(head.var_name)
@@ -844,6 +873,274 @@ def _lower_inner_chain(
     return _lower_negation(head, tail, ctx)
 
   raise ValueError(f'unsupported inner op: {type(head).__name__}')
+
+
+def _tiled_cart_eligible(
+  cart_op: mir.CartesianJoin,
+  ctx: LoweringCtx,
+) -> bool:
+  '''Mirror legacy `tiled_eligible` from pipeline.py: 2-source / 1-var-
+  per-source / materialize phase / ctx.tiled_cartesian set. The `rest`
+  shape is unconstrained (matches legacy) — Filters and other ops
+  between Cart and the trailing InsertIntos pass through naturally
+  via `_lower_inner_chain` with `ctx.tiled_cartesian_valid_var` set.'''
+  if not ctx.tiled_cartesian or ctx.is_counting:
+    return False
+  if len(cart_op.sources) != 2:
+    return False
+  if len(cart_op.var_from_source) != 2:
+    return False
+  return (
+    len(cart_op.var_from_source[0]) == 1
+    and len(cart_op.var_from_source[1]) == 1
+  )
+
+
+def _lower_nested_cart_tiled(
+  cart_op: mir.CartesianJoin,
+  rest: list[mir.MirNode],
+  ctx: LoweringCtx,
+) -> Op:
+  '''Lower a tiled-Cartesian-eligible nested CartesianJoin (N7).
+
+  The body is rendered ONCE with `ctx.tiled_cartesian_valid_var` set
+  so the trailing InsertInto run becomes a `TiledBallotBlock`. Counter
+  is then advanced past the `tc_valid_<n>` name slot and the standard
+  per-Cart scaffold (lane, group_size, per-source degree+handle,
+  total, flat_idx) allocates as in the non-tiled flow. Tiled-specific
+  names (t0_base, t1_base, t0_len, t1_len, tile_total, batch_var,
+  fb_batch_var, major_var, idx0, idx1) follow.
+
+  Mirrors legacy pipeline.py `tiled_eligible` dual-body trick +
+  jit_nested_cartesian_join + `_emit_tiled_cartesian` byte-for-byte.
+  '''
+  num_sources = 2
+  src0, src1 = cart_op.sources[0], cart_op.sources[1]
+  assert isinstance(src0, mir.ColumnSource)
+  assert isinstance(src1, mir.ColumnSource)
+
+  saved_counter = ctx.name_counter
+  tc_valid_name = f'tc_valid_{saved_counter + 1}'
+
+  # Body render with valid_var set — trailing InsertIntos turn into a
+  # TiledBallotBlock via `_lower_inner_chain` -> `_lower_tiled_ballot_block`.
+  saved_tcvv = ctx.tiled_cartesian_valid_var
+  saved_inside = ctx.inside_cartesian
+  ctx.tiled_cartesian_valid_var = tc_valid_name
+  ctx.inside_cartesian = True
+  pushed = 0
+  for vfs in cart_op.var_from_source:
+    for v in vfs:
+      ctx.bound_vars.append(v)
+      pushed += 1
+  try:
+    body_op = _lower_inner_chain(rest, ctx)
+  finally:
+    for _ in range(pushed):
+      ctx.bound_vars.pop()
+    ctx.inside_cartesian = saved_inside
+    ctx.tiled_cartesian_valid_var = saved_tcvv
+
+  # Reset counter to "post-dual-body" state (matches legacy
+  # pipeline.py setting `ctx.name_counter = saved_name_counter + 1`).
+  ctx.name_counter = saved_counter + 1
+
+  # Allocate per-Cart scaffold names (matches legacy
+  # `jit_nested_cartesian_join` lines 533+).
+  lane_var = ctx.fresh('lane')
+  group_size_var = ctx.fresh('group_size')
+
+  handle_var_names: list[str] = []
+  view_var_names: list[str] = []
+  degree_var_names: list[str] = []
+  alias_targets: list[str | None] = []
+
+  for src in cart_op.sources:
+    assert isinstance(src, mir.ColumnSource)
+    degree_var_names.append(ctx.fresh('degree'))
+    parent_state_key = _state_key(
+      src.rel_name, list(src.index), src.prefix_vars, src.version
+    )
+    parent_handle = ctx.handle_vars.get(parent_state_key, '')
+    if parent_handle:
+      alias_targets.append(parent_handle)
+    elif not src.prefix_vars:
+      alias_targets.append(None)
+    else:
+      raise NotImplementedError(
+        f'_lower_nested_cart_tiled: source {src.rel_name} has prefix '
+        f'{src.prefix_vars} but no full-state-key match'
+      )
+    handle_var_names.append(
+      ctx.fresh(f'h_{src.rel_name}_{src.handle_start}')
+    )
+    src_view = ctx.view_var_names.get(str(src.handle_start), '')
+    if not src_view:
+      raise ValueError(
+        f'_lower_nested_cart_tiled: no view var for source handle_idx '
+        f'{src.handle_start}'
+      )
+    view_var_names.append(src_view)
+
+  total_var = ctx.fresh('total')
+  flat_idx_var = ctx.fresh('flat_idx')
+
+  # Tiled-specific names. Order matches legacy `_emit_tiled_cartesian`.
+  t0_base = ctx.fresh('t0_base')
+  t1_base = ctx.fresh('t1_base')
+  t0_len = ctx.fresh('t0_len')
+  t1_len = ctx.fresh('t1_len')
+  tile_total = ctx.fresh('tile_total')
+  batch_var = ctx.fresh('tc_batch')
+  # valid_var = tc_valid_name allocated above; no fresh allocation here.
+  fb_batch_var = ctx.fresh('fb_batch')
+  major_var = ctx.fresh('major_is_1')
+  idx0_var = ctx.fresh('idx0')
+  idx1_var = ctx.fresh('idx1')
+
+  # Build IIR — debug comments + lane/group_size + handle binds +
+  # validity + degrees + total/zero-check + SaTiledCartesian2D.
+  stmts: list[Op] = []
+  if ctx.debug:
+    vars_bound_str = ', '.join(cart_op.vars)
+    stmts.append(
+      Comment(
+        text=f'Nested CartesianJoin: bind {vars_bound_str} from '
+        f'{num_sources} source(s)'
+      )
+    )
+    src_debug = ' '.join(
+      f'({s.rel_name} :handle {s.handle_start} '
+      f':prefix ({" ".join(s.prefix_vars)}))'
+      for s in cart_op.sources
+    )
+    stmts.append(
+      Comment(
+        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) '
+        f':sources ({src_debug} ))'
+      )
+    )
+
+  stmts.append(
+    Bind(
+      name=lane_var,
+      expr=RawString(text=f'{ctx.tile_var}.thread_rank()'),
+      type_decl='uint32_t',
+    )
+  )
+  stmts.append(
+    Bind(
+      name=group_size_var,
+      expr=RawString(text=f'{ctx.tile_var}.size()'),
+      type_decl='uint32_t',
+    )
+  )
+  stmts.append(BlankLine())
+
+  for i in range(num_sources):
+    if alias_targets[i] is not None:
+      stmts.append(
+        RawString(
+          text=f'auto {handle_var_names[i]} = {alias_targets[i]};  '
+          f'// reusing narrowed handle'
+        )
+      )
+    else:
+      stmts.append(
+        Bind(
+          name=handle_var_names[i],
+          expr=SaRoot(view_name=view_var_names[i]),
+        )
+      )
+  stmts.append(BlankLine())
+
+  validity_parts = ' || '.join(f'!{h}.valid()' for h in handle_var_names)
+  stmts.append(RawString(text=f'if ({validity_parts}) continue;'))
+  stmts.append(BlankLine())
+
+  for i in range(num_sources):
+    stmts.append(
+      Bind(
+        name=degree_var_names[i],
+        expr=SaDegree(handle_name=handle_var_names[i]),
+        type_decl='uint32_t',
+      )
+    )
+
+  stmts.append(
+    Bind(
+      name=total_var,
+      expr=RawString(text=' * '.join(degree_var_names)),
+      type_decl='uint32_t',
+    )
+  )
+  stmts.append(RawString(text=f'if ({total_var} == 0) continue;'))
+  stmts.append(BlankLine())
+
+  stmts.append(
+    SaTiledCartesian2D(
+      view_var0=view_var_names[0],
+      view_var1=view_var_names[1],
+      handle_var0=handle_var_names[0],
+      handle_var1=handle_var_names[1],
+      col0=len(src0.prefix_vars),
+      col1=len(src1.prefix_vars),
+      var_name0=_sanitize_var_name(cart_op.var_from_source[0][0]),
+      var_name1=_sanitize_var_name(cart_op.var_from_source[1][0]),
+      lane_var=lane_var,
+      group_size_var=group_size_var,
+      total_var=total_var,
+      degree_var0=degree_var_names[0],
+      degree_var1=degree_var_names[1],
+      flat_idx_var=flat_idx_var,
+      t0_base=t0_base,
+      t1_base=t1_base,
+      t0_len=t0_len,
+      t1_len=t1_len,
+      tile_total=tile_total,
+      batch_var=batch_var,
+      valid_var=tc_valid_name,
+      fb_batch_var=fb_batch_var,
+      major_var=major_var,
+      idx0_var=idx0_var,
+      idx1_var=idx1_var,
+      body=body_op,
+    )
+  )
+
+  return Block(stmts=tuple(stmts))
+
+
+def _lower_tiled_ballot_block(
+  inserts: list[mir.InsertInto],
+  ctx: LoweringCtx,
+) -> Op:
+  '''Lower a trailing run of InsertIntos as a single TiledBallotBlock
+  (ballot-coalesced writes used by `SaTiledCartesian2D` body).
+
+  Each InsertInto contributes one entry: (dest_idx, sanitized values,
+  debug text). The runner's per-output-context naming
+  (`output_ctx_<j>`) maps to dest_idx via the same convention as the
+  legacy `_root_cj_multi` setup.
+  '''
+  outputs: list[tuple[int, tuple[str, ...], str]] = []
+  for node in inserts:
+    out_var = ctx.output_var_overrides.get(node.rel_name, ctx.output_var)
+    if out_var.startswith('output_ctx_'):
+      dest_idx = int(out_var[len('output_ctx_'):])
+    else:
+      dest_idx = 0
+    values = tuple(_sanitize_var_name(v) for v in node.vars)
+    debug = (
+      f'Emit: {node.rel_name}({", ".join(node.vars)})'
+      if ctx.debug
+      else ''
+    )
+    outputs.append((dest_idx, values, debug))
+  return TiledBallotBlock(
+    valid_var=ctx.tiled_cartesian_valid_var,
+    outputs=tuple(outputs),
+  )
 
 
 def _lower_negation(
@@ -921,12 +1218,17 @@ def _lower_negation(
     else:
       check_var = info.var_name
 
-    stmts.append(
-      If(
-        cond=RawString(text=f'!{check_var}.valid()'),
-        body=body_op,
+    if ctx.tiled_cartesian_valid_var:
+      v = ctx.tiled_cartesian_valid_var
+      stmts.append(RawString(text=f'{v} = {v} && (!{check_var}.valid());'))
+      stmts.append(body_op)
+    else:
+      stmts.append(
+        If(
+          cond=RawString(text=f'!{check_var}.valid()'),
+          body=body_op,
+        )
       )
-    )
     return Block(stmts=tuple(stmts))
 
   # Standard path: const_args path not yet lowered here (only the
@@ -979,12 +1281,17 @@ def _lower_negation(
     )
 
   stmts.append(Bind(name=neg_handle_var, expr=parent_expr))
-  stmts.append(
-    If(
-      cond=RawString(text=f'!{neg_handle_var}.valid()'),
-      body=body_op,
+  if ctx.tiled_cartesian_valid_var:
+    v = ctx.tiled_cartesian_valid_var
+    stmts.append(RawString(text=f'{v} = {v} && (!{neg_handle_var}.valid());'))
+    stmts.append(body_op)
+  else:
+    stmts.append(
+      If(
+        cond=RawString(text=f'!{neg_handle_var}.valid()'),
+        body=body_op,
+      )
     )
-  )
   return Block(stmts=tuple(stmts))
 
 
@@ -1055,8 +1362,8 @@ def _lower_nested_cart(
     - Full state-key handle reuse for prefix-bearing sources;
       fresh root for prefix-empty.
     - `neg_pre_narrow` registration for following Negations (M5.x).
-    - No tiled-Cartesian (M8), no count-as-product, no const_args
-      in pre-narrow.
+    - Tiled-Cartesian dispatch (N7): when ctx.tiled_cartesian is set
+      and shape eligible, dispatch to `_lower_nested_cart_tiled`.
 
   Mirrors `jit_nested_cartesian_join` in `codegen/jit/instructions.py`.
   Counter trajectory matches legacy: pre-narrow var_names allocated
@@ -1066,6 +1373,9 @@ def _lower_nested_cart(
   num_sources = len(cart_op.sources)
   if num_sources < 1:
     raise ValueError('_lower_nested_cart: must have at least 1 source')
+
+  if _tiled_cart_eligible(cart_op, ctx):
+    return _lower_nested_cart_tiled(cart_op, rest, ctx)
 
   # Step 1: register neg_pre_narrow info for any Negations in rest.
   # This bumps counter for each pre-narrow `var_name`, matching

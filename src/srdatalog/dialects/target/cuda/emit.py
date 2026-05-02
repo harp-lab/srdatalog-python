@@ -39,6 +39,7 @@ from srdatalog.dialects.iir.cf import (
   ParallelFor,
   Phase,
   RawString,
+  TiledBallotBlock,
   VarRef,
   WriteOutput,
 )
@@ -54,6 +55,7 @@ from srdatalog.dialects.relation.sorted_array.ops import (
   SaPrefCoop,
   SaPrefSeq,
   SaRoot,
+  SaTiledCartesian2D,
   SaValid,
 )
 from srdatalog.ir_core import Op, assert_never
@@ -286,6 +288,25 @@ def emit(op: Op, ctx: EmitCtx) -> str:
       args = ', '.join(emit_expr(v, ctx) for v in values)
       return f'{ctx.ind()}{out}.emit_direct({args});\n'
 
+    case SaTiledCartesian2D(
+      view_var0=vv0, view_var1=vv1, handle_var0=hv0, handle_var1=hv1,
+      col0=col0, col1=col1, var_name0=vn0, var_name1=vn1,
+      lane_var=lv, group_size_var=gv, total_var=tv,
+      degree_var0=dv0, degree_var1=dv1, flat_idx_var=fiv,
+      t0_base=t0b, t1_base=t1b, t0_len=t0l, t1_len=t1l,
+      tile_total=tt, batch_var=bv, valid_var=vvar,
+      fb_batch_var=fbv, major_var=mv, idx0_var=i0v, idx1_var=i1v,
+      body=body,
+    ):
+      return _emit_tiled_cartesian_2d(
+        ctx, vv0, vv1, hv0, hv1, col0, col1, vn0, vn1,
+        lv, gv, tv, dv0, dv1, fiv, t0b, t1b, t0l, t1l,
+        tt, bv, vvar, fbv, mv, i0v, i1v, body,
+      )
+
+    case TiledBallotBlock(valid_var=vvar, outputs=outputs):
+      return _emit_tiled_ballot_block(ctx, vvar, outputs)
+
     case AddCount(output_var=out, delta=delta):
       return f'{ctx.ind()}{out}.add_count({emit_expr(delta, ctx)});\n'
 
@@ -342,3 +363,121 @@ def emit_expr(op: Op, ctx: EmitCtx) -> str:
         f'target.cuda M1: emit_expr does not yet handle {type(op).__name__}; '
         f'add a case as the dialect grows'
       )
+
+
+def _emit_tiled_cartesian_2d(
+  ctx: EmitCtx,
+  vv0: str, vv1: str, hv0: str, hv1: str,
+  col0: int, col1: int,
+  vn0: str, vn1: str,
+  lv: str, gv: str, tv: str,
+  dv0: str, dv1: str, fiv: str,
+  t0b: str, t1b: str, t0l: str, t1l: str,
+  tt: str, bv: str, vvar: str,
+  fbv: str, mv: str, i0v: str, i1v: str,
+  body: Op,
+) -> str:
+  '''Lifted from legacy `_emit_tiled_cartesian` (codegen/jit/
+  instructions.py). The whole structure is string-level — the body
+  IR emits at the surrounding scope's indent (legacy quirk where
+  bodies are pre-rendered before tiled wrap textually surrounds
+  them).'''
+  i = ctx.ind()
+  tile = ctx.tile_var
+  body_str = emit(body, ctx)
+  parts: list[str] = [
+    f'{i}if ({tv} > 32) {{\n',
+    f'{i}  // Tiled Cartesian: smem pre-load reads, '
+    f'standard emit_direct writes\n',
+    f'{i}  for (uint32_t {t0b} = 0; {t0b} < {dv0}; '
+    f'{t0b} += kCartTileSize) {{\n',
+    f'{i}    uint32_t {t0l} = min({t0b} + (uint32_t)kCartTileSize, '
+    f'{dv0}) - {t0b};\n',
+    f'{i}    for (uint32_t _ti = {lv}; _ti < {t0l}; _ti += {gv})\n',
+    f'{i}      s_cart[warp_in_block][0][_ti] = {vv0}.get_value('
+    f'{col0}, {hv0}.begin() + {t0b} + _ti);\n',
+    f'{i}    for (uint32_t {t1b} = 0; {t1b} < {dv1}; '
+    f'{t1b} += kCartTileSize) {{\n',
+    f'{i}      uint32_t {t1l} = min({t1b} + (uint32_t)kCartTileSize, '
+    f'{dv1}) - {t1b};\n',
+    f'{i}      for (uint32_t _ti = {lv}; _ti < {t1l}; _ti += {gv})\n',
+    f'{i}        s_cart[warp_in_block][1][_ti] = {vv1}.get_value('
+    f'{col1}, {hv1}.begin() + {t1b} + _ti);\n',
+    f'{i}      {tile}.sync();\n',
+    f'{i}      uint32_t {tt} = {t0l} * {t1l};\n',
+    f'{i}      for (uint32_t {bv} = 0; {bv} < {tt}; '
+    f'{bv} += {gv}) {{\n',
+    f'{i}        uint32_t {fiv} = {bv} + {lv};\n',
+    f'{i}        bool {vvar} = {fiv} < {tt};\n',
+    f'{i}        auto {vn0} = {vvar} ? '
+    f's_cart[warp_in_block][0][{fiv} / {t1l}] : ValueType{{0}};\n',
+    f'{i}        auto {vn1} = {vvar} ? '
+    f's_cart[warp_in_block][1][{fiv} % {t1l}] : ValueType{{0}};\n',
+    body_str,
+    f'{i}      }}\n',
+    f'{i}      {tile}.sync();\n',
+    f'{i}    }}\n',
+    f'{i}  }}\n',
+    f'{i}}} else {{\n',
+    f'{i}  for (uint32_t {fbv} = 0; {fbv} < {tv}; '
+    f'{fbv} += {gv}) {{\n',
+    f'{i}    uint32_t {fiv} = {fbv} + {lv};\n',
+    f'{i}    bool {vvar} = {fiv} < {tv};\n',
+    f'{i}    const bool {mv} = ({dv1} >= {dv0});\n',
+    f'{i}    uint32_t {i0v}, {i1v};\n',
+    f'{i}    if ({mv}) {{ {i0v} = {fiv} / {dv1}; '
+    f'{i1v} = {fiv} % {dv1}; }}\n',
+    f'{i}    else {{ {i1v} = {fiv} / {dv0}; '
+    f'{i0v} = {fiv} % {dv0}; }}\n',
+    f'{i}    auto {vn0} = {vv0}.get_value({col0}, '
+    f'{hv0}.begin() + {i0v});\n',
+    f'{i}    auto {vn1} = {vv1}.get_value({col1}, '
+    f'{hv1}.begin() + {i1v});\n',
+    body_str,
+    f'{i}  }}\n',
+    f'{i}}}\n',
+  ]
+  return ''.join(parts)
+
+
+def _emit_tiled_ballot_block(
+  ctx: EmitCtx,
+  vvar: str,
+  outputs: tuple[tuple[int, tuple[str, ...], str], ...],
+) -> str:
+  '''Lifted from legacy `emit_helpers.jit_insert_into` ballot path.
+  Single ballot setup + per-output `if (valid) { write }` block,
+  closing with `warp_local_count += _tc_active`.'''
+  i = ctx.ind()
+  tile = ctx.tile_var
+  parts: list[str] = []
+  for idx_, (dest_idx, values, debug) in enumerate(outputs):
+    if debug:
+      parts.append(f'{i}// {debug}\n')
+    if idx_ == 0:
+      parts.append(f'{i}{{\n')
+      parts.append(f'{i}  uint32_t _tc_ballot = {tile}.ballot({vvar});\n')
+      parts.append(f'{i}  uint32_t _tc_active = __popc(_tc_ballot);\n')
+      parts.append(f'{i}  if (_tc_active > 0) {{\n')
+      parts.append(
+        f'{i}    uint32_t _tc_mask = (1u << {tile}.thread_rank()) - 1u;\n'
+      )
+      parts.append(
+        f'{i}    uint32_t _tc_off = __popc(_tc_ballot & _tc_mask);\n'
+      )
+    parts.append(f'{i}    if ({vvar}) {{\n')
+    parts.append(
+      f'{i}      uint32_t _tc_pos_{dest_idx} = old_size_{dest_idx} '
+      f'+ warp_write_base + warp_local_count + _tc_off;\n'
+    )
+    for col, name in enumerate(values):
+      parts.append(
+        f'{i}      output_data_{dest_idx}[{col} * '
+        f'static_cast<uint32_t>(output_stride_{dest_idx}) + '
+        f'_tc_pos_{dest_idx}] = {name};\n'
+      )
+    parts.append(f'{i}    }}\n')
+  parts.append(f'{i}    warp_local_count += _tc_active;\n')
+  parts.append(f'{i}  }}\n')
+  parts.append(f'{i}}}\n')
+  return ''.join(parts)

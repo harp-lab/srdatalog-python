@@ -338,6 +338,42 @@ class RawString(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class TiledBallotBlock(Op):
+  '''Multi-output ballot-coalesced write block used inside tiled-
+  Cartesian materialize emission.
+
+  Lowers (target.cuda) to:
+
+      {
+        uint32_t _tc_ballot = tile.ballot(<valid_var>);
+        uint32_t _tc_active = __popc(_tc_ballot);
+        if (_tc_active > 0) {
+          uint32_t _tc_mask = (1u << tile.thread_rank()) - 1u;
+          uint32_t _tc_off = __popc(_tc_ballot & _tc_mask);
+          for each output (dest_idx, values):
+            if (<valid_var>) {
+              uint32_t _tc_pos_<dest_idx> = old_size_<dest_idx>
+                + warp_write_base + warp_local_count + _tc_off;
+              output_data_<dest_idx>[col * static_cast<uint32_t>(
+                output_stride_<dest_idx>) + _tc_pos_<dest_idx>] = vN;
+              ...
+            }
+          warp_local_count += _tc_active;
+        }
+      }
+
+  `outputs` is a tuple of `(dest_idx, sanitized_values, debug_text)`.
+  Multi-head pipelines emit several entries; the ballot setup +
+  `_tc_active` increment happen once around all of them. Replaces the
+  legacy `tiled_cartesian_ballot_done` flag on `CodeGenContext`.
+  '''
+
+  valid_var: str
+  outputs: tuple[tuple[int, tuple[str, ...], str], ...]
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class OuterAnchor(Op):
   '''Render `body` at the surrounding scope's indent (`ctx.indent_level
   - ctx.segment_depth`), regardless of how deep the wrapping

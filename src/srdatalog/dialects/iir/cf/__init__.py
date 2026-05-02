@@ -35,6 +35,7 @@ from srdatalog.dialects.iir.cf.ops import (
   ParallelFor,
   Phase,
   RawString,
+  TiledBallotBlock,
   VarRef,
   WriteOutput,
 )
@@ -62,6 +63,7 @@ DIALECT = Dialect(
     ParallelFor,
     Phase,
     RawString,
+    TiledBallotBlock,
     VarRef,
     WriteOutput,
   ],
@@ -88,6 +90,7 @@ __all__ = [
   'ParallelFor',
   'Phase',
   'RawString',
+  'TiledBallotBlock',
   'VarRef',
   'WriteOutput',
 ]

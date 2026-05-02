@@ -407,7 +407,7 @@ def _gen_kernel_materialize(
       output_var_name = output_var
   code += "\n"
 
-  if _dialect_safe_kernel(node, rel_index_types) and not tiled_cartesian_eligible:
+  if _dialect_safe_kernel(node, rel_index_types):
     from srdatalog.compile import compile_kernel_body
 
     body = compile_kernel_body(
@@ -416,6 +416,7 @@ def _gen_kernel_materialize(
       output_var_name=output_var_name,
       output_vars=output_vars,
       rel_index_types=rel_index_types,
+      tiled_cartesian=tiled_cartesian_eligible,
     )
   else:
     ctx = _make_kernel_ctx(

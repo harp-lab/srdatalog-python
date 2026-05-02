@@ -100,6 +100,7 @@ def compile_kernel_body(
   output_vars: dict[str, str] | None = None,
   slot_mode: str = 'positional',
   rel_index_types: dict[str, str] | None = None,
+  tiled_cartesian: bool = False,
 ) -> str:
   '''Emit the operator() body for one kernel — view_decls followed by
   the dialect-emitted kernel logic. Caller is responsible for the
@@ -171,6 +172,7 @@ def compile_kernel_body(
     rel_index_types=dict(rel_index_types) if rel_index_types else {},
     view_slot_bases=base_map,
     dedup_hash=ep.dedup_hash,
+    tiled_cartesian=tiled_cartesian,
   )
   iir = lower_scan_pipeline(pipeline, lower_ctx)
   emit_ctx = EmitCtx(indent_level=4)

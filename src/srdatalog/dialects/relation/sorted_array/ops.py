@@ -186,3 +186,82 @@ class SaGetValAtPos(Op):
   col: int
   handle_name: str
   idx_var_name: str
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class SaTiledCartesian2D(Op):
+  '''2-source nested CartesianJoin with tiled smem pre-load + ballot writes.
+
+  Lowers to the legacy `_emit_tiled_cartesian` shape:
+
+      if (<total_var> > 32) {
+        // Tiled Cartesian: smem pre-load reads, standard emit_direct writes
+        for (uint32_t <t0_base> = 0; <t0_base> < <degree_var0>; <t0_base> += kCartTileSize) {
+          uint32_t <t0_len> = min(<t0_base> + (uint32_t)kCartTileSize, <degree_var0>) - <t0_base>;
+          for (uint32_t _ti = <lane_var>; _ti < <t0_len>; _ti += <group_size_var>)
+            s_cart[warp_in_block][0][_ti] = <view_var0>.get_value(<col0>, <handle_var0>.begin() + <t0_base> + _ti);
+          for (uint32_t <t1_base> = 0; <t1_base> < <degree_var1>; <t1_base> += kCartTileSize) {
+            uint32_t <t1_len> = min(<t1_base> + (uint32_t)kCartTileSize, <degree_var1>) - <t1_base>;
+            for (uint32_t _ti = <lane_var>; _ti < <t1_len>; _ti += <group_size_var>)
+              s_cart[warp_in_block][1][_ti] = <view_var1>.get_value(<col1>, <handle_var1>.begin() + <t1_base> + _ti);
+            <tile_var>.sync();
+            uint32_t <tile_total> = <t0_len> * <t1_len>;
+            for (uint32_t <batch_var> = 0; <batch_var> < <tile_total>; <batch_var> += <group_size_var>) {
+              uint32_t <flat_idx_var> = <batch_var> + <lane_var>;
+              bool <valid_var> = <flat_idx_var> < <tile_total>;
+              auto <var_name0> = <valid_var> ? s_cart[warp_in_block][0][<flat_idx_var> / <t1_len>] : ValueType{0};
+              auto <var_name1> = <valid_var> ? s_cart[warp_in_block][1][<flat_idx_var> % <t1_len>] : ValueType{0};
+              <tiled_body>
+            }
+            <tile_var>.sync();
+          }
+        }
+      } else {
+        for (uint32_t <fb_batch_var> = 0; <fb_batch_var> < <total_var>; <fb_batch_var> += <group_size_var>) {
+          uint32_t <flat_idx_var> = <fb_batch_var> + <lane_var>;
+          bool <valid_var> = <flat_idx_var> < <total_var>;
+          const bool <major_var> = (<degree_var1> >= <degree_var0>);
+          uint32_t <idx0_var>, <idx1_var>;
+          if (<major_var>) { <idx0_var> = <flat_idx_var> / <degree_var1>; <idx1_var> = <flat_idx_var> % <degree_var1>; }
+          else { <idx1_var> = <flat_idx_var> / <degree_var0>; <idx0_var> = <flat_idx_var> % <degree_var0>; }
+          auto <var_name0> = <view_var0>.get_value(<col0>, <handle_var0>.begin() + <idx0_var>);
+          auto <var_name1> = <view_var1>.get_value(<col1>, <handle_var1>.begin() + <idx1_var>);
+          <fallback_body>
+        }
+      }
+
+  `body` is the trailing-InsertInto run rendered as a TiledBallotBlock
+  (the `ctx.tiled_cartesian_valid_var`-driven InsertInto variant). The
+  legacy `_emit_tiled_cartesian` emits `tiled_body` in both branches
+  when set — so the dialect carries one body and uses it twice. Body
+  emits at the surrounding scope's indent (legacy quirk where body
+  was rendered before the tiled wrap textually surrounded it).
+  '''
+
+  view_var0: str
+  view_var1: str
+  handle_var0: str
+  handle_var1: str
+  col0: int
+  col1: int
+  var_name0: str
+  var_name1: str
+  lane_var: str
+  group_size_var: str
+  total_var: str
+  degree_var0: str
+  degree_var1: str
+  flat_idx_var: str
+  t0_base: str
+  t1_base: str
+  t0_len: str
+  t1_len: str
+  tile_total: str
+  batch_var: str
+  valid_var: str
+  fb_batch_var: str
+  major_var: str
+  idx0_var: str
+  idx1_var: str
+  body: Op

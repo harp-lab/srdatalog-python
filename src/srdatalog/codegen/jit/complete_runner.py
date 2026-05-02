@@ -414,17 +414,28 @@ def _gen_kernel_fused(
   # mode (the ballot-path bypasses SpeculativeOutputContext). Otherwise
   # reuse the materialize pipeline body verbatim (matches Nim exactly).
   if tiled_cartesian_eligible:
-    ctx = _make_kernel_ctx(
-      node.source_specs,
-      pipeline,
-      rel_index_types,
-      is_counting=False,
-      tiled_cartesian=False,
-    )
-    for i, dest in enumerate(dest_specs):
-      ctx.output_vars[dest.rel_name] = f"output_ctx_{i}"
-    ctx.output_var_name = "output_ctx_0"
-    code += jit_pipeline(pipeline, node.source_specs, ctx)
+    output_vars = {dest.rel_name: f"output_ctx_{i}" for i, dest in enumerate(dest_specs)}
+    if _dialect_safe_kernel(node, rel_index_types):
+      from srdatalog.compile import compile_kernel_body
+
+      code += compile_kernel_body(
+        node,
+        is_counting=False,
+        output_var_name="output_ctx_0",
+        output_vars=output_vars,
+      )
+    else:
+      ctx = _make_kernel_ctx(
+        node.source_specs,
+        pipeline,
+        rel_index_types,
+        is_counting=False,
+        tiled_cartesian=False,
+      )
+      for k, v in output_vars.items():
+        ctx.output_vars[k] = v
+      ctx.output_var_name = "output_ctx_0"
+      code += jit_pipeline(pipeline, node.source_specs, ctx)
   else:
     code += materialize_pipeline_body
 

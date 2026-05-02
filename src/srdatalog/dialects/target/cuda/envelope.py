@@ -171,30 +171,50 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
       for src in op.sources:
         if isinstance(src, m.ColumnSource):
           _record_spec(
-            specs, seen,
-            src.rel_name, list(src.index), src.version.code, src.handle_start,
+            specs,
+            seen,
+            src.rel_name,
+            list(src.index),
+            src.version.code,
+            src.handle_start,
           )
     elif isinstance(op, m.Scan | m.Negation | m.Aggregate):
       _record_spec(
-        specs, seen,
-        op.rel_name, list(op.index), op.version.code, op.handle_start,
+        specs,
+        seen,
+        op.rel_name,
+        list(op.index),
+        op.version.code,
+        op.handle_start,
       )
     elif isinstance(op, m.BalancedScan):
       s1, s2 = op.source1, op.source2
       _record_spec(
-        specs, seen,
-        s1.rel_name, list(s1.index), s1.version.code, s1.handle_start,
+        specs,
+        seen,
+        s1.rel_name,
+        list(s1.index),
+        s1.version.code,
+        s1.handle_start,
       )
       _record_spec(
-        specs, seen,
-        s2.rel_name, list(s2.index), s2.version.code, s2.handle_start,
+        specs,
+        seen,
+        s2.rel_name,
+        list(s2.index),
+        s2.version.code,
+        s2.handle_start,
       )
     elif isinstance(op, m.PositionedExtract):
       for src in op.sources:
         if isinstance(src, m.ColumnSource):
           _record_spec(
-            specs, seen,
-            src.rel_name, list(src.index), src.version.code, src.handle_start,
+            specs,
+            seen,
+            src.rel_name,
+            list(src.index),
+            src.version.code,
+            src.handle_start,
           )
   return specs
 
@@ -237,10 +257,7 @@ def emit_view_declarations(
   code += indent + 'using HandleType = ViewType::NodeHandle;\n\n'
 
   if debug:
-    code += (
-      indent
-      + f'// View declarations (deduplicated by spec, {len(specs)} unique views)\n'
-    )
+    code += indent + f'// View declarations (deduplicated by spec, {len(specs)} unique views)\n'
 
   spec_to_view_var: list[tuple[str, str]] = []
   for positional_slot, sp in enumerate(specs):
@@ -431,11 +448,7 @@ def emit_full_file(
       newline_after = header.find('\n\n', marker_pos)
       if newline_after != -1:
         insert_at = newline_after + 2
-        header = (
-          header[:insert_at]
-          + emit_dedup_table_struct(arity)
-          + header[insert_at:]
-        )
+        header = header[:insert_at] + emit_dedup_table_struct(arity) + header[insert_at:]
 
   full_kernel = header + body + emit_functor_end()
   return JIT_FILE_PRELUDE + full_kernel + '\n' + JIT_FILE_FOOTER

@@ -55,6 +55,14 @@ from srdatalog.codegen.jit.view_management import (
   source_spec_key,
 )
 
+# Pure-template phase emitters now live in the dialect's runner module.
+# Local aliases preserve the legacy call sites until the rest of this
+# file migrates over.
+from srdatalog.dialects.target.cuda.runner import emit_launch_count as _gen_launch_count
+from srdatalog.dialects.target.cuda.runner import emit_read_total as _gen_read_total
+from srdatalog.dialects.target.cuda.runner import emit_scan_and_resize as _gen_scan_and_resize
+from srdatalog.dialects.target.cuda.runner import emit_scan_only as _gen_scan_only
+
 # -----------------------------------------------------------------------------
 # Source spec extraction helpers (mirror Nim's inline lambdas)
 # -----------------------------------------------------------------------------
@@ -1089,95 +1097,6 @@ def _gen_setup(
   )
   code += "  p.thread_counts_ptr = p.thread_counts.data();\n"
   code += "  return p;\n"
-  code += "}\n\n"
-  return code
-
-
-def _gen_launch_count(runner_prefix: str, is_block_group: bool = False) -> str:
-  code = f"void {runner_prefix}::launch_count(LaunchParams& p, GPU_STREAM_T stream) {{\n"
-  code += "  if (p.num_threads == 0) return;\n"
-  code += "  if (p.num_unique_root_keys == 0) {\n"
-  code += "    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);\n"
-  code += "    return;\n"
-  code += "  }\n"
-  if is_block_group:
-    code += "  if (p.bg_total_work > 0) {\n"
-    code += (
-      "    kernel_bg_count<<<p.num_blocks, kBlockSize, 0, stream>>>"
-      "(p.d_views.data(), p.root_unique_values_ptr, "
-      "p.head_root_unique_values_ptr, p.num_unique_root_keys, "
-      "p.num_full_unique_root_keys, p.num_root_keys, "
-      "p.bg_cumulative_work_ptr, p.bg_total_work, p.thread_counts_ptr);\n"
-    )
-    code += "  } else {\n"
-    code += (
-      "    kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>"
-      "(p.d_views.data(), p.root_unique_values_ptr, "
-      "p.num_unique_root_keys, p.num_root_keys, p.thread_counts_ptr);\n"
-    )
-    code += "  }\n"
-  else:
-    code += (
-      "  kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>"
-      "(p.d_views.data(), p.root_unique_values_ptr, "
-      "p.num_unique_root_keys, p.num_root_keys, p.thread_counts_ptr);\n"
-    )
-  code += "}\n\n"
-  return code
-
-
-def _gen_scan_and_resize(
-  node: m.ExecutePipeline,
-  runner_prefix: str,
-) -> str:
-  code = "// Phase 3: Prefix scan + readback total + resize destinations\n"
-  code += (
-    f"uint32_t {runner_prefix}::scan_and_resize(DB& db, LaunchParams& p, GPU_STREAM_T stream) {{\n"
-  )
-  code += (
-    "  thrust::exclusive_scan(rmm::exec_policy(stream), "
-    "p.thread_counts_ptr, p.thread_counts_ptr + p.num_threads + 1, "
-    "p.thread_counts_ptr, 0, thrust::plus<uint32_t>());\n"
-  )
-  code += "  uint32_t total_count = 0;\n"
-  code += (
-    "  GPU_MEMCPY_ASYNC(&total_count, p.thread_counts_ptr + p.num_threads, "
-    "sizeof(uint32_t), GPU_DEVICE_TO_HOST, stream);\n"
-  )
-  code += "  GPU_STREAM_SYNCHRONIZE(stream);\n"
-  code += "  if (total_count == 0) return 0;\n\n"
-  for i, dest in enumerate(node.dest_specs):
-    code += f"  auto& dest_rel_{i} = get_relation_by_schema<{dest.rel_name}, NEW_VER>(db);\n"
-    code += f"  p.old_size_{i} = static_cast<uint32_t>(dest_rel_{i}.size());\n"
-    code += f"  dest_rel_{i}.resize_interned_columns(p.old_size_{i} + total_count, stream);\n"
-  code += "  return total_count;\n"
-  code += "}\n\n"
-  return code
-
-
-def _gen_scan_only(runner_prefix: str) -> str:
-  code = "// Phase 3a: Prefix scan only (async, no sync)\n"
-  code += f"void {runner_prefix}::scan_only(LaunchParams& p, GPU_STREAM_T stream) {{\n"
-  code += "  if (p.num_threads == 0) return;\n"
-  code += (
-    "  thrust::exclusive_scan(rmm::exec_policy(stream), "
-    "p.thread_counts_ptr, p.thread_counts_ptr + p.num_threads + 1, "
-    "p.thread_counts_ptr, 0, thrust::plus<uint32_t>());\n"
-  )
-  code += "}\n\n"
-  return code
-
-
-def _gen_read_total(runner_prefix: str) -> str:
-  code = "// Phase 3b: Read total count (call after device sync)\n"
-  code += f"uint32_t {runner_prefix}::read_total(LaunchParams& p) {{\n"
-  code += "  if (p.num_threads == 0) return 0;\n"
-  code += "  uint32_t total_count = 0;\n"
-  code += (
-    "  GPU_MEMCPY(&total_count, p.thread_counts_ptr + p.num_threads, "
-    "sizeof(uint32_t), GPU_DEVICE_TO_HOST);\n"
-  )
-  code += "  return total_count;\n"
   code += "}\n\n"
   return code
 

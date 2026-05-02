@@ -72,16 +72,24 @@ def compile_runner(
   methods + execute(). Production output: this is what
   `jit_runner.<rule>.cpp` golden files capture.
 
-  Currently delegates to the legacy `gen_complete_runner` for the
-  scaffolding. As N3.x milestones progress, kernel bodies and then
-  the host-side scaffolding migrate into the dialect. The
-  byte-equivalence gate (`test_runner_byte_equivalence.py`) anchors
-  this entry point to the upstream goldens throughout the migration.
-  '''
-  from srdatalog.codegen.jit.complete_runner import gen_complete_runner
+  The dialect's `target.cuda.runner` module owns the runner emission
+  surface. Most pieces (phase methods, execute, BG variants, fused
+  kernel) currently delegate to legacy helpers in
+  `codegen.jit.complete_runner`; later milestones (N2/N4/N5/N6/N8)
+  collapse them into native dialect emission.
 
-  _decl, full = gen_complete_runner(ep, db_type_name, rel_index_types=rel_index_types)
-  return full
+  Kernel *bodies* (count + materialize) already route through
+  `compile_kernel_body` when `_dialect_safe_kernel` holds — see the
+  swap inside `complete_runner._gen_kernel_count` /
+  `_gen_kernel_materialize`.
+
+  The byte-equivalence gate (`tests/test_runner_byte_equivalence.py`)
+  anchors this entry point to the upstream goldens throughout the
+  migration.
+  '''
+  from srdatalog.dialects.target.cuda.runner import emit_runner_full
+
+  return emit_runner_full(ep, db_type_name, rel_index_types=rel_index_types)
 
 
 def compile_kernel_body(

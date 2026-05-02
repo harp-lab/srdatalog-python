@@ -126,6 +126,32 @@ def _root_is_scan(pipeline: list[m.MirNode]) -> bool:
 # -----------------------------------------------------------------------------
 
 
+def _dialect_safe_kernel(
+  node: m.ExecutePipeline,
+  rel_index_types: dict[str, str],
+) -> bool:
+  '''True iff the dialect's `compile_kernel_body` produces output
+  byte-equivalent to the legacy `jit_pipeline` for this kernel.
+
+  Today the dialect doesn't model:
+    - multi-view plugin dispatch (D2L / custom index types) — N5
+    - dedup-hash WriteOutput variant — N6
+    - work-stealing (WCOJTask queue) — N8
+    - tiled-Cartesian ballot-reuse — N7
+
+  So we route to the dialect only when none of those features
+  affect this rule's body emit. (Block-group is fine for the
+  *baseline* kernels — `_gen_kernel_count` etc. — because their
+  ctx has bg_enabled=False; only the bg-specific kernel emitters
+  use BG state.)
+  '''
+  if node.work_stealing or node.dedup_hash:
+    return False
+  source_rels = {s.rel_name for s in node.source_specs}
+  source_rels.update(d.rel_name for d in node.dest_specs)
+  return not any(rel_index_types.get(r) for r in source_rels)
+
+
 def _make_kernel_ctx(
   source_specs: Sequence[m.MirNode],
   pipeline: list[m.MirNode],
@@ -200,20 +226,33 @@ def _gen_kernel_count(
     code += "    using OutputCtx = SRDatalog::GPU::OutputContext<ValueType, SR, true, Layout, 0>;\n"
   code += "    OutputCtx output_ctx{nullptr, nullptr, 0, 0};\n\n"
 
-  ctx = _make_kernel_ctx(
-    node.source_specs,
-    pipeline,
-    rel_index_types,
-    is_counting=True,
-    output_var_name="output_ctx",
-  )
-  # Primary output registered to output_ctx; secondary dests skipped in count phase.
+  output_vars: dict[str, str] = {}
   if node.dest_specs:
-    ctx.output_vars[node.dest_specs[0].rel_name] = "output_ctx"
+    output_vars[node.dest_specs[0].rel_name] = "output_ctx"
     for i in range(1, len(node.dest_specs)):
-      ctx.output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
+      output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
 
-  code += jit_pipeline(pipeline, node.source_specs, ctx)
+  if _dialect_safe_kernel(node, rel_index_types):
+    from srdatalog.compile import compile_kernel_body
+
+    code += compile_kernel_body(
+      node,
+      is_counting=True,
+      output_var_name="output_ctx",
+      output_vars=output_vars,
+    )
+  else:
+    ctx = _make_kernel_ctx(
+      node.source_specs,
+      pipeline,
+      rel_index_types,
+      is_counting=True,
+      output_var_name="output_ctx",
+    )
+    for k, v in output_vars.items():
+      ctx.output_vars[k] = v
+    code += jit_pipeline(pipeline, node.source_specs, ctx)
+
   code += "    thread_counts[thread_id] = output_ctx.count();\n"
   code += "  }\n\n"
   return code
@@ -271,13 +310,8 @@ def _gen_kernel_materialize(
     )
     code += "    uint32_t warp_local_count = 0;\n\n"
 
-  ctx = _make_kernel_ctx(
-    node.source_specs,
-    pipeline,
-    rel_index_types,
-    is_counting=False,
-    tiled_cartesian=tiled_cartesian_eligible,
-  )
+  output_vars: dict[str, str] = {}
+  output_var_name = 'output'
   for i, dest in enumerate(dest_specs):
     output_var = f"output_ctx_{i}"
     arity_const = f"OutputArity_{i}"
@@ -290,12 +324,33 @@ def _gen_kernel_materialize(
       f"{{output_data_{i}, output_prov_{i}, output_stride_{i}, "
       f"old_size_{i} + thread_offset}};\n"
     )
-    ctx.output_vars[dest.rel_name] = output_var
+    output_vars[dest.rel_name] = output_var
     if i == 0:
-      ctx.output_var_name = output_var
+      output_var_name = output_var
   code += "\n"
 
-  body = jit_pipeline(pipeline, node.source_specs, ctx)
+  if _dialect_safe_kernel(node, rel_index_types) and not tiled_cartesian_eligible:
+    from srdatalog.compile import compile_kernel_body
+
+    body = compile_kernel_body(
+      node,
+      is_counting=False,
+      output_var_name=output_var_name,
+      output_vars=output_vars,
+    )
+  else:
+    ctx = _make_kernel_ctx(
+      node.source_specs,
+      pipeline,
+      rel_index_types,
+      is_counting=False,
+      tiled_cartesian=tiled_cartesian_eligible,
+    )
+    for k, v in output_vars.items():
+      ctx.output_vars[k] = v
+    ctx.output_var_name = output_var_name
+    body = jit_pipeline(pipeline, node.source_specs, ctx)
+
   code += body
   code += "  }\n\n"
   return code, body

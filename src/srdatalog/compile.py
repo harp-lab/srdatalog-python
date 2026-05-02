@@ -56,8 +56,32 @@ def compile_pipeline(ep: m.ExecutePipeline, *, target: Target = 'cuda') -> str:
   pipeline = list(ep.pipeline)
   assign_handle_positions(pipeline)
 
-  body = compile_kernel_body(ep, is_counting=False)
+  # Standalone jit_batch shape uses handle_idx-based view slots; runner
+  # contexts (compile_runner / compile_kernel_body) default to positional.
+  body = compile_kernel_body(ep, is_counting=False, slot_mode='handle_idx')
   return emit_full_file(ep, body)
+
+
+def compile_runner(
+  ep: m.ExecutePipeline,
+  db_type_name: str,
+  rel_index_types: dict[str, str] | None = None,
+) -> str:
+  '''Compile an ExecutePipeline to its full per-rule runner — the
+  `JitRunner_<rule>` struct + kernel definitions + out-of-line phase
+  methods + execute(). Production output: this is what
+  `jit_runner.<rule>.cpp` golden files capture.
+
+  Currently delegates to the legacy `gen_complete_runner` for the
+  scaffolding. As N3.x milestones progress, kernel bodies and then
+  the host-side scaffolding migrate into the dialect. The
+  byte-equivalence gate (`test_runner_byte_equivalence.py`) anchors
+  this entry point to the upstream goldens throughout the migration.
+  '''
+  from srdatalog.codegen.jit.complete_runner import gen_complete_runner
+
+  _decl, full = gen_complete_runner(ep, db_type_name, rel_index_types=rel_index_types)
+  return full
 
 
 def compile_kernel_body(
@@ -66,6 +90,7 @@ def compile_kernel_body(
   is_counting: bool,
   output_var_name: str = 'output',
   output_vars: dict[str, str] | None = None,
+  slot_mode: str = 'positional',
 ) -> str:
   '''Emit the operator() body for one kernel — view_decls followed by
   the dialect-emitted kernel logic. Caller is responsible for the
@@ -86,6 +111,11 @@ def compile_kernel_body(
       rules use this so each InsertInto resolves to its own dest's
       OutputContext. Pass `{rel_name: '__skip_counting__'}` to
       suppress count-phase emission for secondary outputs.
+
+    slot_mode: 'positional' (default, matches `jit_runner.<rule>.cpp`
+      production goldens) or 'handle_idx' (matches the standalone
+      `jit_batch.<rule>.cpp` test fixtures emitted via
+      `compile_pipeline`). See `emit_view_declarations` docstring.
   '''
   from srdatalog.dialects.relation.sorted_array.lowerings import (
     LoweringCtx,
@@ -102,7 +132,9 @@ def compile_kernel_body(
   assign_handle_positions(pipeline)
 
   view_specs = collect_unique_view_specs(pipeline)
-  view_decls, view_vars = emit_view_declarations(view_specs, pipeline)
+  view_decls, view_vars = emit_view_declarations(
+    view_specs, pipeline, slot_mode=slot_mode,
+  )
 
   lower_ctx = LoweringCtx(
     view_var_names={k: v for k, v in view_vars.items() if k.isdigit()},
@@ -115,4 +147,4 @@ def compile_kernel_body(
   return view_decls + emit(iir, emit_ctx)
 
 
-__all__ = ['Target', 'compile_kernel_body', 'compile_pipeline']
+__all__ = ['Target', 'compile_kernel_body', 'compile_pipeline', 'compile_runner']

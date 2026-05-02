@@ -30,6 +30,7 @@ from srdatalog.codegen.batchfile import _collect_pipelines
 from srdatalog.codegen.jit.context import new_code_gen_context
 from srdatalog.codegen.jit.emit_helpers import assign_handle_positions
 from srdatalog.codegen.jit.pipeline import jit_pipeline
+from srdatalog.codegen.jit.view_management import compute_view_slot_offsets
 from srdatalog.compile import compile_kernel_body
 from srdatalog.hir import compile_to_mir
 
@@ -66,9 +67,10 @@ def _fixture_params() -> list[tuple[str, str]]:
 def _legacy_count_body(ep) -> str:
   '''Reproduce the count-phase body emit from
   `complete_runner._gen_kernel_count` — fresh ctx with is_counting=True,
-  output_var_name='output_ctx', secondary outputs marked
-  `__skip_counting__`. Returns the body string (view_decls + kernel
-  body) without the kernel signature/envelope.'''
+  output_var_name='output_ctx', view_slot_offsets populated via
+  compute_view_slot_offsets (matching `_make_kernel_ctx`), and
+  secondary outputs marked `__skip_counting__`. Returns the body string
+  (view_decls + kernel body) without the kernel signature/envelope.'''
   pipeline = list(ep.pipeline)
   assign_handle_positions(pipeline)
   ctx = new_code_gen_context()
@@ -76,6 +78,10 @@ def _legacy_count_body(ep) -> str:
   ctx.is_counting = True
   ctx.is_jit_mode = True
   ctx.output_var_name = 'output_ctx'
+  # Mirror _make_kernel_ctx's slot offset population — without it, legacy
+  # falls back to handle_idx for multi-occurrence views, diverging from
+  # the dialect (which always uses positional first-occurrence slots).
+  ctx.view_slot_offsets = compute_view_slot_offsets(ep.source_specs, {})
   if ep.dest_specs:
     ctx.output_vars[ep.dest_specs[0].rel_name] = 'output_ctx'
     for dest in ep.dest_specs[1:]:

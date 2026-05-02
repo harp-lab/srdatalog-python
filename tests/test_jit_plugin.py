@@ -98,6 +98,13 @@ def test_resolve_unknown_falls_back_to_default():
 
 
 def test_resolve_registered_plugin_exact_match():
+  from srdatalog.codegen.jit import plugin as _p
+
+  # Capture any pre-existing registration (e.g., the real two_level
+  # plugin, registered at import time of codegen.jit.indexes.two_level)
+  # so teardown can restore it. Bare `.pop()` would leave the registry
+  # empty and break downstream tests that rely on D2L plugin_view_count.
+  prior = _p._PLUGIN_REGISTRY.get("SRDatalog::GPU::Device2LevelIndex")
   custom = IndexPlugin(
     name="TwoLevel",
     cpp_type="SRDatalog::GPU::Device2LevelIndex",
@@ -113,10 +120,10 @@ def test_resolve_registered_plugin_exact_match():
       "TwoLevelHandle(0, v.num_rows_, 0)"
     )
   finally:
-    # teardown so other tests don't see leaked state
-    from srdatalog.codegen.jit import plugin as _p
-
-    _p._PLUGIN_REGISTRY.pop("SRDatalog::GPU::Device2LevelIndex", None)
+    if prior is not None:
+      _p._PLUGIN_REGISTRY["SRDatalog::GPU::Device2LevelIndex"] = prior
+    else:
+      _p._PLUGIN_REGISTRY.pop("SRDatalog::GPU::Device2LevelIndex", None)
 
 
 def test_get_extra_headers_dedupes_and_skips_empty():

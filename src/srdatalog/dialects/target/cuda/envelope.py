@@ -205,6 +205,7 @@ def emit_view_declarations(
   *,
   indent_level: int = 4,
   debug: bool = True,
+  slot_mode: str = 'handle_idx',
 ) -> tuple[str, dict[str, str]]:
   '''Emit the top-of-kernel `auto view_X = views[i];` block.
 
@@ -212,6 +213,19 @@ def emit_view_declarations(
     - spec key (`<rel>_<cols>_<VER>`) → view variable name
     - `str(handle_idx)` → view variable name (so handle-bearing ops can
       look up "which view does this handle name reference?")
+
+  `slot_mode` controls how the index into `views[]` is chosen:
+    - `'handle_idx'`: use `sp.handle_idx` directly (matches the
+      `jit_batch.<rule>.cpp` standalone-kernel goldens, which don't
+      apply slot-offset compaction).
+    - `'positional'`: use first-occurrence position (matches the
+      `jit_runner.<rule>.cpp` production goldens for non-D2L
+      pipelines, which compact via `compute_view_slot_offsets`
+      with `plugin_view_count == 1`).
+
+  D2L (multi-view-per-source) requires `plugin_view_count > 1` and
+  isn't yet modeled here; pipelines exercising it route to legacy
+  via `_dialect_safe_kernel` in `complete_runner`.
   '''
   view_vars: dict[str, str] = {}
   if not specs:
@@ -229,11 +243,12 @@ def emit_view_declarations(
     )
 
   spec_to_view_var: list[tuple[str, str]] = []
-  for sp in specs:
+  for positional_slot, sp in enumerate(specs):
+    slot = positional_slot if slot_mode == 'positional' else sp.handle_idx
     key = _spec_key(sp.rel_name, sp.index, sp.version)
     idx_str = '_'.join(str(v) for v in sp.index)
     view_var = f'view_{sp.rel_name}_{idx_str}' + (f'_{sp.version}' if sp.version else '')
-    code += indent + f'auto {view_var} = views[{sp.handle_idx}];\n'
+    code += indent + f'auto {view_var} = views[{slot}];\n'
     spec_to_view_var.append((key, view_var))
     view_vars[key] = view_var
 

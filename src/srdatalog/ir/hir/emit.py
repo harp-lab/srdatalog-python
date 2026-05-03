@@ -25,7 +25,7 @@ from srdatalog.ir.hir.types import (
   HirStratum,
   RelationDecl,
 )
-from srdatalog.provenance import Provenance, ProvenanceKind
+from srdatalog.ir.hir.provenance import Provenance, ProvenanceKind
 
 
 def _arg_obj(a: ClauseArg) -> dict:

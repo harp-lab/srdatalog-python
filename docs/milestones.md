@@ -28,10 +28,10 @@ reference, modulo `_cpp_norm` whitespace/comment normalization.
 | Open work | — | WS full runner, CPU/WASM target, HIR/MIR as proper dialects, `complete_runner.py` templating |
 
 **Test gates currently passing (after Refactor PR R1–R9):**
-- 272/272 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 6 skipped: 2 WS runner + 4 ddisasm F1–F3 gaps (no compile-errors)
+- 272/272 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 2 skipped (WS runner only)
 - 253/253 jit-batch byte-equivalence (`tests/test_byte_equivalence_jit.py`)
 - 4/4 N5.3/N5.4 guard tests (`tests/test_n5_3_n5_4_guards.py`)
-- **25/27 ddisasm runner rules byte-equal** to upstream Nim, **0 compile-errors**, 2 documented divergences (F1 ×2; F2 + F3 landed)
+- **27/27 ddisasm runner rules byte-equal** to upstream Nim, **0 compile-errors**, 0 divergences (F1, F2, F3 all landed)
 - 1005 / 1005 total in suite (6 documented skips)
 
 ---
@@ -89,7 +89,7 @@ Each item below must be green before merge:
 
 | ID | Topic | Why deferred |
 |---|---|---|
-| **F1** | ddisasm head-tuple ordering (`varr,varp` vs `varp,varr` in `StackLiveVarBlockEnd1_D0_splitA`) | MIR-level head-arg ordering investigation. Not structural; produces valid (just different) C++. |
+| **F1** | ddisasm head-tuple ordering (`varr,varp` vs `varp,varr` in `StackLiveVarBlockEnd1_D0_split{A,B}`) | ✅ landed. Root cause was `compute_temp_vars` using `sorted(vars_above)` for determinism, but Nim uses `HashSet[string]` iteration which happens to match clause-walk insertion order on real var-name distributions. Switched to insertion-order iteration; HIR + MIR goldens regenerated. |
 | **F2** | ddisasm pre-narrow Negation iteration order (`StackLiveVarPriorUsed`) | ✅ landed. Reproduces Nim's `Table[int, ...]` hash-bucket iteration via a hashWangYi1 port + linear-probe slot resolution. |
 | **F3** | ddisasm `_tiled_cart_eligible` predicate gap (`StackDefUsed1`) | ✅ landed. Was a stale-cache artifact: cache (April 12) predates the orchestrator setting `concurrent_write=true` on concat-buffer rules (April 16+). Both Python and current Nim correctly disable tiled-Cart for these rules; golden regenerated. |
 | **F4** | N5.3 (single-source nested CJ over D2L FULL_VER) | No live workload. Pinned by guard test. |
@@ -208,23 +208,20 @@ Nim itself silently emits wrong code. Byte-equivalence with Nim
 
 - 23 / 27 ddisasm rules byte-equal to Nim through the dialect.
 - 0 / 27 fail kernel-body compile.
-- 2 / 27 compile but disagree with Nim — F1 head ordering (×2).
-  Tracked in
-  [`tests/test_runner_byte_equivalence.py`](../tests/test_runner_byte_equivalence.py)
-  and [`tests/test_cuda_complete_runner.py`](../tests/test_cuda_complete_runner.py)
-  `RUNNER_BYTE_MATCH_SKIPS`. F2 (neg-prenarrow ordering) landed via
-  Nim Table-iteration port. F3 (tiled-Cart eligibility) landed via
-  stale-cache golden regen.
+- 0 / 27 disagree with Nim. F1 (head-tuple ordering) landed via
+  switching `compute_temp_vars` from `sorted()` to clause-walk insertion
+  order. F2 (neg-prenarrow ordering) landed via Nim Table-iteration
+  port. F3 (tiled-Cart eligibility) landed via stale-cache golden regen.
 
 | Pattern | Dialect | Nim | Hit by ddisasm? | Verdict |
 |---|---|---|---|---|
-| `Scan + CartesianJoin + InsertInto` | ✅ landed (R8) | ✅ emits | ✅ `StackLiveVarBlockEnd1_D0_splitB` | Compiles. Byte-divergence remains due to F1 (head ordering). |
+| `Scan + CartesianJoin + InsertInto` | ✅ landed (R8 + F1) | ✅ emits | ✅ `StackLiveVarBlockEnd1_D0_splitB` | Byte-equal to Nim after both R8 (Scan+Cart shape) and F1 (insertion-order temp_vars). |
 | `dedup_hash` in `gen_complete_runner` | ✅ landed (R9) | ✅ emits | ✅ `StackDefUsed4_D1` | Compiles + byte-equal to Nim. |
 | **N5.3** — single-source nested CJ over D2L FULL_VER | ❌ `_supported_pipeline` rejects | ✅ emits seg-loop wrap ([jit_instructions.nim:42-143](https://github.com/.../jit_instructions.nim)) | ❌ no | Real gap, but no live workload. Defer; pinned by `tests/test_n5_3_n5_4_guards.py`. |
 | **N5.4-Scan** — root Scan over D2L FULL_VER | ✅ wraps in `D2lSegmentLoop(declare=True)` | ❌ **NO** seg-loop wrap ([jit_root.nim:61-126](https://github.com/.../jit_root.nim)) | ❌ no | **We over-implemented**. Diverges from Nim. Revert pending — see "Pending revert" below. |
 | **N5.4-Negation** — std-path over D2L FULL_VER | ❌ raises `NotImplementedError` | ❌ **NO** seg-loop wrap ([jit_scan_negation.nim:142-187](https://github.com/.../jit_scan_negation.nim)) | ❌ no | **Both broken.** Nim silently emits single-view `valid()` check; semantically wrong on FULL_VER (HEAD/FULL split). Defer until upstream fixes. |
 | **N5.4-Aggregate** — over D2L FULL_VER | ❌ no `Aggregate` IR op | ❌ **NO** seg-loop wrap ([jit_scan_negation.nim:212-276](https://github.com/.../jit_scan_negation.nim)) | ❌ no | **Both broken.** Nim emits a single `aggregate<>(...)` call against one view. Defer. |
-| ddisasm: head tuple ordering (`varr,varp` vs `varp,varr`) | ❌ wrong order | ✅ correct | ✅ `StackLiveVarBlockEnd1_D0_splitA` | MIR-level head ordering bug — not kernel-body. Investigate HIR→MIR pass for head-arg ordering. |
+| ddisasm: head tuple ordering (`varr,varp` vs `varp,varr`) | ✅ landed (F1) | ✅ correct | ✅ `StackLiveVarBlockEnd1_D0_split{A,B}` | Was `compute_temp_vars` using `sorted(vars_above)`; Nim uses `HashSet[string]` iter order which happens to match clause-walk insertion order. Switched to insertion-order. |
 | ddisasm: pre-narrow Negation emission order | ✅ landed (F2) | ✅ correct | ✅ `StackLiveVarPriorUsed` | Nim iterates `Table[int, ...]` in hash-bucket order (slot = `hashWangYi1(handle_idx) & 63`). Ported as `_nim_table_iter_order` helper. |
 | ddisasm: tiled-Cartesian eligibility | ✅ landed (F3) | ✅ matches | ✅ `StackDefUsed1` | Stale-cache artifact. Cache predates the orchestrator marking concat-buffer rules `concurrent_write=true`. Both Python and current Nim correctly disable tiled-Cart on those rules. Golden regenerated from current Nim semantics. |
 

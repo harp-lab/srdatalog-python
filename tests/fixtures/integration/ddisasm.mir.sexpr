@@ -554,7 +554,7 @@
                 (scan :vars (blk varr varp blockUsed) :index (StackDefUseLiveVarAtBlockEnd 0 2 3 1) :ver DELTA :prefix ())
                 (negation :schema StackDefUseRefInBlock :ver FULL :index (StackDefUseRefInBlock 0 1 2) :prefix (blk varr varp))
                 (negation :schema RegDefUseDefinedInBlock :ver FULL :index (RegDefUseDefinedInBlock 0 1) :prefix (blk varr))
-                (insert-into :schema _temp_StackLiveVarBlockEnd1 :ver NEW :dedup-index (0 1 2 3) :terms (blk blockUsed varp varr))
+                (insert-into :schema _temp_StackLiveVarBlockEnd1 :ver NEW :dedup-index (0 1 2 3) :terms (blk blockUsed varr varp))
             )
             (create-flat-view :index (_temp_StackLiveVarBlockEnd1 0 1 2 3) :ver NEW)
             (execute-pipeline :rule StackLiveVarBlockEnd1_D0_splitB
@@ -563,7 +563,7 @@
                 (index-spec :schema BlockNext :index (2 0 1) :ver FULL))
               :dests (tuple
                 (index-spec :schema StackDefUseLiveVarAtBlockEnd :index (0 2 3 1) :ver FULL))
-                (scan :vars (blk blockUsed varp varr) :index (_temp_StackLiveVarBlockEnd1 0 1 2 3) :ver NEW :prefix ())
+                (scan :vars (blk blockUsed varr varp) :index (_temp_StackLiveVarBlockEnd1 0 1 2 3) :ver NEW :prefix ())
                 (cartesian-join :vars (prevBlock) :var-from-source ((prevBlock))
                   :sources (
                     (column-source :index (BlockNext 2 0 1) :ver FULL :prefix (blk))

@@ -31,7 +31,7 @@ reference, modulo `_cpp_norm` whitespace/comment normalization.
 - 272/272 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 6 skipped: 2 WS runner + 4 ddisasm F1–F3 gaps (no compile-errors)
 - 253/253 jit-batch byte-equivalence (`tests/test_byte_equivalence_jit.py`)
 - 4/4 N5.3/N5.4 guard tests (`tests/test_n5_3_n5_4_guards.py`)
-- **23/27 ddisasm runner rules byte-equal** to upstream Nim, **0 compile-errors**, 4 documented divergences (F1–F3 follow-ups)
+- **24/27 ddisasm runner rules byte-equal** to upstream Nim, **0 compile-errors**, 3 documented divergences (F1 ×2 + F3 ×1; F2 landed)
 - 1005 / 1005 total in suite (6 documented skips)
 
 ---
@@ -90,7 +90,7 @@ Each item below must be green before merge:
 | ID | Topic | Why deferred |
 |---|---|---|
 | **F1** | ddisasm head-tuple ordering (`varr,varp` vs `varp,varr` in `StackLiveVarBlockEnd1_D0_splitA`) | MIR-level head-arg ordering investigation. Not structural; produces valid (just different) C++. |
-| **F2** | ddisasm pre-narrow Negation iteration order (`StackLiveVarPriorUsed`) | `_register_neg_pre_narrow` reorder. Small fix but separable feature work. |
+| **F2** | ddisasm pre-narrow Negation iteration order (`StackLiveVarPriorUsed`) | ✅ landed. Reproduces Nim's `Table[int, ...]` hash-bucket iteration via a hashWangYi1 port + linear-probe slot resolution. |
 | **F3** | ddisasm `_tiled_cart_eligible` predicate gap (`StackDefUsed1`) | Tiled-Cartesian eligibility predicate disagrees with Nim. Investigation, not refactor. |
 | **F4** | N5.3 (single-source nested CJ over D2L FULL_VER) | No live workload. Pinned by guard test. |
 | **F5** | N5.4-Negation / N5.4-Aggregate over D2L FULL_VER | Both Nim and dialect broken; defer until upstream fixes. |
@@ -208,13 +208,12 @@ Nim itself silently emits wrong code. Byte-equivalence with Nim
 
 - 23 / 27 ddisasm rules byte-equal to Nim through the dialect.
 - 0 / 27 fail kernel-body compile.
-- 4 / 27 compile but disagree with Nim — F1 head ordering (×2), F2
-  neg-prenarrow ordering, F3 tiled-Cartesian eligibility. All four
-  are tracked in
+- 3 / 27 compile but disagree with Nim — F1 head ordering (×2), F3
+  tiled-Cartesian eligibility (×1). Tracked in
   [`tests/test_runner_byte_equivalence.py`](../tests/test_runner_byte_equivalence.py)
   and [`tests/test_cuda_complete_runner.py`](../tests/test_cuda_complete_runner.py)
-  `RUNNER_BYTE_MATCH_SKIPS` with concise reasons. Each is a separable
-  feature investigation (HIR/MIR-level for F1+F2, predicate-tweak for F3).
+  `RUNNER_BYTE_MATCH_SKIPS` with concise reasons. F2 (neg-prenarrow
+  ordering) landed via Nim Table-iteration port.
 
 | Pattern | Dialect | Nim | Hit by ddisasm? | Verdict |
 |---|---|---|---|---|
@@ -225,7 +224,7 @@ Nim itself silently emits wrong code. Byte-equivalence with Nim
 | **N5.4-Negation** — std-path over D2L FULL_VER | ❌ raises `NotImplementedError` | ❌ **NO** seg-loop wrap ([jit_scan_negation.nim:142-187](https://github.com/.../jit_scan_negation.nim)) | ❌ no | **Both broken.** Nim silently emits single-view `valid()` check; semantically wrong on FULL_VER (HEAD/FULL split). Defer until upstream fixes. |
 | **N5.4-Aggregate** — over D2L FULL_VER | ❌ no `Aggregate` IR op | ❌ **NO** seg-loop wrap ([jit_scan_negation.nim:212-276](https://github.com/.../jit_scan_negation.nim)) | ❌ no | **Both broken.** Nim emits a single `aggregate<>(...)` call against one view. Defer. |
 | ddisasm: head tuple ordering (`varr,varp` vs `varp,varr`) | ❌ wrong order | ✅ correct | ✅ `StackLiveVarBlockEnd1_D0_splitA` | MIR-level head ordering bug — not kernel-body. Investigate HIR→MIR pass for head-arg ordering. |
-| ddisasm: pre-narrow Negation emission order | ❌ reversed order | ✅ correct | ✅ `StackLiveVarPriorUsed` | `_register_neg_pre_narrow` iterates Negations in MIR order; Nim apparently iterates in handle_idx order or similar. Fix is a small reorder. |
+| ddisasm: pre-narrow Negation emission order | ✅ landed (F2) | ✅ correct | ✅ `StackLiveVarPriorUsed` | Nim iterates `Table[int, ...]` in hash-bucket order (slot = `hashWangYi1(handle_idx) & 63`). Ported as `_nim_table_iter_order` helper. |
 | ddisasm: tiled-Cartesian eligibility | ❌ skips tiling | ✅ tiles | ✅ `StackDefUsed1` | `_tiled_cart_eligible` predicate disagrees with Nim — likely relevant when Cartesian source has prefix vars but the binding is single-source/single-var. |
 
 **Note on N5.4-Scan over-implementation:** commit `a90062d` added a

@@ -115,10 +115,6 @@ RUNNER_BYTE_MATCH_SKIPS = {
   # in the destination emit. Likely a MIR-level head-arg ordering — needs
   # MIR-side investigation; not a kernel-body issue.
   ("ddisasm", "StackLiveVarBlockEnd1_D0_splitA"),
-  # ddisasm: pre-narrow Negation emission order differs — Python emits
-  # `RegDefUse...` before `StackDefUse...`; Nim emits in reverse. Likely an
-  # iteration-order bug in `_register_neg_pre_narrow`.
-  ("ddisasm", "StackLiveVarPriorUsed"),
   # ddisasm: tiled-Cartesian eligibility differs — Nim emits the tiled-smem
   # variant in the materialize kernel; Python emits the non-tiled variant.
   # Likely a `_tiled_cart_eligible` predicate disagreement.

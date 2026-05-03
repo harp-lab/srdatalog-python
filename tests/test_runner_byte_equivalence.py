@@ -47,10 +47,6 @@ RUNNER_BYTE_MATCH_SKIPS: dict[tuple[str, str], str] = {
     'Head tuple ordering divergence (`varp, varr` vs `varr, varp`) — likely '
     'MIR-level head-arg ordering, not kernel-body.'
   ),
-  ('ddisasm', 'StackLiveVarPriorUsed'): (
-    'Pre-narrow Negation emission order differs (`Reg...` before `Stack...` vs '
-    'reversed in Nim) — iteration order in `_register_neg_pre_narrow`.'
-  ),
   ('ddisasm', 'StackDefUsed1'): (
     'Tiled-Cartesian eligibility differs — Nim emits the tiled-smem materialize '
     'variant; Python emits non-tiled. Likely `_tiled_cart_eligible` predicate gap.'

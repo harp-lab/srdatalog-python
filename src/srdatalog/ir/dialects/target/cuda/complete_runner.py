@@ -190,7 +190,7 @@ def _gen_kernel_count(
     for i in range(1, len(node.dest_specs)):
       output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
 
-  from srdatalog.compile import compile_kernel_body
+  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
 
   code += compile_kernel_body(
     node,
@@ -276,7 +276,7 @@ def _gen_kernel_materialize(
       output_var_name = output_var
   code += "\n"
 
-  from srdatalog.compile import compile_kernel_body
+  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
 
   body = compile_kernel_body(
     node,
@@ -343,7 +343,7 @@ def _gen_kernel_fused(
   # reuse the materialize pipeline body verbatim (matches Nim exactly).
   if tiled_cartesian_eligible:
     output_vars = {dest.rel_name: f"output_ctx_{i}" for i, dest in enumerate(dest_specs)}
-    from srdatalog.compile import compile_kernel_body
+    from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
 
     code += compile_kernel_body(
       node,
@@ -428,7 +428,7 @@ def _gen_kernel_bg_count(
     output_vars[node.dest_specs[0].rel_name] = "output_ctx"
     for i in range(1, len(node.dest_specs)):
       output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
-  from srdatalog.compile import compile_kernel_body
+  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
   code += compile_kernel_body(
     node,
     is_counting=True,
@@ -497,7 +497,7 @@ def _gen_kernel_bg_materialize(
     if i == 0:
       output_var_name = output_var
   code += "\n"
-  from srdatalog.compile import compile_kernel_body
+  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
   code += compile_kernel_body(
     node,
     is_counting=False,
@@ -559,7 +559,7 @@ def _gen_kernel_bg_fused(
     )
 
   output_vars = {dest.rel_name: f"output_ctx_{i}" for i, dest in enumerate(dest_specs)}
-  from srdatalog.compile import compile_kernel_body
+  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
   code += compile_kernel_body(
     node,
     is_counting=False,

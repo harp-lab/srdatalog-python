@@ -302,6 +302,17 @@ def _lower_root_scan(
       f'_lower_root_scan: no view var for handle_idx {handle_idx}'
     )
 
+  # N5.4: D2L FULL_VER root scan needs a segment loop wrapping the
+  # whole scan body (HEAD + FULL segments visited in turn). The
+  # `D2lSegmentLoop(declare=True)` op shadows the kernel-start view
+  # variable inside the loop, so the body's `view_X.get_value(...)`
+  # / `HandleType(0, view_X.num_rows_, 0)` references resolve to the
+  # current segment.
+  idx_type = ctx.rel_index_types.get(scan_op.rel_name, '')
+  vc = view_count(scan_op.version.code, idx_type)
+  has_segment_loop = vc > 1
+  base_slot = ctx.view_slot_bases.get(str(handle_idx), handle_idx)
+
   middle = _middle_ops(rest)
   trailing = _trailing_inserts(rest)
 
@@ -338,15 +349,7 @@ def _lower_root_scan(
     )
 
   handle_var = ctx.fresh('root_handle')
-  outer_stmts.append(Bind(name=handle_var, expr=SaRoot(view_name=view_var)))
-  outer_stmts.append(IfReturnIfNot(cond=SaValid(handle_name=handle_var)))
-
   degree_var = ctx.fresh('degree')
-  outer_stmts.append(
-    Bind(name=degree_var, expr=SaDegree(handle_name=handle_var), type_decl='uint32_t')
-  )
-  outer_stmts.append(BlankLine())
-
   idx_var = ctx.fresh('idx')
 
   var_bind_stmts: list[Op] = []
@@ -371,7 +374,41 @@ def _lower_root_scan(
     bound=VarRef(name=degree_var),
     body=Block(stmts=tuple(inner_stmts)),
   )
-  outer_stmts.append(ParallelFor(strategy='warp_strided', body=loop))
+
+  # Inside-the-segment-loop body: handle bind + validity check +
+  # degree + parallel-for. With segment loop, the validity check is
+  # `continue` (skip to next segment); without, it's `return` (no
+  # work for this thread at all).
+  scan_body_stmts: list[Op] = [
+    Bind(name=handle_var, expr=SaRoot(view_name=view_var)),
+    (
+      IfContinueIfNot(cond=SaValid(handle_name=handle_var))
+      if has_segment_loop
+      else IfReturnIfNot(cond=SaValid(handle_name=handle_var))
+    ),
+    Bind(
+      name=degree_var,
+      expr=SaDegree(handle_name=handle_var),
+      type_decl='uint32_t',
+    ),
+    BlankLine(),
+    ParallelFor(strategy='warp_strided', body=loop),
+  ]
+
+  if has_segment_loop:
+    outer_stmts.append(
+      D2lSegmentLoop(
+        seg_var=ctx.fresh('_seg'),
+        view_var=view_var,
+        base_slot=base_slot,
+        view_count=vc,
+        declare=True,
+        local_view_var='',
+        body=Block(stmts=tuple(scan_body_stmts)),
+      )
+    )
+  else:
+    outer_stmts.extend(scan_body_stmts)
 
   return Block(stmts=tuple(outer_stmts))
 
@@ -1338,6 +1375,21 @@ def _lower_negation(
     raise ValueError(
       f'_lower_negation: no view var for handle_idx {src_idx}'
     )
+
+  # N5.4 guard: Negation over a D2L FULL_VER source needs a segment
+  # loop wrapping the validity check (each segment may invalidate
+  # the prefix independently). The pre-narrow path (Negation inside
+  # a Cartesian) is fine — the surrounding Cart's outer narrowing
+  # already pinned the segment. Standard path is not.
+  if src_idx not in ctx.neg_pre_narrow:
+    idx_type = ctx.rel_index_types.get(rel_name, '')
+    if view_count(neg_op.version.code, idx_type) > 1:
+      raise NotImplementedError(
+        f'_lower_negation: standard-path Negation over D2L FULL_VER '
+        f'source ({rel_name}) needs a segment-loop wrap (N5.4); not '
+        f'yet implemented in the dialect. Add a fixture exercising '
+        f'this shape and implement the wrap if you hit this.'
+      )
 
   # Pre-narrow path: a previous Cart already constructed the
   # pre-narrowed handle. Use it directly (or apply remaining

@@ -17,7 +17,7 @@ reference, modulo `_cpp_norm` whitespace/comment normalization.
 | Layer | Done | Outstanding |
 |---|---|---|
 | Stage 1 (dialect skeleton, M1–M7.x) | ✅ | — |
-| Stage 2 (legacy-emit retirement) | ✅ N1, N2, N3.x, N4.x, N5.0–N5.2, N6, N7, N8 | ⬜ N5.3, N5.4 |
+| Stage 2 (legacy-emit retirement) | ✅ N1, N2, N3.x, N4.x, N5.0–N5.2, N5.4-Scan, N6, N7, N8 | ⬜ N5.3, N5.4-Negation, N5.4-Aggregate |
 | Legacy elimination | ✅ all `codegen/jit/{pipeline,instructions,root,scan_negation,kernel_functor,file}.py` deleted | — |
 | Layout reorg | ✅ Phase A (`codegen/jit/` → `ir/dialects/target/cuda/`), Phase B (`ir/` namespace) | — |
 | Docs / test rename sync | ✅ README + 10 `test_jit_*.py` → `test_cuda_*.py` | — |
@@ -26,7 +26,8 @@ reference, modulo `_cpp_norm` whitespace/comment normalization.
 **Test gates currently passing:**
 - 249/249 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 2 skipped (WS runner unported)
 - 253/253 jit-batch byte-equivalence (`tests/test_byte_equivalence_jit.py`)
-- 1033 / 1033 total in suite (2 unrelated skips)
+- 4/4 N5.3/N5.4 guard tests (`tests/test_n5_3_n5_4_guards.py`)
+- 1037 / 1037 total in suite (2 unrelated skips)
 
 ---
 
@@ -71,8 +72,10 @@ runner byte-equivalence suite.
 | N5.0 | ✅ | `0c7955b` | Establish `relation.d2l` dialect, plug view-count slot accounting |
 | N5.1 | ✅ | `a343938` | `D2lSegmentLoop` op + multi-source nested CJ over D2L FULL_VER |
 | N5.2 | ✅ | `9fa764a` | D2L segment loop in root CJ multi non-first source |
-| **N5.3** | ⬜ | — | **Single-source nested CJ over D2L FULL_VER** — `_lower_nested_cj_single` doesn't exist yet; the legacy `_nested_column_join_single` had its own segment-loop wrap. **No fixtures exercise this today;** falls through `_supported_pipeline` as "unsupported". |
-| **N5.4** | ⬜ | — | **Scan / Negation / Aggregate rooted at D2L FULL_VER** — those root ops over a multi-view source need their own segment-loop wrap. **No fixtures exercise this today;** Scan-rooted with multi-view source is rejected by `_supported_pipeline`. |
+| **N5.3** | ⬜ | — | **Single-source nested CJ over D2L FULL_VER** — `_lower_nested_cj_single` doesn't exist yet; `_supported_pipeline` rejects the shape with a clear `ValueError("unsupported pipeline shape ...")`. Pinned by `tests/test_n5_3_n5_4_guards.py::test_n5_3_*`. |
+| **N5.4** (Scan) | ✅ | (this commit) | **Scan over D2L FULL_VER**: the dialect now wraps the scan body in a `D2lSegmentLoop(declare=True)` with per-segment view shadowing and `continue` (not `return`) on validity failure. Was a silent miscompile gap (the existing `test_compile_program_index_type_plumbing` exercises this shape); now structurally tested. |
+| **N5.4** (Negation, std-path) | ⬜ | — | Standard-path Negation over D2L FULL_VER raises `NotImplementedError` with N5.4 reference. The naive segment-loop wrap is unsafe — antijoin should fire only when the prefix is missing from BOTH segments, requiring a cross-segment accumulator. Deferred until a workload demands it. Pre-narrow path (Negation inside a Cartesian) is fine — the surrounding Cart's outer narrowing pinned the segment. |
+| **N5.4** (Aggregate) | ⬜ | — | Aggregate over D2L FULL_VER. Aggregate isn't lowered in the dialect at all today (no `Aggregate` IR op + lowering rule). Deferred. |
 | N6 | ✅ | `3cc879d` | Dedup-hash WriteOutput variant via dialect |
 | N7 | ✅ | `68df9f4` | Tiled-Cartesian dispatch + ballot-coalesced writes via dialect |
 | N8 | ✅ | `f586d25` | Kernel-functor work-stealing emit variants via dialect (`<out>++` count, `emit_warp_coalesced` materialize, Filter/Negation valid-flag folding) |

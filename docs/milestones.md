@@ -17,18 +17,18 @@ reference, modulo `_cpp_norm` whitespace/comment normalization.
 | Layer | Done | Outstanding |
 |---|---|---|
 | Stage 1 (dialect skeleton, M1–M7.x) | ✅ | — |
-| Stage 2 (legacy-emit retirement) | ✅ N1, N2, N3.x, N4.x, N5.0–N5.2, N6, N7, N8 | see "Refactor PR" below |
+| Stage 2 (legacy-emit retirement) | ✅ N1, N2, N3.x, N4.x, N5.0–N5.2, N6, N7, N8 | see "Refactor PR" below — landed |
 | Legacy elimination | ✅ all `codegen/jit/{pipeline,instructions,root,scan_negation,kernel_functor,file}.py` deleted | — |
 | Layout reorg | ✅ Phase A (`codegen/jit/` → `ir/dialects/target/cuda/`), Phase B (`ir/` namespace) | ⬜ Phase C (R1–R6 below) |
 | Docs / test rename sync | ✅ README + 10 `test_jit_*.py` → `test_cuda_*.py` | — |
 | Open work | — | WS full runner, CPU/WASM target, HIR/MIR as proper dialects, `complete_runner.py` templating |
 
-**Test gates currently passing:**
-- 271/271 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 7 skipped: 2 WS runner + 5 ddisasm gaps (see "Refactor PR" / "Nim-reference audit" below)
+**Test gates currently passing (after Refactor PR R1–R9):**
+- 272/272 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 6 skipped: 2 WS runner + 4 ddisasm F1–F3 gaps (no compile-errors)
 - 253/253 jit-batch byte-equivalence (`tests/test_byte_equivalence_jit.py`)
 - 4/4 N5.3/N5.4 guard tests (`tests/test_n5_3_n5_4_guards.py`)
-- 22/27 ddisasm runner rules byte-equal to upstream Nim (5 gaps tracked)
-- 1061 / 1061 total in suite (7 documented skips)
+- **23/27 ddisasm runner rules byte-equal** to upstream Nim, **0 compile-errors**, 4 documented divergences (F1–F3 follow-ups)
+- 1005 / 1005 total in suite (6 documented skips)
 
 ---
 
@@ -62,24 +62,24 @@ Each item below must be green before merge:
   remaining 5 (2 WS + 3 ddisasm-divergence) carry concise reasons.
 - [`docs/milestones.md`](./milestones.md) updated to reflect what landed.
 
-### Structural moves (R1–R6) — finish the namespace
+### Structural moves (R1–R6) — finish the namespace ✅
 
-| ID | Move | Risk | Notes |
+| ID | Move | Status | Notes |
 |---|---|---|---|
-| **R1** | `rule_rewrite.py` → `ir/hir/rule_rewrite.py` | low | Pure HIR-level passes (`PassInfo(level=RULE_REWRITE, source/target_dialect=HIR)`). Sits next to `index.py`, `plan.py`, `semi_naive.py`, `split.py`, `stratify.py`. Update [`ir/hir/__init__.py`](../src/srdatalog/ir/hir/__init__.py) + 2 test imports. |
-| **R2** | `provenance.py` → `ir/hir/provenance.py` | low | HIR concern. DSL imports the `USER_PROVENANCE` sentinel — keep that import working via re-export at top level OR update DSL's import (preferred — less indirection). |
-| **R3** | `compile.py` → `ir/dialects/target/cuda/api.py` (re-export at `srdatalog.compile`) | low | `compile_pipeline` / `compile_runner` / `compile_kernel_body` are CUDA-specific (raises on `target != 'cuda'`). Top-level re-export keeps `from srdatalog.compile import …` working for tests. |
-| **R4** | `pipeline.py` → `ir/pipeline.py` | low | `compile_program` / `CompileResult`. Used by `build.py` + `viz/bundle.py` — update both. |
-| **R5** | Retire legacy `SRDatalogProgram` chain (~1000 LOC) | medium | Decision needed: **delete** vs. **`legacy/` quarantine**. Recommend delete — modern code doesn't reference any of: `srdatalog_program.py`, `ir/mir/{commands,runner,schema}.py`, plus their tests `test_generate_program.py`, `test_mir_commands.py`, `test_mir_schema.py`. The cffi / FFI wrapper stays (separate concern). |
-| **R6** | Fix or delete `example_program.py` | trivial | No `__main__` guard; importing fires `compile_to_file()`. Hardcoded `/home/miakerchen/...` paths. Delete with R5 (it's the only consumer of the legacy chain that isn't a test). |
+| **R1** | `rule_rewrite.py` → `ir/hir/rule_rewrite.py` | ✅ landed | HIR-level passes alongside `index.py`, `plan.py`, etc. |
+| **R2** | `provenance.py` → `ir/hir/provenance.py` | ✅ landed | DSL imports `USER_PROVENANCE` sentinel via the new path. |
+| **R3** | `compile.py` → `ir/dialects/target/cuda/api.py` | ✅ landed | Thin re-export shim kept at `srdatalog.compile` for downstream users. |
+| **R4** | `pipeline.py` → `ir/pipeline.py` | ✅ landed | `build.py` + `viz/bundle.py` updated. |
+| **R5** | Retire legacy `SRDatalogProgram` chain (~1000 LOC) | ✅ landed | Deleted: `srdatalog_program.py`, `ir/mir/{commands,runner,schema}.py`, 3 test files. cffi/FFI wrapper stays. |
+| **R6** | Delete `example_program.py` | ✅ landed | Folded into R5 — was the only non-test consumer of the legacy chain, with hardcoded `/home/miakerchen/...` paths and no `__main__` guard. |
 
-### Correctness moves (R7–R9) — make ddisasm + N5.4-Scan honest
+### Correctness moves (R7–R9) — make ddisasm + N5.4-Scan honest ✅
 
-| ID | Move | Risk | Notes |
+| ID | Move | Status | Notes |
 |---|---|---|---|
-| **R7** | Revert N5.4-Scan over-implementation | low | We segment-wrap root Scan over D2L FULL_VER; Nim does NOT (audited [jit_root.nim:61-126](file:///home/stargazermiao/workspace/SRDatalog/src/srdatalog/codegen/target_jit/jit_root.nim#L61)). 5-line revert in [`_lower_root_scan`](../src/srdatalog/ir/dialects/relation/sorted_array/lowerings.py); flip [`test_n5_4_scan_d2l_full_emits_segment_loop`](../tests/test_n5_3_n5_4_guards.py) to assert *no* `_seg_` in the emit. |
-| **R8** | Implement `Scan + CartesianJoin` shape | low | Pieces (`_lower_root_scan`, `_lower_nested_cart` — including 1-source path) already exist. Add `CartesianJoin` to the Scan-middle allowed list in [`_supported_pipeline`](../src/srdatalog/ir/dialects/relation/sorted_array/lowerings.py). Removes ddisasm `StackLiveVarBlockEnd1_D0_splitB` from `RUNNER_BYTE_MATCH_SKIPS`. |
-| **R9** | Port `dedup_hash` path in `gen_complete_runner` | medium | Runner-side. Mirror Nim's [jit_complete_runner.nim:3001-3022](file:///home/stargazermiao/workspace/SRDatalog/src/srdatalog/codegen/target_jit/jit_complete_runner.nim#L3001) (clear table + atomic counter + materialize). Removes `StackDefUsed4_D1` from skips. |
+| **R7** | Revert N5.4-Scan over-implementation | ✅ landed | Now matches Nim's `jitRootScan` (no segment-loop wrap). Test flipped to assert *no* `_seg_` in emit. |
+| **R8** | Implement `Scan + CartesianJoin` shape | ✅ landed | `_supported_pipeline` accepts `CartesianJoin` in Scan-middle. `_lower_nested_cart` learned the "fresh-root + chained `.prefix()`" pattern. `_lower_root_scan` count-phase var elision now uses substring-on-rendered-body (matching Nim's `varName notin body`). |
+| **R9** | Port `dedup_hash` path in `gen_complete_runner` | ✅ landed | DedupTable struct emit, LaunchParams fields, kernel signatures, setup hash-table alloc, execute clear-table flow. Cartesian count-as-product short-circuit now disabled for dedup_hash (each tuple needs the in-kernel try_insert test). |
 
 ### Out of scope (follow-up PRs)
 
@@ -200,22 +200,22 @@ Outcome: not every "missing" pattern is worth implementing — for some,
 Nim itself silently emits wrong code. Byte-equivalence with Nim
 *requires matching its bugs* on those paths.
 
-**Status from ddisasm fixture run** (cache regenerated with `z3_consts.json`,
-patched once for stale `GPU_STREAM_SYNCHRONIZE(0)` after `launch_materialize` —
-the only known cache-vs-source artifact):
+**Status after Refactor PR (R1–R9 landed):**
 
-- 22 / 27 ddisasm rules byte-equal to Nim through the dialect.
-- 2 / 27 fail kernel-body compile (Scan+Cart, dedup_hash) — table below.
-- 3 / 27 compile but disagree with Nim — head ordering, neg-prenarrow ordering,
-  tiled-Cartesian eligibility. All five are tracked in
+- 23 / 27 ddisasm rules byte-equal to Nim through the dialect.
+- 0 / 27 fail kernel-body compile.
+- 4 / 27 compile but disagree with Nim — F1 head ordering (×2), F2
+  neg-prenarrow ordering, F3 tiled-Cartesian eligibility. All four
+  are tracked in
   [`tests/test_runner_byte_equivalence.py`](../tests/test_runner_byte_equivalence.py)
   and [`tests/test_cuda_complete_runner.py`](../tests/test_cuda_complete_runner.py)
-  `RUNNER_BYTE_MATCH_SKIPS` with concise reasons.
+  `RUNNER_BYTE_MATCH_SKIPS` with concise reasons. Each is a separable
+  feature investigation (HIR/MIR-level for F1+F2, predicate-tweak for F3).
 
 | Pattern | Dialect | Nim | Hit by ddisasm? | Verdict |
 |---|---|---|---|---|
-| `Scan + CartesianJoin + InsertInto` | ❌ raises `unsupported pipeline shape` | ✅ emits via `jitRoot` + `jitNestedCart` dispatch | ✅ `StackLiveVarBlockEnd1_D0_splitB` | **Real gap. Implement** — pieces (`_lower_root_scan`, `_lower_nested_cart`) already exist; only need to add `CartesianJoin` to `_supported_pipeline`'s Scan-middle list. |
-| `dedup_hash` in `gen_complete_runner` | ❌ raises `dedup_hash not yet ported` | ✅ emits | ✅ `StackDefUsed4_D1` | **Real gap. Implement** (runner-side, not kernel-body). |
+| `Scan + CartesianJoin + InsertInto` | ✅ landed (R8) | ✅ emits | ✅ `StackLiveVarBlockEnd1_D0_splitB` | Compiles. Byte-divergence remains due to F1 (head ordering). |
+| `dedup_hash` in `gen_complete_runner` | ✅ landed (R9) | ✅ emits | ✅ `StackDefUsed4_D1` | Compiles + byte-equal to Nim. |
 | **N5.3** — single-source nested CJ over D2L FULL_VER | ❌ `_supported_pipeline` rejects | ✅ emits seg-loop wrap ([jit_instructions.nim:42-143](https://github.com/.../jit_instructions.nim)) | ❌ no | Real gap, but no live workload. Defer; pinned by `tests/test_n5_3_n5_4_guards.py`. |
 | **N5.4-Scan** — root Scan over D2L FULL_VER | ✅ wraps in `D2lSegmentLoop(declare=True)` | ❌ **NO** seg-loop wrap ([jit_root.nim:61-126](https://github.com/.../jit_root.nim)) | ❌ no | **We over-implemented**. Diverges from Nim. Revert pending — see "Pending revert" below. |
 | **N5.4-Negation** — std-path over D2L FULL_VER | ❌ raises `NotImplementedError` | ❌ **NO** seg-loop wrap ([jit_scan_negation.nim:142-187](https://github.com/.../jit_scan_negation.nim)) | ❌ no | **Both broken.** Nim silently emits single-view `valid()` check; semantically wrong on FULL_VER (HEAD/FULL split). Defer until upstream fixes. |

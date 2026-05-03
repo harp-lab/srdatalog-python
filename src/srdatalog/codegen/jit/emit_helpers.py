@@ -1,23 +1,23 @@
-'''Leaf codegen helpers for pipeline operations.
+'''Pipeline-shape utilities used by `complete_runner`.
 
-Port of src/srdatalog/codegen/target_jit/jit_emit_helpers.nim.
+Originally ported from `src/srdatalog/codegen/target_jit/
+jit_emit_helpers.nim` — the legacy Filter / ConstantBind / InsertInto
+emit procs (`jit_filter`, `jit_constant_bind`, `jit_insert_into`) used
+to live here too. They've been retired alongside the rest of the
+legacy `codegen/jit/pipeline.py` chain; the dialect now owns those
+emits via `dialects.relation.sorted_array.lowerings._lower_inner_chain`
+and `_lower_insert_into`.
 
-Covers:
-  - Balanced-partitioning detection + info extraction
-  - jit_filter       — wraps the body in `if (cond) { ... }` (or folds
-                       the condition into a valid flag for WS / tiled
-                       Cartesian batched loops so warp-cooperative ops
-                       don't deadlock on divergent branches)
-  - jit_constant_bind — emits `auto v = <expr>;` for ConstantBind
-  - jit_insert_into   — InsertInto emission: count vs materialize,
-                       dedup-hash guard, lane-0 guard, WS coalesced
-                       writes, tiled Cartesian ballot path
-  - count_handles_in_pipeline — max `handle_start + 1` across the pipeline
-
-The three emit procs return C++ source strings; each takes `ctx` plus
-(for jit_filter / jit_constant_bind) a `body` string that will be placed
-inside the emitted scope. This mirrors the Nim continuation-passing
-style: the body is pre-rendered before being wrapped.
+What remains:
+  - `has_balanced_scan` / `get_balanced_scan_info` — used to decide
+    whether to emit a balanced-scan kernel variant.
+  - `has_tiled_cartesian_eligible` — runner uses this to decide
+    whether to enable the tiled-Cartesian materialize path.
+  - `assign_handle_positions` / `count_handles_in_pipeline` — pipeline
+    pre-pass + view-slot counting. Note: `dialects.target.cuda.
+    envelope` has its own `assign_handle_positions` for the dialect
+    path; this one stays for the runner-side prepass that mutates
+    `mutable_pipe` before kernel emission.
 '''
 
 from __future__ import annotations
@@ -25,11 +25,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import srdatalog.mir.types as m
-from srdatalog.codegen.jit.context import (
-  CodeGenContext,
-  ind,
-  sanitize_var_name,
-)
 
 # -----------------------------------------------------------------------------
 # Balanced-partitioning detection
@@ -90,188 +85,6 @@ def get_balanced_scan_info(ops: list[m.MirNode]) -> BalancedScanInfo:
       src2_handle_idx=getattr(s2, "handle_start", -1),
     )
   return BalancedScanInfo()
-
-
-# -----------------------------------------------------------------------------
-# jit_filter
-# -----------------------------------------------------------------------------
-
-
-def jit_filter(node: m.Filter, ctx: CodeGenContext, body: str) -> str:
-  '''Emit a Filter: wrap `body` in `if (cond) { ... }` OR fold the
-  condition into the active valid flag when inside a warp-cooperative
-  batch loop (WS / tiled Cartesian). The latter matters because
-  emit_warp_coalesced is a cooperative warp op — all threads must call
-  it, so wrapping in `if` would cause divergence deadlock.
-
-  Nim's flCode is `"return <expr>;"`; we strip the `return ` and the
-  trailing `;` to turn it into a bare C++ boolean expression.
-  '''
-  assert isinstance(node, m.Filter)
-  i = ind(ctx)
-
-  expr = node.code.strip()
-  if expr.startswith("return "):
-    expr = expr[len("return ") :]
-  if expr.endswith(";"):
-    expr = expr[:-1]
-
-  code = ""
-  if ctx.ws_cartesian_valid_var:
-    # WS batch loop — fold into valid flag
-    v = ctx.ws_cartesian_valid_var
-    code += f"{i}{v} = {v} && ({expr});\n"
-    code += body
-  elif ctx.tiled_cartesian_valid_var:
-    # Tiled Cartesian ballot path — fold into valid flag
-    v = ctx.tiled_cartesian_valid_var
-    code += f"{i}{v} = {v} && ({expr});\n"
-    code += body
-  else:
-    code += f"{i}if ({expr}) {{\n"
-    # Note: Nim increments indent but the body is already rendered at
-    # the outer indent. We keep the same behavior — body is pre-indented
-    # at whatever indent the caller used.
-    code += body
-    code += f"{i}}}\n"
-  return code
-
-
-# -----------------------------------------------------------------------------
-# jit_constant_bind
-# -----------------------------------------------------------------------------
-
-
-def jit_constant_bind(
-  node: m.ConstantBind,
-  ctx: CodeGenContext,
-  body: str,
-) -> str:
-  '''Emit `auto <var> = <code>;` then the body.'''
-  assert isinstance(node, m.ConstantBind)
-  i = ind(ctx)
-  var = sanitize_var_name(node.var_name)
-  code = f"{i}auto {var} = {node.code};\n"
-  code += body
-  return code
-
-
-# -----------------------------------------------------------------------------
-# jit_insert_into — the meaty one
-# -----------------------------------------------------------------------------
-
-
-def jit_insert_into(node: m.InsertInto, ctx: CodeGenContext) -> str:
-  '''Emit an InsertInto — count phase or materialize phase, with the
-  right lane-0 guard, WS coalesced-write path, tiled-Cartesian ballot
-  path, or dedup-hash try_insert/check_winner wrapper.
-
-  This is a faithful port of Nim's `jitInsertInto`. The control flow
-  is intricate; comments inline mirror the Nim rationale verbatim.
-  '''
-  assert isinstance(node, m.InsertInto)
-  code = ""
-  i = ind(ctx)
-  vars_list = list(node.vars)
-
-  if ctx.debug:
-    code += f"{i}// Emit: {node.rel_name}({', '.join(vars_list)})\n"
-
-  # Output var per-relation (legacy name when no override).
-  out_var = ctx.output_var_name
-  if node.rel_name in ctx.output_vars:
-    out_var = ctx.output_vars[node.rel_name]
-
-  # When there is no Cartesian in the pipeline, all threads cooperatively
-  # found the same result — only lane 0 should emit, else we 32x overcount.
-  need_lane0_guard = not ctx.inside_cartesian
-
-  # Dedup-hash try_insert/winner guard
-  dedup_guard_open = False
-  if ctx.dedup_hash_enabled and vars_list:
-    sanitized = [sanitize_var_name(v) for v in vars_list]
-    args_str = ", ".join(sanitized)
-    code += f"{i}{{ bool _p = dedup_table.try_insert(thread_id, {args_str});\n"
-    code += f"{i}  if (_p) {{\n"
-    dedup_guard_open = True
-
-  if ctx.is_counting:
-    # Counting phase: one increment / one emit_direct() per body match.
-    # Skip duplicate counting for secondary outputs flagged __skip_counting__.
-    if out_var == "__skip_counting__":
-      if ctx.debug:
-        code += f"{i}// Skip counting for secondary output {node.rel_name}\n"
-    else:
-      if ctx.ws_enabled:
-        # WS count: out_var is `local_count` (uint32_t) — just ++.
-        if need_lane0_guard:
-          code += f"{i}if ({ctx.tile_var}.thread_rank() == 0) {out_var}++;\n"
-        else:
-          code += f"{i}{out_var}++;\n"
-      else:
-        if need_lane0_guard:
-          code += f"{i}if ({ctx.tile_var}.thread_rank() == 0) {out_var}.emit_direct();\n"
-        else:
-          code += f"{i}{out_var}.emit_direct();\n"
-  else:
-    # Materialize phase.
-    if ctx.ws_cartesian_valid_var:
-      # WS Cartesian batch loop — coalesced warp writes.
-      sanitized = ", ".join(sanitize_var_name(v) for v in vars_list)
-      code += (
-        f"{i}{out_var}.emit_warp_coalesced({ctx.tile_var}, "
-        f"{ctx.ws_cartesian_valid_var}, {sanitized});\n"
-      )
-    elif ctx.tiled_cartesian_valid_var:
-      # Tiled Cartesian ballot path — atomic-free coalesced writes using
-      # warp_write_base captured from the count phase.
-      sanitized = [sanitize_var_name(v) for v in vars_list]
-      valid_var = ctx.tiled_cartesian_valid_var
-      dest_idx = out_var[len("output_ctx_") :] if out_var.startswith("output_ctx_") else "0"
-      # First InsertInto in the body does ballot + _tc_off once; subsequent
-      # InsertIntos in the same body reuse the already-computed offset.
-      if not ctx.tiled_cartesian_ballot_done:
-        ctx.tiled_cartesian_ballot_done = True
-        code += f"{i}{{\n"
-        code += f"{i}  uint32_t _tc_ballot = {ctx.tile_var}.ballot({valid_var});\n"
-        code += f"{i}  uint32_t _tc_active = __popc(_tc_ballot);\n"
-        code += f"{i}  if (_tc_active > 0) {{\n"
-        code += f"{i}    uint32_t _tc_mask = (1u << {ctx.tile_var}.thread_rank()) - 1u;\n"
-        code += f"{i}    uint32_t _tc_off = __popc(_tc_ballot & _tc_mask);\n"
-      # Write this destination (works for first + subsequent dests).
-      code += f"{i}    if ({valid_var}) {{\n"
-      code += (
-        f"{i}      uint32_t _tc_pos_{dest_idx} = old_size_{dest_idx} "
-        f"+ warp_write_base + warp_local_count + _tc_off;\n"
-      )
-      for col, name in enumerate(sanitized):
-        code += (
-          f"{i}      output_data_{dest_idx}[{col} * "
-          f"static_cast<uint32_t>(output_stride_{dest_idx}) + "
-          f"_tc_pos_{dest_idx}] = {name};\n"
-        )
-      code += f"{i}    }}\n"
-    else:
-      # Baseline path.
-      if ctx.dedup_hash_enabled:
-        # Dedup materialize — atomicAdd for the write position.
-        sanitized = [sanitize_var_name(v) for v in vars_list]
-        guard_prefix = f"if ({ctx.tile_var}.thread_rank() == 0) " if need_lane0_guard else ""
-        code += f"{i}{guard_prefix}{{\n"
-        code += f"{i}  uint32_t pos = atomicAdd(atomic_write_pos, 1u);\n"
-        for col, name in enumerate(sanitized):
-          code += f"{i}  out_data_0[(pos + out_base_0) + {col} * out_stride_0] = {name};\n"
-        code += f"{i}}}\n"
-      elif need_lane0_guard:
-        sanitized = ", ".join(sanitize_var_name(v) for v in vars_list)
-        code += f"{i}if ({ctx.tile_var}.thread_rank() == 0) {out_var}.emit_direct({sanitized});\n"
-      else:
-        sanitized = ", ".join(sanitize_var_name(v) for v in vars_list)
-        code += f"{i}{out_var}.emit_direct({sanitized});\n"
-
-  if dedup_guard_open:
-    code += f"{i}}} }}\n"  # close the if (_p) and the outer { block
-  return code
 
 
 # -----------------------------------------------------------------------------

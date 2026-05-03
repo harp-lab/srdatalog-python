@@ -1,36 +1,31 @@
-'''Byte-equivalence gate for the dialect's dedup_hash WriteOutput emit
-(N6).
+'''Structural tests for the dialect's dedup-hash WriteOutput emit (N6).
 
-There are no `jit_batch.*.cpp` goldens that exercise `dedup_hash=True`,
-so we synthesize a handful of representative pipelines and compare the
-dialect's `compile_pipeline` output (kernel body) against the legacy
-`jit_kernel_full` emit. Any divergence in the dedup-hash try_insert
-gate or the materialize-phase atomic-add write surfaces here.
+There are no `jit_batch.*.cpp` goldens that exercise `dedup_hash=True`
+in the project's fixture set, so we synthesize a handful of
+representative pipelines and assert that `compile_pipeline` produces
+the expected dedup-hash structural shapes:
 
-Once the legacy `jit_kernel_full` is retired, this file can be flipped
-to compare against checked-in goldens — the pipelines below are stable
-enough to capture as fixtures.
+  - `try_insert(thread_id, v0, ...)` gate around the write.
+  - `if (_p) {` guard for the actual emit.
+  - Materialize: `atomicAdd(atomic_write_pos, 1u)` + `out_data_0[...]`.
+  - Count: `output.emit_direct()` (no atomicAdd).
+  - Without `dedup_hash`: standard `output.emit_direct(args)` and no
+    dedup machinery.
+
+Earlier this file compared dialect output byte-for-byte against the
+legacy `jit_kernel_full` emit. That oracle was retired alongside the
+legacy `codegen/jit/` chain — once the runner-level byte-equivalence
+suite (`tests/test_runner_byte_equivalence.py`,
+`tests/test_byte_equivalence_jit.py`) established equivalence for all
+in-tree fixtures, the synthetic dedup pipelines need only structural
+sanity checks.
 '''
 
 from __future__ import annotations
 
-import re
-
-import pytest
-
 import srdatalog.mir.types as m
-from srdatalog.codegen.jit.kernel_functor import jit_kernel_full
 from srdatalog.compile import compile_pipeline
 from srdatalog.hir.types import Version
-
-
-def _norm(src: str) -> str:
-  '''Same shape as `tests/integration_helpers._cpp_norm` — strip line
-  comments, collapse whitespace, drop spaces adjacent to punctuation.'''
-  src = re.sub(r'//[^\n]*', '', src)
-  src = re.sub(r'\s+', ' ', src).strip()
-  src = re.sub(r'\s*([(),;{}])\s*', r'\1', src)
-  return src
 
 
 def _scan_insert_dedup(arity: int, rule_name: str = 'Dupy') -> m.ExecutePipeline:
@@ -51,30 +46,10 @@ def _scan_insert_dedup(arity: int, rule_name: str = 'Dupy') -> m.ExecutePipeline
   )
 
 
-def _kernel_body_only(s: str) -> str:
-  '''Extract the operator()-body region we care about. The dialect's
-  `compile_pipeline` adds a JIT_FILE_PRELUDE wrapper that
-  `jit_kernel_full` doesn't, so trim everything up to the first
-  `__device__ void operator()(` and everything after the matching
-  `}\n};` for a fair comparison.'''
-  start = s.index('__device__ void operator()(')
-  return s[start:]
-
-
-@pytest.mark.parametrize('arity', [1, 2, 3, 4])
-def test_dedup_hash_scan_insert_byte_equivalence(arity: int):
-  ep = _scan_insert_dedup(arity)
-  dialect_out = _kernel_body_only(compile_pipeline(ep))
-  legacy_out = _kernel_body_only(jit_kernel_full(ep))
-  assert _norm(dialect_out) == _norm(legacy_out), (
-    f'dedup_hash arity={arity}: dialect output diverges from legacy '
-    f'jit_kernel_full.\nDIALECT:\n{dialect_out}\n\nLEGACY:\n{legacy_out}'
-  )
-
-
 def test_dedup_hash_emits_try_insert_gate():
-  '''Sanity check on the structural shape: try_insert + if(_p) +
-  atomicAdd write block.'''
+  '''Structural sanity check: the dialect emits the dedup_hash
+  three-tier shape — try_insert + `if (_p)` + atomic-add write
+  block, with one column-write per arity.'''
   ep = _scan_insert_dedup(2)
   out = compile_pipeline(ep)
   assert 'dedup_table.try_insert(thread_id, v0, v1)' in out
@@ -84,7 +59,20 @@ def test_dedup_hash_emits_try_insert_gate():
   assert 'out_data_0[(pos + out_base_0) + 1 * out_stride_0] = v1' in out
 
 
+def test_dedup_hash_high_arity_writes_each_column():
+  '''Each output column gets its own `out_data_0[...] = vN` line.'''
+  ep = _scan_insert_dedup(4)
+  out = compile_pipeline(ep)
+  for col in range(4):
+    assert (
+      f'out_data_0[(pos + out_base_0) + {col} * out_stride_0] = v{col}'
+      in out
+    )
+
+
 def test_dedup_hash_off_does_not_emit_dedup_machinery():
+  '''Sanity: with `dedup_hash=False`, the standard emit_direct path
+  fires and no dedup_table / atomic_write_pos symbols leak in.'''
   scan = m.Scan(
     vars=['x'], rel_name='Src', version=Version.FULL, index=[0], handle_start=0,
   )

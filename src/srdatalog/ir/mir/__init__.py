@@ -1,17 +1,12 @@
-'''Mid-level IR (MIR): commands, types, passes, emit, and runner.
+'''Mid-level IR (MIR): types, passes, emit.
 
-Subpackage formed from the former top-level ``mir_*.py`` files — keeping
-them flat was fine when there were two or three of them, but with six
-the prefix-namespace got unwieldy. Old imports like
-``from srdatalog.ir.mir_types import MirNode`` are now
-``from srdatalog.ir.mir.types import MirNode``.
-
-No public-API symbols moved, only their module paths. Everything the
-outside world needs is still accessible via ``srdatalog.mir.<submodule>``.
+Submodules:
+  - ``types``  — the MIR ADT (Scan, ColumnJoin, CartesianJoin, etc.)
+  - ``passes`` — MIR optimization passes (clause reordering, etc.)
+  - ``emit``   — S-expression printer for golden-diff tests
 '''
 
 from __future__ import annotations
 
 # No re-exports here by design — submodule-qualified imports read
-# cleanly and avoid circular-import hazards that a big umbrella
-# re-export would introduce (types ↔ commands ↔ passes all cross-ref).
+# cleanly and avoid circular-import hazards (types ↔ passes cross-ref).

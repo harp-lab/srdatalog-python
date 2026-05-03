@@ -43,9 +43,6 @@ RUNNER_BYTE_MATCH_SKIPS: dict[tuple[str, str], str] = {
     'but Python MIR has `(scan :vars (blk blockUsed varp varr))` while Nim has '
     '`varr` then `varp`. Fix lives in HIR/MIR head-arg ordering, not the dialect.'
   ),
-  ('ddisasm', 'StackDefUsed4_D1'): (
-    'dedup_hash gen_complete_runner not yet ported (runner-side, not kernel-body).'
-  ),
   ('ddisasm', 'StackLiveVarBlockEnd1_D0_splitA'): (
     'Head tuple ordering divergence (`varp, varr` vs `varr, varp`) — likely '
     'MIR-level head-arg ordering, not kernel-body.'

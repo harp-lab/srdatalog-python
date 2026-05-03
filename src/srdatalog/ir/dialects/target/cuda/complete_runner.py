@@ -146,6 +146,67 @@ def _root_is_scan(pipeline: list[m.MirNode]) -> bool:
 # -----------------------------------------------------------------------------
 
 
+def _gen_dedup_table_struct(node: m.ExecutePipeline) -> str:
+  '''Emit the in-kernel DedupTable struct used by dedup_hash rules.
+
+  Mirrors Nim's `genDedupTableStruct` in jit_complete_runner.nim. The
+  struct is parameterized only by the destination's column count
+  (`OutputArity_0`) — Nim hardcodes the type as `uint32_t` for value
+  args, matching the FNV-1a-like hashing it does on the integer-coded
+  ValueType.
+  '''
+  arity = len(node.dest_specs[0].index) if node.dest_specs else 0
+  v_args = ',\n        '.join(f'uint32_t v{i}' for i in range(arity))
+  hash_lines = '\n'.join(
+    f'      h ^= (uint64_t)v{i}; h *= 1099511628211ULL;' for i in range(arity)
+  )
+  code = "  // GPU dedup hash table: full 64-bit hash + separate thread_id array\n"
+  code += "  struct DedupTable {\n"
+  code += "    unsigned long long* hash_slots; // full 64-bit hash per slot\n"
+  code += "    uint32_t* tid_slots;            // winner thread_id per slot\n"
+  code += "    uint32_t capacity;              // must be power of 2\n\n"
+  code += "    __device__ __forceinline__ unsigned long long compute_hash(\n"
+  code += f"        {v_args})\n"
+  code += "    {\n"
+  code += "      uint64_t h = 14695981039346656037ULL;\n"
+  code += hash_lines + "\n"
+  code += "      return h | 1ULL; // ensure non-zero\n"
+  code += "    }\n\n"
+  code += "    __device__ __forceinline__ bool try_insert(\n"
+  code += "        uint32_t thread_id,\n"
+  code += f"        {v_args})\n"
+  code += "    {\n"
+  v_call = ", ".join(f"v{i}" for i in range(arity))
+  code += f"      unsigned long long h = compute_hash({v_call});\n"
+  code += "      uint32_t base = (uint32_t)(h ^ (h >> 32)) & (capacity - 1);\n"
+  code += "      for (uint32_t p = 0; p < 128; p++) {\n"
+  code += "        uint32_t s = (base + p) & (capacity - 1);\n"
+  code += "        unsigned long long old = atomicCAS(&hash_slots[s], 0ULL, h);\n"
+  code += "        if (old == 0ULL) { tid_slots[s] = thread_id; return true; } // claimed\n"
+  code += "        if (old == h) return false; // same hash = duplicate\n"
+  code += "        // old != h: collision with different tuple -> probe next\n"
+  code += "      }\n"
+  code += "      return true; // probe overflow -> emit (safe)\n"
+  code += "    }\n\n"
+  code += "    __device__ __forceinline__ bool check_winner(\n"
+  code += "        uint32_t thread_id,\n"
+  code += f"        {v_args})\n"
+  code += "    {\n"
+  code += f"      unsigned long long h = compute_hash({v_call});\n"
+  code += "      uint32_t base = (uint32_t)(h ^ (h >> 32)) & (capacity - 1);\n"
+  code += "      for (uint32_t p = 0; p < 128; p++) {\n"
+  code += "        uint32_t s = (base + p) & (capacity - 1);\n"
+  code += "        unsigned long long stored = hash_slots[s];\n"
+  code += "        if (stored == h) return tid_slots[s] == thread_id; // found: am I winner?\n"
+  code += "        if (stored == 0ULL) return true; // not found -> probe overflow, emit\n"
+  code += "        // different hash -> probe next (collision resolution)\n"
+  code += "      }\n"
+  code += "      return true; // probe overflow -> emit\n"
+  code += "    }\n"
+  code += "  };\n\n"
+  return code
+
+
 def _gen_kernel_count(
   node: m.ExecutePipeline,
   pipeline: list[m.MirNode],
@@ -157,6 +218,8 @@ def _gen_kernel_count(
   code += "      const ValueType* __restrict__ root_unique_values,\n"
   code += "      uint32_t num_unique_root_keys,\n"
   code += "      uint32_t num_root_keys,\n"
+  if node.dedup_hash:
+    code += "      DedupTable dedup_table,\n"
   code += "      uint32_t* __restrict__ thread_counts) {\n"
   code += "    auto block = cg::this_thread_block();\n"
   code += "    auto tile = cg::tiled_partition<kGroupSize>(block);\n"
@@ -222,7 +285,11 @@ def _gen_kernel_materialize(
   code += "      const ValueType* __restrict__ root_unique_values,\n"
   code += "      uint32_t num_unique_root_keys,\n"
   code += "      uint32_t num_root_keys,\n"
-  code += "      const uint32_t* __restrict__ thread_offsets,\n"
+  if node.dedup_hash:
+    code += "      uint32_t* __restrict__ atomic_write_pos,\n"
+    code += "      DedupTable dedup_table,\n"
+  else:
+    code += "      const uint32_t* __restrict__ thread_offsets,\n"
   for i, dest in enumerate(dest_specs):
     code += f"      ValueType* __restrict__ output_data_{i},\n"
     code += f"      semiring_value_t<SR>* __restrict__ output_prov_{i},\n"
@@ -244,7 +311,15 @@ def _gen_kernel_materialize(
   code += "    uint32_t warp_id = thread_id / kGroupSize;\n"
   code += "    uint32_t num_warps = (gridDim.x * blockDim.x) / kGroupSize;\n"
   code += "    uint32_t num_threads = num_warps;  // Alias for scalar mode (kGroupSize=1)\n"
-  code += "    uint32_t thread_offset = thread_offsets[thread_id];\n\n"
+  if node.dedup_hash:
+    code += "    // Dedup materialize: use atomicAdd for write position (no thread_offset)\n\n"
+    for i in range(len(dest_specs)):
+      code += f"    // Dedup: atomic write context for dest {i}\n"
+      code += f"    ValueType* __restrict__ out_data_{i} = output_data_{i};\n"
+      code += f"    std::size_t out_stride_{i} = output_stride_{i};\n"
+      code += f"    uint32_t out_base_{i} = old_size_{i};\n\n"
+  else:
+    code += "    uint32_t thread_offset = thread_offsets[thread_id];\n\n"
 
   if tiled_cartesian_eligible:
     code += "    // Tiled Cartesian: per-warp smem tiles + coalesced write state\n"
@@ -259,22 +334,31 @@ def _gen_kernel_materialize(
 
   output_vars: dict[str, str] = {}
   output_var_name = 'output'
-  for i, dest in enumerate(dest_specs):
-    output_var = f"output_ctx_{i}"
-    arity_const = f"OutputArity_{i}"
-    code += (
-      f"    using OutputCtx_{i} = SRDatalog::GPU::OutputContext<"
-      f"ValueType, SR, false, Layout, {arity_const}>;\n"
-    )
-    code += (
-      f"    OutputCtx_{i} {output_var}"
-      f"{{output_data_{i}, output_prov_{i}, output_stride_{i}, "
-      f"old_size_{i} + thread_offset}};\n"
-    )
-    output_vars[dest.rel_name] = output_var
-    if i == 0:
-      output_var_name = output_var
-  code += "\n"
+  if node.dedup_hash:
+    # Dedup materialize writes directly via atomicAdd + out_data_<i>;
+    # no OutputContext declarations needed. The dialect's
+    # _lower_insert_into dedup_hash branch emits the atomicAdd path.
+    for i, dest in enumerate(dest_specs):
+      output_vars[dest.rel_name] = f"out_data_{i}"
+      if i == 0:
+        output_var_name = f"out_data_{i}"
+  else:
+    for i, dest in enumerate(dest_specs):
+      output_var = f"output_ctx_{i}"
+      arity_const = f"OutputArity_{i}"
+      code += (
+        f"    using OutputCtx_{i} = SRDatalog::GPU::OutputContext<"
+        f"ValueType, SR, false, Layout, {arity_const}>;\n"
+      )
+      code += (
+        f"    OutputCtx_{i} {output_var}"
+        f"{{output_data_{i}, output_prov_{i}, output_stride_{i}, "
+        f"old_size_{i} + thread_offset}};\n"
+      )
+      output_vars[dest.rel_name] = output_var
+      if i == 0:
+        output_var_name = output_var
+    code += "\n"
 
   from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
 
@@ -773,6 +857,35 @@ def _gen_setup(
     "(p.num_threads + 1) * sizeof(uint32_t), stream);\n"
   )
   code += "  p.thread_counts_ptr = p.thread_counts.data();\n"
+  if node.dedup_hash:
+    # Mirror Nim's dedup-hash setup block (jit_complete_runner.nim:2349+).
+    # Sized relative to FULL_VER relation size, capped at 1B entries.
+    code += "  // Dedup hash table: sized relative to FULL relation\n"
+    code += "  {\n"
+    code += (
+      f"    auto& _dedup_full_rel = "
+      f"get_relation_by_schema<{first_schema}, FULL_VER>(db);\n"
+    )
+    code += (
+      "    std::size_t full_size = std::max(_dedup_full_rel.size(), "
+      "static_cast<std::size_t>(p.num_root_keys));\n"
+    )
+    code += "    std::size_t cap64 = std::max(full_size * 8, static_cast<std::size_t>(1u << 20));\n"
+    code += "    cap64 = std::min(cap64, static_cast<std::size_t>(1u << 30)); // cap at 1B entries (~12GB)\n"
+    code += "    uint32_t cap = static_cast<uint32_t>(cap64);\n"
+    code += "    // Round up to power of 2\n"
+    code += "    cap--; cap |= cap>>1; cap |= cap>>2; cap |= cap>>4; cap |= cap>>8; cap |= cap>>16; cap++;\n"
+    code += "    p.dedup_hash_arr = SRDatalog::GPU::DeviceArray<unsigned long long>(cap);\n"
+    code += "    p.dedup_tid_arr = SRDatalog::GPU::DeviceArray<uint32_t>(cap);\n"
+    code += "    cudaMemsetAsync(p.dedup_hash_arr.data(), 0, cap * sizeof(unsigned long long), stream);\n"
+    code += "    cudaMemsetAsync(p.dedup_tid_arr.data(), 0, cap * sizeof(uint32_t), stream);\n"
+    code += "    p.dedup_table.hash_slots = reinterpret_cast<unsigned long long*>(p.dedup_hash_arr.data());\n"
+    code += "    p.dedup_table.tid_slots = p.dedup_tid_arr.data();\n"
+    code += "    p.dedup_table.capacity = cap;\n"
+    code += "    p.atomic_write_pos = SRDatalog::GPU::DeviceArray<uint32_t>(1);\n"
+    code += "    cudaMemsetAsync(p.atomic_write_pos.data(), 0, sizeof(uint32_t), stream);\n"
+    code += "    p.atomic_write_pos_ptr = p.atomic_write_pos.data();\n"
+    code += "  }\n"
   code += "  return p;\n"
   code += "}\n\n"
   return code
@@ -811,15 +924,17 @@ def gen_complete_runner(
   # Feature-flag guards: not covered in Phase 2 baseline port.
   if node.work_stealing:
     raise NotImplementedError("gen_complete_runner: work_stealing not yet ported")
-  if node.dedup_hash:
-    raise NotImplementedError("gen_complete_runner: dedup_hash not yet ported")
   if has_balanced_scan(node.pipeline):
     raise NotImplementedError("gen_complete_runner: balanced-scan runner not yet ported")
 
   rule_name = node.rule_name
   runner_prefix = f"JitRunner_{rule_name}"
   is_count = node.count
-  is_fused_eligible = not is_count
+  # Mirror Nim's `isFusedEligible = not isCount and not isDedupHash and not
+  # isWorkStealing` (jit_complete_runner.nim:514). Dedup-hash rules use a
+  # two-phase atomic-write flow with table-clear in between, so the
+  # tail-mode fused kernel doesn't apply.
+  is_fused_eligible = not is_count and not node.dedup_hash
 
   # Mutate a copy so handle positions don't leak back.
   mutable_pipe = list(node.pipeline)
@@ -865,6 +980,9 @@ def gen_complete_runner(
     total_view_count,
   )
 
+  if node.dedup_hash:
+    full += _gen_dedup_table_struct(node)
+
   full += _gen_kernel_count(node, mutable_pipe, rel_index_types)
 
   materialize_body = ""
@@ -887,10 +1005,12 @@ def gen_complete_runner(
     )
     full += mat_code
 
-  # Baseline `kernel_fused` is skipped when BG is enabled — Nim emits
-  # only `kernel_bg_fused` for BG rules (see jit_complete_runner.nim:516:
-  # `if isFusedEligible and not isBlockGroup`).
-  if is_fused_eligible and not node.block_group:
+  # Baseline `kernel_fused` is skipped when BG or dedup_hash is enabled —
+  # Nim emits only `kernel_bg_fused` for BG rules and skips fused entirely
+  # for dedup_hash (see jit_complete_runner.nim:514:
+  # `if isFusedEligible and not isCount and not isDedupHash and not
+  # isWorkStealing and not isBlockGroup` — though BG has its own fused).
+  if is_fused_eligible and not node.block_group and not node.dedup_hash:
     full += _gen_kernel_fused(
       node,
       mutable_pipe,
@@ -914,6 +1034,7 @@ def gen_complete_runner(
     len(node.dest_specs),
     is_fused_eligible,
     is_block_group=node.block_group,
+    is_dedup_hash=node.dedup_hash,
   )
   full += _gen_method_forward_decls(is_count, is_fused_eligible)
   full += "};\n\n"
@@ -926,7 +1047,11 @@ def gen_complete_runner(
     first_index,
     rel_index_types,
   )
-  full += _gen_launch_count(runner_prefix, is_block_group=node.block_group)
+  full += _gen_launch_count(
+    runner_prefix,
+    is_block_group=node.block_group,
+    is_dedup_hash=node.dedup_hash,
+  )
   full += _gen_scan_and_resize(node, runner_prefix)
   full += _gen_scan_only(runner_prefix)
   full += _gen_read_total(runner_prefix)
@@ -940,6 +1065,7 @@ def gen_complete_runner(
     runner_prefix,
     is_count,
     is_block_group=node.block_group,
+    is_dedup_hash=node.dedup_hash,
     dest_specs=node.dest_specs,
   )
   if is_fused_eligible:
@@ -975,6 +1101,7 @@ def gen_complete_runner(
     len(node.dest_specs),
     is_fused_eligible,
     is_block_group=node.block_group,
+    is_dedup_hash=node.dedup_hash,
     for_decl=True,
   )
   # The decl variant drops the "// State carried..." comment (matches Nim).

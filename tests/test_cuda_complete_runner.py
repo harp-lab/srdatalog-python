@@ -111,8 +111,6 @@ RUNNER_BYTE_MATCH_SKIPS = {
   # R8 added Scan+Cart to _supported_pipeline so this compiles; only
   # divergence remaining is HIR/MIR head-arg ordering.
   ("ddisasm", "StackLiveVarBlockEnd1_D0_splitB"),
-  # ddisasm: dedup_hash gen_complete_runner not yet ported (runner-side).
-  ("ddisasm", "StackDefUsed4_D1"),
   # ddisasm: head tuple ordering divergence (`varp, varr` vs `varr, varp`)
   # in the destination emit. Likely a MIR-level head-arg ordering — needs
   # MIR-side investigation; not a kernel-body issue.

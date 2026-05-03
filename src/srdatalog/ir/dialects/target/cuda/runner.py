@@ -41,16 +41,30 @@ import srdatalog.ir.mir.types as m
 # -----------------------------------------------------------------------------
 
 
-def emit_launch_count(runner_prefix: str, *, is_block_group: bool = False) -> str:
+def emit_launch_count(
+  runner_prefix: str,
+  *,
+  is_block_group: bool = False,
+  is_dedup_hash: bool = False,
+) -> str:
   '''`<runner_prefix>::launch_count` — fires kernel_count (and the BG
   variant when `is_block_group=True`) on the given stream after the
-  zero-key fast path.'''
+  zero-key fast path. When `is_dedup_hash=True`, passes `p.dedup_table`
+  to the kernel.'''
+  dedup_arg = 'p.dedup_table, ' if is_dedup_hash else ''
   code = f'void {runner_prefix}::launch_count(LaunchParams& p, GPU_STREAM_T stream) {{\n'
   code += '  if (p.num_threads == 0) return;\n'
-  code += '  if (p.num_unique_root_keys == 0) {\n'
-  code += '    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);\n'
-  code += '    return;\n'
-  code += '  }\n'
+  if is_dedup_hash:
+    # Single-line zero-key fast path on the dedup-hash path (matches Nim).
+    code += (
+      '  if (p.num_unique_root_keys == 0) { '
+      'cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream); return; }\n'
+    )
+  else:
+    code += '  if (p.num_unique_root_keys == 0) {\n'
+    code += '    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);\n'
+    code += '    return;\n'
+    code += '  }\n'
   if is_block_group:
     code += '  if (p.bg_total_work > 0) {\n'
     code += (
@@ -64,14 +78,14 @@ def emit_launch_count(runner_prefix: str, *, is_block_group: bool = False) -> st
     code += (
       '    kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>'
       '(p.d_views.data(), p.root_unique_values_ptr, '
-      'p.num_unique_root_keys, p.num_root_keys, p.thread_counts_ptr);\n'
+      f'p.num_unique_root_keys, p.num_root_keys, {dedup_arg}p.thread_counts_ptr);\n'
     )
     code += '  }\n'
   else:
     code += (
       '  kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>'
       '(p.d_views.data(), p.root_unique_values_ptr, '
-      'p.num_unique_root_keys, p.num_root_keys, p.thread_counts_ptr);\n'
+      f'p.num_unique_root_keys, p.num_root_keys, {dedup_arg}p.thread_counts_ptr);\n'
     )
   code += '}\n\n'
   return code
@@ -161,6 +175,21 @@ def emit_launch_materialize(
     out += (
       '      p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,\n'
     )
+    if ep.dedup_hash:
+      # Dedup uses atomic_write_pos + dedup_table instead of thread_offsets.
+      out += '      p.atomic_write_pos_ptr,\n'
+      out += '      p.dedup_table,\n'
+      out += (
+        f'      dest_rel_0.template interned_column<0>(), '
+        f'prov_ptr, dest_rel_0.interned_stride(), old_size_0'
+      )
+      for i in range(1, len(ep.dest_specs)):
+        out += (
+          f', dest_rel_{i}.template interned_column<0>(), '
+          f'prov_ptr, dest_rel_{i}.interned_stride(), old_size_{i}'
+        )
+      out += ');\n'
+      return out
     out += '      p.thread_counts_ptr'
     for i in range(len(ep.dest_specs)):
       out += (
@@ -340,6 +369,7 @@ def emit_launch_params_struct(
   num_dests: int,
   is_fused_eligible: bool,
   is_block_group: bool = False,
+  is_dedup_hash: bool = False,
   for_decl: bool = False,
 ) -> str:
   '''LaunchParams block — shared between `full` and `decl` emission.
@@ -382,6 +412,13 @@ def emit_launch_params_struct(
     for j in range(num_dests):
       code += f'    uint32_t fused_h_wp_{j} = 0;\n'
     code += '    bool fused_overflow = false;\n'
+  if is_dedup_hash:
+    code += '    // Dedup hash table for in-kernel duplicate elimination\n'
+    code += '    SRDatalog::GPU::DeviceArray<unsigned long long> dedup_hash_arr{0};\n'
+    code += '    SRDatalog::GPU::DeviceArray<uint32_t> dedup_tid_arr{0};\n'
+    code += '    DedupTable dedup_table{};\n'
+    code += '    SRDatalog::GPU::DeviceArray<uint32_t> atomic_write_pos{0};\n'
+    code += '    uint32_t* atomic_write_pos_ptr = nullptr;\n'
   code += '  };\n\n'
   return code
 
@@ -453,6 +490,7 @@ def emit_execute(
   is_count: bool,
   *,
   is_block_group: bool = False,
+  is_dedup_hash: bool = False,
   dest_specs: list[m.InsertInto] | None = None,
 ) -> str:
   '''`<runner_prefix>::execute` — top-level dispatcher. For BG materialize
@@ -569,6 +607,16 @@ def emit_execute(
     code += '  GPU_STREAM_SYNCHRONIZE(0);\n'
     code += '  uint32_t total_count = read_total(p);\n'
     code += '  if (total_count == 0) { nvtxRangePop(); return; }\n\n'
+  elif is_dedup_hash:
+    code += '  uint32_t total_count = scan_and_resize(db, p, 0);\n'
+    code += '  if (total_count == 0) { nvtxRangePop(); return; }\n'
+    code += '  // Clear for materialize: fresh table ensures identical dedup decisions\n'
+    code += (
+      '  cudaMemsetAsync(p.dedup_hash_arr.data(), 0, '
+      'p.dedup_table.capacity * sizeof(unsigned long long), 0);\n'
+    )
+    code += '  cudaMemsetAsync(p.atomic_write_pos_ptr, 0, sizeof(uint32_t), 0);\n'
+    code += '  launch_materialize(db, p, total_count, 0);\n'
   else:
     code += '  uint32_t total_count = scan_and_resize(db, p, 0);\n'
     code += '  if (total_count == 0) { nvtxRangePop(); return; }\n\n'

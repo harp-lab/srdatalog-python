@@ -1680,8 +1680,14 @@ def _lower_nested_cart(
   # `flat_idx`, `idx_vars`, `major_is_1` allocations — matching the
   # legacy `cartesian_as_product` branch in
   # `instructions.py:jit_nested_cartesian_join`.
+  #
+  # Disabled for dedup_hash: each tuple needs an in-kernel
+  # `dedup_table.try_insert(...)` test, so the body must run per-tuple
+  # (Nim emits the full Cart loop + var binds + dedup test in count
+  # phase, not the closed-form add_count).
   cartesian_as_product = (
     ctx.is_counting
+    and not ctx.dedup_hash
     and not pre_narrow_infos
     and all(isinstance(op, mir.InsertInto) for op in rest)
   )

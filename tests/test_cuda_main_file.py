@@ -1,4 +1,4 @@
-'''Byte-match + smoke tests for codegen/jit/main_file.py.
+'''Byte-match + smoke tests for ir/dialects/target/cuda/main_file.py.
 
 Phase 6: the main-file emitter ties the per-rule JIT batch files into
 a single compilable compile unit. The golden for this module is the

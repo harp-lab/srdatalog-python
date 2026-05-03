@@ -77,7 +77,7 @@ class NegPreNarrowInfo:
   vars are applied per-thread inside the loop via `prefix_seq`.
 
   Mirrors the legacy `NegPreNarrowInfo` in
-  codegen/jit/context.py.
+  ir/dialects/target/cuda/context.py.
   '''
 
   var_name: str
@@ -388,7 +388,7 @@ def _lower_root_cart(
 ) -> Op:
   '''Lower a root CartesianJoin.
 
-  Mirrors `jit_root_cartesian_join` in `codegen/jit/root.py`. Differs
+  Mirrors `jit_root_cartesian_join` in `ir/dialects/target/cuda/root.py`. Differs
   from nested Cart in several places:
     - No `lane`/`group_size`; uses `warp_id`/`num_warps` directly via
       a standard GridStrideLoop.
@@ -586,7 +586,7 @@ def _lower_root_cj_multi(
 ) -> Op:
   '''Lower a root multi-source ColumnJoin.
 
-  Mirrors `_root_cj_multi` in `codegen/jit/root.py`. Counter
+  Mirrors `_root_cj_multi` in `ir/dialects/target/cuda/root.py`. Counter
   trajectory matches legacy: body is rendered with its own counter
   trajectory starting from saved=0; then outer names are allocated
   starting from saved=0 again. Body and outer have overlapping
@@ -843,7 +843,7 @@ def _lower_root_cj_bg(
   '''Lower a root multi-source ColumnJoin in BG (block-group) mode.
 
   Mirrors legacy `jit_root_column_join_block_group` in
-  `codegen/jit/root.py`. Body renders with `ctx.bg_enabled = False`
+  `ir/dialects/target/cuda/root.py`. Body renders with `ctx.bg_enabled = False`
   (the BG root's narrowed handle already restricts work to this
   warp's slice, so nested ops use the standard parallel emission).
 
@@ -1535,7 +1535,7 @@ def _lower_nested_cart(
     - Tiled-Cartesian dispatch (N7): when ctx.tiled_cartesian is set
       and shape eligible, dispatch to `_lower_nested_cart_tiled`.
 
-  Mirrors `jit_nested_cartesian_join` in `codegen/jit/instructions.py`.
+  Mirrors `jit_nested_cartesian_join` in `ir/dialects/target/cuda/instructions.py`.
   Counter trajectory matches legacy: pre-narrow var_names allocated
   during `_register_neg_pre_narrow`, then body rendered, then own
   scaffold names.
@@ -1928,7 +1928,7 @@ def _lower_nested_cj_multi(
 ) -> Op:
   '''Lower a nested multi-source ColumnJoin.
 
-  Mirrors `_nested_column_join_multi` in `codegen/jit/instructions.py`.
+  Mirrors `_nested_column_join_multi` in `ir/dialects/target/cuda/instructions.py`.
   Counter trajectory: body is rendered FIRST (its counter bumps
   persist), then our outer scaffold names are allocated. The IIR
   carries pre-baked names that match the legacy emitter's order.

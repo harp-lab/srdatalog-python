@@ -17,7 +17,7 @@ because the envelope shape is target-specific (CUDA cooperative-groups
 signature, `__device__` qualifier, etc.); a `target.cpp_tbb` envelope
 would emit a different shape from the same MIR pipeline.
 
-The legacy `codegen/jit/` modules still own their own copies of these
+The legacy `ir/dialects/target/cuda/` modules still own their own copies of these
 helpers during the Stage 2 transition (they are imported by the
 byte-equivalence harness which compares the legacy emitter against
 the dialect path). Once the legacy inner-body emitters are deleted,

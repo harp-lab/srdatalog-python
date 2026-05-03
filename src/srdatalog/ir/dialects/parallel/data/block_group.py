@@ -20,7 +20,7 @@ This module owns:
 
   - `emit_bg_histogram_kernel(ep, rel_index_types)` — the histogram
     kernel template (lifted from
-    `codegen.jit.complete_runner._gen_kernel_bg_histogram`).
+    `ir.dialects.target.cuda.complete_runner._gen_kernel_bg_histogram`).
   - `BgRootCjMulti` op — the BG dispatch shape for root multi-source
     ColumnJoin (count/materialize/fused kernel bodies). Lifted N4.1
     from legacy `jit_root_column_join_block_group`. Bundles the

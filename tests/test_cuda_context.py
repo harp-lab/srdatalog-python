@@ -1,4 +1,4 @@
-'''Tests for codegen/jit/context.py — CodeGenContext + indentation / name /
+'''Tests for ir/dialects/target/cuda/context.py — CodeGenContext + indentation / name /
 key / plugin-dispatched expression helpers.'''
 
 import sys

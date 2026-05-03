@@ -1,4 +1,4 @@
-'''Tests for codegen/jit/compiler.py.
+'''Tests for ir/dialects/target/cuda/build/compiler.py.
 
 Pure logic is unit-tested without invoking a real compiler:
   - command assembly (includes, defines, std, -fPIC, link order)

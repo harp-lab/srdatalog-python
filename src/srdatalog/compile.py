@@ -75,7 +75,7 @@ def compile_runner(
   The dialect's `target.cuda.runner` module owns the runner emission
   surface. Most pieces (phase methods, execute, BG variants, fused
   kernel) currently delegate to legacy helpers in
-  `codegen.jit.complete_runner`; later milestones (N2/N4/N5/N6/N8)
+  `ir.dialects.target.cuda.complete_runner`; later milestones (N2/N4/N5/N6/N8)
   collapse them into native dialect emission.
 
   Kernel *bodies* (count + materialize) already route through

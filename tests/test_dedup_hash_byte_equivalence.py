@@ -14,7 +14,7 @@ the expected dedup-hash structural shapes:
 
 Earlier this file compared dialect output byte-for-byte against the
 legacy `jit_kernel_full` emit. That oracle was retired alongside the
-legacy `codegen/jit/` chain — once the runner-level byte-equivalence
+legacy `ir/dialects/target/cuda/` chain — once the runner-level byte-equivalence
 suite (`tests/test_runner_byte_equivalence.py`,
 `tests/test_byte_equivalence_jit.py`) established equivalence for all
 in-tree fixtures, the synthetic dedup pipelines need only structural

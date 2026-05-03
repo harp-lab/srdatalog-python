@@ -6,7 +6,7 @@ per-rule `JitRunner_<rule>` struct plus all kernel definitions and
 out-of-line phase methods — the content of `jit_runner.<rule>.cpp`.
 
 Today the implementation delegates to the legacy
-`codegen.jit.complete_runner.gen_complete_runner` for the runner
+`ir.dialects.target.cuda.complete_runner.gen_complete_runner` for the runner
 scaffolding (phase methods, type aliases, execute() dispatcher,
 LaunchParams struct, BG variants, fused kernel) and routes kernel
 *bodies* through `compile_kernel_body` when `_dialect_safe_kernel`

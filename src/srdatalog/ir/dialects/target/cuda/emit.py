@@ -395,7 +395,7 @@ def _emit_tiled_cartesian_2d(
   fbv: str, mv: str, i0v: str, i1v: str,
   body: Op,
 ) -> str:
-  '''Lifted from legacy `_emit_tiled_cartesian` (codegen/jit/
+  '''Lifted from legacy `_emit_tiled_cartesian` (ir/dialects/target/cuda/
   instructions.py). The whole structure is string-level — the body
   IR emits at the surrounding scope's indent (legacy quirk where
   bodies are pre-rendered before tiled wrap textually surrounds
@@ -514,7 +514,7 @@ def _emit_bg_root_cj_multi(
 ) -> str:
   '''Emit the block-group root multi-source ColumnJoin scaffold,
   lifted byte-for-byte from legacy
-  `jit_root_column_join_block_group` (codegen/jit/root.py).
+  `jit_root_column_join_block_group` (ir/dialects/target/cuda/root.py).
 
   ctx.indent_level controls the outer indent. The body emits at
   `ctx.indent_level + 1 + segs` (where segs = number of multi-view

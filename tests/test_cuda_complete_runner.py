@@ -1,4 +1,4 @@
-'''Byte-match tests for codegen/jit/complete_runner.py.
+'''Byte-match tests for ir/dialects/target/cuda/complete_runner.py.
 
 Phase 2 baseline: covers non-recursive, non-BG, non-WS, non-dedup_hash
 pipelines with kernel_count + kernel_materialize + kernel_fused +

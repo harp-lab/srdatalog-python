@@ -144,18 +144,46 @@ extra `--meta <json>` pointing at the interning table.
 
 ## Architecture
 
+The compile pipeline is a four-level **IR pyramid**:
+
+```
+HIR  Program / Rule / Atom            user-facing datalog
+ │
+ ▼   ir.hir.lower
+MIR  Pipeline / ColumnJoin / Scan /   join-shape IR
+     CartesianJoin / InsertInto       (compile_to_mir output)
+ │
+ ▼   ir.dialects.relation.sorted_array.lowerings
+IIR  Block / Bind / GridStrideLoop /  emission-scaffold IR
+     IntersectIter / D2lSegmentLoop / (target-agnostic kernel body)
+     SaTiledCartesian2D / BgRootCjMulti / WriteOutput / ...
+ │
+ ▼   ir.dialects.target.cuda.emit
+CUDA C++ source
+```
+
 | Stage | Module | What it does |
 |---|---|---|
-| DSL → HIR | `srdatalog.hir`, `srdatalog.dataset_const` | Parse rules, infer types, stratify, substitute dataset_consts, plan indexes |
-| HIR → MIR | `srdatalog.hir_lower`, `srdatalog.mir_passes` | Lower to imperative IR + optimization passes |
-| MIR → C++ | `srdatalog.codegen.jit.*` | Emit kernels, runner struct, main file, extern "C" shim |
-| Write | `srdatalog.codegen.jit.cache` | Shard into `jit_batch_N.cpp` + schemas + main.cpp |
-| Compile | `srdatalog.codegen.jit.compiler_ninja` | Emit `build.ninja`, run ninja (from the `ninja` PyPI wheel) with auto-detected ccache |
-| Load | `srdatalog.codegen.jit.loader` | dlopen via `ctypes`, bind the five `extern "C"` entries |
+| DSL → HIR | `srdatalog.ir.hir`, `srdatalog.dataset_const` | Parse rules, infer types, stratify, substitute dataset_consts, plan indexes |
+| HIR → MIR | `srdatalog.ir.hir.lower`, `srdatalog.ir.mir.passes` | Lower to join-shape IR + optimization passes |
+| MIR → IIR | `srdatalog.ir.dialects.relation.sorted_array.lowerings` | Pattern-match MIR ops, build IIR (Block/Bind/IntersectIter/...) via dialect lowering rules |
+| IIR → C++ | `srdatalog.ir.dialects.target.cuda.{emit,envelope,runner,complete_runner,main_file,batchfile,...}` | Emit kernels, JitRunner_<rule> struct, main.cpp, extern "C" shim |
+| Write | `srdatalog.ir.dialects.target.cuda.build.cache` | Shard into `jit_batch_N.cpp` + schemas + main.cpp |
+| Compile | `srdatalog.ir.dialects.target.cuda.build.compiler_ninja` | Emit `build.ninja`, run ninja (from the `ninja` PyPI wheel) with auto-detected ccache |
+| Load | `srdatalog.ir.dialects.target.cuda.build.loader` | dlopen via `ctypes`, bind the five `extern "C"` entries |
 
-The JIT codegen layer produces byte-identical output to the upstream Nim reference for
-**125/127** runner fixtures (the remaining 2 require a work-stealing runner variant still
-pending a port).
+Each dialect under `ir.dialects/` owns its IR ops + lowering rules:
+
+- **`iir.cf`** — control-flow scaffold (Block, Bind, GridStrideLoop, IntersectIter, IfReturnIfNot, ...)
+- **`relation.sorted_array`** — DSAI index ops + `lowerings.py` that translates MIR pipelines into IIR
+- **`relation.d2l`** — 2-level (HEAD + FULL) index dialect; `D2lSegmentLoop` op + `cuda.py` plugin auto-registers when imported
+- **`parallel.data.block_group`** — block-group work-balanced strategy + `BgRootCjMulti` op + histogram emit
+- **`target.cuda`** — CUDA emission target: IIR → C++ source, runner struct, main file, NVCC/Ninja build, `ctypes` loader
+
+The dialect-emit layer produces byte-identical output to the upstream Nim reference for
+**249/249** runner fixtures (`test_runner_byte_equivalence.py`) and **253/253** `jit_batch.<rule>.cpp`
+goldens (`test_byte_equivalence_jit.py`). 2 fixtures are skipped via the runner suite's WS-runner
+gate (the legacy emitter never finished work-stealing runner emission either).
 
 **Nim→Python translator**: `tools/nim_to_dsl.py` auto-translates upstream
 `.nim` programs (schema block + `rules_def` block + `dataset_const`) to
@@ -215,29 +243,22 @@ that succeeds, the wheel is publishable.
 ## Status & roadmap
 
 Shipped:
-- ✅ DSL, HIR, MIR, JIT codegen (125/127 runner fixtures byte-match Nim)
-- ✅ `_Runner` struct + main.cpp + auto extern "C" shim emitter
+- ✅ DSL, HIR, MIR, dialect-based CUDA codegen (249/249 runner + 253/253 jit-batch fixtures byte-match Nim)
+- ✅ `JitRunner_<rule>` struct + main.cpp + auto extern "C" shim emitter
 - ✅ On-disk JIT cache manager
-- ✅ Ninja + ccache compile orchestrator (`compiler_ninja.py`)
+- ✅ Ninja + ccache compile orchestrator (`ir.dialects.target.cuda.build.compiler_ninja`)
 - ✅ ctypes loader
 - ✅ `Relation(..., input_file=, print_size=, index_type=)` pragma plumbing
 - ✅ `dataset_const` resolver + filter-body substitution
 - ✅ Nim → Python DSL translator (`tools/nim_to_dsl.py`)
-- ✅ All 17 canonical benchmarks migrated + runnable via
-  `examples/run_benchmark.py`
+- ✅ All 17 canonical benchmarks migrated + runnable via `examples/run_benchmark.py`
+- ✅ **Stage 2 dialect migration** — every kernel emit shape (Scan, CJ, Cart, dedup-hash, tiled-Cartesian, D2L segment loops, BG block-group, kernel-functor WS variants) goes through the dialect lowering. The legacy `codegen/jit/pipeline.py` chain has been retired.
 
 Known gaps:
-- ⬜ Work-stealing runner variant (Phase 5 — deferred; blocks the last
-  2 runner fixtures).
-- ⬜ **PCH disabled** — clang-20's PCH ODR checker rejects a
-  libstdc++-13 × `cuda_wrappers/new` mismatch that isn't fixable from
-  outside the compiler. libc++ is rejected by NVIDIA's CUDA SDK; older
-  clang versions (≤18) can't compile our C++23. The split host/device
-  PCH path is preserved in `compiler_ninja.py` behind `use_pch=True`
-  and will work once either clang ships a fix or `gpu/search.h` is
-  restructured to separate host/device intrinsics.
-- ⬜ Pre-built runtime library distribution (users still need
-  clang-20 + CUDA 12.x + boost-container locally).
+- ⬜ **Work-stealing runner variant** — the runner-side WS scaffolding (WCOJTask queue, cross-warp stealing) was never finished in the legacy emitter. The dialect ports the kernel-functor-level WS bits (`emit_warp_coalesced`, valid-flag folding) but the full WS runner is open work; blocks the 2 skipped runner fixtures.
+- ⬜ D2L FULL_VER edge cases — single-source nested CJ and Scan/Negation/Aggregate over D2L FULL_VER have explicit dialect raises; no fixture exercises them today, so they're ports-on-demand.
+- ⬜ **PCH disabled** — clang-20's PCH ODR checker rejects a libstdc++-13 × `cuda_wrappers/new` mismatch that isn't fixable from outside the compiler. libc++ is rejected by NVIDIA's CUDA SDK; older clang versions (≤18) can't compile our C++23. The split host/device PCH path is preserved in `compiler_ninja.py` behind `use_pch=True` and will work once either clang ships a fix or `gpu/search.h` is restructured to separate host/device intrinsics.
+- ⬜ Pre-built runtime library distribution (users still need clang-20 + CUDA 12.x + boost-container locally).
 
 ## License
 

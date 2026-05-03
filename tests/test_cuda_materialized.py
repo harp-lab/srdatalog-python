@@ -1,4 +1,4 @@
-'''Tests for codegen/jit/materialized.py — host-side Thrust executor
+'''Tests for ir/dialects/target/cuda/materialized.py — host-side Thrust executor
 for binary-join (materialized) pipelines.
 '''
 

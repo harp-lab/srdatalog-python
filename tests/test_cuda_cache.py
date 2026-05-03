@@ -1,4 +1,4 @@
-'''Tests for codegen/jit/cache.py — cache layout, batch sharding,
+'''Tests for ir/dialects/target/cuda/build/cache.py — cache layout, batch sharding,
 header generation, write idempotence, and the one-shot project writer.
 '''
 

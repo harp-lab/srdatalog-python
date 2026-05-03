@@ -1,4 +1,4 @@
-'''Tests for codegen/jit/plugin.py — DSAI default hooks + registry dispatch.'''
+'''Tests for ir/dialects/target/cuda/plugin.py — DSAI default hooks + registry dispatch.'''
 
 import sys
 
@@ -101,7 +101,7 @@ def test_resolve_registered_plugin_exact_match():
   from srdatalog.ir.dialects.target.cuda import plugin as _p
 
   # Capture any pre-existing registration (e.g., the real two_level
-  # plugin, registered at import time of codegen.jit.indexes.two_level)
+  # plugin, registered at import time of ir.dialects.target.cuda.indexes.two_level)
   # so teardown can restore it. Bare `.pop()` would leave the registry
   # empty and break downstream tests that rely on D2L plugin_view_count.
   prior = _p._PLUGIN_REGISTRY.get("SRDatalog::GPU::Device2LevelIndex")

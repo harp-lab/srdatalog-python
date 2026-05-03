@@ -4,7 +4,7 @@ Originally ported from `src/srdatalog/codegen/target_jit/
 jit_emit_helpers.nim` — the legacy Filter / ConstantBind / InsertInto
 emit procs (`jit_filter`, `jit_constant_bind`, `jit_insert_into`) used
 to live here too. They've been retired alongside the rest of the
-legacy `codegen/jit/pipeline.py` chain; the dialect now owns those
+legacy `ir/dialects/target/cuda/pipeline.py` chain; the dialect now owns those
 emits via `dialects.relation.sorted_array.lowerings._lower_inner_chain`
 and `_lower_insert_into`.
 

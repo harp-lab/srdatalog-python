@@ -1,4 +1,4 @@
-'''Tests for codegen/jit/loader.py.
+'''Tests for ir/dialects/target/cuda/build/loader.py.
 
 Strategy: compile a tiny real `extern "C"` library with clang++/g++
 (not CUDA — any host compiler works) and exercise the full round-trip

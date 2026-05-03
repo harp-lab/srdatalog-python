@@ -1,4 +1,4 @@
-'''Tests for codegen/jit/view_management.py.'''
+'''Tests for ir/dialects/target/cuda/view_slots.py.'''
 
 import sys
 

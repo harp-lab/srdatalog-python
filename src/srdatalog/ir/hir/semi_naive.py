@@ -17,7 +17,7 @@ members get incrementalized).
 from __future__ import annotations
 
 from srdatalog.dsl import Atom, Rule
-from srdatalog.ir.hir.pass_ import Dialect, PassInfo, PassLevel
+from srdatalog.ir.hir.pass_ import IRLevel, PassInfo, PassLevel
 from srdatalog.ir.hir.types import HirProgram, HirRuleVariant, Version
 
 
@@ -69,8 +69,8 @@ class SemiNaiveVariantPass:
     name="SemiNaiveVariants",
     level=PassLevel.HIR_TRANSFORM,
     order=100,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, hir: HirProgram) -> HirProgram:

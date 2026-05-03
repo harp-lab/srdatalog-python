@@ -7,7 +7,7 @@ order, and rejects misregistered passes (wrong PassLevel).
 from srdatalog.dsl import Program, Relation, Rule, Var
 from srdatalog.ir.hir import compile_to_hir
 from srdatalog.ir.hir.pass_ import (
-  Dialect,
+  IRLevel,
   PassInfo,
   PassLevel,
   Pipeline,
@@ -37,8 +37,8 @@ class _RecordingRewrite:
       name=f"Record({tag})",
       level=PassLevel.RULE_REWRITE,
       order=order,
-      source_dialect=Dialect.HIR,
-      target_dialect=Dialect.HIR,
+      source_dialect=IRLevel.HIR,
+      target_dialect=IRLevel.HIR,
     )
     self._tag = tag
     self._trace = trace
@@ -56,8 +56,8 @@ class _RecordingHirTransform:
       name=f"Record({tag})",
       level=PassLevel.HIR_TRANSFORM,
       order=order,
-      source_dialect=Dialect.HIR,
-      target_dialect=Dialect.HIR,
+      source_dialect=IRLevel.HIR,
+      target_dialect=IRLevel.HIR,
     )
     self._tag = tag
     self._trace = trace

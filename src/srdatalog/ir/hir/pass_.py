@@ -38,8 +38,16 @@ class PassLevel(Enum):
   DIALECT_UNIFY = "plDialectUnify"  # MirNode -> MirNode (unified dialect)
 
 
-class Dialect(Enum):
-  '''IR abstraction level. Mirrors Nim pass_infrastructure.Dialect.'''
+class IRLevel(Enum):
+  '''IR abstraction level (HIR / MIR variants).
+
+  Renamed from `Dialect` to disambiguate from
+  `srdatalog.ir.core.dialect.Dialect`, the framework registry record
+  that catalogs ops/types per dialect (`relation.sorted_array`,
+  `iir.cf`, etc.). This is purely an abstraction-level *label* used
+  by `PassInfo.source_dialect` / `target_dialect`.
+
+  Mirrors Nim `pass_infrastructure.Dialect`.'''
 
   HIR = "HIR"
   MIR_WCOJ = "MIR_WCOJ"
@@ -55,8 +63,8 @@ class PassInfo:
   name: str
   level: PassLevel
   order: int  # Lower runs first within the same level
-  source_dialect: Dialect
-  target_dialect: Dialect
+  source_dialect: IRLevel
+  target_dialect: IRLevel
 
 
 @runtime_checkable

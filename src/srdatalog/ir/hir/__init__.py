@@ -3,13 +3,39 @@
 Entry point: `compile_to_hir(program)` runs the default pipeline
 (currently: stratification only; future passes will be appended here as
 they are ported from Nim).
+
+A `DIALECT` catalog is also exposed (see `srdatalog.ir.core.dialect`)
+so HIR participates in the framework registry alongside `iir.cf`,
+`relation.sorted_array`, etc. The HIR types here are not yet
+`Op`-subclassed or frozen — that's the next standardization step.
+The catalog is purely metadata today.
 '''
 
 from __future__ import annotations
 
 from srdatalog.dsl import Program
+from srdatalog.ir.core import Dialect
 from srdatalog.ir.hir.pass_ import Pipeline
-from srdatalog.ir.hir.types import HirProgram
+from srdatalog.ir.hir.types import (
+  AccessPattern,
+  HirProgram,
+  HirRuleVariant,
+  HirStratum,
+  RelationDecl,
+  Version,
+)
+
+DIALECT = Dialect(
+  name='hir',
+  types=[
+    AccessPattern,
+    HirProgram,
+    HirRuleVariant,
+    HirStratum,
+    RelationDecl,
+    Version,
+  ],
+)
 
 
 def default_pipeline(verbose: bool = False) -> Pipeline:

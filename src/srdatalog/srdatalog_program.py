@@ -5,9 +5,9 @@ from pathlib import Path
 
 from srdatalog.ffi.header import generate_extern_c
 from srdatalog.ffi.wrapper import DatalogFFI
-from srdatalog.mir.commands import MirInstructions
-from srdatalog.mir.runner import generate_runner
-from srdatalog.mir.schema import SchemaDefinition
+from srdatalog.ir.mir.commands import MirInstructions
+from srdatalog.ir.mir.runner import generate_runner
+from srdatalog.ir.mir.schema import SchemaDefinition
 
 PRELUDE = '''
 #include "srdatalog.h"

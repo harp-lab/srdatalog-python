@@ -23,9 +23,9 @@ sanity checks.
 
 from __future__ import annotations
 
-import srdatalog.mir.types as m
+import srdatalog.ir.mir.types as m
 from srdatalog.compile import compile_pipeline
-from srdatalog.hir.types import Version
+from srdatalog.ir.hir.types import Version
 
 
 def _scan_insert_dedup(arity: int, rule_name: str = 'Dupy') -> m.ExecutePipeline:

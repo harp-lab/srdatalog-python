@@ -2,7 +2,7 @@
 
 import sys
 
-from srdatalog.dialects.target.cuda.plugin import (
+from srdatalog.ir.dialects.target.cuda.plugin import (
   IndexPlugin,
   PrefixMode,
   get_extra_headers_for_types,
@@ -98,7 +98,7 @@ def test_resolve_unknown_falls_back_to_default():
 
 
 def test_resolve_registered_plugin_exact_match():
-  from srdatalog.dialects.target.cuda import plugin as _p
+  from srdatalog.ir.dialects.target.cuda import plugin as _p
 
   # Capture any pre-existing registration (e.g., the real two_level
   # plugin, registered at import time of codegen.jit.indexes.two_level)
@@ -137,7 +137,7 @@ def test_get_extra_headers_dedupes_and_skips_empty():
     got = get_extra_headers_for_types(["", "Z_Index", "Z_Index"])
     assert got == ["gpu/z.h", "gpu/shared.h"]
   finally:
-    from srdatalog.dialects.target.cuda import plugin as _p
+    from srdatalog.ir.dialects.target.cuda import plugin as _p
 
     _p._PLUGIN_REGISTRY.pop("Z_Index", None)
 

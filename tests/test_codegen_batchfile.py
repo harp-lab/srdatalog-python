@@ -10,16 +10,16 @@ integration test runs `compile_to_mir(build_andersen())` through
 
 import sys
 
-import srdatalog.mir.types as m
-from srdatalog.dialects.target.cuda.batchfile import (
+import srdatalog.ir.mir.types as m
+from srdatalog.ir.dialects.target.cuda.batchfile import (
   generate_batchfile,
   generate_pipeline,
   generate_prelude,
   generate_runner,
 )
-from srdatalog.dialects.target.cuda.helpers import CodeGenContext
-from srdatalog.dialects.target.cuda.schema import FactDefinition, Pragma, SchemaDefinition
-from srdatalog.hir.types import Version
+from srdatalog.ir.dialects.target.cuda.helpers import CodeGenContext
+from srdatalog.ir.dialects.target.cuda.schema import FactDefinition, Pragma, SchemaDefinition
+from srdatalog.ir.hir.types import Version
 
 
 def _nows(s: str) -> str:
@@ -244,7 +244,7 @@ def test_generate_runner_work_stealing_marker():
 def test_generate_batchfile_andersen_end_to_end():
   from test_integration_andersen import build_andersen
 
-  from srdatalog.hir import compile_to_mir
+  from srdatalog.ir.hir import compile_to_mir
 
   mir = compile_to_mir(build_andersen())
   schema = SchemaDefinition(
@@ -263,7 +263,7 @@ def test_generate_batchfile_andersen_end_to_end():
   assert "using AndersenFixpoint_DB_Blueprint =" in out
 
   # One JitRunner per ExecutePipeline in program.steps
-  from srdatalog.dialects.target.cuda.batchfile import _collect_pipelines
+  from srdatalog.ir.dialects.target.cuda.batchfile import _collect_pipelines
 
   pipelines = _collect_pipelines(mir)
   assert len(pipelines) >= 1

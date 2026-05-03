@@ -18,8 +18,8 @@ from __future__ import annotations
 import dataclasses
 import inspect
 
-from srdatalog.ir_core import Op, Type
-from srdatalog.ir_core import strategy as strategy_mod
+from srdatalog.ir.core import Op, Type
+from srdatalog.ir.core import strategy as strategy_mod
 
 # -----------------------------------------------------------------------------
 # Helpers

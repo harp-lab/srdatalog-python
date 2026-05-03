@@ -1,7 +1,7 @@
 import unittest
 
 # Add the parent directory to the path so we can import mir_commands
-from srdatalog.mir.commands import (
+from srdatalog.ir.mir.commands import (
   MISSING_HANDLE,
   Block,
   CartesianJoin,

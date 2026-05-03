@@ -6,7 +6,7 @@ those tests live alongside each pass as it's ported.
 '''
 
 from srdatalog.dsl import ArgKind, Atom, Negation, Program, Relation, Var
-from srdatalog.hir.types import (
+from srdatalog.ir.hir.types import (
   AccessPattern,
   HirProgram,
   HirRuleVariant,

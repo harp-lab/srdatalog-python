@@ -11,8 +11,8 @@ import json
 from pathlib import Path
 
 from srdatalog.dsl import Relation, Var
-from srdatalog.hir.emit import hir_to_obj
-from srdatalog.hir.types import (
+from srdatalog.ir.hir.emit import hir_to_obj
+from srdatalog.ir.hir.types import (
   AccessPattern,
   HirProgram,
   HirRuleVariant,

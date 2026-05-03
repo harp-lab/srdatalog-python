@@ -8,7 +8,7 @@ with the first real dialect.
 
 import pytest
 
-from srdatalog.ir_core import (
+from srdatalog.ir.core import (
   Compiler,
   Dialect,
   Lowering,

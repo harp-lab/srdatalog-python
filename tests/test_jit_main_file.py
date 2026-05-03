@@ -18,16 +18,16 @@ from pathlib import Path
 
 from integration_helpers import _cpp_norm
 
-from srdatalog.dialects.target.cuda.batchfile import _collect_pipelines
-from srdatalog.dialects.target.cuda.complete_runner import gen_complete_runner
-from srdatalog.dialects.target.cuda.main_file import (
+from srdatalog.ir.dialects.target.cuda.batchfile import _collect_pipelines
+from srdatalog.ir.dialects.target.cuda.complete_runner import gen_complete_runner
+from srdatalog.ir.dialects.target.cuda.main_file import (
   _extract_computed_relations,
   gen_main_file_content,
   gen_relation_typedefs,
   gen_runner_struct,
 )
-from srdatalog.dialects.target.cuda.orchestrator import gen_step_body
-from srdatalog.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.dialects.target.cuda.orchestrator import gen_step_body
+from srdatalog.ir.hir import compile_to_hir, compile_to_mir
 
 # -----------------------------------------------------------------------------
 # Smoke: relation typedefs
@@ -35,7 +35,7 @@ from srdatalog.hir import compile_to_hir, compile_to_mir
 
 
 def test_gen_relation_typedefs_shape():
-  from srdatalog.hir.types import RelationDecl
+  from srdatalog.ir.hir.types import RelationDecl
 
   decls = [
     RelationDecl(rel_name="Edge", types=["int", "int"], semiring="NoProvenance"),

@@ -23,8 +23,8 @@ from srdatalog.dsl import (
   PlanEntry,
   Rule,
 )
-from srdatalog.hir.pass_ import Dialect, PassInfo, PassLevel
-from srdatalog.hir.types import RelationDecl
+from srdatalog.ir.hir.pass_ import Dialect, PassInfo, PassLevel
+from srdatalog.ir.hir.types import RelationDecl
 from srdatalog.provenance import compiler_gen
 
 

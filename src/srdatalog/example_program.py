@@ -1,7 +1,7 @@
 # run from root
 
-from srdatalog.mir.commands import *
-from srdatalog.mir.schema import *
+from srdatalog.ir.mir.commands import *
+from srdatalog.ir.mir.schema import *
 from srdatalog.srdatalog_program import SRDatalogProgram
 
 RREL = "RRel"

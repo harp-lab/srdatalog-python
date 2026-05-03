@@ -33,7 +33,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-import srdatalog.mir.types as m
+import srdatalog.ir.mir.types as m
 
 Target = Literal['cuda']
 
@@ -48,7 +48,7 @@ def compile_pipeline(ep: m.ExecutePipeline, *, target: Target = 'cuda') -> str:
   if target != 'cuda':
     raise ValueError(f'compile_pipeline: unsupported target {target!r}')
 
-  from srdatalog.dialects.target.cuda.envelope import (
+  from srdatalog.ir.dialects.target.cuda.envelope import (
     assign_handle_positions,
     emit_full_file,
   )
@@ -87,7 +87,7 @@ def compile_runner(
   anchors this entry point to the upstream goldens throughout the
   migration.
   '''
-  from srdatalog.dialects.target.cuda.runner import emit_runner_full
+  from srdatalog.ir.dialects.target.cuda.runner import emit_runner_full
 
   return emit_runner_full(ep, db_type_name, rel_index_types=rel_index_types)
 
@@ -134,13 +134,13 @@ def compile_kernel_body(
       slots advance by 2 per FULL_VER D2L source — matching legacy
       `compute_view_slot_offsets`. Pass {} or None for plain DSAI.
   '''
-  from srdatalog.dialects.relation.d2l import view_counts_for_specs
-  from srdatalog.dialects.relation.sorted_array.lowerings import (
+  from srdatalog.ir.dialects.relation.d2l import view_counts_for_specs
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings import (
     LoweringCtx,
     lower_scan_pipeline,
   )
-  from srdatalog.dialects.target.cuda.emit import EmitCtx, emit
-  from srdatalog.dialects.target.cuda.envelope import (
+  from srdatalog.ir.dialects.target.cuda.emit import EmitCtx, emit
+  from srdatalog.ir.dialects.target.cuda.envelope import (
     assign_handle_positions,
     collect_unique_view_specs,
     emit_view_declarations,

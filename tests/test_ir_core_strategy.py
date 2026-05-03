@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from srdatalog.ir_core import (
+from srdatalog.ir.core import (
   Op,
   all_,
   assert_never,

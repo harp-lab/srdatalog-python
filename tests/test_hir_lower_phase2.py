@@ -9,18 +9,18 @@ The MIR tree is spot-checked structurally and then re-emitted through the
 S-expr printer so the concatenated output is locked against regressions.
 '''
 
-import srdatalog.mir.types as mir
+import srdatalog.ir.mir.types as mir
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.hir import compile_to_hir
-from srdatalog.hir.lower import (
+from srdatalog.ir.hir import compile_to_hir
+from srdatalog.ir.hir.lower import (
   generate_loop_maintenance,
   generate_merge_indices,
   generate_rebuild_indices,
   generate_simple_maintenance,
   lower_variant_to_pipeline,
 )
-from srdatalog.hir.types import Version
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir.types import Version
+from srdatalog.ir.mir.emit import print_mir_sexpr
 
 
 def build_tc() -> Program:

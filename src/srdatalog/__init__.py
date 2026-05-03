@@ -36,10 +36,11 @@ See README + examples/triangle.py.
 # DSL
 # One-shot end-to-end builder (the recommended entry point)
 from srdatalog.build import build_project
-from srdatalog.dialects.target.cuda.build.cache import write_jit_project
+from srdatalog.dsl import Program, Relation, Var
+from srdatalog.ir.dialects.target.cuda.build.cache import write_jit_project
 
 # Compile + link via the bundled compiler wrapper
-from srdatalog.dialects.target.cuda.build.compiler import (
+from srdatalog.ir.dialects.target.cuda.build.compiler import (
   BuildResult,
   CompilerConfig,
   CompileResult,
@@ -49,25 +50,24 @@ from srdatalog.dialects.target.cuda.build.compiler import (
 )
 
 # Load + call via ctypes
-from srdatalog.dialects.target.cuda.build.loader import (
+from srdatalog.ir.dialects.target.cuda.build.loader import (
   EntryPoint,
   JitRuntime,
   build_and_load,
   gen_runtime_shim_template,
 )
-from srdatalog.dialects.target.cuda.complete_runner import gen_complete_runner
+from srdatalog.ir.dialects.target.cuda.complete_runner import gen_complete_runner
 
 # Codegen — emit .cpp tree
-from srdatalog.dialects.target.cuda.main_file import (
+from srdatalog.ir.dialects.target.cuda.main_file import (
   gen_db_type_alias_for_batch,
   gen_main_file_content,
   gen_schema_definitions_for_batch,
 )
-from srdatalog.dialects.target.cuda.orchestrator import gen_step_body
-from srdatalog.dsl import Program, Relation, Var
+from srdatalog.ir.dialects.target.cuda.orchestrator import gen_step_body
 
 # Compilation pipeline
-from srdatalog.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir import compile_to_hir, compile_to_mir
 
 __version__ = "0.1.0"
 

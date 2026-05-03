@@ -10,9 +10,9 @@ import json
 from pathlib import Path
 
 from srdatalog.dsl import Agg, Program, Relation, Var, agg, count
-from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir.emit import hir_to_obj
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir.emit import hir_to_obj
+from srdatalog.ir.mir.emit import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -58,7 +58,7 @@ def test_agg_helper_cpp_type_threads_through():
 
 
 def test_analyze_rule_counts_agg_args_and_result_var_as_positive():
-  from srdatalog.hir.plan import analyze_rule
+  from srdatalog.ir.hir.plan import analyze_rule
 
   hir = compile_to_hir(build_agg_program())
   # Variant's analysis should treat x, y, cnt all as vars.

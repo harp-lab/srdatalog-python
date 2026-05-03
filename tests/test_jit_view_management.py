@@ -2,9 +2,9 @@
 
 import sys
 
-import srdatalog.mir.types as m
-from srdatalog.dialects.target.cuda.context import new_code_gen_context
-from srdatalog.dialects.target.cuda.view_slots import (
+import srdatalog.ir.mir.types as m
+from srdatalog.ir.dialects.target.cuda.context import new_code_gen_context
+from srdatalog.ir.dialects.target.cuda.view_slots import (
   ViewSpec,
   build_root_slot_map,
   collect_unique_view_specs,
@@ -16,7 +16,7 @@ from srdatalog.dialects.target.cuda.view_slots import (
   source_spec_key,
   spec_key,
 )
-from srdatalog.hir.types import Version
+from srdatalog.ir.hir.types import Version
 
 
 def _cs(rel, ver, idx, handle_start=-1, prefix=()):

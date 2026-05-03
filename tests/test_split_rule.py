@@ -10,10 +10,10 @@ import json
 from pathlib import Path
 
 from srdatalog.dsl import SPLIT, Program, Relation, Var
-from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir.emit import hir_to_obj
-from srdatalog.hir.plan import compute_temp_vars, detect_split
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir.emit import hir_to_obj
+from srdatalog.ir.hir.plan import compute_temp_vars, detect_split
+from srdatalog.ir.mir.emit import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 

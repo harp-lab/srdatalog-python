@@ -5,8 +5,8 @@ SCC-member body clauses.
 '''
 
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.hir import compile_to_hir
-from srdatalog.hir.types import Version
+from srdatalog.ir.hir import compile_to_hir
+from srdatalog.ir.hir.types import Version
 
 
 def build_tc_program() -> Program:

@@ -5,9 +5,9 @@ End-to-end byte-match against Nim is in test_hir_mir_tc_e2e.py /
 test_hir_user_plan.py; this file verifies each pass in isolation.
 '''
 
-import srdatalog.mir.types as mir
-from srdatalog.hir.types import Version
-from srdatalog.mir.passes import (
+import srdatalog.ir.mir.types as mir
+from srdatalog.ir.hir.types import Version
+from srdatalog.ir.mir.passes import (
   apply_all_mir_passes,
   apply_clause_order_reordering,
   apply_prefix_source_reordering,
@@ -218,7 +218,7 @@ def test_balanced_scan_pass_converts_column_join_to_positioned_extract():
   '''A pipeline starting with BalancedScan gets its subsequent ColumnJoin
   for a balanced var turned into a PositionedExtract.
   '''
-  from srdatalog.mir.passes import apply_balanced_scan_pass
+  from srdatalog.ir.mir.passes import apply_balanced_scan_pass
 
   s1 = mir.ColumnSource(rel_name="A", version=Version.FULL, index=[0, 1])
   s2 = mir.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1])
@@ -250,7 +250,7 @@ def test_balanced_scan_pass_converts_column_join_to_positioned_extract():
 
 def test_balanced_scan_pass_leaves_non_balanced_var_alone():
   '''A ColumnJoin for a var NOT in the balanced set passes through.'''
-  from srdatalog.mir.passes import apply_balanced_scan_pass
+  from srdatalog.ir.mir.passes import apply_balanced_scan_pass
 
   s1 = mir.ColumnSource(rel_name="A", version=Version.FULL, index=[0, 1])
   s2 = mir.ColumnSource(rel_name="B", version=Version.FULL, index=[0, 1])
@@ -276,7 +276,7 @@ def test_balanced_scan_pass_leaves_non_balanced_var_alone():
 
 def test_balanced_scan_pass_noop_when_no_balanced_scan():
   '''Pipeline without BalancedScan at position 0 is untouched.'''
-  from srdatalog.mir.passes import apply_balanced_scan_pass
+  from srdatalog.ir.mir.passes import apply_balanced_scan_pass
 
   scan = mir.Scan(vars=["x"], rel_name="R", version=Version.FULL, index=[0])
   ins = mir.InsertInto(rel_name="S", version=Version.NEW, vars=["x"], index=[0])

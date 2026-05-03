@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
 
-from srdatalog.provenance import USER_PROVENANCE, Provenance
+from srdatalog.ir.hir.provenance import USER_PROVENANCE, Provenance
 
 
 class ArgKind(Enum):

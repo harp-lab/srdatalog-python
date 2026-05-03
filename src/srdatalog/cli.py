@@ -45,7 +45,7 @@ def _emit_project(prog, project_name: str, cache_base: str | None):
     gen_step_body,
     write_jit_project,
   )
-  from srdatalog.codegen.batchfile import _collect_pipelines
+  from srdatalog.ir.dialects.target.cuda.batchfile import _collect_pipelines
 
   hir = compile_to_hir(prog)
   mir = compile_to_mir(prog)

@@ -5,14 +5,14 @@ order, and rejects misregistered passes (wrong PassLevel).
 '''
 
 from srdatalog.dsl import Program, Relation, Rule, Var
-from srdatalog.hir import compile_to_hir
-from srdatalog.hir.pass_ import (
+from srdatalog.ir.hir import compile_to_hir
+from srdatalog.ir.hir.pass_ import (
   Dialect,
   PassInfo,
   PassLevel,
   Pipeline,
 )
-from srdatalog.hir.types import HirProgram, RelationDecl
+from srdatalog.ir.hir.types import HirProgram, RelationDecl
 
 
 def _tc() -> Program:
@@ -108,8 +108,8 @@ def test_wrong_level_registration_rejected():
 
 def test_pipeline_preserves_rule_and_decl_identity_when_empty():
   '''Empty pipeline should be equivalent to stratify(rules, decls) directly.'''
-  from srdatalog.hir.pass_ import program_to_decls
-  from srdatalog.hir.stratify import stratify
+  from srdatalog.ir.hir.pass_ import program_to_decls
+  from srdatalog.ir.hir.stratify import stratify
 
   prog = _tc()
   bare = stratify(list(prog.rules), program_to_decls(prog))

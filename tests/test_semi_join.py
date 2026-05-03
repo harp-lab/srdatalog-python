@@ -6,11 +6,11 @@ import json
 from pathlib import Path
 
 from srdatalog.dsl import Atom, Program, Relation, Var
-from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir.emit import hir_to_obj
-from srdatalog.mir.emit import print_mir_sexpr
-from srdatalog.provenance import ProvenanceKind
-from srdatalog.rule_rewrite import _is_semi_join_candidate, optimize_semi_joins
+from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir.emit import hir_to_obj
+from srdatalog.ir.hir.provenance import ProvenanceKind
+from srdatalog.ir.hir.rule_rewrite import _is_semi_join_candidate, optimize_semi_joins
+from srdatalog.ir.mir.emit import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 

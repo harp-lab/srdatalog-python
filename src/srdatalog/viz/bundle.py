@@ -15,9 +15,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from srdatalog.hir.emit import hir_to_obj
-from srdatalog.mir.emit import print_mir_sexpr
-from srdatalog.pipeline import compile_program
+from srdatalog.ir.hir.emit import hir_to_obj
+from srdatalog.ir.mir.emit import print_mir_sexpr
+from srdatalog.ir.pipeline import compile_program
 
 if TYPE_CHECKING:
   from srdatalog.dsl import Program

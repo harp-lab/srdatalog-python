@@ -10,9 +10,9 @@ deferred until a Nim-side tool can emit tc's MIR S-expr; that lands
 alongside the HIR->MIR lowering pass.
 '''
 
-import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
-from srdatalog.mir.emit import print_mir_sexpr
+import srdatalog.ir.mir.types as m
+from srdatalog.ir.hir.types import Version
+from srdatalog.ir.mir.emit import print_mir_sexpr
 
 
 def test_column_source():

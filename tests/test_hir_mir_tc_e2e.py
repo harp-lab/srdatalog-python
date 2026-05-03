@@ -12,8 +12,8 @@ This closes the loop for tc: DSL -> HIR -> MIR, both byte-verified.
 from pathlib import Path
 
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.hir import compile_to_mir
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir import compile_to_mir
+from srdatalog.ir.mir.emit import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 

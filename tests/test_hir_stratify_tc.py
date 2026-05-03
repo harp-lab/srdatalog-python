@@ -7,8 +7,8 @@ structure directly.
 '''
 
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.hir import compile_to_hir
-from srdatalog.hir.stratify import stratify
+from srdatalog.ir.hir import compile_to_hir
+from srdatalog.ir.hir.stratify import stratify
 
 
 def build_tc_program() -> Program:
@@ -117,7 +117,7 @@ def test_stratify_bare_function_takes_rules_and_decls():
   the contract the Pipeline uses internally and that other HIR passes will
   plug into after rule-rewrite passes run.
   '''
-  from srdatalog.hir.pass_ import program_to_decls
+  from srdatalog.ir.hir.pass_ import program_to_decls
 
   prog = build_tc_program()
   rules = list(prog.rules)

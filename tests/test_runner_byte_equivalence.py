@@ -36,17 +36,6 @@ RUNNER_BYTE_MATCH_SKIPS: dict[tuple[str, str], str] = {
   # Work-stealing runner variants — N8 (par.data.atomic_ws dialect).
   ('lsqb_q6_nosj', 'TwoHopPath'): 'WS runner not yet ported (N8)',
   ('polonius_test', 'subset_trans_D0'): 'WS runner not yet ported (N8)',
-  # ddisasm — see docs/milestones.md "Nim-reference audit" for the gap matrix.
-  ('ddisasm', 'StackLiveVarBlockEnd1_D0_splitB'): (
-    'Same MIR-level scan-vars ordering bug as splitA (F1). The Scan+Cart shape '
-    'now compiles after R8 added CartesianJoin to the Scan-middle allowed list, '
-    'but Python MIR has `(scan :vars (blk blockUsed varp varr))` while Nim has '
-    '`varr` then `varp`. Fix lives in HIR/MIR head-arg ordering, not the dialect.'
-  ),
-  ('ddisasm', 'StackLiveVarBlockEnd1_D0_splitA'): (
-    'Head tuple ordering divergence (`varp, varr` vs `varr, varp`) — likely '
-    'MIR-level head-arg ordering, not kernel-body.'
-  ),
 }
 
 

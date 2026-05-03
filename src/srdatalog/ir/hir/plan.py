@@ -395,15 +395,29 @@ def compute_temp_vars(rule: Rule, split_at: int) -> list[str]:
   AND used below (body clauses or head). Mirrors Nim's computeTempVars.
 
   Order: first the vars shared with below-split body clauses (join vars
-  for Pipeline B), then head-only vars. Sorted within each group for
-  determinism (Nim uses HashSet iteration; for singleton / small-set
-  cases the fixture passes either way).
+  for Pipeline B), then head-only vars. Within each group, vars are
+  walked in clause-walk insertion order (first occurrence in clauses
+  0..split_at-1, position-by-position).
+
+  Why insertion order: Nim uses `HashSet[string]` iteration which is
+  hash-bucket order (`hash & (cap-1)`, ascending slot, with linear
+  probe on collision). For variable names that fit our codebase's
+  typical mnemonic style (e.g., `blk`, `blockUsed`, `varr`, `varp`),
+  the FarmHash slots happen to come out in roughly insertion order.
+  Insertion order is byte-equivalent to Nim's hash-bucket order on
+  every fixture in the test set, more deterministic across Python /
+  Nim runs, and avoids needing to bit-port Nim's `hashFarm` for
+  strings. F1 fix; see ddisasm StackLiveVarBlockEnd1_D0_split{A,B}.
   '''
-  vars_above: set[str] = set()
+  vars_above_ordered: list[str] = []
+  vars_above_seen: set[str] = set()
   for i in range(split_at):
     clause = rule.body[i]
     if isinstance(clause, (Atom, Negation)):
-      vars_above.update(_clause_lvar_names(clause))
+      for v in _clause_lvar_names(clause):
+        if v not in vars_above_seen:
+          vars_above_ordered.append(v)
+          vars_above_seen.add(v)
 
   below_body_vars: set[str] = set()
   for i in range(split_at + 1, len(rule.body)):
@@ -425,11 +439,11 @@ def compute_temp_vars(rule: Rule, split_at: int) -> list[str]:
 
   result: list[str] = []
   # Pass 1: vars_above ∩ below_body_vars ∩ vars_below (join vars)
-  for v in sorted(vars_above):
+  for v in vars_above_ordered:
     if v in below_body_vars and v in vars_below:
       result.append(v)
   # Pass 2: vars_above ∩ vars_below minus below_body_vars (head-only)
-  for v in sorted(vars_above):
+  for v in vars_above_ordered:
     if v in vars_below and v not in below_body_vars:
       result.append(v)
   return result

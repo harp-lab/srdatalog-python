@@ -30,8 +30,8 @@ import subprocess
 import time
 from pathlib import Path
 
-from srdatalog.codegen.jit.cache import JitProjectLayout
-from srdatalog.codegen.jit.compiler import (
+from srdatalog.dialects.target.cuda.build.cache import JitProjectLayout
+from srdatalog.dialects.target.cuda.build.compiler import (
   BuildResult,
   CompilerConfig,
   CompileResult,

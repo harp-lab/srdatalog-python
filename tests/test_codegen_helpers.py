@@ -8,7 +8,7 @@ harness, but built on our MIR node shapes.
 import sys
 
 import srdatalog.mir.types as m
-from srdatalog.codegen.helpers import (
+from srdatalog.dialects.target.cuda.helpers import (
   CodeGenContext,
   collect_unique_view_specs,
   emit_view_declarations,

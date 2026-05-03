@@ -3,7 +3,7 @@ key / plugin-dispatched expression helpers.'''
 
 import sys
 
-from srdatalog.codegen.jit.context import (
+from srdatalog.dialects.target.cuda.context import (
   CPP_KEYWORDS,
   NegPreNarrowInfo,
   RunnerGenState,

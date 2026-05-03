@@ -21,14 +21,14 @@ port drops the duplicate.
 from __future__ import annotations
 
 import srdatalog.mir.types as m
-from srdatalog.codegen.helpers import (
+from srdatalog.dialects.target.cuda.helpers import (
   CodeGenContext,
   assign_handles,
   emit_view_declarations,
   find_source_idx,
   spec_key,
 )
-from srdatalog.codegen.schema import SchemaDefinition
+from srdatalog.dialects.target.cuda.schema import SchemaDefinition
 from srdatalog.hir.types import Version
 
 # -----------------------------------------------------------------------------

@@ -1,26 +1,31 @@
-'''Device2LevelIndex plugin (2-Level LSM).
+'''D2L dialect ↔ CUDA target plugin.
 
-Port of src/srdatalog/indexes/two_level.nim. Importing this module
-registers the plugin — mirroring Nim's `static: registerIndexPlugin(...)`.
+How the D2L (Device2LevelIndex) dialect emits as CUDA: registers an
+`IndexPlugin` with `target.cuda.plugin`'s registry that supplies the
+per-version view_count (FULL=2 for HEAD+FULL, DELTA/NEW=1) and the
+host-side view-setup code emitted around CUDA kernels. Importing
+this module — typically via `import srdatalog.dialects.relation.d2l`
+— is enough to register the plugin (the D2L package's `__init__`
+re-imports this side-effectfully).
 
-Design:
-  - HEAD + FULL sorted arrays
-  - Merge: DELTA -> HEAD, O(D+H) instead of O(D+F)
-  - Compaction: HEAD -> FULL only when HEAD > ratio% of FULL, or at
-    fixpoint exit
-  - Join (DELTA read): 1 sorted array (same as DSAI)
-  - Join (FULL read): 2 sorted arrays (HEAD + FULL), kernel iterates both
+D2L design recap:
+  - HEAD + FULL sorted arrays per relation.
+  - Merge: DELTA → HEAD, O(D+H) instead of O(D+F).
+  - Compaction: HEAD → FULL only when HEAD exceeds ratio% of FULL,
+    or at fixpoint exit.
+  - Join (DELTA read): 1 sorted array (same as DSAI).
+  - Join (FULL read): 2 sorted arrays — kernel iterates both via the
+    `D2lSegmentLoop` IIR op.
 
 Usage in schema:
   Path {. index: "SRDatalog::GPU::Device2LevelIndex" .}: Relation[int, int]
-
-Import this module when you want the plugin active; the JIT codegen
-then sees `view_count == 2` for FULL reads of 2-level relations and
-wraps the join body in a `for (_seg = 0; _seg < 2; _seg++)` segment
-loop that iterates both sorted arrays.
 '''
 
-from srdatalog.codegen.jit.plugin import IndexPlugin, new_default_plugin, register_index_plugin
+from srdatalog.dialects.target.cuda.plugin import (
+  IndexPlugin,
+  new_default_plugin,
+  register_index_plugin,
+)
 
 # -----------------------------------------------------------------------------
 # 2-Level view-level hook overrides

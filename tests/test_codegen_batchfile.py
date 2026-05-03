@@ -11,14 +11,14 @@ integration test runs `compile_to_mir(build_andersen())` through
 import sys
 
 import srdatalog.mir.types as m
-from srdatalog.codegen.batchfile import (
+from srdatalog.dialects.target.cuda.batchfile import (
   generate_batchfile,
   generate_pipeline,
   generate_prelude,
   generate_runner,
 )
-from srdatalog.codegen.helpers import CodeGenContext
-from srdatalog.codegen.schema import FactDefinition, Pragma, SchemaDefinition
+from srdatalog.dialects.target.cuda.helpers import CodeGenContext
+from srdatalog.dialects.target.cuda.schema import FactDefinition, Pragma, SchemaDefinition
 from srdatalog.hir.types import Version
 
 
@@ -263,7 +263,7 @@ def test_generate_batchfile_andersen_end_to_end():
   assert "using AndersenFixpoint_DB_Blueprint =" in out
 
   # One JitRunner per ExecutePipeline in program.steps
-  from srdatalog.codegen.batchfile import _collect_pipelines
+  from srdatalog.dialects.target.cuda.batchfile import _collect_pipelines
 
   pipelines = _collect_pipelines(mir)
   assert len(pipelines) >= 1

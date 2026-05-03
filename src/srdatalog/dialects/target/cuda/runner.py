@@ -705,7 +705,7 @@ def emit_runner_full(
   '''Emit the full per-rule runner — struct + kernel defs + out-of-line
   phase methods + execute(). Goes into the per-rule `jit_batch_N.cpp`
   file at production-build time.'''
-  from srdatalog.codegen.jit.complete_runner import gen_complete_runner
+  from srdatalog.dialects.target.cuda.complete_runner import gen_complete_runner
 
   _decl, full = gen_complete_runner(
     ep, db_type_name, rel_index_types=rel_index_types,
@@ -721,7 +721,7 @@ def emit_runner_decl(
   '''Emit the forward-declaration variant — type aliases + LaunchParams
   + method declarations only. Goes into the main compile unit so the
   orchestrator can call `JitRunner_<rule>::execute()`.'''
-  from srdatalog.codegen.jit.complete_runner import gen_complete_runner
+  from srdatalog.dialects.target.cuda.complete_runner import gen_complete_runner
 
   decl, _full = gen_complete_runner(
     ep, db_type_name, rel_index_types=rel_index_types,

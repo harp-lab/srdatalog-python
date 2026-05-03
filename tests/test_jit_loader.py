@@ -15,8 +15,8 @@ import sys
 import tempfile
 from pathlib import Path
 
-from srdatalog.codegen.jit.compiler import CompilerConfig, compile_cpp, link_shared
-from srdatalog.codegen.jit.loader import (
+from srdatalog.dialects.target.cuda.build.compiler import CompilerConfig, compile_cpp, link_shared
+from srdatalog.dialects.target.cuda.build.loader import (
   EntryPoint,
   JitRuntime,
   _apply_errcheck_default,

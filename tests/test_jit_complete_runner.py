@@ -16,9 +16,9 @@ from pathlib import Path
 
 from integration_helpers import diff_jit_runner
 
-from srdatalog.codegen.batchfile import _collect_pipelines
-from srdatalog.codegen.jit.complete_runner import gen_complete_runner
-from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
+from srdatalog.dialects.target.cuda.batchfile import _collect_pipelines
+from srdatalog.dialects.target.cuda.complete_runner import gen_complete_runner
+from srdatalog.dialects.target.cuda.orchestrator import gen_step_body
 from srdatalog.hir import compile_to_mir
 
 
@@ -116,7 +116,7 @@ def test_all_runner_fixtures_byte_match():
   entries are listed in RUNNER_BYTE_MATCH_SKIPS with the feature-branch
   gap each represents.'''
 
-  from srdatalog.codegen.batchfile import _collect_pipelines
+  from srdatalog.dialects.target.cuda.batchfile import _collect_pipelines
   from srdatalog.hir import compile_to_mir
 
   fixture_root = Path(__file__).resolve().parent / "fixtures" / "jit"

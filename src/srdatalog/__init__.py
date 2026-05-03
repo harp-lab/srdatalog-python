@@ -36,10 +36,10 @@ See README + examples/triangle.py.
 # DSL
 # One-shot end-to-end builder (the recommended entry point)
 from srdatalog.build import build_project
-from srdatalog.codegen.jit.cache import write_jit_project
+from srdatalog.dialects.target.cuda.build.cache import write_jit_project
 
 # Compile + link via the bundled compiler wrapper
-from srdatalog.codegen.jit.compiler import (
+from srdatalog.dialects.target.cuda.build.compiler import (
   BuildResult,
   CompilerConfig,
   CompileResult,
@@ -47,23 +47,23 @@ from srdatalog.codegen.jit.compiler import (
   compile_jit_project,
   link_shared,
 )
-from srdatalog.codegen.jit.complete_runner import gen_complete_runner
 
 # Load + call via ctypes
-from srdatalog.codegen.jit.loader import (
+from srdatalog.dialects.target.cuda.build.loader import (
   EntryPoint,
   JitRuntime,
   build_and_load,
   gen_runtime_shim_template,
 )
+from srdatalog.dialects.target.cuda.complete_runner import gen_complete_runner
 
 # Codegen — emit .cpp tree
-from srdatalog.codegen.jit.main_file import (
+from srdatalog.dialects.target.cuda.main_file import (
   gen_db_type_alias_for_batch,
   gen_main_file_content,
   gen_schema_definitions_for_batch,
 )
-from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
+from srdatalog.dialects.target.cuda.orchestrator import gen_step_body
 from srdatalog.dsl import Program, Relation, Var
 
 # Compilation pipeline

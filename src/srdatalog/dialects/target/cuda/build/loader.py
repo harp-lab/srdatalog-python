@@ -38,7 +38,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-from srdatalog.codegen.jit.cache import JitProjectLayout
+from srdatalog.dialects.target.cuda.build.cache import JitProjectLayout
 
 # -----------------------------------------------------------------------------
 # EntryPoint spec
@@ -266,7 +266,7 @@ def build_and_load(
   `required_artifact` lets the caller override the default artifact
   name (e.g. the runner library name for a well-known runtime).
   '''
-  from srdatalog.codegen.jit.compiler import CompilerConfig, compile_jit_project
+  from srdatalog.dialects.target.cuda.build.compiler import CompilerConfig, compile_jit_project
 
   config = compiler_config or CompilerConfig()
   build = compile_jit_project(project_result, config)

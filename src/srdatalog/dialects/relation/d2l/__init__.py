@@ -50,6 +50,10 @@ The legacy `plugin_view_count` is the underlying source for
 
 from __future__ import annotations
 
+# Side-effect import: registers D2L's CUDA plugin with
+# `target.cuda.plugin` so `plugin_view_count` etc. dispatch correctly
+# for relations declared `index_type="...Device2LevelIndex"`.
+from srdatalog.dialects.relation.d2l import cuda as _cuda
 from srdatalog.dialects.relation.d2l.ops import D2lSegmentLoop
 from srdatalog.dialects.target.cuda.envelope import ViewSpec
 
@@ -62,7 +66,7 @@ def view_count(version: str, index_type: str) -> int:
   resolution. Once the relation-dialect registry hosts D2L ops,
   the dispatch shifts here and the legacy plugin module retires.
   '''
-  from srdatalog.codegen.jit.plugin import plugin_view_count
+  from srdatalog.dialects.target.cuda.plugin import plugin_view_count
 
   return plugin_view_count(version, index_type)
 

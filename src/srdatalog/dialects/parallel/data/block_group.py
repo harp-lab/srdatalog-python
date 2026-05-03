@@ -116,9 +116,9 @@ def emit_bg_histogram_kernel(
   render. Imports plugin/view-management helpers from `codegen.jit`
   for now; those move with N5 (relation.d2l dialect).
   '''
-  from srdatalog.codegen.jit.context import gen_root_handle as _gen_rh
-  from srdatalog.codegen.jit.plugin import plugin_view_count
-  from srdatalog.codegen.jit.view_management import (
+  from srdatalog.dialects.target.cuda.context import gen_root_handle as _gen_rh
+  from srdatalog.dialects.target.cuda.plugin import plugin_view_count
+  from srdatalog.dialects.target.cuda.view_slots import (
     collect_unique_view_specs,
     compute_view_slot_offsets,
   )

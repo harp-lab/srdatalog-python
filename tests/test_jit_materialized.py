@@ -5,8 +5,8 @@ for binary-join (materialized) pipelines.
 import sys
 
 import srdatalog.mir.types as m
-from srdatalog.codegen.jit.context import new_code_gen_context
-from srdatalog.codegen.jit.materialized import (
+from srdatalog.dialects.target.cuda.context import new_code_gen_context
+from srdatalog.dialects.target.cuda.materialized import (
   _version_cpp,
   gen_materialized_join_helpers,
   gen_materialized_join_kernel,

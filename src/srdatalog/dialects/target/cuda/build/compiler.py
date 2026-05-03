@@ -38,7 +38,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from srdatalog.codegen.jit.cache import JitProjectLayout
+from srdatalog.dialects.target.cuda.build.cache import JitProjectLayout
 
 # -----------------------------------------------------------------------------
 # Config
@@ -331,7 +331,7 @@ def compile_jit_project(
     use_ninja = os.environ.get("SRDATALOG_JIT_NO_NINJA", "") != "1"
   if use_ninja:
     try:
-      from srdatalog.codegen.jit.compiler_ninja import compile_jit_project_ninja
+      from srdatalog.dialects.target.cuda.build.compiler_ninja import compile_jit_project_ninja
 
       return compile_jit_project_ninja(project_result, config)
     except RuntimeError as e:

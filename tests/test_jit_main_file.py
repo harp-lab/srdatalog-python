@@ -18,15 +18,15 @@ from pathlib import Path
 
 from integration_helpers import _cpp_norm
 
-from srdatalog.codegen.batchfile import _collect_pipelines
-from srdatalog.codegen.jit.complete_runner import gen_complete_runner
-from srdatalog.codegen.jit.main_file import (
+from srdatalog.dialects.target.cuda.batchfile import _collect_pipelines
+from srdatalog.dialects.target.cuda.complete_runner import gen_complete_runner
+from srdatalog.dialects.target.cuda.main_file import (
   _extract_computed_relations,
   gen_main_file_content,
   gen_relation_typedefs,
   gen_runner_struct,
 )
-from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
+from srdatalog.dialects.target.cuda.orchestrator import gen_step_body
 from srdatalog.hir import compile_to_hir, compile_to_mir
 
 # -----------------------------------------------------------------------------

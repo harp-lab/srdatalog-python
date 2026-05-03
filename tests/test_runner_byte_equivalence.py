@@ -25,9 +25,9 @@ from pathlib import Path
 import pytest
 from integration_helpers import _cpp_norm, _unified_cpp_diff
 
-from srdatalog.codegen.batchfile import _collect_pipelines
-from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
 from srdatalog.compile import compile_runner
+from srdatalog.dialects.target.cuda.batchfile import _collect_pipelines
+from srdatalog.dialects.target.cuda.orchestrator import gen_step_body
 from srdatalog.hir import compile_to_mir
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / 'fixtures' / 'jit'

@@ -28,25 +28,21 @@ dedup_hash, balanced scan, fan-out, materialized pipelines.
 
 from __future__ import annotations
 
-# Side-effect import: registers the Device2LevelIndex plugin. Without this,
-# pluginViewCount falls back to the default plugin (view_count=1 for every
-# version) for any relation declared with `index_type="...Device2LevelIndex"`,
-# which silently undercounts NumSources and diverges from the Nim build.
-# Nim gets this registration for free via its import-graph; we need to
-# pin it here because `gen_complete_runner` is the consumer that cares.
-import srdatalog.codegen.jit.indexes.two_level  # noqa: F401
+# Side-effect import: pulling in the D2L dialect auto-registers its
+# CUDA plugin with `target.cuda.plugin`. Without this,
+# `plugin_view_count` falls back to the default plugin (view_count=1
+# for every version) for any relation declared with
+# `index_type="...Device2LevelIndex"`, silently undercounting
+# NumSources and diverging from upstream.
+import srdatalog.dialects.relation.d2l  # noqa: F401
 import srdatalog.mir.types as m
-from srdatalog.codegen.jit.emit_helpers import (
+from srdatalog.dialects.target.cuda.materialized import is_materialized_pipeline
+from srdatalog.dialects.target.cuda.pipeline_utils import (
   assign_handle_positions,
   has_balanced_scan,
   has_tiled_cartesian_eligible,
 )
-from srdatalog.codegen.jit.materialized import is_materialized_pipeline
-from srdatalog.codegen.jit.plugin import plugin_gen_host_view_setup, plugin_view_count
-from srdatalog.codegen.jit.view_management import (
-  compute_total_view_count,
-  source_spec_key,
-)
+from srdatalog.dialects.target.cuda.plugin import plugin_gen_host_view_setup, plugin_view_count
 
 # Pure-template phase emitters now live in the dialect's runner module.
 # Local aliases preserve the legacy call sites until the rest of this
@@ -69,6 +65,10 @@ from srdatalog.dialects.target.cuda.runner import emit_scan_and_resize as _gen_s
 from srdatalog.dialects.target.cuda.runner import emit_scan_only as _gen_scan_only
 from srdatalog.dialects.target.cuda.runner import (
   emit_struct_type_aliases as _gen_struct_type_aliases,
+)
+from srdatalog.dialects.target.cuda.view_slots import (
+  compute_total_view_count,
+  source_spec_key,
 )
 
 # -----------------------------------------------------------------------------

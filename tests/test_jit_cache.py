@@ -7,7 +7,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from srdatalog.codegen.jit.cache import (
+from srdatalog.dialects.target.cuda.build.cache import (
   JIT_COMMON_INCLUDES,
   JIT_FILE_FOOTER,
   JitBatchManager,
@@ -227,10 +227,10 @@ def test_write_jit_project_end_to_end_with_real_program():
   just checks the on-disk layout matches expectation.'''
   from test_integration_triangle import build_triangle
 
-  from srdatalog.codegen.batchfile import _collect_pipelines
-  from srdatalog.codegen.jit.complete_runner import gen_complete_runner
-  from srdatalog.codegen.jit.main_file import gen_main_file_content
-  from srdatalog.codegen.jit.orchestrator_jit import gen_step_body
+  from srdatalog.dialects.target.cuda.batchfile import _collect_pipelines
+  from srdatalog.dialects.target.cuda.complete_runner import gen_complete_runner
+  from srdatalog.dialects.target.cuda.main_file import gen_main_file_content
+  from srdatalog.dialects.target.cuda.orchestrator import gen_step_body
   from srdatalog.hir import compile_to_hir, compile_to_mir
 
   prog = build_triangle()

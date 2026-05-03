@@ -126,9 +126,7 @@ def emit_bg_histogram_kernel(
   source_specs = ep.source_specs
   first_op = ep.pipeline[0]
   if not isinstance(first_op, m.ColumnJoin):
-    raise NotImplementedError(
-      'emit_bg_histogram_kernel: only ColumnJoin-root pipelines supported'
-    )
+    raise NotImplementedError('emit_bg_histogram_kernel: only ColumnJoin-root pipelines supported')
   root_sources = [s for s in first_op.sources if isinstance(s, m.ColumnSource)]
 
   mutable_pipe = list(ep.pipeline)

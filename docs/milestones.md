@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Milestone tracker
 
 Live status for the Stage 2 dialect migration + follow-on cleanup. Companion

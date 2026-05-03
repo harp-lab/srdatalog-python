@@ -116,8 +116,11 @@ def emit(op: Op, ctx: EmitCtx) -> str:
       return f'{ctx.ind()}if (!{emit_expr(cond, ctx)}) continue;\n'
 
     case IntersectIter(
-      intersect_var=ivar, iter_var=itvar,
-      iterator_exprs=iters, value_var=vvar, body=body,
+      intersect_var=ivar,
+      iter_var=itvar,
+      iterator_exprs=iters,
+      value_var=vvar,
+      body=body,
     ):
       iter_args = ', '.join(emit_expr(e, ctx) for e in iters)
       preamble = (
@@ -146,9 +149,13 @@ def emit(op: Op, ctx: EmitCtx) -> str:
       return preamble + body_lines + body_str + f'{ctx.ind()}}}\n'
 
     case D2lSegmentLoop(
-      seg_var=sv, view_var=vv, base_slot=bs,
-      view_count=vc, declare=declare,
-      local_view_var=local_vv, body=body,
+      seg_var=sv,
+      view_var=vv,
+      base_slot=bs,
+      view_count=vc,
+      declare=declare,
+      local_view_var=local_vv,
+      body=body,
     ):
       # for-loop at ctx.ind(); view assignment(s) at +1; body at +1
       # with segment_depth bumped so a wrapped IntersectIter anchors
@@ -191,26 +198,27 @@ def emit(op: Op, ctx: EmitCtx) -> str:
     case If(cond=cond, body=body):
       # Body emitted at SAME indent as the wrapping if (legacy
       # quirk — body was rendered before the wrap was applied).
-      return (
-        f'{ctx.ind()}if ({emit_expr(cond, ctx)}) {{\n'
-        + emit(body, ctx)
-        + f'{ctx.ind()}}}\n'
-      )
+      return f'{ctx.ind()}if ({emit_expr(cond, ctx)}) {{\n' + emit(body, ctx) + f'{ctx.ind()}}}\n'
 
     case CartesianFlatLoop(
-      idx_var=idx, bound_var=bound, lane_var=lane,
-      group_size_var=gs, body=body,
+      idx_var=idx,
+      bound_var=bound,
+      lane_var=lane,
+      group_size_var=gs,
+      body=body,
     ):
       return (
         f'{ctx.ind()}for (uint32_t {idx} = {lane}; '
-        f'{idx} < {bound}; {idx} += {gs}) {{\n'
-        + emit(body, ctx)
-        + f'{ctx.ind()}}}\n'
+        f'{idx} < {bound}; {idx} += {gs}) {{\n' + emit(body, ctx) + f'{ctx.ind()}}}\n'
       )
 
     case Cartesian2DDecompose(
-      major_var=mv, idx0_var=i0, idx1_var=i1,
-      flat_idx_var=fi, deg0_var=d0, deg1_var=d1,
+      major_var=mv,
+      idx0_var=i0,
+      idx1_var=i1,
+      flat_idx_var=fi,
+      deg0_var=d0,
+      deg1_var=d1,
     ):
       return (
         f'{ctx.ind()}const bool {mv} = ({d1} >= {d0});\n'
@@ -225,7 +233,9 @@ def emit(op: Op, ctx: EmitCtx) -> str:
       )
 
     case CartesianNDecompose(
-      flat_idx_var=fi, idx_vars=idxs, deg_vars=degs,
+      flat_idx_var=fi,
+      idx_vars=idxs,
+      deg_vars=degs,
     ):
       n = len(idxs)
       lines = [f'{ctx.ind()}uint32_t remaining = {fi};\n']
@@ -244,9 +254,7 @@ def emit(op: Op, ctx: EmitCtx) -> str:
       return (
         f'{ctx.ind()}// WARP MODE: 32 threads cooperatively handle one row\n'
         f'{ctx.ind()}for (uint32_t {idx} = warp_id; {idx} < {emit_expr(bound, ctx)}; '
-        f'{idx} += num_warps) {{\n'
-        + emit(body, ctx)
-        + f'{ctx.ind()}}}\n'
+        f'{idx} += num_warps) {{\n' + emit(body, ctx) + f'{ctx.ind()}}}\n'
       )
 
     case ParallelFor(strategy=strategy, body=body):
@@ -293,19 +301,61 @@ def emit(op: Op, ctx: EmitCtx) -> str:
       return f'{ctx.ind()}{out}.emit_direct({args});\n'
 
     case SaTiledCartesian2D(
-      view_var0=vv0, view_var1=vv1, handle_var0=hv0, handle_var1=hv1,
-      col0=col0, col1=col1, var_name0=vn0, var_name1=vn1,
-      lane_var=lv, group_size_var=gv, total_var=tv,
-      degree_var0=dv0, degree_var1=dv1, flat_idx_var=fiv,
-      t0_base=t0b, t1_base=t1b, t0_len=t0l, t1_len=t1l,
-      tile_total=tt, batch_var=bv, valid_var=vvar,
-      fb_batch_var=fbv, major_var=mv, idx0_var=i0v, idx1_var=i1v,
+      view_var0=vv0,
+      view_var1=vv1,
+      handle_var0=hv0,
+      handle_var1=hv1,
+      col0=col0,
+      col1=col1,
+      var_name0=vn0,
+      var_name1=vn1,
+      lane_var=lv,
+      group_size_var=gv,
+      total_var=tv,
+      degree_var0=dv0,
+      degree_var1=dv1,
+      flat_idx_var=fiv,
+      t0_base=t0b,
+      t1_base=t1b,
+      t0_len=t0l,
+      t1_len=t1l,
+      tile_total=tt,
+      batch_var=bv,
+      valid_var=vvar,
+      fb_batch_var=fbv,
+      major_var=mv,
+      idx0_var=i0v,
+      idx1_var=i1v,
       body=body,
     ):
       return _emit_tiled_cartesian_2d(
-        ctx, vv0, vv1, hv0, hv1, col0, col1, vn0, vn1,
-        lv, gv, tv, dv0, dv1, fiv, t0b, t1b, t0l, t1l,
-        tt, bv, vvar, fbv, mv, i0v, i1v, body,
+        ctx,
+        vv0,
+        vv1,
+        hv0,
+        hv1,
+        col0,
+        col1,
+        vn0,
+        vn1,
+        lv,
+        gv,
+        tv,
+        dv0,
+        dv1,
+        fiv,
+        t0b,
+        t1b,
+        t0l,
+        t1l,
+        tt,
+        bv,
+        vvar,
+        fbv,
+        mv,
+        i0v,
+        i1v,
+        body,
       )
 
     case TiledBallotBlock(valid_var=vvar, outputs=outputs):
@@ -322,7 +372,15 @@ def emit(op: Op, ctx: EmitCtx) -> str:
       body=body,
     ):
       return _emit_bg_root_cj_multi(
-        ctx, vn, is_counting, kiv, rvv, hl, hh, sources, body,
+        ctx,
+        vn,
+        is_counting,
+        kiv,
+        rvv,
+        hl,
+        hh,
+        sources,
+        body,
       )
 
     case AddCount(output_var=out, delta=delta):
@@ -385,14 +443,31 @@ def emit_expr(op: Op, ctx: EmitCtx) -> str:
 
 def _emit_tiled_cartesian_2d(
   ctx: EmitCtx,
-  vv0: str, vv1: str, hv0: str, hv1: str,
-  col0: int, col1: int,
-  vn0: str, vn1: str,
-  lv: str, gv: str, tv: str,
-  dv0: str, dv1: str, fiv: str,
-  t0b: str, t1b: str, t0l: str, t1l: str,
-  tt: str, bv: str, vvar: str,
-  fbv: str, mv: str, i0v: str, i1v: str,
+  vv0: str,
+  vv1: str,
+  hv0: str,
+  hv1: str,
+  col0: int,
+  col1: int,
+  vn0: str,
+  vn1: str,
+  lv: str,
+  gv: str,
+  tv: str,
+  dv0: str,
+  dv1: str,
+  fiv: str,
+  t0b: str,
+  t1b: str,
+  t0l: str,
+  t1l: str,
+  tt: str,
+  bv: str,
+  vvar: str,
+  fbv: str,
+  mv: str,
+  i0v: str,
+  i1v: str,
   body: Op,
 ) -> str:
   '''Lifted from legacy `_emit_tiled_cartesian` (ir/dialects/target/cuda/
@@ -405,52 +480,39 @@ def _emit_tiled_cartesian_2d(
   body_str = emit(body, ctx)
   parts: list[str] = [
     f'{i}if ({tv} > 32) {{\n',
-    f'{i}  // Tiled Cartesian: smem pre-load reads, '
-    f'standard emit_direct writes\n',
-    f'{i}  for (uint32_t {t0b} = 0; {t0b} < {dv0}; '
-    f'{t0b} += kCartTileSize) {{\n',
-    f'{i}    uint32_t {t0l} = min({t0b} + (uint32_t)kCartTileSize, '
-    f'{dv0}) - {t0b};\n',
+    f'{i}  // Tiled Cartesian: smem pre-load reads, standard emit_direct writes\n',
+    f'{i}  for (uint32_t {t0b} = 0; {t0b} < {dv0}; {t0b} += kCartTileSize) {{\n',
+    f'{i}    uint32_t {t0l} = min({t0b} + (uint32_t)kCartTileSize, {dv0}) - {t0b};\n',
     f'{i}    for (uint32_t _ti = {lv}; _ti < {t0l}; _ti += {gv})\n',
     f'{i}      s_cart[warp_in_block][0][_ti] = {vv0}.get_value('
     f'{col0}, {hv0}.begin() + {t0b} + _ti);\n',
-    f'{i}    for (uint32_t {t1b} = 0; {t1b} < {dv1}; '
-    f'{t1b} += kCartTileSize) {{\n',
-    f'{i}      uint32_t {t1l} = min({t1b} + (uint32_t)kCartTileSize, '
-    f'{dv1}) - {t1b};\n',
+    f'{i}    for (uint32_t {t1b} = 0; {t1b} < {dv1}; {t1b} += kCartTileSize) {{\n',
+    f'{i}      uint32_t {t1l} = min({t1b} + (uint32_t)kCartTileSize, {dv1}) - {t1b};\n',
     f'{i}      for (uint32_t _ti = {lv}; _ti < {t1l}; _ti += {gv})\n',
     f'{i}        s_cart[warp_in_block][1][_ti] = {vv1}.get_value('
     f'{col1}, {hv1}.begin() + {t1b} + _ti);\n',
     f'{i}      {tile}.sync();\n',
     f'{i}      uint32_t {tt} = {t0l} * {t1l};\n',
-    f'{i}      for (uint32_t {bv} = 0; {bv} < {tt}; '
-    f'{bv} += {gv}) {{\n',
+    f'{i}      for (uint32_t {bv} = 0; {bv} < {tt}; {bv} += {gv}) {{\n',
     f'{i}        uint32_t {fiv} = {bv} + {lv};\n',
     f'{i}        bool {vvar} = {fiv} < {tt};\n',
-    f'{i}        auto {vn0} = {vvar} ? '
-    f's_cart[warp_in_block][0][{fiv} / {t1l}] : ValueType{{0}};\n',
-    f'{i}        auto {vn1} = {vvar} ? '
-    f's_cart[warp_in_block][1][{fiv} % {t1l}] : ValueType{{0}};\n',
+    f'{i}        auto {vn0} = {vvar} ? s_cart[warp_in_block][0][{fiv} / {t1l}] : ValueType{{0}};\n',
+    f'{i}        auto {vn1} = {vvar} ? s_cart[warp_in_block][1][{fiv} % {t1l}] : ValueType{{0}};\n',
     body_str,
     f'{i}      }}\n',
     f'{i}      {tile}.sync();\n',
     f'{i}    }}\n',
     f'{i}  }}\n',
     f'{i}}} else {{\n',
-    f'{i}  for (uint32_t {fbv} = 0; {fbv} < {tv}; '
-    f'{fbv} += {gv}) {{\n',
+    f'{i}  for (uint32_t {fbv} = 0; {fbv} < {tv}; {fbv} += {gv}) {{\n',
     f'{i}    uint32_t {fiv} = {fbv} + {lv};\n',
     f'{i}    bool {vvar} = {fiv} < {tv};\n',
     f'{i}    const bool {mv} = ({dv1} >= {dv0});\n',
     f'{i}    uint32_t {i0v}, {i1v};\n',
-    f'{i}    if ({mv}) {{ {i0v} = {fiv} / {dv1}; '
-    f'{i1v} = {fiv} % {dv1}; }}\n',
-    f'{i}    else {{ {i1v} = {fiv} / {dv0}; '
-    f'{i0v} = {fiv} % {dv0}; }}\n',
-    f'{i}    auto {vn0} = {vv0}.get_value({col0}, '
-    f'{hv0}.begin() + {i0v});\n',
-    f'{i}    auto {vn1} = {vv1}.get_value({col1}, '
-    f'{hv1}.begin() + {i1v});\n',
+    f'{i}    if ({mv}) {{ {i0v} = {fiv} / {dv1}; {i1v} = {fiv} % {dv1}; }}\n',
+    f'{i}    else {{ {i1v} = {fiv} / {dv0}; {i0v} = {fiv} % {dv0}; }}\n',
+    f'{i}    auto {vn0} = {vv0}.get_value({col0}, {hv0}.begin() + {i0v});\n',
+    f'{i}    auto {vn1} = {vv1}.get_value({col1}, {hv1}.begin() + {i1v});\n',
     body_str,
     f'{i}  }}\n',
     f'{i}}}\n',
@@ -477,12 +539,8 @@ def _emit_tiled_ballot_block(
       parts.append(f'{i}  uint32_t _tc_ballot = {tile}.ballot({vvar});\n')
       parts.append(f'{i}  uint32_t _tc_active = __popc(_tc_ballot);\n')
       parts.append(f'{i}  if (_tc_active > 0) {{\n')
-      parts.append(
-        f'{i}    uint32_t _tc_mask = (1u << {tile}.thread_rank()) - 1u;\n'
-      )
-      parts.append(
-        f'{i}    uint32_t _tc_off = __popc(_tc_ballot & _tc_mask);\n'
-      )
+      parts.append(f'{i}    uint32_t _tc_mask = (1u << {tile}.thread_rank()) - 1u;\n')
+      parts.append(f'{i}    uint32_t _tc_off = __popc(_tc_ballot & _tc_mask);\n')
     parts.append(f'{i}    if ({vvar}) {{\n')
     parts.append(
       f'{i}      uint32_t _tc_pos_{dest_idx} = old_size_{dest_idx} '
@@ -527,20 +585,11 @@ def _emit_bg_root_cj_multi(
   parts: list[str] = []
 
   # Block-level work assignment preamble.
-  parts.append(
-    f'{i}static constexpr int kWarpsPerBlock = kBlockSize / kGroupSize;\n'
-  )
-  parts.append(
-    f'{i}uint64_t bg_work_per_block = '
-    f'(bg_total_work + gridDim.x - 1) / gridDim.x;\n'
-  )
-  parts.append(
-    f'{i}uint64_t bg_block_begin = (uint64_t)blockIdx.x * bg_work_per_block;\n'
-  )
+  parts.append(f'{i}static constexpr int kWarpsPerBlock = kBlockSize / kGroupSize;\n')
+  parts.append(f'{i}uint64_t bg_work_per_block = (bg_total_work + gridDim.x - 1) / gridDim.x;\n')
+  parts.append(f'{i}uint64_t bg_block_begin = (uint64_t)blockIdx.x * bg_work_per_block;\n')
   parts.append(f'{i}uint64_t bg_block_end = bg_block_begin + bg_work_per_block;\n')
-  parts.append(
-    f'{i}if (bg_block_end > bg_total_work) bg_block_end = bg_total_work;\n'
-  )
+  parts.append(f'{i}if (bg_block_end > bg_total_work) bg_block_end = bg_total_work;\n')
   parts.append(f'{i}if (bg_block_begin >= bg_total_work) {{\n')
   if is_counting:
     parts.append(f'{i}  thread_counts[thread_id] = 0;\n')
@@ -552,8 +601,7 @@ def _emit_bg_root_cj_multi(
   parts.append(f'{i}while (bg_key_lo < bg_key_hi) {{\n')
   parts.append(f'{i}  uint32_t bg_mid = bg_key_lo + (bg_key_hi - bg_key_lo) / 2;\n')
   parts.append(
-    f'{i}  if (bg_cumulative_work[bg_mid] <= (uint64_t)bg_block_begin) '
-    f'bg_key_lo = bg_mid + 1;\n'
+    f'{i}  if (bg_cumulative_work[bg_mid] <= (uint64_t)bg_block_begin) bg_key_lo = bg_mid + 1;\n'
   )
   parts.append(f'{i}  else bg_key_hi = bg_mid;\n')
   parts.append(f'{i}}}\n\n')
@@ -576,9 +624,7 @@ def _emit_bg_root_cj_multi(
     f'{ii}uint64_t bg_key_work_start = ({key_idx_var} > 0) ? '
     f'bg_cumulative_work[{key_idx_var} - 1] : 0;\n'
   )
-  parts.append(
-    f'{ii}uint64_t bg_key_work_end = bg_cumulative_work[{key_idx_var}];\n'
-  )
+  parts.append(f'{ii}uint64_t bg_key_work_end = bg_cumulative_work[{key_idx_var}];\n')
   parts.append(f'{ii}if (bg_key_work_end <= bg_remaining_begin) continue;\n')
   parts.append(f'{ii}if (bg_key_work_start >= bg_remaining_end) break;\n\n')
   parts.append(
@@ -612,8 +658,7 @@ def _emit_bg_root_cj_multi(
         f'{hint_hi} : {src.view_var}.num_rows_;\n'
       )
       parts.append(
-        f'{ii}{hint_hi} = ({hint_hi} > {hint_lo}) ? {hint_hi} : '
-        f'{src.view_var}.num_rows_;\n'
+        f'{ii}{hint_hi} = ({hint_hi} > {hint_lo}) ? {hint_hi} : {src.view_var}.num_rows_;\n'
       )
       parts.append(
         f'{ii}auto {src.handle_var} = HandleType({hint_lo}, {hint_hi}, 0)'
@@ -642,16 +687,11 @@ def _emit_bg_root_cj_multi(
   # Warp redistribution within block (row-proportional on first source).
   first_handle = first.handle_var
   parts.append('\n')
-  parts.append(
-    f'{ii}// Distribute within-key work across warps in block (row-proportional)\n'
-  )
+  parts.append(f'{ii}// Distribute within-key work across warps in block (row-proportional)\n')
   parts.append(f'{ii}uint32_t bg_warp_in_block = threadIdx.x / kGroupSize;\n')
+  parts.append(f'{ii}uint64_t bg_key_total_work = bg_key_work_end - bg_key_work_start;\n')
   parts.append(
-    f'{ii}uint64_t bg_key_total_work = bg_key_work_end - bg_key_work_start;\n'
-  )
-  parts.append(
-    f'{ii}uint32_t bg_deg_first = (uint32_t)('
-    f'{first_handle}.end() - {first_handle}.begin());\n'
+    f'{ii}uint32_t bg_deg_first = (uint32_t)({first_handle}.end() - {first_handle}.begin());\n'
   )
   parts.append(
     f'{ii}uint32_t bg_block_row_begin = (uint32_t)'
@@ -661,27 +701,20 @@ def _emit_bg_root_cj_multi(
     f'{ii}uint32_t bg_block_row_end = (uint32_t)'
     f'((bg_my_end_in_key * (uint64_t)bg_deg_first) / bg_key_total_work);\n'
   )
-  parts.append(
-    f'{ii}if (bg_my_end_in_key >= bg_key_total_work) '
-    f'bg_block_row_end = bg_deg_first;\n'
-  )
+  parts.append(f'{ii}if (bg_my_end_in_key >= bg_key_total_work) bg_block_row_end = bg_deg_first;\n')
   parts.append(
     f'{ii}if (bg_block_row_begin >= bg_block_row_end) {{ '
     f'bg_remaining_begin = bg_key_work_end; continue; }}\n\n'
   )
   parts.append(f'{ii}uint32_t bg_rows_in_block = bg_block_row_end - bg_block_row_begin;\n')
   parts.append(
-    f'{ii}uint32_t bg_warp_row_size = '
-    f'(bg_rows_in_block + kWarpsPerBlock - 1) / kWarpsPerBlock;\n'
+    f'{ii}uint32_t bg_warp_row_size = (bg_rows_in_block + kWarpsPerBlock - 1) / kWarpsPerBlock;\n'
   )
   parts.append(
-    f'{ii}uint32_t bg_warp_row_begin = '
-    f'bg_block_row_begin + bg_warp_in_block * bg_warp_row_size;\n'
+    f'{ii}uint32_t bg_warp_row_begin = bg_block_row_begin + bg_warp_in_block * bg_warp_row_size;\n'
   )
   parts.append(f'{ii}uint32_t bg_warp_row_end = bg_warp_row_begin + bg_warp_row_size;\n')
-  parts.append(
-    f'{ii}if (bg_warp_row_end > bg_block_row_end) bg_warp_row_end = bg_block_row_end;\n'
-  )
+  parts.append(f'{ii}if (bg_warp_row_end > bg_block_row_end) bg_warp_row_end = bg_block_row_end;\n')
   parts.append(
     f'{ii}if (bg_warp_row_begin >= bg_warp_row_end) {{ '
     f'bg_remaining_begin = bg_key_work_end; continue; }}\n\n'
@@ -691,8 +724,7 @@ def _emit_bg_root_cj_multi(
   parts.append(f'{ii}  auto bg_narrow_begin = {first_handle}.begin() + bg_warp_row_begin;\n')
   parts.append(f'{ii}  auto bg_narrow_end = {first_handle}.begin() + bg_warp_row_end;\n')
   parts.append(
-    f'{ii}  {first_handle} = HandleType(bg_narrow_begin, bg_narrow_end, '
-    f'{first_handle}.depth());\n'
+    f'{ii}  {first_handle} = HandleType(bg_narrow_begin, bg_narrow_end, {first_handle}.depth());\n'
   )
   parts.append(f'{ii}}}\n\n')
 
@@ -700,13 +732,10 @@ def _emit_bg_root_cj_multi(
   seg_indent = ii
   for _, src, seg_var in bg_seg_specs:
     parts.append(
-      f'{seg_indent}for (int {seg_var} = 0; {seg_var} < {src.view_count}; '
-      f'{seg_var}++) {{\n'
+      f'{seg_indent}for (int {seg_var} = 0; {seg_var} < {src.view_count}; {seg_var}++) {{\n'
     )
     seg_indent += '  '
-    parts.append(
-      f'{seg_indent}auto {src.view_var} = views[{src.base_slot} + {seg_var}];\n'
-    )
+    parts.append(f'{seg_indent}auto {src.view_var} = views[{src.base_slot} + {seg_var}];\n')
     parts.append(
       f'{seg_indent}auto {src.handle_var} = HandleType(0, '
       f'{src.view_var}.num_rows_, 0)'

@@ -273,8 +273,7 @@ def lower_scan_pipeline(
   '''
   if not _supported_pipeline(ops):
     raise ValueError(
-      f'lower_scan_pipeline: unsupported pipeline shape '
-      f'{[type(o).__name__ for o in ops]}'
+      f'lower_scan_pipeline: unsupported pipeline shape {[type(o).__name__ for o in ops]}'
     )
 
   head = ops[0]
@@ -303,9 +302,7 @@ def _lower_root_scan(
   handle_idx = scan_op.handle_start
   view_var = ctx.view_var_names.get(str(handle_idx), '')
   if not view_var:
-    raise ValueError(
-      f'_lower_root_scan: no view var for handle_idx {handle_idx}'
-    )
+    raise ValueError(f'_lower_root_scan: no view var for handle_idx {handle_idx}')
 
   middle = _middle_ops(rest)
   trailing = _trailing_inserts(rest)
@@ -331,9 +328,7 @@ def _lower_root_scan(
 
   if ctx.debug:
     outer_stmts.append(
-      Comment(
-        text=f'Root Scan: {scan_op.rel_name} binding {", ".join(scan_op.vars)}'
-      )
+      Comment(text=f'Root Scan: {scan_op.rel_name} binding {", ".join(scan_op.vars)}')
     )
     outer_stmts.append(
       Comment(
@@ -356,6 +351,7 @@ def _lower_root_scan(
   body_text_for_elision = ''
   if ctx.is_counting:
     from srdatalog.ir.dialects.target.cuda.emit import EmitCtx, emit
+
     body_text_for_elision = emit(body_op, EmitCtx(indent_level=0))
 
   var_bind_stmts: list[Op] = []
@@ -388,17 +384,19 @@ def _lower_root_scan(
   # segment-wrap for D2L FULL_VER — see docs/milestones.md
   # "Nim-reference audit" for the gap (Nim-also-broken on FULL_VER's
   # HEAD/FULL split).
-  outer_stmts.extend([
-    Bind(name=handle_var, expr=SaRoot(view_name=view_var)),
-    IfReturnIfNot(cond=SaValid(handle_name=handle_var)),
-    Bind(
-      name=degree_var,
-      expr=SaDegree(handle_name=handle_var),
-      type_decl='uint32_t',
-    ),
-    BlankLine(),
-    ParallelFor(strategy='warp_strided', body=loop),
-  ])
+  outer_stmts.extend(
+    [
+      Bind(name=handle_var, expr=SaRoot(view_name=view_var)),
+      IfReturnIfNot(cond=SaValid(handle_name=handle_var)),
+      Bind(
+        name=degree_var,
+        expr=SaDegree(handle_name=handle_var),
+        type_decl='uint32_t',
+      ),
+      BlankLine(),
+      ParallelFor(strategy='warp_strided', body=loop),
+    ]
+  )
 
   return Block(stmts=tuple(outer_stmts))
 
@@ -452,18 +450,13 @@ def _lower_root_cart(
   if ctx.debug:
     outer_stmts.append(
       Comment(
-        text=f'Root CartesianJoin: bind {", ".join(cart_op.vars)} '
-        f'from {num_sources} source(s)'
+        text=f'Root CartesianJoin: bind {", ".join(cart_op.vars)} from {num_sources} source(s)'
       )
     )
-    src_debug = ' '.join(
-      f'({s.rel_name} :handle {s.handle_start})'
-      for s in cart_op.sources
-    )
+    src_debug = ' '.join(f'({s.rel_name} :handle {s.handle_start})' for s in cart_op.sources)
     outer_stmts.append(
       Comment(
-        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) '
-        f':sources ({src_debug} ))'
+        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) :sources ({src_debug} ))'
       )
     )
 
@@ -477,16 +470,11 @@ def _lower_root_cart(
     deg_var = ctx.fresh('degree')
     src_view = ctx.view_var_names.get(str(src.handle_start), '')
     if not src_view:
-      raise ValueError(
-        f'_lower_root_cart: no view var for source handle_idx '
-        f'{src.handle_start}'
-      )
+      raise ValueError(f'_lower_root_cart: no view var for source handle_idx {src.handle_start}')
     handle_var_names.append(handle_var)
     view_var_names.append(src_view)
     degree_var_names.append(deg_var)
-    outer_stmts.append(
-      Bind(name=handle_var, expr=SaRoot(view_name=src_view))
-    )
+    outer_stmts.append(Bind(name=handle_var, expr=SaRoot(view_name=src_view)))
   outer_stmts.append(BlankLine())
 
   # Combined validity check uses `return` (root level), not `continue`.
@@ -567,9 +555,7 @@ def _lower_root_cart(
     if i >= len(cart_op.var_from_source):
       continue
     for var_name in cart_op.var_from_source[i]:
-      if ctx.is_counting and not _cart_var_used(
-        var_name, [], _trailing_inserts(rest)
-      ):
+      if ctx.is_counting and not _cart_var_used(var_name, [], _trailing_inserts(rest)):
         continue
       inner_decompose_stmts.append(
         Bind(
@@ -643,14 +629,11 @@ def _lower_root_cj_multi(
     src_view = ctx.view_var_names.get(str(src.handle_start), '')
     if not src_view:
       raise ValueError(
-        f'_lower_root_cj_multi: no view var for source handle_idx '
-        f'{src.handle_start}'
+        f'_lower_root_cj_multi: no view var for source handle_idx {src.handle_start}'
       )
     source_view_names.append(src_view)
 
-    state_key = _state_key(
-      src.rel_name, list(src.index), [cj_op.var_name], src.version
-    )
+    state_key = _state_key(src.rel_name, list(src.index), [cj_op.var_name], src.version)
     ctx.handle_vars[state_key] = handle_var
     registered_state_keys.append(state_key)
 
@@ -681,12 +664,8 @@ def _lower_root_cj_multi(
         f'bind \'{cj_op.var_name}\' from {num_sources} sources'
       )
     )
-    outer_stmts.append(
-      Comment(text='Uses root_unique_values + prefix() pattern (like TMP)')
-    )
-    src_debug = ' '.join(
-      f'({s.rel_name} :handle {s.handle_start})' for s in cj_op.sources
-    )
+    outer_stmts.append(Comment(text='Uses root_unique_values + prefix() pattern (like TMP)'))
+    src_debug = ' '.join(f'({s.rel_name} :handle {s.handle_start})' for s in cj_op.sources)
     outer_stmts.append(
       Comment(text=f'MIR: (column-join :var {cj_op.var_name} :sources ({src_debug} ))')
     )
@@ -732,16 +711,11 @@ def _lower_root_cj_multi(
     if i == 0:
       hint_lo = ctx.fresh('hint_lo')
       hint_hi = ctx.fresh('hint_hi')
-      loop_inner_stmts.append(
-        Bind(name=hint_lo, expr=VarRef(name=y_idx_var), type_decl='uint32_t')
-      )
+      loop_inner_stmts.append(Bind(name=hint_lo, expr=VarRef(name=y_idx_var), type_decl='uint32_t'))
       loop_inner_stmts.append(
         Bind(
           name=hint_hi,
-          expr=RawString(
-            text=f'{src_view}.num_rows_ - '
-            f'(num_unique_root_keys - {y_idx_var} - 1)'
-          ),
+          expr=RawString(text=f'{src_view}.num_rows_ - (num_unique_root_keys - {y_idx_var} - 1)'),
           type_decl='uint32_t',
         )
       )
@@ -752,10 +726,7 @@ def _lower_root_cj_multi(
         )
       )
       loop_inner_stmts.append(
-        RawString(
-          text=f'{hint_hi} = ({hint_hi} > {hint_lo}) ? '
-          f'{hint_hi} : {src_view}.num_rows_;'
-        )
+        RawString(text=f'{hint_hi} = ({hint_hi} > {hint_lo}) ? {hint_hi} : {src_view}.num_rows_;')
       )
       loop_inner_stmts.append(
         Bind(
@@ -778,9 +749,7 @@ def _lower_root_cj_multi(
           ),
         )
       )
-    loop_inner_stmts.append(
-      IfContinueIfNot(cond=SaValid(handle_name=handle_var))
-    )
+    loop_inner_stmts.append(IfContinueIfNot(cond=SaValid(handle_name=handle_var)))
 
   var_bind_op: Op = Bind(
     name=_sanitize_var_name(cj_op.var_name),
@@ -825,8 +794,7 @@ def _lower_root_cj_multi(
       )
       if ctx.debug:
         seg_comment = Comment(
-          text=f'Segment loop: {src.rel_name} {src.version.code} '
-          f'has {vc} segments (FULL + HEAD)'
+          text=f'Segment loop: {src.rel_name} {src.version.code} has {vc} segments (FULL + HEAD)'
         )
         inner_op = Block(stmts=(seg_comment, seg_loop_op))
       else:
@@ -835,9 +803,7 @@ def _lower_root_cj_multi(
     loop_inner_stmts.append(inner_op)
     # body_op is INSIDE the segment loop chain; the outer Block
     # holds only the IndentBlock — no trailing body_op here.
-    loop_body = Block(
-      stmts=(IndentBlock(extra=1, stmts=tuple(loop_inner_stmts)),)
-    )
+    loop_body = Block(stmts=(IndentBlock(extra=1, stmts=tuple(loop_inner_stmts)),))
   else:
     loop_inner_stmts.append(var_bind_op)
     loop_body = Block(
@@ -905,21 +871,14 @@ def _lower_root_cj_bg(
 
     src_view = ctx.view_var_names.get(str(src.handle_start), '')
     if not src_view:
-      raise ValueError(
-        f'_lower_root_cj_bg: no view var for source handle_idx '
-        f'{src.handle_start}'
-      )
+      raise ValueError(f'_lower_root_cj_bg: no view var for source handle_idx {src.handle_start}')
     source_view_names.append(src_view)
     idx_type = ctx.rel_index_types.get(src.rel_name, '')
     source_index_types.append(idx_type)
     source_view_counts.append(view_count(src.version.code, idx_type))
-    source_base_slots.append(
-      ctx.view_slot_bases.get(str(src.handle_start), src.handle_start)
-    )
+    source_base_slots.append(ctx.view_slot_bases.get(str(src.handle_start), src.handle_start))
 
-    state_key = _state_key(
-      src.rel_name, list(src.index), [cj_op.var_name], src.version
-    )
+    state_key = _state_key(src.rel_name, list(src.index), [cj_op.var_name], src.version)
     ctx.handle_vars[state_key] = handle_var
     registered_state_keys.append(state_key)
 
@@ -966,8 +925,7 @@ def _lower_root_cj_bg(
   if ctx.debug:
     outer_stmts.append(
       Comment(
-        text=f'Root ColumnJoin (BLOCK-GROUP): bind \'{cj_op.var_name}\' '
-        f'from {num_sources} sources'
+        text=f'Root ColumnJoin (BLOCK-GROUP): bind \'{cj_op.var_name}\' from {num_sources} sources'
       )
     )
     outer_stmts.append(
@@ -1083,10 +1041,7 @@ def _tiled_cart_eligible(
     return False
   if len(cart_op.var_from_source) != 2:
     return False
-  return (
-    len(cart_op.var_from_source[0]) == 1
-    and len(cart_op.var_from_source[1]) == 1
-  )
+  return len(cart_op.var_from_source[0]) == 1 and len(cart_op.var_from_source[1]) == 1
 
 
 def _lower_nested_cart_tiled(
@@ -1151,9 +1106,7 @@ def _lower_nested_cart_tiled(
   for src in cart_op.sources:
     assert isinstance(src, mir.ColumnSource)
     degree_var_names.append(ctx.fresh('degree'))
-    parent_state_key = _state_key(
-      src.rel_name, list(src.index), src.prefix_vars, src.version
-    )
+    parent_state_key = _state_key(src.rel_name, list(src.index), src.prefix_vars, src.version)
     parent_handle = ctx.handle_vars.get(parent_state_key, '')
     if parent_handle:
       alias_targets.append(parent_handle)
@@ -1164,14 +1117,11 @@ def _lower_nested_cart_tiled(
         f'_lower_nested_cart_tiled: source {src.rel_name} has prefix '
         f'{src.prefix_vars} but no full-state-key match'
       )
-    handle_var_names.append(
-      ctx.fresh(f'h_{src.rel_name}_{src.handle_start}')
-    )
+    handle_var_names.append(ctx.fresh(f'h_{src.rel_name}_{src.handle_start}'))
     src_view = ctx.view_var_names.get(str(src.handle_start), '')
     if not src_view:
       raise ValueError(
-        f'_lower_nested_cart_tiled: no view var for source handle_idx '
-        f'{src.handle_start}'
+        f'_lower_nested_cart_tiled: no view var for source handle_idx {src.handle_start}'
       )
     view_var_names.append(src_view)
 
@@ -1197,20 +1147,15 @@ def _lower_nested_cart_tiled(
   if ctx.debug:
     vars_bound_str = ', '.join(cart_op.vars)
     stmts.append(
-      Comment(
-        text=f'Nested CartesianJoin: bind {vars_bound_str} from '
-        f'{num_sources} source(s)'
-      )
+      Comment(text=f'Nested CartesianJoin: bind {vars_bound_str} from {num_sources} source(s)')
     )
     src_debug = ' '.join(
-      f'({s.rel_name} :handle {s.handle_start} '
-      f':prefix ({" ".join(s.prefix_vars)}))'
+      f'({s.rel_name} :handle {s.handle_start} :prefix ({" ".join(s.prefix_vars)}))'
       for s in cart_op.sources
     )
     stmts.append(
       Comment(
-        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) '
-        f':sources ({src_debug} ))'
+        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) :sources ({src_debug} ))'
       )
     )
 
@@ -1234,8 +1179,7 @@ def _lower_nested_cart_tiled(
     if alias_targets[i] is not None:
       stmts.append(
         RawString(
-          text=f'auto {handle_var_names[i]} = {alias_targets[i]};  '
-          f'// reusing narrowed handle'
+          text=f'auto {handle_var_names[i]} = {alias_targets[i]};  // reusing narrowed handle'
         )
       )
     else:
@@ -1320,15 +1264,11 @@ def _lower_tiled_ballot_block(
   for node in inserts:
     out_var = ctx.output_var_overrides.get(node.rel_name, ctx.output_var)
     if out_var.startswith('output_ctx_'):
-      dest_idx = int(out_var[len('output_ctx_'):])
+      dest_idx = int(out_var[len('output_ctx_') :])
     else:
       dest_idx = 0
     values = tuple(_sanitize_var_name(v) for v in node.vars)
-    debug = (
-      f'Emit: {node.rel_name}({", ".join(node.vars)})'
-      if ctx.debug
-      else ''
-    )
+    debug = f'Emit: {node.rel_name}({", ".join(node.vars)})' if ctx.debug else ''
     outputs.append((dest_idx, values, debug))
   return TiledBallotBlock(
     valid_var=ctx.tiled_cartesian_valid_var,
@@ -1362,9 +1302,7 @@ def _lower_negation(
 
   view_var = ctx.view_var_names.get(str(src_idx), '')
   if not view_var:
-    raise ValueError(
-      f'_lower_negation: no view var for handle_idx {src_idx}'
-    )
+    raise ValueError(f'_lower_negation: no view var for handle_idx {src_idx}')
 
   # N5.4 guard: Negation over a D2L FULL_VER source needs a segment
   # loop wrapping the validity check (each segment may invalidate
@@ -1414,10 +1352,7 @@ def _lower_negation(
         )
       )
       stmts.append(
-        Comment(
-          text=f'Using pre-narrowed handle (pre-Cartesian vars: '
-          f'{", ".join(info.pre_vars)})'
-        )
+        Comment(text=f'Using pre-narrowed handle (pre-Cartesian vars: {", ".join(info.pre_vars)})')
       )
 
     if narrowed_var:
@@ -1428,9 +1363,7 @@ def _lower_negation(
 
     fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
     if fold_var:
-      stmts.append(
-        RawString(text=f'{fold_var} = {fold_var} && (!{check_var}.valid());')
-      )
+      stmts.append(RawString(text=f'{fold_var} = {fold_var} && (!{check_var}.valid());'))
       stmts.append(body_op)
     else:
       stmts.append(
@@ -1445,8 +1378,7 @@ def _lower_negation(
   # pre-narrow path above handles const_args).
   if neg_op.const_args:
     raise NotImplementedError(
-      f'_lower_negation: standard path with const_args not yet '
-      f'lowered; got {neg_op.const_args}'
+      f'_lower_negation: standard path with const_args not yet lowered; got {neg_op.const_args}'
     )
 
   # Standard path. Step 1: render body BEFORE allocating own
@@ -1493,9 +1425,7 @@ def _lower_negation(
   stmts.append(Bind(name=neg_handle_var, expr=parent_expr))
   fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
   if fold_var:
-    stmts.append(
-      RawString(text=f'{fold_var} = {fold_var} && (!{neg_handle_var}.valid());')
-    )
+    stmts.append(RawString(text=f'{fold_var} = {fold_var} && (!{neg_handle_var}.valid());'))
     stmts.append(body_op)
   else:
     stmts.append(
@@ -1544,8 +1474,7 @@ def _register_neg_pre_narrow(
     view_var = ctx.view_var_names.get(str(neg_op.handle_start), '')
     if not view_var:
       raise ValueError(
-        f'_register_neg_pre_narrow: no view var for negation '
-        f'handle_idx {neg_op.handle_start}'
+        f'_register_neg_pre_narrow: no view var for negation handle_idx {neg_op.handle_start}'
       )
 
     pre_narrow_var = ctx.fresh(f'h_{neg_op.rel_name}_neg_pre')
@@ -1647,9 +1576,7 @@ def _lower_nested_cart(
     #      (used by Scan + CartesianJoin where the prefix vars are bound
     #      by the Scan, not by an enclosing CJ — handle_vars is empty
     #      because Scan doesn't register state keys).
-    parent_state_key = _state_key(
-      src.rel_name, list(src.index), src.prefix_vars, src.version
-    )
+    parent_state_key = _state_key(src.rel_name, list(src.index), src.prefix_vars, src.version)
     parent_handle = ctx.handle_vars.get(parent_state_key, '')
 
     if parent_handle:
@@ -1660,16 +1587,11 @@ def _lower_nested_cart(
       # in the bind-emission loop further down via src.prefix_vars".
       alias_targets.append(None)
 
-    handle_var_names.append(
-      ctx.fresh(f'h_{src.rel_name}_{src.handle_start}')
-    )
+    handle_var_names.append(ctx.fresh(f'h_{src.rel_name}_{src.handle_start}'))
 
     src_view = ctx.view_var_names.get(str(src.handle_start), '')
     if not src_view:
-      raise ValueError(
-        f'_lower_nested_cart: no view var for source handle_idx '
-        f'{src.handle_start}'
-      )
+      raise ValueError(f'_lower_nested_cart: no view var for source handle_idx {src.handle_start}')
     view_var_names.append(src_view)
 
   total_var = ctx.fresh('total')
@@ -1728,19 +1650,15 @@ def _lower_nested_cart(
   if ctx.debug:
     vars_bound_str = ', '.join(cart_op.vars)
     stmts.append(
-      Comment(
-        text=f'Nested CartesianJoin: bind {vars_bound_str} from {num_sources} source(s)'
-      )
+      Comment(text=f'Nested CartesianJoin: bind {vars_bound_str} from {num_sources} source(s)')
     )
     src_debug = ' '.join(
-      f'({s.rel_name} :handle {s.handle_start} '
-      f':prefix ({" ".join(s.prefix_vars)}))'
+      f'({s.rel_name} :handle {s.handle_start} :prefix ({" ".join(s.prefix_vars)}))'
       for s in cart_op.sources
     )
     stmts.append(
       Comment(
-        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) '
-        f':sources ({src_debug} ))'
+        text=f'MIR: (cartesian-join :vars ({" ".join(cart_op.vars)}) :sources ({src_debug} ))'
       )
     )
 
@@ -1767,8 +1685,7 @@ def _lower_nested_cart(
       # Reuse narrowed handle from parent (with legacy comment).
       stmts.append(
         RawString(
-          text=f'auto {handle_var_names[i]} = {alias_targets[i]};  '
-          f'// reusing narrowed handle'
+          text=f'auto {handle_var_names[i]} = {alias_targets[i]};  // reusing narrowed handle'
         )
       )
     elif src.prefix_vars:
@@ -1934,9 +1851,7 @@ def _lower_nested_cart(
       continue
     prefix_len = len(src.prefix_vars)
     for v_idx, var_name in enumerate(cart_op.var_from_source[i]):
-      if ctx.is_counting and not _cart_var_used(
-        var_name, rest, _trailing_inserts(rest)
-      ):
+      if ctx.is_counting and not _cart_var_used(var_name, rest, _trailing_inserts(rest)):
         continue
       col_idx = prefix_len + v_idx
       inner_decompose_stmts.append(
@@ -2046,8 +1961,7 @@ def _lower_nested_cj_multi(
     src_view = ctx.view_var_names.get(str(src.handle_start), '')
     if not src_view:
       raise ValueError(
-        f'_lower_nested_cj_multi: no view var for source handle_idx '
-        f'{src.handle_start}'
+        f'_lower_nested_cj_multi: no view var for source handle_idx {src.handle_start}'
       )
     source_view_names.append(src_view)
 
@@ -2056,23 +1970,16 @@ def _lower_nested_cj_multi(
 
     if src.prefix_vars:
       # Aliased from a parent handle in the enclosing scope.
-      parent_state_key = _state_key(
-        src.rel_name, list(src.index), src.prefix_vars, src.version
-      )
+      parent_state_key = _state_key(src.rel_name, list(src.index), src.prefix_vars, src.version)
       parent_handle = ctx.handle_vars.get(parent_state_key, '')
       if not parent_handle:
         raise ValueError(
-          f'_lower_nested_cj_multi: no parent handle for state key '
-          f'{parent_state_key!r}'
+          f'_lower_nested_cj_multi: no parent handle for state key {parent_state_key!r}'
         )
-      alias_bind_stmts.append(
-        Bind(name=alias_var, expr=VarRef(name=parent_handle))
-      )
+      alias_bind_stmts.append(Bind(name=alias_var, expr=VarRef(name=parent_handle)))
     else:
       # Fresh source: brand-new root handle, no narrowing.
-      alias_bind_stmts.append(
-        Bind(name=alias_var, expr=SaRoot(view_name=src_view))
-      )
+      alias_bind_stmts.append(Bind(name=alias_var, expr=SaRoot(view_name=src_view)))
 
   intersect_var = ctx.fresh('intersect')
   iter_var = ctx.fresh('it')
@@ -2135,13 +2042,10 @@ def _lower_nested_cj_multi(
       )
     )
     src_debug = ' '.join(
-      f'({s.rel_name} :handle {s.handle_start} '
-      f':prefix ({" ".join(s.prefix_vars)}))'
+      f'({s.rel_name} :handle {s.handle_start} :prefix ({" ".join(s.prefix_vars)}))'
       for s in cj_op.sources
     )
-    stmts.append(
-      Comment(text=f'MIR: (column-join :var {cj_op.var_name} :sources ({src_debug} ))')
-    )
+    stmts.append(Comment(text=f'MIR: (column-join :var {cj_op.var_name} :sources ({src_debug} ))'))
 
   intersect_iter_op: Op = IntersectIter(
     intersect_var=intersect_var,
@@ -2213,9 +2117,7 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
 
   if use_dedup:
     args_str = ', '.join(sanitized_list)
-    stmts.append(
-      RawString(text=f'{{ bool _p = dedup_table.try_insert(thread_id, {args_str});')
-    )
+    stmts.append(RawString(text=f'{{ bool _p = dedup_table.try_insert(thread_id, {args_str});'))
     stmts.append(RawString(text='  if (_p) {'))
 
   if ctx.is_counting:
@@ -2242,9 +2144,7 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
     stmts.append(RawString(text='  uint32_t pos = atomicAdd(atomic_write_pos, 1u);'))
     for col, name in enumerate(sanitized_list):
       stmts.append(
-        RawString(
-          text=f'  out_data_0[(pos + out_base_0) + {col} * out_stride_0] = {name};'
-        )
+        RawString(text=f'  out_data_0[(pos + out_base_0) + {col} * out_stride_0] = {name};')
       )
     stmts.append(RawString(text='}'))
   elif ctx.ws_cartesian_valid_var:
@@ -2280,7 +2180,7 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
 def _filter_expr(code: str) -> str:
   expr = code.strip()
   if expr.startswith('return '):
-    expr = expr[len('return '):]
+    expr = expr[len('return ') :]
   if expr.endswith(';'):
     expr = expr[:-1]
   return expr
@@ -2355,14 +2255,55 @@ def _sanitize_var_name(name: str) -> str:
   '''Mirror the legacy `sanitize_var_name`. C++ keywords get a `_val`
   suffix; everything else passes through.'''
   cpp_keywords = {
-    'class', 'struct', 'union', 'enum', 'typedef', 'template',
-    'using', 'namespace', 'public', 'private', 'protected',
-    'const', 'volatile', 'mutable', 'static', 'extern', 'inline',
-    'virtual', 'override', 'final', 'explicit', 'friend',
-    'new', 'delete', 'this', 'typeid', 'sizeof', 'alignof',
-    'true', 'false', 'nullptr', 'auto', 'register', 'thread_local',
-    'if', 'else', 'switch', 'case', 'default', 'while', 'do', 'for',
-    'break', 'continue', 'return', 'goto', 'try', 'catch', 'throw',
+    'class',
+    'struct',
+    'union',
+    'enum',
+    'typedef',
+    'template',
+    'using',
+    'namespace',
+    'public',
+    'private',
+    'protected',
+    'const',
+    'volatile',
+    'mutable',
+    'static',
+    'extern',
+    'inline',
+    'virtual',
+    'override',
+    'final',
+    'explicit',
+    'friend',
+    'new',
+    'delete',
+    'this',
+    'typeid',
+    'sizeof',
+    'alignof',
+    'true',
+    'false',
+    'nullptr',
+    'auto',
+    'register',
+    'thread_local',
+    'if',
+    'else',
+    'switch',
+    'case',
+    'default',
+    'while',
+    'do',
+    'for',
+    'break',
+    'continue',
+    'return',
+    'goto',
+    'try',
+    'catch',
+    'throw',
   }
   if name in cpp_keywords:
     return f'{name}_val'

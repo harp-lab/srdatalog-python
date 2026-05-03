@@ -79,10 +79,7 @@ def view_counts_for_specs(
   to `emit_view_declarations(..., view_counts=...)` so positional
   slots advance by the right amount per spec.
   '''
-  return [
-    view_count(sp.version, rel_index_types.get(sp.rel_name, ''))
-    for sp in view_specs
-  ]
+  return [view_count(sp.version, rel_index_types.get(sp.rel_name, '')) for sp in view_specs]
 
 
 __all__ = ['D2lSegmentLoop', 'view_count', 'view_counts_for_specs']

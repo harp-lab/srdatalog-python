@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Stage 2 Spec Extraction: Existing Emitter Audit
 
 **Status:** Stage 2 entry artifact. No code is ported until the audit
@@ -100,7 +104,7 @@ specifically):
 
 For each MIR op, the emission paths the emitter takes.
 
-### 4.1 `Scan` ([scan_negation.py:jit_scan](../src/srdatalog/codegen/jit/scan_negation.py))
+### 4.1 `Scan` (`scan_negation.py:jit_scan`)
 
 Emission paths:
 - **Default**: warp-strided grid-stride loop, prefix-narrow handle,
@@ -110,7 +114,7 @@ Emission paths:
 State touched: `ctx.bound_vars`, `ctx.indent`. No `inside_cartesian`
 interaction (Scan only fires at root or inside non-Cartesian scope).
 
-### 4.2 `ColumnJoin` ([root.py:jit_root_column_join](../src/srdatalog/codegen/jit/root.py), [instructions.py:jit_nested_column_join](../src/srdatalog/codegen/jit/instructions.py))
+### 4.2 `ColumnJoin` (`root.py:jit_root_column_join`, `instructions.py:jit_nested_column_join`)
 
 Emission paths split by **position** (root vs nested) and **source count** (single vs multi):
 
@@ -128,7 +132,7 @@ For the multi-source path, segment loops nest only around fresh
 (prefix-empty) sources; prefixed sources stay inside the parent's
 segment.
 
-### 4.3 `CartesianJoin` ([root.py:jit_root_cartesian_join](../src/srdatalog/codegen/jit/root.py), [instructions.py:jit_nested_cartesian_join](../src/srdatalog/codegen/jit/instructions.py))
+### 4.3 `CartesianJoin` (`root.py:jit_root_cartesian_join`, `instructions.py:jit_nested_cartesian_join`)
 
 Emission paths:
 
@@ -139,7 +143,7 @@ Emission paths:
 
 State touched: `ctx.inside_cartesian = True`, `ctx.cartesian_bound_vars`, `ctx.cartesian_as_product`, `ctx.tiled_cartesian_valid_var`, `ctx.tiled_cartesian_ballot_done`.
 
-### 4.4 `Filter` ([emit_helpers.py:jit_filter](../src/srdatalog/codegen/jit/emit_helpers.py))
+### 4.4 `Filter` (`emit_helpers.py:jit_filter`)
 
 Emission paths:
 
@@ -147,11 +151,11 @@ Emission paths:
 - Inside tiled Cartesian: `valid &= (cond);` (folded into ballot)
 - Default: `if (cond) { body }`
 
-### 4.5 `ConstantBind` ([emit_helpers.py:jit_constant_bind](../src/srdatalog/codegen/jit/emit_helpers.py))
+### 4.5 `ConstantBind` (`emit_helpers.py:jit_constant_bind`)
 
 Single path: `auto var = code; <body>`.
 
-### 4.6 `Negation` ([scan_negation.py:jit_negation](../src/srdatalog/codegen/jit/scan_negation.py))
+### 4.6 `Negation` (`scan_negation.py:jit_negation`)
 
 Emission paths:
 
@@ -166,13 +170,13 @@ Emission paths:
   - Tiled Cartesian → fold into `valid &= !handle.valid()`.
   - Default → `if (!valid) { body }`.
 
-### 4.7 `Aggregate` ([scan_negation.py:jit_aggregate](../src/srdatalog/codegen/jit/scan_negation.py))
+### 4.7 `Aggregate` (`scan_negation.py:jit_aggregate`)
 
 Single path: `auto result_var = aggregate<Func>(handle, view); <body>`.
 Specialization for COUNT/SUM/MIN/MAX done in the C++ runtime, not at
 emission.
 
-### 4.8 `InsertInto` ([emit_helpers.py:jit_insert_into](../src/srdatalog/codegen/jit/emit_helpers.py)) — most complex
+### 4.8 `InsertInto` (`emit_helpers.py:jit_insert_into`) — most complex
 
 Decision tree:
 
@@ -200,7 +204,7 @@ InsertInto (out_var resolved from ctx.output_vars[rel_name] or default)
       └─ out_var.emit_direct(vars...)
 ```
 
-### 4.9 `PositionedExtract` ([instructions.py:jit_positioned_extract](../src/srdatalog/codegen/jit/instructions.py))
+### 4.9 `PositionedExtract` (`instructions.py:jit_positioned_extract`)
 
 Used after BalancedScan at root. Currently only nested-position is
 supported (root BalancedScan raises NotImplementedError). Emits a
@@ -589,7 +593,7 @@ new emission is materially different — IR design bug.
 
 ### 9.3 Fixture coverage
 
-Every test in [tests/](../tests/) that calls `jit_kernel_full` or
+Every test in `tests/` that calls `jit_kernel_full` or
 `jit_kernel_definition` becomes a byte-equivalence fixture. List
 will be enumerated in the M0 commit (test harness setup).
 
@@ -669,8 +673,8 @@ dialects. After Stage 4 demonstrates pluggability, Stage 5+ may
 migrate them. The audit pre-commits to keeping HIR/MIR external for
 Stage 2.
 
-Q4. **Symbol table population**. Section 2 of [Compiler cooperation
-discussion](.) implies a `SymbolTable` mapping `relation_name → dialect`.
+Q4. **Symbol table population**. Section 2 of `Compiler cooperation
+discussion` implies a `SymbolTable` mapping `relation_name → dialect`.
 For Stage 2 (sorted-array-only), the table is trivially populated
 from `ctx.rel_index_types`. M0 includes wiring the symbol table
 construction inside `compile_pipeline()`.

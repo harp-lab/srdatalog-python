@@ -32,10 +32,17 @@ def _scan_insert_dedup(arity: int, rule_name: str = 'Dupy') -> m.ExecutePipeline
   vars_ = [f'v{i}' for i in range(arity)]
   cols = list(range(arity))
   scan = m.Scan(
-    vars=vars_, rel_name='Src', version=Version.FULL, index=cols, handle_start=0,
+    vars=vars_,
+    rel_name='Src',
+    version=Version.FULL,
+    index=cols,
+    handle_start=0,
   )
   insert = m.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=vars_, index=cols,
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=vars_,
+    index=cols,
   )
   return m.ExecutePipeline(
     pipeline=[scan, insert],
@@ -64,17 +71,18 @@ def test_dedup_hash_high_arity_writes_each_column():
   ep = _scan_insert_dedup(4)
   out = compile_pipeline(ep)
   for col in range(4):
-    assert (
-      f'out_data_0[(pos + out_base_0) + {col} * out_stride_0] = v{col}'
-      in out
-    )
+    assert f'out_data_0[(pos + out_base_0) + {col} * out_stride_0] = v{col}' in out
 
 
 def test_dedup_hash_off_does_not_emit_dedup_machinery():
   '''Sanity: with `dedup_hash=False`, the standard emit_direct path
   fires and no dedup_table / atomic_write_pos symbols leak in.'''
   scan = m.Scan(
-    vars=['x'], rel_name='Src', version=Version.FULL, index=[0], handle_start=0,
+    vars=['x'],
+    rel_name='Src',
+    version=Version.FULL,
+    index=[0],
+    handle_start=0,
   )
   insert = m.InsertInto(rel_name='Dst', version=Version.NEW, vars=['x'], index=[0])
   ep = m.ExecutePipeline(

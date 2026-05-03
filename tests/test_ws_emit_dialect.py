@@ -46,7 +46,10 @@ def test_insert_count_ws_enabled_increments_local_counter():
   '''Mirrors `test_jit_emit_helpers.test_insert_count_ws_enabled_
   increments_local_counter` but exercises the dialect lowering.'''
   node = mir.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=['x', 'y'], index=[0, 1],
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=['x', 'y'],
+    index=[0, 1],
   )
   ctx = LoweringCtx(
     is_counting=True,
@@ -62,7 +65,10 @@ def test_insert_count_ws_enabled_increments_local_counter():
 def test_insert_count_ws_enabled_inside_cart_drops_lane0():
   '''Inside a Cartesian, no lane-0 guard — `local_count++` directly.'''
   node = mir.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=['x'], index=[0],
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=['x'],
+    index=[0],
   )
   ctx = LoweringCtx(
     is_counting=True,
@@ -83,7 +89,10 @@ def test_insert_count_ws_enabled_inside_cart_drops_lane0():
 
 def test_insert_materialize_ws_cart_emits_warp_coalesced():
   node = mir.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=['y', 'x'], index=[0, 1],
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=['y', 'x'],
+    index=[0, 1],
   )
   ctx = LoweringCtx(
     is_counting=False,
@@ -107,7 +116,10 @@ def test_filter_ws_cart_folds_into_valid():
   legacy `jit_filter` ws branch.'''
   filt = mir.Filter(vars=['x', 'y'], code='return x != y;')
   ins = mir.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=['x', 'y'], index=[0, 1],
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=['x', 'y'],
+    index=[0, 1],
   )
   ctx = LoweringCtx(
     ws_cartesian_valid_var='ws_valid',
@@ -128,11 +140,17 @@ def test_negation_ws_cart_folds_into_valid():
   '''Standard-path Negation in WS mode emits
   `<v> = <v> && (!<handle>.valid());` then body, no `if`.'''
   neg = mir.Negation(
-    rel_name='Bad', version=Version.FULL, prefix_vars=['x'],
-    index=[0], handle_start=1,
+    rel_name='Bad',
+    version=Version.FULL,
+    prefix_vars=['x'],
+    index=[0],
+    handle_start=1,
   )
   ins = mir.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=['x'], index=[0],
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=['x'],
+    index=[0],
   )
   ctx = LoweringCtx(
     ws_cartesian_valid_var='ws_valid',

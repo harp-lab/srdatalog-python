@@ -41,11 +41,17 @@ from srdatalog.ir.hir.types import Version
 
 def _scan_d2l_full_ep() -> m.ExecutePipeline:
   scan = m.Scan(
-    vars=['x'], rel_name='Src', version=Version.FULL,
-    index=[0], handle_start=0,
+    vars=['x'],
+    rel_name='Src',
+    version=Version.FULL,
+    index=[0],
+    handle_start=0,
   )
   insert = m.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=['x'], index=[0],
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=['x'],
+    index=[0],
   )
   return m.ExecutePipeline(
     pipeline=[scan, insert],
@@ -96,22 +102,36 @@ def test_n5_4_negation_d2l_full_raises():
   segment-loop wrap is unsafe for antijoin (body should fire only
   when prefix is missing from BOTH segments). Deferred.'''
   src_a = m.ColumnSource(
-    rel_name='A', version=Version.FULL, index=[0, 1],
-    prefix_vars=[], handle_start=0,
+    rel_name='A',
+    version=Version.FULL,
+    index=[0, 1],
+    prefix_vars=[],
+    handle_start=0,
   )
   src_b = m.ColumnSource(
-    rel_name='B', version=Version.FULL, index=[0, 1],
-    prefix_vars=[], handle_start=1,
+    rel_name='B',
+    version=Version.FULL,
+    index=[0, 1],
+    prefix_vars=[],
+    handle_start=1,
   )
   root_cj = m.ColumnJoin(
-    var_name='y', sources=[src_a, src_b], handle_start=0,
+    var_name='y',
+    sources=[src_a, src_b],
+    handle_start=0,
   )
   neg = m.Negation(
-    rel_name='Neg', version=Version.FULL, prefix_vars=['y'],
-    index=[0], handle_start=2,
+    rel_name='Neg',
+    version=Version.FULL,
+    prefix_vars=['y'],
+    index=[0],
+    handle_start=2,
   )
   insert = m.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=['y'], index=[0],
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=['y'],
+    index=[0],
   )
   ep = m.ExecutePipeline(
     pipeline=[root_cj, neg, insert],
@@ -143,25 +163,41 @@ def test_n5_3_single_source_nested_cj_raises():
   and a byte-equivalence test will replace this guard.
   '''
   src_a = m.ColumnSource(
-    rel_name='A', version=Version.FULL, index=[0, 1],
-    prefix_vars=[], handle_start=0,
+    rel_name='A',
+    version=Version.FULL,
+    index=[0, 1],
+    prefix_vars=[],
+    handle_start=0,
   )
   src_b = m.ColumnSource(
-    rel_name='B', version=Version.FULL, index=[0, 1],
-    prefix_vars=[], handle_start=1,
+    rel_name='B',
+    version=Version.FULL,
+    index=[0, 1],
+    prefix_vars=[],
+    handle_start=1,
   )
   root_cj = m.ColumnJoin(
-    var_name='y', sources=[src_a, src_b], handle_start=0,
+    var_name='y',
+    sources=[src_a, src_b],
+    handle_start=0,
   )
   src_c = m.ColumnSource(
-    rel_name='C', version=Version.FULL, index=[0, 1],
-    prefix_vars=['y'], handle_start=2,
+    rel_name='C',
+    version=Version.FULL,
+    index=[0, 1],
+    prefix_vars=['y'],
+    handle_start=2,
   )
   nested_cj = m.ColumnJoin(
-    var_name='z', sources=[src_c], handle_start=2,
+    var_name='z',
+    sources=[src_c],
+    handle_start=2,
   )
   insert = m.InsertInto(
-    rel_name='Dst', version=Version.NEW, vars=['y', 'z'], index=[0, 1],
+    rel_name='Dst',
+    version=Version.NEW,
+    vars=['y', 'z'],
+    index=[0, 1],
   )
   ep = m.ExecutePipeline(
     pipeline=[root_cj, nested_cj, insert],

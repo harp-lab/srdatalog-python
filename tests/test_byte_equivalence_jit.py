@@ -100,8 +100,7 @@ def test_compile_pipeline_byte_matches_golden(stem: str, rule: str):
         f'dialect output diverged from {golden_path}.\n'
         f'Triage: localize the divergence to a feature-flag axis (see '
         f'docs/stage2_emitter_audit.md §3) and the corresponding '
-        f'lowering rule (§10 of ir_lowering_semantics.md).\n\n'
-        + diff
+        f'lowering rule (§10 of ir_lowering_semantics.md).\n\n' + diff
       )
     return
 
@@ -123,6 +122,5 @@ def test_fixture_set_is_nonempty():
   '''Sanity check: there's at least one fixture to compare against.'''
   params = _fixture_params()
   assert len(params) > 0, (
-    f'no fixtures found under {FIXTURE_ROOT}; '
-    f'the byte-equivalence gate has nothing to validate'
+    f'no fixtures found under {FIXTURE_ROOT}; the byte-equivalence gate has nothing to validate'
   )

@@ -24,8 +24,8 @@ from srdatalog.dsl import (
   Rule,
 )
 from srdatalog.ir.hir.pass_ import Dialect, PassInfo, PassLevel
-from srdatalog.ir.hir.types import RelationDecl
 from srdatalog.ir.hir.provenance import compiler_gen
+from srdatalog.ir.hir.types import RelationDecl
 
 
 def _atom_has_const(atom: Atom) -> bool:

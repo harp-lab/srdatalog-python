@@ -152,7 +152,10 @@ def compile_kernel_body(
   view_specs = collect_unique_view_specs(pipeline)
   view_counts = view_counts_for_specs(view_specs, rel_index_types or {})
   view_decls, view_vars = emit_view_declarations(
-    view_specs, pipeline, slot_mode=slot_mode, view_counts=view_counts,
+    view_specs,
+    pipeline,
+    slot_mode=slot_mode,
+    view_counts=view_counts,
   )
 
   # Split the combined view_vars dict into name-only (handle_idx ->
@@ -160,9 +163,7 @@ def compile_kernel_body(
   # emits both into the same dict via a `__base__<idx>` sentinel.
   name_map = {k: v for k, v in view_vars.items() if k.isdigit()}
   base_map = {
-    k.removeprefix('__base__'): int(v)
-    for k, v in view_vars.items()
-    if k.startswith('__base__')
+    k.removeprefix('__base__'): int(v) for k, v in view_vars.items() if k.startswith('__base__')
   }
 
   lower_ctx = LoweringCtx(

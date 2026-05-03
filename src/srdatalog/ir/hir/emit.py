@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 
 from srdatalog.dsl import Agg, ArgKind, Atom, ClauseArg, Filter, Let, Negation, Rule, Split
+from srdatalog.ir.hir.provenance import Provenance, ProvenanceKind
 from srdatalog.ir.hir.types import (
   AccessPattern,
   HirProgram,
@@ -25,7 +26,6 @@ from srdatalog.ir.hir.types import (
   HirStratum,
   RelationDecl,
 )
-from srdatalog.ir.hir.provenance import Provenance, ProvenanceKind
 
 
 def _arg_obj(a: ClauseArg) -> dict:

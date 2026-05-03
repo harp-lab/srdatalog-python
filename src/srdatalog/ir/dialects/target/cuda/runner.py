@@ -62,7 +62,9 @@ def emit_launch_count(
     )
   else:
     code += '  if (p.num_unique_root_keys == 0) {\n'
-    code += '    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);\n'
+    code += (
+      '    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);\n'
+    )
     code += '    return;\n'
     code += '  }\n'
   if is_block_group:
@@ -180,8 +182,8 @@ def emit_launch_materialize(
       out += '      p.atomic_write_pos_ptr,\n'
       out += '      p.dedup_table,\n'
       out += (
-        f'      dest_rel_0.template interned_column<0>(), '
-        f'prov_ptr, dest_rel_0.interned_stride(), old_size_0'
+        '      dest_rel_0.template interned_column<0>(), '
+        'prov_ptr, dest_rel_0.interned_stride(), old_size_0'
       )
       for i in range(1, len(ep.dest_specs)):
         out += (
@@ -756,7 +758,9 @@ def emit_runner_full(
   from srdatalog.ir.dialects.target.cuda.complete_runner import gen_complete_runner
 
   _decl, full = gen_complete_runner(
-    ep, db_type_name, rel_index_types=rel_index_types,
+    ep,
+    db_type_name,
+    rel_index_types=rel_index_types,
   )
   return full
 
@@ -772,7 +776,9 @@ def emit_runner_decl(
   from srdatalog.ir.dialects.target.cuda.complete_runner import gen_complete_runner
 
   decl, _full = gen_complete_runner(
-    ep, db_type_name, rel_index_types=rel_index_types,
+    ep,
+    db_type_name,
+    rel_index_types=rel_index_types,
   )
   return decl
 

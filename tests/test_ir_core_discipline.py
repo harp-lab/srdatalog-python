@@ -122,12 +122,9 @@ def test_op_subclasses_are_dataclasses():
   '''D4: every Op subclass must be a dataclass — needed for field
   iteration in strategy combinators and for sexpr round-trip.'''
   _import_synthetic_subclasses()
-  offenders = [
-    sub.__name__ for sub in _all_subclasses(Op) if not dataclasses.is_dataclass(sub)
-  ]
+  offenders = [sub.__name__ for sub in _all_subclasses(Op) if not dataclasses.is_dataclass(sub)]
   assert not offenders, (
-    'Op subclasses must be @dataclass; non-dataclass subclasses found: '
-    f'{offenders}'
+    f'Op subclasses must be @dataclass; non-dataclass subclasses found: {offenders}'
   )
 
 
@@ -140,10 +137,7 @@ def test_op_subclasses_are_frozen():
       continue
     if not sub.__dataclass_params__.frozen:
       offenders.append(sub.__name__)
-  assert not offenders, (
-    'Op subclasses must use @dataclass(frozen=True); non-frozen: '
-    f'{offenders}'
-  )
+  assert not offenders, f'Op subclasses must use @dataclass(frozen=True); non-frozen: {offenders}'
 
 
 def test_op_subclasses_use_slots():
@@ -154,8 +148,7 @@ def test_op_subclasses_use_slots():
     if not hasattr(sub, '__slots__'):
       offenders.append(sub.__name__)
   assert not offenders, (
-    'Op subclasses must use @dataclass(slots=True); missing __slots__: '
-    f'{offenders}'
+    f'Op subclasses must use @dataclass(slots=True); missing __slots__: {offenders}'
   )
 
 
@@ -213,8 +206,19 @@ def test_op_instances_reject_unknown_attrs():
 def test_strategy_combinators_are_module_level_callables():
   '''Strategy combinators are pure functions, not classes. No state,
   no methods, no inheritance.'''
-  expected = ['id_', 'fail', 'try_', 'seq', 'choice', 'repeat',
-              'all_', 'one', 'some', 'top_down', 'bottom_up']
+  expected = [
+    'id_',
+    'fail',
+    'try_',
+    'seq',
+    'choice',
+    'repeat',
+    'all_',
+    'one',
+    'some',
+    'top_down',
+    'bottom_up',
+  ]
   for name in expected:
     obj = getattr(strategy_mod, name, None)
     assert obj is not None, f'strategy.{name} missing'

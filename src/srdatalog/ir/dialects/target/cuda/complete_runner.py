@@ -157,9 +157,7 @@ def _gen_dedup_table_struct(node: m.ExecutePipeline) -> str:
   '''
   arity = len(node.dest_specs[0].index) if node.dest_specs else 0
   v_args = ',\n        '.join(f'uint32_t v{i}' for i in range(arity))
-  hash_lines = '\n'.join(
-    f'      h ^= (uint64_t)v{i}; h *= 1099511628211ULL;' for i in range(arity)
-  )
+  hash_lines = '\n'.join(f'      h ^= (uint64_t)v{i}; h *= 1099511628211ULL;' for i in range(arity))
   code = "  // GPU dedup hash table: full 64-bit hash + separate thread_id array\n"
   code += "  struct DedupTable {\n"
   code += "    unsigned long long* hash_slots; // full 64-bit hash per slot\n"
@@ -513,6 +511,7 @@ def _gen_kernel_bg_count(
     for i in range(1, len(node.dest_specs)):
       output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
   from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+
   code += compile_kernel_body(
     node,
     is_counting=True,
@@ -582,6 +581,7 @@ def _gen_kernel_bg_materialize(
       output_var_name = output_var
   code += "\n"
   from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+
   code += compile_kernel_body(
     node,
     is_counting=False,
@@ -644,6 +644,7 @@ def _gen_kernel_bg_fused(
 
   output_vars = {dest.rel_name: f"output_ctx_{i}" for i, dest in enumerate(dest_specs)}
   from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+
   code += compile_kernel_body(
     node,
     is_counting=False,
@@ -862,10 +863,7 @@ def _gen_setup(
     # Sized relative to FULL_VER relation size, capped at 1B entries.
     code += "  // Dedup hash table: sized relative to FULL relation\n"
     code += "  {\n"
-    code += (
-      f"    auto& _dedup_full_rel = "
-      f"get_relation_by_schema<{first_schema}, FULL_VER>(db);\n"
-    )
+    code += f"    auto& _dedup_full_rel = get_relation_by_schema<{first_schema}, FULL_VER>(db);\n"
     code += (
       "    std::size_t full_size = std::max(_dedup_full_rel.size(), "
       "static_cast<std::size_t>(p.num_root_keys));\n"
@@ -877,7 +875,9 @@ def _gen_setup(
     code += "    cap--; cap |= cap>>1; cap |= cap>>2; cap |= cap>>4; cap |= cap>>8; cap |= cap>>16; cap++;\n"
     code += "    p.dedup_hash_arr = SRDatalog::GPU::DeviceArray<unsigned long long>(cap);\n"
     code += "    p.dedup_tid_arr = SRDatalog::GPU::DeviceArray<uint32_t>(cap);\n"
-    code += "    cudaMemsetAsync(p.dedup_hash_arr.data(), 0, cap * sizeof(unsigned long long), stream);\n"
+    code += (
+      "    cudaMemsetAsync(p.dedup_hash_arr.data(), 0, cap * sizeof(unsigned long long), stream);\n"
+    )
     code += "    cudaMemsetAsync(p.dedup_tid_arr.data(), 0, cap * sizeof(uint32_t), stream);\n"
     code += "    p.dedup_table.hash_slots = reinterpret_cast<unsigned long long*>(p.dedup_hash_arr.data());\n"
     code += "    p.dedup_table.tid_slots = p.dedup_tid_arr.data();\n"

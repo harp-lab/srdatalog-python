@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Datalog IR Architecture: Multi-Dialect Compilation with Denotational Semantics
 
 This document specifies the IR design for the datalog compiler. The
@@ -935,7 +939,7 @@ existing emitter from the IR lowering rules in §10. Validate by
 - IIR-sorted-array dialect: ~800 LOC.
 - target.cuda lowering: ~600 LOC.
 - Property-based tests for each rewrite rule (R1–R5): ~300 LOC.
-- Test gate: every fixture in [tests/](../tests/) must pass with
+- Test gate: every fixture in `tests/` must pass with
   byte-equivalent emitted C++.
 
 If any fixture fails byte-equivalence, the IR design is wrong —

@@ -122,11 +122,7 @@ def test_compile_runner_matches_golden(stem: str, rule: str):
   # dispatch picks the right `viewCount` for D2L relations. Without
   # this, FULL_VER references on 2-level-indexed relations diverge by
   # one view slot per source.
-  rel_index_types = {
-    r.name: r.index_type
-    for r in prog.relations
-    if getattr(r, 'index_type', '')
-  }
+  rel_index_types = {r.name: r.index_type for r in prog.relations if getattr(r, 'index_type', '')}
 
   # Run the orchestrator pass first — it sets concurrent_write on EPs
   # in shared-destination ParallelGroups, which the runner emitter

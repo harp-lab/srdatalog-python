@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # Design Principles: IR + Dialect Architecture
 
 This document is the pinned reference for design discipline in the
@@ -95,7 +99,7 @@ plus `assert_never` in the catch-all branch.
 A rewrite is `Op → list[Op]` (or `Op → Op | None` for strategies).
 No state. No hooks. No `PatternRewriter`-style rewriter object.
 Composition via the strategy combinators in
-[`ir_core/strategy.py`](../src/srdatalog/ir_core/strategy.py).
+[`ir/core/strategy.py`](../src/srdatalog/ir/core/strategy.py).
 
 **Source**: Stratego (Visser); functional rewriting (Baader-Nipkow).
 
@@ -131,7 +135,7 @@ techniques in Haskell.
 
 Each dialect ships a verifier that runs after every pass on its IR
 shapes. Verifiers catch the predicates D9 didn't make
-unconstructible. See [`ir_core/verifier.py`](../src/srdatalog/ir_core/verifier.py).
+unconstructible. See [`ir/core/verifier.py`](../src/srdatalog/ir/core/verifier.py).
 
 ### D11 — `@final` on every concrete op subclass
 
@@ -141,7 +145,7 @@ mypy/pyright: this class has no further subclasses. Catches the
 
 ### D12 — Static type checking in CI
 
-`mypy --strict` (or `pyright` strict) on `ir_core/`, `dialects/`,
+`mypy --strict` (or `pyright` strict) on `ir/core/`, `dialects/`,
 and any new dialect-aware module. Without this, D5's exhaustiveness
 guarantees disappear and the closed-union story collapses.
 
@@ -220,7 +224,7 @@ For contributors new to the PL/compilers space:
 - *Compiling Pattern Matching to Good Decision Trees* — Maranget. The
   why-match-is-the-right-tool reference.
 - *Stratego/XT Tutorial* (Visser et al.). The strategy-combinators
-  reference; this codebase's `ir_core/strategy.py` is a Python port.
+  reference; this codebase's `ir/core/strategy.py` is a Python port.
 - *Term Rewriting and All That* — Baader & Nipkow. Background on
   confluence, termination, normal forms.
 - *Scrap Your Boilerplate* — Lämmel & Peyton Jones. Justifies generic

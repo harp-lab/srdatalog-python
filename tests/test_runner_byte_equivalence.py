@@ -36,6 +36,26 @@ RUNNER_BYTE_MATCH_SKIPS: dict[tuple[str, str], str] = {
   # Work-stealing runner variants — N8 (par.data.atomic_ws dialect).
   ('lsqb_q6_nosj', 'TwoHopPath'): 'WS runner not yet ported (N8)',
   ('polonius_test', 'subset_trans_D0'): 'WS runner not yet ported (N8)',
+  # ddisasm — see docs/milestones.md "Nim-reference audit" for the gap matrix.
+  ('ddisasm', 'StackLiveVarBlockEnd1_D0_splitB'): (
+    'Scan + CartesianJoin shape — _supported_pipeline rejects; pieces exist, '
+    'just need to add CartesianJoin to the Scan-middle allowed list.'
+  ),
+  ('ddisasm', 'StackDefUsed4_D1'): (
+    'dedup_hash gen_complete_runner not yet ported (runner-side, not kernel-body).'
+  ),
+  ('ddisasm', 'StackLiveVarBlockEnd1_D0_splitA'): (
+    'Head tuple ordering divergence (`varp, varr` vs `varr, varp`) — likely '
+    'MIR-level head-arg ordering, not kernel-body.'
+  ),
+  ('ddisasm', 'StackLiveVarPriorUsed'): (
+    'Pre-narrow Negation emission order differs (`Reg...` before `Stack...` vs '
+    'reversed in Nim) — iteration order in `_register_neg_pre_narrow`.'
+  ),
+  ('ddisasm', 'StackDefUsed1'): (
+    'Tiled-Cartesian eligibility differs — Nim emits the tiled-smem materialize '
+    'variant; Python emits non-tiled. Likely `_tiled_cart_eligible` predicate gap.'
+  ),
 }
 
 

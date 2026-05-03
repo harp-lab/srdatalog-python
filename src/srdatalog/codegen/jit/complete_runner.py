@@ -28,8 +28,6 @@ dedup_hash, balanced scan, fan-out, materialized pipelines.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 # Side-effect import: registers the Device2LevelIndex plugin. Without this,
 # pluginViewCount falls back to the default plugin (view_count=1 for every
 # version) for any relation declared with `index_type="...Device2LevelIndex"`,
@@ -38,20 +36,15 @@ from collections.abc import Sequence
 # pin it here because `gen_complete_runner` is the consumer that cares.
 import srdatalog.codegen.jit.indexes.two_level  # noqa: F401
 import srdatalog.mir.types as m
-from srdatalog.codegen.jit.context import CodeGenContext, new_code_gen_context
 from srdatalog.codegen.jit.emit_helpers import (
   assign_handle_positions,
   has_balanced_scan,
   has_tiled_cartesian_eligible,
 )
 from srdatalog.codegen.jit.materialized import is_materialized_pipeline
-from srdatalog.codegen.jit.pipeline import jit_pipeline
 from srdatalog.codegen.jit.plugin import plugin_gen_host_view_setup, plugin_view_count
 from srdatalog.codegen.jit.view_management import (
-  build_root_slot_map,
   compute_total_view_count,
-  compute_view_slot_offsets,
-  register_pipeline_handles,
   source_spec_key,
 )
 
@@ -145,122 +138,6 @@ def _root_is_scan(pipeline: list[m.MirNode]) -> bool:
 
 
 # -----------------------------------------------------------------------------
-# Pipeline context builder — fresh ctx per kernel
-# -----------------------------------------------------------------------------
-
-
-def _dialect_safe_kernel(
-  node: m.ExecutePipeline,
-  rel_index_types: dict[str, str],
-) -> bool:
-  '''True iff the dialect's `compile_kernel_body` produces output
-  byte-equivalent to the legacy `jit_pipeline` for this kernel.
-
-  Today the dialect doesn't model:
-    - work-stealing (WCOJTask queue) — N8
-    - tiled-Cartesian ballot-reuse — N7
-    - D2L segment loops in *single-source* nested CJ — N5.3
-    - D2L segment loops in Scan / Negation / Aggregate — N5.4
-
-  Slot accounting via `plugin_view_count` is threaded through
-  `compile_kernel_body(rel_index_types=...)` (N5.0). N5.1 added the
-  multi-source nested-CJ segment-loop wrapper (`D2lSegmentLoop`),
-  N5.2 added the root-CJ-multi non-first-source variant. N6 added
-  the dedup-hash WriteOutput variant: when `ep.dedup_hash` is set,
-  `_lower_insert_into` wraps the write in the
-  `try_insert(thread_id, ...)` gate and routes materialize-phase
-  writes through `atomicAdd(atomic_write_pos, 1u) + out_data_0[...]`.
-  '''
-  if node.work_stealing:
-    return False
-  return _d2l_only_needs_supported_segment_loop(node, rel_index_types)
-
-
-def _d2l_only_needs_supported_segment_loop(
-  node: m.ExecutePipeline,
-  rel_index_types: dict[str, str],
-) -> bool:
-  '''True iff every D2L FULL_VER fresh-root source in the pipeline
-  lives in a place the dialect can lower:
-    - Multi-source nested CJ (N5.1).
-    - Root CJ multi non-first source (N5.2).
-
-  Returns True trivially for non-D2L pipelines.
-
-  Rejects (kicks back to legacy):
-    - Single-source nested CJ over D2L FULL_VER (N5.3).
-    - Scan rooted at D2L FULL_VER (N5.4).
-    - Negation / Aggregate prefix-narrow over D2L FULL_VER (N5.4).
-  '''
-
-  def _is_multi_view_fresh(src: m.MirNode) -> bool:
-    if not isinstance(src, m.ColumnSource):
-      return False
-    if src.prefix_vars:
-      return False
-    idx_type = rel_index_types.get(src.rel_name, '')
-    from srdatalog.dialects.relation.d2l import view_count as _vc
-    return _vc(src.version.code, idx_type) > 1
-
-  pipeline = list(node.pipeline)
-  cj_depth = 0
-  for op in pipeline:
-    if isinstance(op, m.ColumnJoin):
-      if cj_depth == 0:
-        # Root CJ: multi-source with multi-view non-first sources is
-        # OK (N5.2). Single-source root CJ with multi-view fresh
-        # source has its own legacy path we haven't ported.
-        if len(op.sources) < 2:
-          for src in op.sources:
-            if _is_multi_view_fresh(src):
-              return False
-      else:
-        # Nested CJ. Single-source segment loop not yet supported.
-        if len(op.sources) < 2:
-          for src in op.sources:
-            if _is_multi_view_fresh(src):
-              return False
-      cj_depth += 1
-    elif isinstance(op, (m.Scan, m.Negation, m.Aggregate)):
-      idx_type = rel_index_types.get(op.rel_name, '')
-      from srdatalog.dialects.relation.d2l import view_count as _vc
-      if _vc(op.version.code, idx_type) > 1:
-        return False
-  return True
-
-
-def _make_kernel_ctx(
-  source_specs: Sequence[m.MirNode],
-  pipeline: list[m.MirNode],
-  rel_index_types: dict[str, str],
-  *,
-  is_counting: bool,
-  tiled_cartesian: bool = False,
-  dedup_hash: bool = False,
-  bg_enabled: bool = False,
-  output_var_name: str = "output_ctx",
-) -> CodeGenContext:
-  ctx = new_code_gen_context()
-  ctx.indent = 4
-  ctx.is_counting = is_counting
-  ctx.is_jit_mode = True
-  ctx.dedup_hash_enabled = dedup_hash
-  ctx.tiled_cartesian_enabled = tiled_cartesian
-  ctx.bg_enabled = bg_enabled
-  ctx.rel_index_types = dict(rel_index_types)
-  ctx.view_slot_offsets = compute_view_slot_offsets(source_specs, rel_index_types)
-  ctx.output_var_name = output_var_name
-  root_slots = build_root_slot_map(source_specs, rel_index_types)
-  register_pipeline_handles(
-    ctx.view_slot_offsets,
-    pipeline,
-    rel_index_types,
-    root_slots,
-  )
-  return ctx
-
-
-# -----------------------------------------------------------------------------
 # Kernel emitters
 # -----------------------------------------------------------------------------
 
@@ -309,27 +186,15 @@ def _gen_kernel_count(
     for i in range(1, len(node.dest_specs)):
       output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
 
-  if _dialect_safe_kernel(node, rel_index_types):
-    from srdatalog.compile import compile_kernel_body
+  from srdatalog.compile import compile_kernel_body
 
-    code += compile_kernel_body(
-      node,
-      is_counting=True,
-      output_var_name="output_ctx",
-      output_vars=output_vars,
-      rel_index_types=rel_index_types,
-    )
-  else:
-    ctx = _make_kernel_ctx(
-      node.source_specs,
-      pipeline,
-      rel_index_types,
-      is_counting=True,
-      output_var_name="output_ctx",
-    )
-    for k, v in output_vars.items():
-      ctx.output_vars[k] = v
-    code += jit_pipeline(pipeline, node.source_specs, ctx)
+  code += compile_kernel_body(
+    node,
+    is_counting=True,
+    output_var_name="output_ctx",
+    output_vars=output_vars,
+    rel_index_types=rel_index_types,
+  )
 
   code += "    thread_counts[thread_id] = output_ctx.count();\n"
   code += "  }\n\n"
@@ -407,29 +272,16 @@ def _gen_kernel_materialize(
       output_var_name = output_var
   code += "\n"
 
-  if _dialect_safe_kernel(node, rel_index_types):
-    from srdatalog.compile import compile_kernel_body
+  from srdatalog.compile import compile_kernel_body
 
-    body = compile_kernel_body(
-      node,
-      is_counting=False,
-      output_var_name=output_var_name,
-      output_vars=output_vars,
-      rel_index_types=rel_index_types,
-      tiled_cartesian=tiled_cartesian_eligible,
-    )
-  else:
-    ctx = _make_kernel_ctx(
-      node.source_specs,
-      pipeline,
-      rel_index_types,
-      is_counting=False,
-      tiled_cartesian=tiled_cartesian_eligible,
-    )
-    for k, v in output_vars.items():
-      ctx.output_vars[k] = v
-    ctx.output_var_name = output_var_name
-    body = jit_pipeline(pipeline, node.source_specs, ctx)
+  body = compile_kernel_body(
+    node,
+    is_counting=False,
+    output_var_name=output_var_name,
+    output_vars=output_vars,
+    rel_index_types=rel_index_types,
+    tiled_cartesian=tiled_cartesian_eligible,
+  )
 
   code += body
   code += "  }\n\n"
@@ -487,28 +339,15 @@ def _gen_kernel_fused(
   # reuse the materialize pipeline body verbatim (matches Nim exactly).
   if tiled_cartesian_eligible:
     output_vars = {dest.rel_name: f"output_ctx_{i}" for i, dest in enumerate(dest_specs)}
-    if _dialect_safe_kernel(node, rel_index_types):
-      from srdatalog.compile import compile_kernel_body
+    from srdatalog.compile import compile_kernel_body
 
-      code += compile_kernel_body(
-        node,
-        is_counting=False,
-        output_var_name="output_ctx_0",
-        output_vars=output_vars,
-        rel_index_types=rel_index_types,
-      )
-    else:
-      ctx = _make_kernel_ctx(
-        node.source_specs,
-        pipeline,
-        rel_index_types,
-        is_counting=False,
-        tiled_cartesian=False,
-      )
-      for k, v in output_vars.items():
-        ctx.output_vars[k] = v
-      ctx.output_var_name = "output_ctx_0"
-      code += jit_pipeline(pipeline, node.source_specs, ctx)
+    code += compile_kernel_body(
+      node,
+      is_counting=False,
+      output_var_name="output_ctx_0",
+      output_vars=output_vars,
+      rel_index_types=rel_index_types,
+    )
   else:
     code += materialize_pipeline_body
 

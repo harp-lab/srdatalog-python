@@ -1,22 +1,22 @@
 '''N5.3 + N5.4 — D2L edge cases.
 
-  - **N5.4 (Scan over D2L FULL_VER)** — implemented: the dialect
-    wraps the scan body in a `D2lSegmentLoop(declare=True)` so HEAD
-    and FULL segments are visited in turn with the view variable
-    shadowed per segment. Structural test below pins the emit shape.
+  - **N5.4 (Scan over D2L FULL_VER)** — matches Nim: emits a
+    single-view scan (NO segment-loop wrap). Nim's `jitRootScan`
+    (codegen/target_jit/jit_root.nim:61-126) does the same.
+    Both are technically incorrect on FULL_VER's HEAD/FULL split
+    but byte-equivalent. See docs/milestones.md "Nim-reference
+    audit" for the gap.
 
   - **N5.4 (standard-path Negation over D2L FULL_VER)** — guarded:
-    raises `NotImplementedError` with an N5.4 reference. The
-    naive segment-loop wrap is unsafe for antijoin semantics
-    (the body should fire only when the prefix is missing from
-    BOTH segments, not from each segment independently). A correct
-    implementation needs a cross-segment accumulator; deferred
-    until a workload demands it.
+    raises `NotImplementedError`. Nim ALSO has no segment-loop wrap
+    here (`jitNegation` at jit_scan_negation.nim:142-187). Both
+    ends broken; defer.
 
   - **N5.3 (single-source nested ColumnJoin)** — guarded by
     `_supported_pipeline`: the predicate requires `len(sources) >=
     2` for nested CJs; single-source raises `ValueError("unsupported
-    pipeline shape ...")`.
+    pipeline shape ...")`. Nim emits seg-loop wrap for this shape
+    (jit_instructions.nim:42-143); real gap, defer until workload.
 
 When N5.3 / N5.4 (Negation) land, replace the corresponding guards
 with byte-equivalence tests against checked-in goldens.
@@ -33,7 +33,9 @@ from srdatalog.compile import compile_kernel_body, compile_pipeline
 from srdatalog.ir.hir.types import Version
 
 # -----------------------------------------------------------------------------
-# N5.4 — root Scan over D2L FULL_VER emits a segment-loop wrap.
+# N5.4 — root Scan over D2L FULL_VER emits a single-view scan (no segment-loop
+# wrap), matching Nim's jitRootScan. Both ends share the FULL_VER HEAD/FULL
+# semantic gap; preserving byte-equivalence is the priority.
 # -----------------------------------------------------------------------------
 
 
@@ -53,31 +55,26 @@ def _scan_d2l_full_ep() -> m.ExecutePipeline:
   )
 
 
-def test_n5_4_scan_d2l_full_emits_segment_loop():
-  '''Scan over a D2L FULL_VER source emits the segment-loop wrap +
-  per-segment view shadowing + `continue` (not `return`) on
-  per-segment validity failure.'''
+def test_n5_4_scan_d2l_full_no_segment_loop_matches_nim():
+  '''Scan over a D2L FULL_VER source emits the single-view shape, NOT
+  a segment-loop wrap — matching Nim's `jitRootScan`. Pin against
+  silent re-introduction of the over-implementation that previously
+  diverged from Nim.'''
   ep = _scan_d2l_full_ep()
   out = compile_kernel_body(
     ep,
     is_counting=False,
     rel_index_types={'Src': 'Device2LevelIndex'},
   )
-  # Segment loop opens with `for (int _seg_<n>` (counter-bumped name).
-  assert re.search(r'for \(int _seg_\d+ = 0; _seg_\d+ < 2;', out)
-  # Per-segment view rebinding via `auto view_<rel>_... = views[<base> + _seg_<n>]`.
-  assert re.search(r'auto view_Src_0_FULL_VER = views\[\d+ \+ _seg_\d+\];', out)
-  # Inside the segment loop, the validity check is `continue` (skip
-  # to next segment), NOT `return`.
-  assert 'continue' in out
-  # The legacy `return` path used outside D2L should NOT appear.
-  m_seg_return = re.search(r'_seg_\d+ < 2[\s\S]*?return\s*;', out)
-  assert m_seg_return is None, f'Found unexpected `return` inside segment loop: {m_seg_return.group(0)!r}'
+  # No segment loop — Nim doesn't emit one for root Scan over D2L.
+  assert '_seg_' not in out, f'Unexpected segment loop in root Scan emit:\n{out}'
+  # Validity check is `return` (no per-segment continue path).
+  assert re.search(r'if \(!root_handle_\d+\.valid\(\)\) return;', out)
 
 
-def test_n5_4_scan_dsai_does_not_emit_segment_loop():
-  '''Sanity: a non-D2L scan compiles without the segment-loop wrap
-  and uses `return` for the validity check (not `continue`).'''
+def test_n5_4_scan_dsai_emits_single_view():
+  '''Non-D2L scan also emits the single-view shape (control case —
+  same emit shape as the D2L FULL_VER case above).'''
   ep = _scan_d2l_full_ep()
   out = compile_kernel_body(
     ep,
@@ -85,7 +82,6 @@ def test_n5_4_scan_dsai_does_not_emit_segment_loop():
     rel_index_types={},  # default = DSAI single-view
   )
   assert '_seg_' not in out
-  # DSAI scan emits `if (!root_handle_<n>.valid()) return;`
   assert re.search(r'if \(!root_handle_\d+\.valid\(\)\) return;', out)
 
 

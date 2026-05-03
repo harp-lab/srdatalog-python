@@ -302,17 +302,6 @@ def _lower_root_scan(
       f'_lower_root_scan: no view var for handle_idx {handle_idx}'
     )
 
-  # N5.4: D2L FULL_VER root scan needs a segment loop wrapping the
-  # whole scan body (HEAD + FULL segments visited in turn). The
-  # `D2lSegmentLoop(declare=True)` op shadows the kernel-start view
-  # variable inside the loop, so the body's `view_X.get_value(...)`
-  # / `HandleType(0, view_X.num_rows_, 0)` references resolve to the
-  # current segment.
-  idx_type = ctx.rel_index_types.get(scan_op.rel_name, '')
-  vc = view_count(scan_op.version.code, idx_type)
-  has_segment_loop = vc > 1
-  base_slot = ctx.view_slot_bases.get(str(handle_idx), handle_idx)
-
   middle = _middle_ops(rest)
   trailing = _trailing_inserts(rest)
 
@@ -375,17 +364,15 @@ def _lower_root_scan(
     body=Block(stmts=tuple(inner_stmts)),
   )
 
-  # Inside-the-segment-loop body: handle bind + validity check +
-  # degree + parallel-for. With segment loop, the validity check is
-  # `continue` (skip to next segment); without, it's `return` (no
-  # work for this thread at all).
-  scan_body_stmts: list[Op] = [
+  # Single-view root scan: handle bind + validity check (return) +
+  # degree + parallel-for. Matches Nim's `jitRootScan`
+  # (codegen/target_jit/jit_root.nim:61-126), which does NOT
+  # segment-wrap for D2L FULL_VER — see docs/milestones.md
+  # "Nim-reference audit" for the gap (Nim-also-broken on FULL_VER's
+  # HEAD/FULL split).
+  outer_stmts.extend([
     Bind(name=handle_var, expr=SaRoot(view_name=view_var)),
-    (
-      IfContinueIfNot(cond=SaValid(handle_name=handle_var))
-      if has_segment_loop
-      else IfReturnIfNot(cond=SaValid(handle_name=handle_var))
-    ),
+    IfReturnIfNot(cond=SaValid(handle_name=handle_var)),
     Bind(
       name=degree_var,
       expr=SaDegree(handle_name=handle_var),
@@ -393,22 +380,7 @@ def _lower_root_scan(
     ),
     BlankLine(),
     ParallelFor(strategy='warp_strided', body=loop),
-  ]
-
-  if has_segment_loop:
-    outer_stmts.append(
-      D2lSegmentLoop(
-        seg_var=ctx.fresh('_seg'),
-        view_var=view_var,
-        base_slot=base_slot,
-        view_count=vc,
-        declare=True,
-        local_view_var='',
-        body=Block(stmts=tuple(scan_body_stmts)),
-      )
-    )
-  else:
-    outer_stmts.extend(scan_body_stmts)
+  ])
 
   return Block(stmts=tuple(outer_stmts))
 

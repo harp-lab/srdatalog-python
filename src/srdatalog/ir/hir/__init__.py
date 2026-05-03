@@ -28,7 +28,7 @@ def default_pipeline(verbose: bool = False) -> Pipeline:
   from srdatalog.ir.hir.plan import JoinPlannerPass
   from srdatalog.ir.hir.semi_naive import SemiNaiveVariantPass
   from srdatalog.ir.hir.split import TempIndexRegistrationPass, TempRelSynthesisPass
-  from srdatalog.rule_rewrite import (
+  from srdatalog.ir.hir.rule_rewrite import (
     ConstantRewritePass,
     HeadConstantRewritePass,
     SemiJoinPass,

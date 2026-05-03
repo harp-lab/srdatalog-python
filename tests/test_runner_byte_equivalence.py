@@ -38,8 +38,10 @@ RUNNER_BYTE_MATCH_SKIPS: dict[tuple[str, str], str] = {
   ('polonius_test', 'subset_trans_D0'): 'WS runner not yet ported (N8)',
   # ddisasm — see docs/milestones.md "Nim-reference audit" for the gap matrix.
   ('ddisasm', 'StackLiveVarBlockEnd1_D0_splitB'): (
-    'Scan + CartesianJoin shape — _supported_pipeline rejects; pieces exist, '
-    'just need to add CartesianJoin to the Scan-middle allowed list.'
+    'Same MIR-level scan-vars ordering bug as splitA (F1). The Scan+Cart shape '
+    'now compiles after R8 added CartesianJoin to the Scan-middle allowed list, '
+    'but Python MIR has `(scan :vars (blk blockUsed varp varr))` while Nim has '
+    '`varr` then `varp`. Fix lives in HIR/MIR head-arg ordering, not the dialect.'
   ),
   ('ddisasm', 'StackDefUsed4_D1'): (
     'dedup_hash gen_complete_runner not yet ported (runner-side, not kernel-body).'

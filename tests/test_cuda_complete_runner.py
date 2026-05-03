@@ -107,10 +107,9 @@ RUNNER_BYTE_MATCH_SKIPS = {
   # Work-stealing runner variants — Phase 5 port.
   ("lsqb_q6_nosj", "TwoHopPath"),
   ("polonius_test", "subset_trans_D0"),
-  # ddisasm: Scan + CartesianJoin shape, _supported_pipeline rejects.
-  # Pieces (`_lower_root_scan`, `_lower_nested_cart`) already exist; only
-  # need to add CartesianJoin to the Scan-middle allowed list. See
-  # docs/milestones.md "Nim-reference audit" for the mapping.
+  # ddisasm: same MIR-level scan-vars ordering bug as splitA (F1).
+  # R8 added Scan+Cart to _supported_pipeline so this compiles; only
+  # divergence remaining is HIR/MIR head-arg ordering.
   ("ddisasm", "StackLiveVarBlockEnd1_D0_splitB"),
   # ddisasm: dedup_hash gen_complete_runner not yet ported (runner-side).
   ("ddisasm", "StackDefUsed4_D1"),

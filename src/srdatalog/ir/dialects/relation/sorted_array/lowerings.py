@@ -224,11 +224,16 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
   middle = ops[1:insert_start]
 
   if isinstance(head, mir.Scan):
-    # M1+M2+M5 shapes
+    # M1+M2+M5 + Scan+Cart (R8) shapes. CartesianJoin in the middle
+    # dispatches to `_lower_nested_cart` via `_lower_inner_chain`,
+    # which already handles 1+ source forms (with prefix narrowing).
+    # Hit by ddisasm StackLiveVarBlockEnd1_D0_splitB.
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
       if isinstance(op, mir.Negation):
+        continue
+      if isinstance(op, mir.CartesianJoin):
         continue
       return False
     return True
@@ -341,10 +346,23 @@ def _lower_root_scan(
   degree_var = ctx.fresh('degree')
   idx_var = ctx.fresh('idx')
 
+  # Count-phase var elision: in count phase, mirror Nim's
+  # `varName notin body` substring check on the rendered body string.
+  # This catches the case where the rendered body doesn't reference
+  # the var (e.g. `cartesian_as_product` short-circuits the InsertInto
+  # entirely). The structural `_scan_var_used` predicate isn't enough —
+  # it returns True for any var in InsertInto.vars even when the body
+  # never emits those vars (R1 short-circuit case).
+  body_text_for_elision = ''
+  if ctx.is_counting:
+    from srdatalog.ir.dialects.target.cuda.emit import EmitCtx, emit
+    body_text_for_elision = emit(body_op, EmitCtx(indent_level=0))
+
   var_bind_stmts: list[Op] = []
   for col, var_name in enumerate(scan_op.vars):
-    if ctx.is_counting and not _scan_var_used(var_name, middle, trailing):
-      continue
+    if ctx.is_counting:
+      if var_name not in body_text_for_elision:
+        continue
     var_bind_stmts.append(
       Bind(
         name=_sanitize_var_name(var_name),
@@ -1625,7 +1643,10 @@ def _lower_nested_cart(
     # mirror the legacy `_nested_cartesian_join`:
     #   1. exact match -> alias with comment.
     #   2. no match, no prefix_vars -> fresh root.
-    #   3. no match, has prefix_vars -> chained prefix (M7.x, not yet).
+    #   3. no match, has prefix_vars -> fresh root + chained `.prefix(...)`
+    #      (used by Scan + CartesianJoin where the prefix vars are bound
+    #      by the Scan, not by an enclosing CJ — handle_vars is empty
+    #      because Scan doesn't register state keys).
     parent_state_key = _state_key(
       src.rel_name, list(src.index), src.prefix_vars, src.version
     )
@@ -1633,14 +1654,11 @@ def _lower_nested_cart(
 
     if parent_handle:
       alias_targets.append(parent_handle)
-    elif not src.prefix_vars:
-      alias_targets.append(None)  # fresh root
     else:
-      raise NotImplementedError(
-        f'_lower_nested_cart: source {src.rel_name} has prefix '
-        f'{src.prefix_vars} but no full-state-key match; the '
-        f'parent-prefix chained-prefix path isn\'t lowered yet'
-      )
+      # No parent → fresh root, with optional chained prefix narrowing.
+      # `None` means "construct fresh below; prefix application handled
+      # in the bind-emission loop further down via src.prefix_vars".
+      alias_targets.append(None)
 
     handle_var_names.append(
       ctx.fresh(f'h_{src.rel_name}_{src.handle_start}')
@@ -1737,6 +1755,8 @@ def _lower_nested_cart(
   stmts.append(BlankLine())
 
   for i in range(num_sources):
+    src = cart_op.sources[i]
+    assert isinstance(src, mir.ColumnSource)
     if alias_targets[i] is not None:
       # Reuse narrowed handle from parent (with legacy comment).
       stmts.append(
@@ -1745,6 +1765,20 @@ def _lower_nested_cart(
           f'// reusing narrowed handle'
         )
       )
+    elif src.prefix_vars:
+      # Fresh root + chained `.prefix(<key>)` per prefix var. Used when
+      # the prefix vars are bound by a non-CJ outer scope (e.g. Scan)
+      # so handle_vars has no parent. Mirrors Nim's
+      # `genChainedPrefixCalls(genRootHandle(view), prefix_vars, view)`
+      # in jit_instructions.nim.
+      expr: Op = SaRoot(view_name=view_var_names[i])
+      for v in src.prefix_vars:
+        expr = SaPrefCoop(
+          parent=expr,
+          key_var=_sanitize_var_name(v),
+          view_name=view_var_names[i],
+        )
+      stmts.append(Bind(name=handle_var_names[i], expr=expr))
     else:
       # Fresh root construction; no comment.
       stmts.append(
@@ -2280,7 +2314,14 @@ def _scan_var_used(
 ) -> bool:
   '''Counting-phase optimization gate. Returns True iff `var_name`
   is referenced anywhere downstream — in middle ops or any of the
-  trailing InsertIntos (multi-head).'''
+  trailing InsertIntos (multi-head).
+
+  Mirrors Nim's `varName notin body` substring check on the rendered
+  body. Note: Nim's check is conservatively True even for vars only
+  appearing in the `// Emit: Edge(x, y)` comment text, so this
+  predicate must include InsertInto.vars even in count phase to match
+  byte-for-byte.
+  '''
   return any(_var_used_in_op(var_name, op) for op in (*middle, *inserts))
 
 

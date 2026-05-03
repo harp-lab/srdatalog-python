@@ -43,6 +43,10 @@ from srdatalog.dialects.iir.cf import (
   TiledBallotBlock,
   VarRef,
 )
+from srdatalog.dialects.parallel.data.block_group import (
+  BgRootCjMulti,
+  BgSourceSpec,
+)
 from srdatalog.dialects.relation.d2l import D2lSegmentLoop, view_count
 from srdatalog.dialects.relation.sorted_array.ops import (
   SaChildRange,
@@ -142,6 +146,13 @@ class LoweringCtx:
   # lane-zero-guarded emit_direct. Mirrors legacy
   # `ctx.ws_cartesian_valid_var`.
   ws_cartesian_valid_var: str = ''
+  # Block-group flag (mirrors legacy `ctx.bg_enabled`). When True,
+  # the root multi-source ColumnJoin emits via `BgRootCjMulti`
+  # (block-group work-balanced partition + binary-search key loop)
+  # instead of the standard grid-stride root_unique_values loop.
+  # Cleared when descending into the body (the BG root's narrowed
+  # handle already restricts work to this warp's slice).
+  bg_enabled: bool = False
   # State-key -> handle var name. Lets nested CJ find the parent
   # handle to alias by the same (rel, cols, prefix_vars, ver) key
   # that the outer CJ used to register it.
@@ -580,7 +591,13 @@ def _lower_root_cj_multi(
   trajectory starting from saved=0; then outer names are allocated
   starting from saved=0 again. Body and outer have overlapping
   counter ranges but different prefixes — the legacy convention.
+
+  When `ctx.bg_enabled` is set, dispatches to `_lower_root_cj_bg`
+  (block-group work-balanced variant — N4.1).
   '''
+  if ctx.bg_enabled:
+    return _lower_root_cj_bg(cj_op, rest, ctx)
+
   num_sources = len(cj_op.sources)
   assert num_sources >= 2
 
@@ -809,6 +826,139 @@ def _lower_root_cj_multi(
     body=loop_body,
   )
   outer_stmts.append(ParallelFor(strategy='warp_strided', body=loop))
+
+  return Block(stmts=tuple(outer_stmts))
+
+
+# -----------------------------------------------------------------------------
+# Root multi-source ColumnJoin — block-group variant (N4.1)
+# -----------------------------------------------------------------------------
+
+
+def _lower_root_cj_bg(
+  cj_op: mir.ColumnJoin,
+  rest: list[mir.MirNode],
+  ctx: LoweringCtx,
+) -> Op:
+  '''Lower a root multi-source ColumnJoin in BG (block-group) mode.
+
+  Mirrors legacy `jit_root_column_join_block_group` in
+  `codegen/jit/root.py`. Body renders with `ctx.bg_enabled = False`
+  (the BG root's narrowed handle already restricts work to this
+  warp's slice, so nested ops use the standard parallel emission).
+
+  The whole BG scaffold (work assignment preamble, binary search,
+  per-key loop, per-source narrowing, warp-row redistribution,
+  optional D2L segment loops) bundles into a single `BgRootCjMulti`
+  op so the dialect's emit can reproduce the legacy structure
+  byte-for-byte.
+
+  Counter trajectory matches legacy: register state keys + bind var
+  before body render so deeper ops can find handles by state key,
+  render body (which bumps counter freely), restore counter to the
+  saved point, then allocate our own counter-bumped scaffold names.
+  '''
+  num_sources = len(cj_op.sources)
+  assert num_sources >= 2
+
+  # Step 1: register state keys + bind join var so the body's nested
+  # CJ can find the outer handles by state key. Names of outer
+  # handles are deterministic `h_<rel>_<src>_root`.
+  source_handle_names: list[str] = []
+  source_view_names: list[str] = []
+  source_view_counts: list[int] = []
+  source_base_slots: list[int] = []
+  source_index_types: list[str] = []
+  registered_state_keys: list[str] = []
+
+  for src in cj_op.sources:
+    assert isinstance(src, mir.ColumnSource)
+    handle_var = f'h_{src.rel_name}_{src.handle_start}_root'
+    source_handle_names.append(handle_var)
+
+    src_view = ctx.view_var_names.get(str(src.handle_start), '')
+    if not src_view:
+      raise ValueError(
+        f'_lower_root_cj_bg: no view var for source handle_idx '
+        f'{src.handle_start}'
+      )
+    source_view_names.append(src_view)
+    idx_type = ctx.rel_index_types.get(src.rel_name, '')
+    source_index_types.append(idx_type)
+    source_view_counts.append(view_count(src.version.code, idx_type))
+    source_base_slots.append(
+      ctx.view_slot_bases.get(str(src.handle_start), src.handle_start)
+    )
+
+    state_key = _state_key(
+      src.rel_name, list(src.index), [cj_op.var_name], src.version
+    )
+    ctx.handle_vars[state_key] = handle_var
+    registered_state_keys.append(state_key)
+
+  ctx.bound_vars.append(cj_op.var_name)
+
+  # Step 2: render body with bg_enabled cleared. The narrowed first-
+  # source handle already restricts work, so nested ops use standard
+  # warp-strided dispatch. Save/restore counter to mirror legacy.
+  saved_counter = ctx.name_counter
+  saved_bg_enabled = ctx.bg_enabled
+  ctx.bg_enabled = False
+  try:
+    body_op = _lower_inner_chain(rest, ctx)
+  finally:
+    ctx.bg_enabled = saved_bg_enabled
+  ctx.name_counter = saved_counter
+
+  ctx.bound_vars.pop()
+  for k in registered_state_keys:
+    ctx.handle_vars.pop(k, None)
+
+  # Step 3: allocate our outer-scope names. Order matches legacy
+  # `jit_root_column_join_block_group` (key_idx, root_val, then
+  # hint_lo/hint_hi for the first source).
+  key_idx_var = ctx.fresh('bg_key_idx')
+  root_val_var = ctx.fresh('root_val')
+  hint_lo = ctx.fresh('hint_lo')
+  hint_hi = ctx.fresh('hint_hi')
+
+  source_specs = tuple(
+    BgSourceSpec(
+      rel_name=src.rel_name,
+      view_var=source_view_names[i],
+      handle_var=source_handle_names[i],
+      view_count=source_view_counts[i],
+      base_slot=source_base_slots[i],
+      index_type=source_index_types[i],
+    )
+    for i, src in enumerate(cj_op.sources)
+    if isinstance(src, mir.ColumnSource)
+  )
+
+  outer_stmts: list[Op] = []
+  if ctx.debug:
+    outer_stmts.append(
+      Comment(
+        text=f'Root ColumnJoin (BLOCK-GROUP): bind \'{cj_op.var_name}\' '
+        f'from {num_sources} sources'
+      )
+    )
+    outer_stmts.append(
+      Comment(text='Block-group work-balanced partitioning with inner redistribution')
+    )
+
+  outer_stmts.append(
+    BgRootCjMulti(
+      var_name=_sanitize_var_name(cj_op.var_name),
+      is_counting=ctx.is_counting,
+      key_idx_var=key_idx_var,
+      root_val_var=root_val_var,
+      hint_lo=hint_lo,
+      hint_hi=hint_hi,
+      sources=source_specs,
+      body=body_op,
+    )
+  )
 
   return Block(stmts=tuple(outer_stmts))
 

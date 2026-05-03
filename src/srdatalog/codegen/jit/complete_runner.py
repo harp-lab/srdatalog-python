@@ -580,19 +580,20 @@ def _gen_kernel_bg_count(
     code += "    using OutputCtx = SRDatalog::GPU::OutputContext<ValueType, SR, true, Layout, 0>;\n"
   code += "    OutputCtx output_ctx{nullptr, nullptr, 0, 0};\n\n"
 
-  ctx = _make_kernel_ctx(
-    node.source_specs,
-    pipeline,
-    rel_index_types,
-    is_counting=True,
-    bg_enabled=True,
-    output_var_name="output_ctx",
-  )
+  output_vars: dict[str, str] = {}
   if node.dest_specs:
-    ctx.output_vars[node.dest_specs[0].rel_name] = "output_ctx"
+    output_vars[node.dest_specs[0].rel_name] = "output_ctx"
     for i in range(1, len(node.dest_specs)):
-      ctx.output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
-  code += jit_pipeline(pipeline, node.source_specs, ctx)
+      output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
+  from srdatalog.compile import compile_kernel_body
+  code += compile_kernel_body(
+    node,
+    is_counting=True,
+    output_var_name="output_ctx",
+    output_vars=output_vars,
+    rel_index_types=rel_index_types,
+    bg_enabled=True,
+  )
   code += "    thread_counts[thread_id] = output_ctx.count();\n"
   code += "  }\n\n"
   return code
@@ -635,14 +636,8 @@ def _gen_kernel_bg_materialize(
   code += "    uint32_t num_threads = num_warps;\n"
   code += "    uint32_t thread_offset = thread_offsets[thread_id];\n\n"
 
-  ctx = _make_kernel_ctx(
-    node.source_specs,
-    pipeline,
-    rel_index_types,
-    is_counting=False,
-    tiled_cartesian=False,
-    bg_enabled=True,
-  )
+  output_vars: dict[str, str] = {}
+  output_var_name = 'output'
   for i, dest in enumerate(dest_specs):
     output_var = f"output_ctx_{i}"
     arity_const = f"OutputArity_{i}"
@@ -655,11 +650,19 @@ def _gen_kernel_bg_materialize(
       f"{{output_data_{i}, output_prov_{i}, output_stride_{i}, "
       f"old_size_{i} + thread_offset}};\n"
     )
-    ctx.output_vars[dest.rel_name] = output_var
+    output_vars[dest.rel_name] = output_var
     if i == 0:
-      ctx.output_var_name = output_var
+      output_var_name = output_var
   code += "\n"
-  code += jit_pipeline(pipeline, node.source_specs, ctx)
+  from srdatalog.compile import compile_kernel_body
+  code += compile_kernel_body(
+    node,
+    is_counting=False,
+    output_var_name=output_var_name,
+    output_vars=output_vars,
+    rel_index_types=rel_index_types,
+    bg_enabled=True,
+  )
   code += "  }\n\n"
   return code
 
@@ -712,18 +715,16 @@ def _gen_kernel_bg_fused(
       f"old_size_{j}, capacity}};\n\n"
     )
 
-  ctx = _make_kernel_ctx(
-    node.source_specs,
-    pipeline,
-    rel_index_types,
+  output_vars = {dest.rel_name: f"output_ctx_{i}" for i, dest in enumerate(dest_specs)}
+  from srdatalog.compile import compile_kernel_body
+  code += compile_kernel_body(
+    node,
     is_counting=False,
-    tiled_cartesian=False,
+    output_var_name="output_ctx_0",
+    output_vars=output_vars,
+    rel_index_types=rel_index_types,
     bg_enabled=True,
   )
-  for i, dest in enumerate(dest_specs):
-    ctx.output_vars[dest.rel_name] = f"output_ctx_{i}"
-  ctx.output_var_name = "output_ctx_0"
-  code += jit_pipeline(pipeline, node.source_specs, ctx)
   for j in range(len(dest_specs)):
     code += f"    output_ctx_{j}.flush();\n"
   code += "  }\n\n"

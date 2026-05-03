@@ -15,7 +15,7 @@ codegen writes to its own JIT cache — they self-contain the schema +
 DB type alias, so the same compile flags / external deps that work
 for Nim's output work here too.
 
-This module is a thin wrapper over `srdatalog.pipeline.compile_program`
+This module is a thin wrapper over `srdatalog.ir.pipeline.compile_program`
 plus the file-emitting layer (`cache.write_jit_project` + optional
 shard/main file emission). The compile phase lives in `pipeline.py`
 so viz / other consumers can share it without touching disk.
@@ -33,7 +33,7 @@ from srdatalog.ir.dialects.target.cuda.main_file import (
   gen_step_shard_file,
   gen_unity_main_file_content,
 )
-from srdatalog.pipeline import compile_program
+from srdatalog.ir.pipeline import compile_program
 
 if TYPE_CHECKING:
   from srdatalog.dsl import Program

@@ -98,17 +98,17 @@ def test_tc_rec_sexpr_roundtrip():
   ops = lower_variant_to_pipeline(variant, hir.strata[2])
   sexpr = "\n".join(print_mir_sexpr(op) for op in ops)
   expected = (
-    "(column-join :var y\n"
-    "  :sources (\n"
-    "    (column-source :index (Path 1 0) :ver DELTA :prefix ())\n"
-    "    (column-source :index (Edge 0 1) :ver FULL :prefix ())\n"
+    "(column-join #:var y\n"
+    "  #:sources (\n"
+    "    (column-source #:index (Path 1 0) #:ver DELTA #:prefix ())\n"
+    "    (column-source #:index (Edge 0 1) #:ver FULL #:prefix ())\n"
     "  ))\n"
-    "(cartesian-join :vars (x z) :var-from-source ((x) (z))\n"
-    "  :sources (\n"
-    "    (column-source :index (Path 1 0) :ver DELTA :prefix (y))\n"
-    "    (column-source :index (Edge 0 1) :ver FULL :prefix (y))\n"
+    "(cartesian-join #:vars (x z) #:var-from-source ((x) (z))\n"
+    "  #:sources (\n"
+    "    (column-source #:index (Path 1 0) #:ver DELTA #:prefix (y))\n"
+    "    (column-source #:index (Edge 0 1) #:ver FULL #:prefix (y))\n"
     "  ))\n"
-    "(insert-into :schema Path :ver NEW :dedup-index (1 0) :terms (x z))"
+    "(insert-into #:schema Path #:ver NEW #:dedup-index (1 0) #:terms (x z))"
   )
   assert sexpr == expected
 

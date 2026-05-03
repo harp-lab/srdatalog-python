@@ -17,7 +17,7 @@ struct JitRunner_StackDefUsed1 {
   static constexpr int kBlockSize = 256;
   static constexpr int kGroupSize = 32;
   static constexpr std::size_t OutputArity_0 = 6;
-  static constexpr std::size_t OutputArity = OutputArity_0; // Legacy alias
+  static constexpr std::size_t OutputArity = OutputArity_0;  // Legacy alias
   static constexpr std::size_t NumSources = 2;
 
   // Non-template kernel_count (concrete ViewType)
@@ -139,14 +139,6 @@ struct JitRunner_StackDefUsed1 {
     uint32_t num_threads = num_warps;  // Alias for scalar mode (kGroupSize=1)
     uint32_t thread_offset = thread_offsets[thread_id];
 
-    // Tiled Cartesian: per-warp smem tiles + coalesced write state
-    constexpr int kWarpsPerBlock = kBlockSize / kGroupSize;
-    constexpr int kCartTileSize = 256;
-    __shared__ ValueType s_cart[kWarpsPerBlock][2][kCartTileSize];
-    uint32_t warp_in_block = threadIdx.x / kGroupSize;
-    uint32_t warp_write_base = tile.shfl(thread_offset, 0);  // broadcast lane 0 offset
-    uint32_t warp_local_count = 0;
-
     using OutputCtx_0 = SRDatalog::GPU::OutputContext<ValueType, SR, false, Layout, OutputArity_0>;
     OutputCtx_0 output_ctx_0{output_data_0, output_prov_0, output_stride_0, old_size_0 + thread_offset};
 
@@ -175,109 +167,55 @@ struct JitRunner_StackDefUsed1 {
           auto eaUsed = root_val_2;
         // Nested ColumnJoin (intersection): bind 'varr' from 2 sources
         // MIR: (column-join :var varr :sources ((StackDefUseUsed :handle 2 :prefix (eaUsed)) (StackDefUseBlockLastDef :handle 3 :prefix (eaUsed)) ))
-        auto h_StackDefUseUsed_2_24 = h_StackDefUseUsed_0_root;
-        auto h_StackDefUseBlockLastDef_3_25 = h_StackDefUseBlockLastDef_1_root;
-        auto intersect_26 = intersect_handles(tile, h_StackDefUseUsed_2_24.iterators(view_StackDefUseUsed_0_1_2_3_FULL_VER), h_StackDefUseBlockLastDef_3_25.iterators(view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER));
-        for (auto it_27 = intersect_26.begin(); it_27.valid(); it_27.next()) {
-          auto varr = it_27.value();
-          auto positions = it_27.positions();
-          auto ch_StackDefUseUsed_2_varr = h_StackDefUseUsed_2_24.child_range(positions[0], varr, tile, view_StackDefUseUsed_0_1_2_3_FULL_VER);
-          auto ch_StackDefUseBlockLastDef_3_varr = h_StackDefUseBlockLastDef_3_25.child_range(positions[1], varr, tile, view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER);
+        auto h_StackDefUseUsed_2_16 = h_StackDefUseUsed_0_root;
+        auto h_StackDefUseBlockLastDef_3_17 = h_StackDefUseBlockLastDef_1_root;
+        auto intersect_18 = intersect_handles(tile, h_StackDefUseUsed_2_16.iterators(view_StackDefUseUsed_0_1_2_3_FULL_VER), h_StackDefUseBlockLastDef_3_17.iterators(view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER));
+        for (auto it_19 = intersect_18.begin(); it_19.valid(); it_19.next()) {
+          auto varr = it_19.value();
+          auto positions = it_19.positions();
+          auto ch_StackDefUseUsed_2_varr = h_StackDefUseUsed_2_16.child_range(positions[0], varr, tile, view_StackDefUseUsed_0_1_2_3_FULL_VER);
+          auto ch_StackDefUseBlockLastDef_3_varr = h_StackDefUseBlockLastDef_3_17.child_range(positions[1], varr, tile, view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER);
         // Nested ColumnJoin (intersection): bind 'varp' from 2 sources
         // MIR: (column-join :var varp :sources ((StackDefUseUsed :handle 4 :prefix (eaUsed varr)) (StackDefUseBlockLastDef :handle 5 :prefix (eaUsed varr)) ))
-        auto h_StackDefUseUsed_4_20 = ch_StackDefUseUsed_2_varr;
-        auto h_StackDefUseBlockLastDef_5_21 = ch_StackDefUseBlockLastDef_3_varr;
-        auto intersect_22 = intersect_handles(tile, h_StackDefUseUsed_4_20.iterators(view_StackDefUseUsed_0_1_2_3_FULL_VER), h_StackDefUseBlockLastDef_5_21.iterators(view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER));
-        for (auto it_23 = intersect_22.begin(); it_23.valid(); it_23.next()) {
-          auto varp = it_23.value();
-          auto positions = it_23.positions();
-          auto ch_StackDefUseUsed_4_varp = h_StackDefUseUsed_4_20.child_range(positions[0], varp, tile, view_StackDefUseUsed_0_1_2_3_FULL_VER);
-          auto ch_StackDefUseBlockLastDef_5_varp = h_StackDefUseBlockLastDef_5_21.child_range(positions[1], varp, tile, view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER);
+        auto h_StackDefUseUsed_4_12 = ch_StackDefUseUsed_2_varr;
+        auto h_StackDefUseBlockLastDef_5_13 = ch_StackDefUseBlockLastDef_3_varr;
+        auto intersect_14 = intersect_handles(tile, h_StackDefUseUsed_4_12.iterators(view_StackDefUseUsed_0_1_2_3_FULL_VER), h_StackDefUseBlockLastDef_5_13.iterators(view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER));
+        for (auto it_15 = intersect_14.begin(); it_15.valid(); it_15.next()) {
+          auto varp = it_15.value();
+          auto positions = it_15.positions();
+          auto ch_StackDefUseUsed_4_varp = h_StackDefUseUsed_4_12.child_range(positions[0], varp, tile, view_StackDefUseUsed_0_1_2_3_FULL_VER);
+          auto ch_StackDefUseBlockLastDef_5_varp = h_StackDefUseBlockLastDef_5_13.child_range(positions[1], varp, tile, view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER);
         // Nested CartesianJoin: bind _gen27, eaDef from 2 source(s)
         // MIR: (cartesian-join :vars (_gen27 eaDef) :sources ((StackDefUseUsed :handle 6 :prefix (eaUsed varr varp)) (StackDefUseBlockLastDef :handle 7 :prefix (eaUsed varr varp)) ))
-        uint32_t lane_2 = tile.thread_rank();
-        uint32_t group_size_3 = tile.size();
+        uint32_t lane_1 = tile.thread_rank();
+        uint32_t group_size_2 = tile.size();
 
-        auto h_StackDefUseUsed_6_5 = ch_StackDefUseUsed_4_varp;  // reusing narrowed handle
-        auto h_StackDefUseBlockLastDef_7_7 = ch_StackDefUseBlockLastDef_5_varp;  // reusing narrowed handle
+        auto h_StackDefUseUsed_6_4 = ch_StackDefUseUsed_4_varp;  // reusing narrowed handle
+        auto h_StackDefUseBlockLastDef_7_6 = ch_StackDefUseBlockLastDef_5_varp;  // reusing narrowed handle
 
-        if (!h_StackDefUseUsed_6_5.valid() || !h_StackDefUseBlockLastDef_7_7.valid()) continue;
+        if (!h_StackDefUseUsed_6_4.valid() || !h_StackDefUseBlockLastDef_7_6.valid()) continue;
 
-        uint32_t degree_4 = h_StackDefUseUsed_6_5.degree();
-        uint32_t degree_6 = h_StackDefUseBlockLastDef_7_7.degree();
-        uint32_t total_8 = degree_4 * degree_6;
-        if (total_8 == 0) continue;
+        uint32_t degree_3 = h_StackDefUseUsed_6_4.degree();
+        uint32_t degree_5 = h_StackDefUseBlockLastDef_7_6.degree();
+        uint32_t total_7 = degree_3 * degree_5;
+        if (total_7 == 0) continue;
 
-        if (total_8 > 32) {
-          // Tiled Cartesian: smem pre-load reads, standard emit_direct writes
-          for (uint32_t t0_base_10 = 0; t0_base_10 < degree_4; t0_base_10 += kCartTileSize) {
-            uint32_t t0_len_12 = min(t0_base_10 + (uint32_t)kCartTileSize, degree_4) - t0_base_10;
-            for (uint32_t _ti = lane_2; _ti < t0_len_12; _ti += group_size_3)
-              s_cart[warp_in_block][0][_ti] = view_StackDefUseUsed_0_1_2_3_FULL_VER.get_value(3, h_StackDefUseUsed_6_5.begin() + t0_base_10 + _ti);
-            for (uint32_t t1_base_11 = 0; t1_base_11 < degree_6; t1_base_11 += kCartTileSize) {
-              uint32_t t1_len_13 = min(t1_base_11 + (uint32_t)kCartTileSize, degree_6) - t1_base_11;
-              for (uint32_t _ti = lane_2; _ti < t1_len_13; _ti += group_size_3)
-                s_cart[warp_in_block][1][_ti] = view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER.get_value(3, h_StackDefUseBlockLastDef_7_7.begin() + t1_base_11 + _ti);
-              tile.sync();
-              uint32_t tile_total_14 = t0_len_12 * t1_len_13;
-              for (uint32_t tc_batch_15 = 0; tc_batch_15 < tile_total_14; tc_batch_15 += group_size_3) {
-                uint32_t flat_idx_9 = tc_batch_15 + lane_2;
-                bool tc_valid_1 = flat_idx_9 < tile_total_14;
-                auto _gen27 = tc_valid_1 ? s_cart[warp_in_block][0][flat_idx_9 / t1_len_13] : ValueType{0};
-                auto eaDef = tc_valid_1 ? s_cart[warp_in_block][1][flat_idx_9 % t1_len_13] : ValueType{0};
+        for (uint32_t flat_idx_8 = lane_1; flat_idx_8 < total_7; flat_idx_8 += group_size_2) {
+          const bool major_is_1_11 = (degree_5 >= degree_3);
+          uint32_t idx0_9, idx1_10;
+          if (major_is_1_11) {
+            idx0_9 = flat_idx_8 / degree_5;
+            idx1_10 = flat_idx_8 % degree_5;
+          } else {
+            idx1_10 = flat_idx_8 / degree_3;
+            idx0_9 = flat_idx_8 % degree_3;
+          }
+
+          auto _gen27 = view_StackDefUseUsed_0_1_2_3_FULL_VER.get_value(3, h_StackDefUseUsed_6_4.begin() + idx0_9);
+          auto eaDef = view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER.get_value(3, h_StackDefUseBlockLastDef_7_6.begin() + idx1_10);
+
         // Emit: StackDefUseDefUsed(eaDef, varr, varp, eaUsed, varr, varp)
-        {
-          uint32_t _tc_ballot = tile.ballot(tc_valid_1);
-          uint32_t _tc_active = __popc(_tc_ballot);
-          if (_tc_active > 0) {
-            uint32_t _tc_mask = (1u << tile.thread_rank()) - 1u;
-            uint32_t _tc_off = __popc(_tc_ballot & _tc_mask);
-            if (tc_valid_1) {
-              uint32_t _tc_pos_0 = old_size_0 + warp_write_base + warp_local_count + _tc_off;
-              output_data_0[0 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = eaDef;
-              output_data_0[1 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = varr;
-              output_data_0[2 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = varp;
-              output_data_0[3 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = eaUsed;
-              output_data_0[4 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = varr;
-              output_data_0[5 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = varp;
-            }
-            warp_local_count += _tc_active;
-          }
-        }
-              }
-              tile.sync();
-            }
-          }
-        } else {
-          for (uint32_t fb_batch_16 = 0; fb_batch_16 < total_8; fb_batch_16 += group_size_3) {
-            uint32_t flat_idx_9 = fb_batch_16 + lane_2;
-            bool tc_valid_1 = flat_idx_9 < total_8;
-            const bool major_is_1_17 = (degree_6 >= degree_4);
-            uint32_t idx0_18, idx1_19;
-            if (major_is_1_17) { idx0_18 = flat_idx_9 / degree_6; idx1_19 = flat_idx_9 % degree_6; }
-            else { idx1_19 = flat_idx_9 / degree_4; idx0_18 = flat_idx_9 % degree_4; }
-            auto _gen27 = view_StackDefUseUsed_0_1_2_3_FULL_VER.get_value(3, h_StackDefUseUsed_6_5.begin() + idx0_18);
-            auto eaDef = view_StackDefUseBlockLastDef_0_2_3_1_FULL_VER.get_value(3, h_StackDefUseBlockLastDef_7_7.begin() + idx1_19);
-        // Emit: StackDefUseDefUsed(eaDef, varr, varp, eaUsed, varr, varp)
-        {
-          uint32_t _tc_ballot = tile.ballot(tc_valid_1);
-          uint32_t _tc_active = __popc(_tc_ballot);
-          if (_tc_active > 0) {
-            uint32_t _tc_mask = (1u << tile.thread_rank()) - 1u;
-            uint32_t _tc_off = __popc(_tc_ballot & _tc_mask);
-            if (tc_valid_1) {
-              uint32_t _tc_pos_0 = old_size_0 + warp_write_base + warp_local_count + _tc_off;
-              output_data_0[0 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = eaDef;
-              output_data_0[1 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = varr;
-              output_data_0[2 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = varp;
-              output_data_0[3 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = eaUsed;
-              output_data_0[4 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = varr;
-              output_data_0[5 * static_cast<uint32_t>(output_stride_0) + _tc_pos_0] = varp;
-            }
-            warp_local_count += _tc_active;
-          }
-        }
-          }
+        output_ctx_0.emit_direct(eaDef, varr, varp, eaUsed, varr, varp);
         }
         }
         }
@@ -481,7 +419,10 @@ JitRunner_StackDefUsed1::LaunchParams JitRunner_StackDefUsed1::setup(DB& db, uin
 
 void JitRunner_StackDefUsed1::launch_count(LaunchParams& p, GPU_STREAM_T stream) {
   if (p.num_threads == 0) return;
-  if (p.num_unique_root_keys == 0) { cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream); return; }
+  if (p.num_unique_root_keys == 0) {
+    cudaMemsetAsync(p.thread_counts_ptr, 0, p.num_threads * sizeof(uint32_t), stream);
+    return;
+  }
   kernel_count<<<p.num_blocks, kBlockSize, 0, stream>>>(p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys, p.thread_counts_ptr);
 }
 
@@ -522,8 +463,7 @@ void JitRunner_StackDefUsed1::launch_materialize(DB& db, LaunchParams& p, uint32
   uint32_t old_size_0 = p.old_size_0;
   kernel_materialize<<<p.num_blocks, kBlockSize, 0, stream>>>(
       p.d_views.data(), p.root_unique_values_ptr, p.num_unique_root_keys, p.num_root_keys,
-      p.thread_counts_ptr,
-      dest_rel_0.template interned_column<0>(), prov_ptr, dest_rel_0.interned_stride(), old_size_0);
+      p.thread_counts_ptr, dest_rel_0.template interned_column<0>(), prov_ptr, dest_rel_0.interned_stride(), old_size_0);
 }
 
 // launch_fused: launch fused kernel on given stream (no sync)

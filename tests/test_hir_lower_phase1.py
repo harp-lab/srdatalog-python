@@ -63,8 +63,8 @@ def test_edge_load_sexpr_roundtrip():
   ops = lower_variant_to_pipeline(hir.strata[0].base_variants[0], hir.strata[0])
   sexpr = "\n".join(print_mir_sexpr(op) for op in ops)
   assert sexpr == (
-    "(scan :vars (x y) :index (ArcInput 0 1) :ver FULL :prefix ())\n"
-    "(insert-into :schema Edge :ver NEW :dedup-index (0 1) :terms (x y))"
+    "(scan #:vars (x y) #:index (ArcInput 0 1) #:ver FULL #:prefix ())\n"
+    "(insert-into #:schema Edge #:ver NEW #:dedup-index (0 1) #:terms (x y))"
   )
 
 

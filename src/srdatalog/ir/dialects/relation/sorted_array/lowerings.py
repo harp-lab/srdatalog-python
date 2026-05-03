@@ -1738,7 +1738,17 @@ def _lower_nested_cart(
   # Pre-narrow handle bindings — between total/0 check and flat
   # loop. Each info emits a comment + zero or more const_prefix
   # binds + the final var_name bind.
-  for info, const_var_names in pre_narrow_emissions:
+  #
+  # Emission order: Nim's `Table[int, ...]` hash-bucket order over
+  # the negation handle indices. Counter-suffix names (`_neg_pre_<n>`)
+  # were already allocated at registration time (forward), so reordering
+  # only the EMIT order keeps the names stable while matching Nim
+  # byte-for-byte. F2 fix; see ddisasm StackLiveVarPriorUsed
+  # (handles 8, 9 → Nim emits handle 9 first because hashWangYi1(9)&63
+  # = 3 < hashWangYi1(8)&63 = 54).
+  emit_order_indices = _nim_table_iter_order(registered_neg_idxs)
+  for emit_idx in emit_order_indices:
+    info, const_var_names = pre_narrow_emissions[emit_idx]
     if ctx.debug:
       stmts.append(
         Comment(
@@ -2229,6 +2239,51 @@ def _scan_var_used(
   byte-for-byte.
   '''
   return any(_var_used_in_op(var_name, op) for op in (*middle, *inserts))
+
+
+def _nim_int_hash(x: int) -> int:
+  '''Port of Nim 2.x `hash(x: int)` = `hashWangYi1(uint64(x))`.
+
+  Nim's default `Table[int, V]` uses this hash for the slot calc
+  `slot = hash(key) & (cap - 1)`. We reproduce it bit-exact so the
+  pre-narrow Negation emit order matches the Nim reference.
+  '''
+  P0 = 0xA0761D6478BD642F
+  P1 = 0xE7037ED1A0B428DB
+  P58 = 0xEB44ACCAB455D165 ^ 8
+  mask64 = (1 << 64) - 1
+
+  def hi_xor_lo(a: int, b: int) -> int:
+    prod = (a * b) & ((1 << 128) - 1)
+    return ((prod >> 64) ^ (prod & mask64)) & mask64
+
+  return hi_xor_lo(hi_xor_lo(P0, (x & mask64) ^ P1), P58)
+
+
+def _nim_table_iter_order(keys: list[int], cap: int = 64) -> list[int]:
+  '''Indices into `keys` in Nim `Table[int, ...]` iteration order.
+
+  Reproduces Nim's `Table` insert + iterate behavior:
+    - slot = `hashWangYi1(key) & (cap - 1)`
+    - linear-probe forward on collision (`(h + 1) & (cap - 1)`)
+    - iterate slots in ascending order
+
+  `cap=64` matches Nim's `defaultInitialSize` for Table (rehashing
+  doesn't fire below the load-factor threshold for any pre-narrow
+  count we hit in practice).
+
+  Returns a permutation of `range(len(keys))` — the order in which
+  the caller should walk its parallel `keys`-indexed list.
+  '''
+  if not keys:
+    return []
+  slots: list[int] = [-1] * cap
+  for i, k in enumerate(keys):
+    h = _nim_int_hash(k) & (cap - 1)
+    while slots[h] != -1:
+      h = (h + 1) & (cap - 1)
+    slots[h] = i
+  return [s for s in slots if s != -1]
 
 
 def _state_key(

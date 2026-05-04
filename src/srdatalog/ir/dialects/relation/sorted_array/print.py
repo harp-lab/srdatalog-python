@@ -66,9 +66,7 @@ def print_op(op, indent: int = 0) -> str:
     )
 
   if isinstance(op, SaHint):
-    return p + (
-      f'(sa-hint #:lo-var {op.lo_var} #:hi-var {op.hi_var} #:depth {op.depth})'
-    )
+    return p + (f'(sa-hint #:lo-var {op.lo_var} #:hi-var {op.hi_var} #:depth {op.depth})')
 
   if isinstance(op, SaPrefCoop):
     parent = print_iir(op.parent, indent + 1)
@@ -93,10 +91,7 @@ def print_op(op, indent: int = 0) -> str:
     )
 
   if isinstance(op, SaIterators):
-    return (
-      p
-      + f'(sa-iterators #:handle-name {op.handle_name} #:view-name {op.view_name})'
-    )
+    return p + f'(sa-iterators #:handle-name {op.handle_name} #:view-name {op.view_name})'
 
   if isinstance(op, SaChildRange):
     return (

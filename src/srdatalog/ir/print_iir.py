@@ -1,7 +1,7 @@
 '''Print_i — canonical s-expression form for IIR ops.
 
-Per [`docs/stage3a_execution_plan.md` §1](../../../docs/stage3a_execution_plan.md),
-"Print" is one of the three distinct operations on IR data:
+See ``docs/stage3a_execution_plan.md`` §1 for the binding vocabulary.
+Print is one of three distinct operations on IR data:
 
     Lowering  D1.Op → D2.Op*  (data → data, framework-dispatched)
     Render    D.Op  → str     (data → target text, codegen-dispatched)

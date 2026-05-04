@@ -88,12 +88,7 @@ def print_op(op, indent: int = 0) -> str:
   if isinstance(op, Bind):
     expr = print_iir(op.expr, indent + 1)
     return (
-      p
-      + f'(bind #:name {op.name} #:type-decl {op.type_decl}\n'
-      + p
-      + '  #:expr\n'
-      + expr
-      + ')'
+      p + f'(bind #:name {op.name} #:type-decl {op.type_decl}\n' + p + '  #:expr\n' + expr + ')'
     )
 
   if isinstance(op, VarRef):
@@ -112,9 +107,7 @@ def print_op(op, indent: int = 0) -> str:
   if isinstance(op, If):
     cond = print_iir(op.cond, indent + 1)
     body = print_iir(op.body, indent + 1)
-    return (
-      p + '(if\n' + p + '  #:cond\n' + cond + '\n' + p + '  #:body\n' + body + ')'
-    )
+    return p + '(if\n' + p + '  #:cond\n' + cond + '\n' + p + '  #:body\n' + body + ')'
 
   # --- Cartesian decomposition ---
 
@@ -201,12 +194,7 @@ def print_op(op, indent: int = 0) -> str:
       return p + f'(write-output #:output-var {op.output_var})'
     values = '\n'.join(print_iir(v, indent + 2) for v in op.values)
     return (
-      p
-      + f'(write-output #:output-var {op.output_var}\n'
-      + p
-      + '  #:values (\n'
-      + values
-      + '))'
+      p + f'(write-output #:output-var {op.output_var}\n' + p + '  #:values (\n' + values + '))'
     )
 
   if isinstance(op, AddCount):
@@ -235,12 +223,7 @@ def print_op(op, indent: int = 0) -> str:
       )
     outs = '\n'.join(out_lines)
     return (
-      p
-      + f'(tiled-ballot-block #:valid-var {op.valid_var}\n'
-      + p
-      + '  #:outputs (\n'
-      + outs
-      + '))'
+      p + f'(tiled-ballot-block #:valid-var {op.valid_var}\n' + p + '  #:outputs (\n' + outs + '))'
     )
 
   # --- Indent anchor ---

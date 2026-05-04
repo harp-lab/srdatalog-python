@@ -69,3 +69,37 @@ __all__ = [
   'SaValid',
   'SaView',
 ]
+
+
+# ---------------------------------------------------------------------------
+# Pass registration (S3A.4)
+# ---------------------------------------------------------------------------
+#
+# Wires the MIR→IIR entry point (`lower_scan_pipeline`) into the
+# framework registry. Production code today still calls the lowering
+# directly via `compile_kernel_body`; this registration makes it
+# discoverable via PassDriver and pins its (consumes, produces) for
+# dependency validation.
+#
+# The body of `lower_scan_pipeline` is unchanged — this is a thin
+# adapter that takes a MIR ExecutePipeline and forwards its `pipeline`
+# list to the existing function. Future stages may move callers onto
+# the registry-driven dispatch path; for now both paths coexist.
+
+
+def _register_passes() -> None:
+  import srdatalog.ir.mir.types as mir
+  from srdatalog.ir.core.passes import lowering
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings import lower_scan_pipeline
+
+  @lowering(
+    DIALECT,
+    mir.ExecutePipeline,
+    consumes=('mir',),
+    produces=('iir.cf', 'relation.sorted_array', 'relation.d2l', 'parallel.data'),
+  )
+  def lower_execute_pipeline(ep, ctx):  # noqa: ARG001 - ctx forwarded
+    return lower_scan_pipeline(ep.pipeline, ctx)
+
+
+_register_passes()

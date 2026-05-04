@@ -81,6 +81,8 @@ def compile_to_hir(program: Program, verbose: bool = False) -> HirProgram:
 
 def compile_to_mir(
   program: Program,
+  *,
+  hir: HirProgram | None = None,
   verbose: bool = False,
   apply_mir_passes: bool = True,
 ):
@@ -89,11 +91,17 @@ def compile_to_mir(
   By default runs the ported MIR optimization passes (pre_reconstruct_rebuild,
   clause_order_reorder, prefix_source_reorder). Pass `apply_mir_passes=False`
   to stop at the raw output of `lower_hir_to_mir_steps`.
+
+  Pass `hir=...` to reuse an already-computed HirProgram. The default
+  (`hir=None`) runs `compile_to_hir(program, verbose=verbose)` internally.
+  Callers that already have HIR (e.g. `ir.pipeline.compile_program`)
+  should pass it to avoid the redundant pass.
   '''
   import srdatalog.ir.mir.types as mir
   from srdatalog.ir.hir.lower import lower_hir_to_mir_steps
 
-  hir = compile_to_hir(program, verbose=verbose)
+  if hir is None:
+    hir = compile_to_hir(program, verbose=verbose)
   steps = lower_hir_to_mir_steps(hir)
   if apply_mir_passes:
     from srdatalog.ir.mir.passes import apply_all_mir_passes

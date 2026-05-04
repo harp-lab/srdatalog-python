@@ -35,7 +35,7 @@ Compared to `relation.sorted_array` (single-view-per-source DSAI):
 
   - BG histogram segment-aware degree: BG histogram non-first sources
     accumulate degree across both segments before validity checks.
-    Lives in `parallel.data.block_group.emit_bg_histogram_kernel`
+    Lives in `codegen.cuda.render.parallel_data.emit_bg_histogram_kernel`
     (which already handles `view_count > 1`).
 
 Planned ops (N5.x):

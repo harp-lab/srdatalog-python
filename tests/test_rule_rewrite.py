@@ -12,7 +12,7 @@ from srdatalog.dsl import ArgKind, Atom, Filter, Let, Program, Relation, Var
 from srdatalog.ir.hir import compile_to_hir, compile_to_mir
 from srdatalog.ir.hir.emit import hir_to_obj
 from srdatalog.ir.hir.rule_rewrite import rewrite_constants, rewrite_head_constants
-from srdatalog.ir.mir.emit import print_mir_sexpr
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 

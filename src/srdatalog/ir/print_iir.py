@@ -18,7 +18,7 @@ parallel.data) ships a `print.py` with:
 owning dialect's `print_op`. Children inside an op recurse through
 `print_iir` so a sub-tree mixing dialects renders cleanly.
 
-Mirrors `mir/emit.py` (the MIR s-expr printer) in style: Racket-canonical
+Mirrors `mir/print.py` (the MIR s-expr printer) in style: Racket-canonical
 `#:keyword` form, two-space indent per level, parens-balanced.
 
 Test surface: byte-equal s-expr at the IIR layer. See
@@ -39,12 +39,12 @@ if TYPE_CHECKING:
 
 
 def _ind(level: int) -> str:
-  '''Two-space indent per level, matching mir/emit.py.'''
+  '''Two-space indent per level, matching mir/print.py.'''
   return '  ' * level
 
 
 def _str_tuple(strs: tuple[str, ...]) -> str:
-  '''"(a b c)" — space-separated, no commas. Matches mir/emit.py _var_tuple.'''
+  '''"(a b c)" — space-separated, no commas. Matches mir/print.py _var_tuple.'''
   return '(' + ' '.join(strs) + ')'
 
 
@@ -54,7 +54,7 @@ def _quoted(text: str) -> str:
 
 
 def _bool(b: bool) -> str:
-  '''Lowercase, matching mir/emit.py's `(step #:recursive true)` form.'''
+  '''Lowercase, matching mir/print.py's `(step #:recursive true)` form.'''
   return 'true' if b else 'false'
 
 

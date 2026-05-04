@@ -168,7 +168,7 @@ at [d2l/__init__.py:56](../src/srdatalog/ir/dialects/relation/d2l/__init__.py#L5
 
 No module under `ir/dialects/` or `ir/codegen/` defines a top-level
 mutable dict or list. Currently fails on
-[plugin.py:147](../src/srdatalog/ir/dialects/target/cuda/plugin.py#L147).
+`codegen/cuda/plugin.py:147` (`_PLUGIN_REGISTRY`).
 **S3A.8 turns this green.**
 
 ### 6.3 `tests/test_codegen_completeness.py` (new)
@@ -205,9 +205,10 @@ tested without involving C++ codegen.
 `dialects/relation/d2l/print.py`,
 `dialects/parallel/data/print.py`.
 
-**Approach.** Mirror [`mir/emit.py`](../src/srdatalog/ir/mir/emit.py)
-(the MIR s-expr printer) — one dispatch function per dialect, called from
-a top-level `print_iir(op)` that dispatches by op's owning dialect.
+**Approach.** Mirror `mir/print.py` (the MIR s-expr printer; was
+`mir/emit.py` before the Bundle A rename) — one dispatch function per
+dialect, called from a top-level `print_iir(op)` that dispatches by op's
+owning dialect.
 
 **Risk.** Low. Pure addition; no existing code changes.
 
@@ -252,8 +253,8 @@ existing path) + 1 (migrate callers, delete old path).
 
 ### S3A.3 — split `codegen/cuda/emit.py` into `codegen/cuda/render/` package
 
-**Goal.** Eliminate the 41-case match
-([emit.py:95](../src/srdatalog/ir/dialects/target/cuda/emit.py#L95)).
+**Goal.** Eliminate the 41-case match in `codegen/cuda/emit.py`
+(`emit()` function, ~line 95).
 Adding a new dialect should not require editing codegen core code (P1 fix).
 
 **Approach.**
@@ -382,7 +383,7 @@ whose verifier always fails; assert `PassDriver.run` aborts cleanly.
 side-effect registration).
 
 **Files.**
-- [target/cuda/plugin.py:147-148](../src/srdatalog/ir/dialects/target/cuda/plugin.py#L147-L148) — `_PLUGIN_REGISTRY`, `_DEFAULT_PLUGIN`
+- `codegen/cuda/plugin.py:147-148` — `_PLUGIN_REGISTRY`, `_DEFAULT_PLUGIN`
 - [d2l/__init__.py:56](../src/srdatalog/ir/dialects/relation/d2l/__init__.py#L56) — side-effect import
 
 **Approach.**

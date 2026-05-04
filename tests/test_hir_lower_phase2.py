@@ -20,7 +20,7 @@ from srdatalog.ir.hir.lower import (
   lower_variant_to_pipeline,
 )
 from srdatalog.ir.hir.types import Version
-from srdatalog.ir.mir.emit import print_mir_sexpr
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 
 def build_tc() -> Program:

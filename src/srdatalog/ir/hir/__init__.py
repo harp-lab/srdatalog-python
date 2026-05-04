@@ -38,6 +38,20 @@ DIALECT = Dialect(
 )
 
 
+# Verifier scaffolding — HIR invariants (stratum dependency acyclicity,
+# every relation decl appears in at most one stratum, etc.) land
+# incrementally as we encode them.
+def _register_passes() -> None:
+  from srdatalog.ir.core.passes import verifier
+
+  @verifier(DIALECT)
+  def _verify(_prog):
+    return []
+
+
+_register_passes()
+
+
 def default_pipeline(verbose: bool = False) -> Pipeline:
   '''Build the standard HIR pipeline.
 

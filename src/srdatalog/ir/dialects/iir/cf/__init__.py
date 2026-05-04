@@ -94,3 +94,17 @@ __all__ = [
   'VarRef',
   'WriteOutput',
 ]
+
+
+# Verifier scaffolding — control-flow invariants (well-formed Block
+# nesting, OuterAnchor inside D2lSegmentLoop scope, etc.) land
+# incrementally as we encode them.
+def _register_passes() -> None:
+  from srdatalog.ir.core.passes import verifier
+
+  @verifier(DIALECT)
+  def _verify(_prog):
+    return []
+
+
+_register_passes()

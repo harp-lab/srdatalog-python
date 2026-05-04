@@ -89,7 +89,7 @@ __all__ = [
 
 def _register_passes() -> None:
   import srdatalog.ir.mir.types as mir
-  from srdatalog.ir.core.passes import lowering
+  from srdatalog.ir.core.passes import lowering, verifier
   from srdatalog.ir.dialects.relation.sorted_array.lowerings import lower_scan_pipeline
 
   @lowering(
@@ -98,8 +98,14 @@ def _register_passes() -> None:
     consumes=('mir',),
     produces=('iir.cf', 'relation.sorted_array', 'relation.d2l', 'parallel.data'),
   )
-  def lower_execute_pipeline(ep, ctx):  # noqa: ARG001 - ctx forwarded
+  def lower_execute_pipeline(ep, ctx):
     return lower_scan_pipeline(ep.pipeline, ctx)
+
+  # Verifier scaffolding — per-op invariants (D9: SaHint inside
+  # IterURV scope, etc.) land incrementally as we encode them.
+  @verifier(DIALECT)
+  def _verify(_prog):
+    return []
 
 
 _register_passes()

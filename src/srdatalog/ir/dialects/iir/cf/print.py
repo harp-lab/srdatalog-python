@@ -2,7 +2,7 @@
 
 Per docs/stage3a_execution_plan.md §1: Print is one of three distinct
 operations on IR data (Lowering / Render / Print). This module is
-iir.cf's contribution to Print_i. Style mirrors mir/emit.py — Racket-
+iir.cf's contribution to Print_i. Style mirrors mir/print.py — Racket-
 canonical `#:keyword` form.
 
 Children of an op recurse through `srdatalog.ir.print_iir.print_iir`

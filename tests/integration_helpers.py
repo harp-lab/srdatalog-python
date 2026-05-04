@@ -16,7 +16,7 @@ from pathlib import Path
 from srdatalog.dsl import Program
 from srdatalog.ir.hir import compile_to_hir, compile_to_mir
 from srdatalog.ir.hir.emit import hir_to_obj
-from srdatalog.ir.mir.emit import print_mir_sexpr
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "integration"
 JIT_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "jit"

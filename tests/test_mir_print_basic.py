@@ -12,7 +12,7 @@ alongside the HIR->MIR lowering pass.
 
 import srdatalog.ir.mir.types as m
 from srdatalog.ir.hir.types import Version
-from srdatalog.ir.mir.emit import print_mir_sexpr
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 
 def test_column_source():

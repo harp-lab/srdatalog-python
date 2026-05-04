@@ -21,7 +21,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from srdatalog.dsl import Agg, ArgKind, Atom, Filter, Let, Negation, PlanEntry, Rule, Split
-from srdatalog.ir.hir.pass_ import Dialect, PassInfo, PassLevel
+from srdatalog.ir.hir.pass_ import IRLevel, PassInfo, PassLevel
 from srdatalog.ir.hir.types import AccessPattern, HirProgram, HirRuleVariant, Version
 
 # -----------------------------------------------------------------------------
@@ -520,8 +520,8 @@ class JoinPlannerPass:
     name="JoinPlanning",
     level=PassLevel.HIR_TRANSFORM,
     order=200,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, hir: HirProgram) -> HirProgram:

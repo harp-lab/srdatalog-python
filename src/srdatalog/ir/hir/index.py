@@ -25,7 +25,7 @@ only has to be stable, not byte-matched against Nim.
 
 from __future__ import annotations
 
-from srdatalog.ir.hir.pass_ import Dialect, PassInfo, PassLevel
+from srdatalog.ir.hir.pass_ import IRLevel, PassInfo, PassLevel
 from srdatalog.ir.hir.types import (
   HirProgram,
   HirRuleVariant,
@@ -168,8 +168,8 @@ class IndexSelectionPass:
     name="IndexSelection",
     level=PassLevel.HIR_TRANSFORM,
     order=300,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, hir: HirProgram) -> HirProgram:

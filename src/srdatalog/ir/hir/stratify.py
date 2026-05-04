@@ -19,7 +19,7 @@ downstream ordering (dependency edges, SCC membership iteration).
 from __future__ import annotations
 
 from srdatalog.dsl import Agg, Atom, Negation, Rule
-from srdatalog.ir.hir.pass_ import Dialect, PassInfo, PassLevel
+from srdatalog.ir.hir.pass_ import IRLevel, PassInfo, PassLevel
 from srdatalog.ir.hir.types import HirProgram, HirStratum, RelationDecl
 
 
@@ -265,8 +265,8 @@ class StratificationPass:
     name="Stratification",
     level=PassLevel.HIR_TRANSFORM,
     order=0,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, rules: list[Rule], decls: list[RelationDecl]) -> HirProgram:

@@ -23,7 +23,7 @@ from srdatalog.dsl import (
   PlanEntry,
   Rule,
 )
-from srdatalog.ir.hir.pass_ import Dialect, PassInfo, PassLevel
+from srdatalog.ir.hir.pass_ import IRLevel, PassInfo, PassLevel
 from srdatalog.ir.hir.provenance import compiler_gen
 from srdatalog.ir.hir.types import RelationDecl
 
@@ -158,8 +158,8 @@ class WildcardRewritePass:
     name="WildcardRewrite",
     level=PassLevel.RULE_REWRITE,
     order=-1,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, rules, decls):
@@ -171,8 +171,8 @@ class ConstantRewritePass:
     name="ConstantRewrite",
     level=PassLevel.RULE_REWRITE,
     order=0,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, rules, decls):
@@ -184,8 +184,8 @@ class HeadConstantRewritePass:
     name="HeadConstantRewrite",
     level=PassLevel.RULE_REWRITE,
     order=1,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, rules, decls):
@@ -447,8 +447,8 @@ class SemiJoinPass:
     name="SemiJoinOpt",
     level=PassLevel.RULE_REWRITE,
     order=2,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, rules, decls):

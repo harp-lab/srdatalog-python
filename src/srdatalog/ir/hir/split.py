@@ -16,7 +16,7 @@ JoinPlannerPass from hir_plan._plan_variant.
 from __future__ import annotations
 
 from srdatalog.dsl import ArgKind, Atom
-from srdatalog.ir.hir.pass_ import Dialect, PassInfo, PassLevel
+from srdatalog.ir.hir.pass_ import IRLevel, PassInfo, PassLevel
 from srdatalog.ir.hir.types import HirProgram, RelationDecl
 
 
@@ -60,8 +60,8 @@ class TempRelSynthesisPass:
     name="TempRelSynthesis",
     level=PassLevel.HIR_TRANSFORM,
     order=250,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, hir: HirProgram) -> HirProgram:
@@ -95,8 +95,8 @@ class TempIndexRegistrationPass:
     name="TempIndexRegistration",
     level=PassLevel.HIR_TRANSFORM,
     order=350,
-    source_dialect=Dialect.HIR,
-    target_dialect=Dialect.HIR,
+    source_dialect=IRLevel.HIR,
+    target_dialect=IRLevel.HIR,
   )
 
   def run(self, hir: HirProgram) -> HirProgram:

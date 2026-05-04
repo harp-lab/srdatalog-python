@@ -25,7 +25,7 @@ reference, modulo `_cpp_norm` whitespace/comment normalization.
 | Legacy elimination | ✅ all `codegen/jit/{pipeline,instructions,root,scan_negation,kernel_functor,file}.py` deleted | — |
 | Layout reorg | ✅ Phase A (`codegen/jit/` → `ir/dialects/target/cuda/`), Phase B (`ir/` namespace) | ⬜ Phase C (R1–R6 below) |
 | Docs / test rename sync | ✅ README + 10 `test_jit_*.py` → `test_cuda_*.py` | — |
-| Open work | — | WS full runner, CPU/WASM target, HIR/MIR as proper dialects, `complete_runner.py` templating |
+| Open work | HIR/MIR catalog (step 1) | WS full runner, CPU/WASM target, HIR/MIR full Op-subclass+frozen migration (step 2), `complete_runner.py` templating |
 
 **Test gates currently passing (after Refactor PR R1–R9):**
 - 272/272 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 2 skipped (WS runner only)
@@ -295,7 +295,7 @@ Not part of any milestone series; flagged for awareness.
 
 | Topic | Effort | Trade-off |
 |---|---|---|
-| **Promote HIR / MIR to real dialects** | medium | They predate the dialect framework. Would unlock pattern matchers / strategies on HIR/MIR ops. Mostly rename + `Op` mixin. |
+| **Promote HIR / MIR to real dialects** | medium | Step 1 landed: `Dialect("hir")` + `Dialect("mir")` catalog registrations alongside `iir.cf`, `relation.sorted_array`, `target.cuda`; renamed the colliding `srdatalog.ir.hir.pass_.Dialect` Enum to `IRLevel` to disambiguate. Step 2 (frozen+slots+`Op` subclass + ~15 mutation-site refactor to use `dataclasses.replace`) deferred to a follow-up PR. |
 | **`complete_runner.py` templating** | large | ~700 lines of f-string-heavy CUDA emission. Either lift more shapes into structured ops, or introduce a templating layer (jinja-style or `quote`-style). Long-term direction question. |
 | **WS full runner** | LARGE | Net-new — legacy never finished it. Would design the WCOJTask queue, cross-warp stealing, `par.data.atomic_ws` dialect. Currently blocks 2 skipped fixtures. |
 | **Second target (CPU / WASM)** | very large | Would actually exercise the IR layering — same IIR, different emit. Validates the "target.cuda" prefix in the layout. |

@@ -69,7 +69,7 @@ from srdatalog.ir.dialects.target.cuda.orchestrator import gen_step_body
 # Compilation pipeline
 from srdatalog.ir.hir import compile_to_hir, compile_to_mir
 
-__version__ = "0.1.0"
+__version__ = "0.2.0.dev0"
 
 __all__ = [
   # DSL

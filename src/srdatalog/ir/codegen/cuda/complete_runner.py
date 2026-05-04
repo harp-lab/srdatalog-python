@@ -452,13 +452,13 @@ def _gen_kernel_bg_histogram(
   node: m.ExecutePipeline,
   rel_index_types: dict[str, str],
 ) -> str:
-  '''Delegate to `par.data.block_group.emit_bg_histogram_kernel`.
+  '''Delegate to `codegen.cuda.render.parallel_data.emit_bg_histogram_kernel`.
 
   The histogram kernel is the first BG component lifted into the dialect
-  (N4.0). Future N4.x milestones replace `_gen_kernel_bg_count` /
-  `_bg_materialize` / `_bg_fused` with native dialect emission too.
+  (N4.0). Per S3A.9b the standalone histogram template lives in the
+  codegen (target rendering), not inside the dialect.
   '''
-  from srdatalog.ir.dialects.parallel.data.block_group import emit_bg_histogram_kernel
+  from srdatalog.ir.codegen.cuda.render.parallel_data import emit_bg_histogram_kernel
 
   return emit_bg_histogram_kernel(node, rel_index_types)
 

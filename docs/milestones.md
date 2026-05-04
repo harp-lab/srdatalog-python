@@ -25,8 +25,8 @@ reference, modulo `_cpp_norm` whitespace/comment normalization.
 | Legacy elimination | ✅ all `codegen/jit/{pipeline,instructions,root,scan_negation,kernel_functor,file}.py` deleted | — |
 | Layout reorg | ✅ Phase A (`codegen/jit/` → `ir/dialects/target/cuda/`), Phase B (`ir/` namespace) | ⬜ Phase C (R1–R6 below) |
 | Docs / test rename sync | ✅ README + 10 `test_jit_*.py` → `test_cuda_*.py` | — |
-| **Stage 3 (IR framework consolidation)** | ✅ HIR/MIR dialect catalog ([PR #10](https://github.com/harp-lab/srdatalog-python/pull/10), opens Stage 3B) | ⬜ S3A.0–S3A.9 (P1/P2/P3 realization, codegen rename, renderer registry); S3B planning only |
-| Open work | — | Stage 3A (next — see [`stage3a_execution_plan.md`](./stage3a_execution_plan.md)), WS full runner, CPU/WASM target, HIR/MIR full Op-subclass migration (Stage 3B), `complete_runner.py` templating |
+| **Stage 3 (IR framework consolidation)** | ✅ structural realization (S3A.0–S3A.4 entry-only, S3A.6, S3A.7, S3A.9 — see Stage 3A index below) | ⬜ Bundle C: A6/A7 cleanup (S3A.8); ⬜ Stage 4: IIR semantic vocabulary (S3A.5 deferred there) |
+| Open work | — | Bundle C (A6/A7 cleanup), Stage 4 (semantic ops — replace RawString with structured IIR), WS full runner, CPU/WASM target, HIR/MIR full Op-subclass migration (Stage 3B), `complete_runner.py` templating |
 
 **Test gates currently passing (after Refactor PR R1–R9):**
 - 272/272 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 2 skipped (WS runner only)
@@ -149,18 +149,18 @@ Full execution plan with per-task scope, approach, risk, and test gate:
 see [`stage3a_execution_plan.md`](./stage3a_execution_plan.md). The table
 below is the index.
 
-| ID | Task | Why |
-|---|---|---|
-| **S3A.0** | Rename `ir/dialects/target/cuda/` → `ir/codegen/cuda/` | Resolve the category error: codegen is not a dialect. Foundational; everything below assumes the right vocabulary. |
-| **S3A.1** | Add Print_i (IIR s-expression printer) per dialect | Give IIR an inspectable text form; enables byte-equal s-expr testing of MIR→IIR lowerings. |
-| **S3A.2** | `sorted_array/lowerings.py` returns IIR data, not C++ text | Make IIR exist as inspectable data between lowering and render — separates the conflated steps. |
-| **S3A.3** | Split `codegen/cuda/emit.py` (41-case match) into `codegen/cuda/render/` package, registry-dispatched | **P1 fix.** Adding a dialect no longer requires editing codegen core. |
-| **S3A.4** | Formalize MIR→IIR lowerings as `Lowering` instances on each relation dialect's $L^{\text{out}}$ | **P3 realization.** |
-| **S3A.5** | Formalize R1–R5 (sorted_array §11 rewrites) as `Rewrite` instances on `sorted_array.R` | **P3 realization.** |
-| **S3A.6** | `PassDriver.run` dispatches lowerings/rewrites by type instead of being a no-op stub | The framework actually runs. |
-| **S3A.7** | Wire `Dialect.verifier` into PassDriver at phase boundaries | **D10.** |
-| **S3A.8** | Per-`Codegen` plugin registry; explicit `register_*` calls (no side effects) | **A6 + A7.** |
-| **S3A.9** | (Cleanup) no double `compile_to_hir`; relocate `block_group.py` emit functions into `codegen/cuda/render/parallel_data.py` | Independent small fixes. |
+| ID | Task | Status | Why |
+|---|---|---|---|
+| **S3A.0** | Rename `ir/dialects/target/cuda/` → `ir/codegen/cuda/` | ✅ PR #12 | Resolve the category error: codegen is not a dialect. |
+| **S3A.1** | Add Print_i (IIR s-expression printer) per dialect | ✅ PR #15 | Give IIR an inspectable text form. |
+| **S3A.2** | `sorted_array/lowerings.py` returns IIR data, not C++ text | ✅ PR #16 (Bundle A) | Lowering ↔ render separated; IIR exists as data. |
+| **S3A.3** | Split `codegen/cuda/emit.py` (41-case match) into `codegen/cuda/render/` package | ✅ PR #16 (Bundle A) | **P1 fix.** Renderer dispatched via `@register_render` registry. |
+| **S3A.4** | Register MIR→IIR entry as `@lowering` on each relation dialect | ✅ Bundle B (entry-point only) | **P3 realization (structural).** Internal helpers stay; per-helper formalization needs Stage 4. |
+| **S3A.5** | Formalize R1–R5 (sorted_array §11 rewrites) as `Rewrite` instances | ⬜ deferred to Stage 4 | The R1-R5 are entangled with `RawString` construction in lowerings.py. Cleanly extracting them needs the new structured ops Stage 4 introduces. |
+| **S3A.6** | `PassDriver` dependency validation + decorator infra | ✅ Bundle B | `@lowering`/`@rewrite`/`@verifier` decorators + `validate_dependencies()` raises `PassDependencyError` on unmet `consumes`. Op-level dispatch deferred (no production consumer yet). |
+| **S3A.7** | Wire `Dialect.verifier` into PassDriver | ✅ Bundle B | All 6 dialects ship a no-op verifier; `PassDriver.verify_all` walks them. Real per-dialect invariants land incrementally. |
+| **S3A.8** | Per-`Codegen` plugin registry; explicit `register_*` calls (no side effects) | ⬜ Bundle C | **A6 + A7.** |
+| **S3A.9** | (Cleanup) no double `compile_to_hir`; relocate `block_group.py` emit | ✅ PR #13 + Bundle A | |
 
 **S3A acceptance gate:**
 
@@ -193,11 +193,69 @@ own frozen-dataclass IRs with typed adapters at the framework boundary.
 | **S3B.5** | Lift HIR passes (`stratify`, `split`, `semi_naive`, `plan`, `index`, `rule_rewrite`) onto `core/passes.py`. | unifies pass infra |
 | **S3B.6** | Replace the hardcoded sequence in [pipeline.py:80-88](../src/srdatalog/ir/pipeline.py#L80-L88) with `compiler.run(passes=[...])`, allowing external code to reorder/insert/skip passes. | (composability) |
 
+**Honest scope note (added after Bundle B planning):** Stage 3A's
+"framework realization" is **structural** — the registry holds
+typed `Lowering`/`Rewrite` instances with declared dependencies, and
+the `@register_render` registry replaces the 41-case match. But for
+sorted_array's MIR→IIR lowering, the IIR ops it produces include
+~46 `RawString(text="<C++>")` escape hatches; the codegen's
+"renderer" for `RawString` is a passthrough (`return op.text`).
+That means most of the codegen's per-op dispatch is dispatching to
+string-passthrough functions — the abstraction is real but
+mostly empty. **Adding a second target today (CPU/WASM) would
+render every `RawString` as the same C++ text — there's no semantic
+information for it to translate differently.**
+
+This is tracked as Stage 4 below. Stage 3A is the structural
+prerequisite; Stage 4 is the semantic substance.
+
 **S3B open question:** does the unified framework cleanly express HIR's
 program-level operations (stratification, semi-naive variant generation),
 which are not per-op rewrites? If not, HIR may need to stay outside the
 dialect framework with a typed adapter at the boundary, and 3B narrows to
 just MIR.
+
+---
+
+## Stage 4 — IIR semantic vocabulary (planning)
+
+**Goal:** make "IR goes to target" mean something. Today the renderer
+registry exists (S3A.3) but its job is mostly text passthrough — the
+46 `RawString(text="<C++>")` sites in `sorted_array/lowerings.py`
+embed concrete CUDA expressions inside IIR ops, so the codegen has
+no semantic information to translate. Stage 4 replaces RawString with
+structured IIR ops so the codegen does real per-target translation
+rather than string concatenation.
+
+**Why this isn't in Stage 3A:** Stage 3A is about the *structural
+plumbing* (decorators, registries, dispatch, layering). Stage 4 is
+about the *semantic content* (what ops the IIR vocabulary needs to
+fully describe a kernel body without text escape hatches). They're
+genuinely separate concerns and Stage 4 is bigger.
+
+**Why this matters:** until Stage 4 lands, adding a second target
+(target.cpp_tbb, target.cpp_omp, target.cpu) is mostly copy-paste
+of the codegen — every RawString site renders the same C++ text
+regardless of target.
+
+### Stage 4 task index (planning)
+
+| ID | Task | Why |
+|---|---|---|
+| **S4.0** | Inventory the 46 `RawString` sites in `sorted_array/lowerings.py`. Categorize into: bare identifier (~10), arithmetic expression (~15), array index (~5), member access (~6), compound statement (~10). | Defines the new ops that need to exist. |
+| **S4.1** | Bare identifier sites → `VarRef` (already exists). Trivial replacement; ~10 sites. | Easy first step; reduces RawString count from 46 to 36. |
+| **S4.2** | Define arithmetic expression ops in a new `iir.expr` (or extend `iir.cf`) sub-dialect. Candidates: `BinOp(op, lhs, rhs)`, `UnaryOp(op, expr)`, or per-operator ops (`Add`, `Mul`, `Div`, `Mod`). | Open design decision: generic vs per-operator. Generic is fewer ops; per-operator gives sharper render dispatch. |
+| **S4.3** | Define `IndexExpr(arr, idx)` op + renderer. Replace ~5 RawString sites that currently embed `arr[i]` text. | |
+| **S4.4** | Define `MemberAccess(obj, member)` op + renderer. Replace ~6 RawString sites that embed `obj.member` text. | |
+| **S4.5** | Define `Ternary(cond, then_, else_)` op + renderer. Some compound statements decompose to ternaries. | |
+| **S4.6** | Tackle the ~10 gnarly compound RawString sites individually. Some may want their own structured ops; others may decompose into combinations of S4.2-S4.5 ops. | Hardest tier; do last. |
+| **S4.7** | Discipline test pinning RawString count at 0 (or a documented small N for inherently-target-specific intrinsics that don't have a structured form yet). New RawString uses caught in CI. | Caps regression. |
+| **S4.8** | Now-tractable: formalize R1–R5 from `ir_lowering_semantics.md` §11 as `Rewrite` instances on `sorted_array.R` (S3A.5 from the original Stage 3A scope, deferred here). | The rewrites operate on structured ops, not on text-fragments-wrapped-in-IR. |
+| **S4.9** | Once a real consumer exists (Stage 4's structured ops give one), implement op-level dispatch in `PassDriver.run` using the `core/strategy.py` combinators. | Op-level dispatch is YAGNI without Stage 4's semantic ops. |
+
+**Forcing function:** committing to add a second target (CPU/WASM)
+would push Stage 4 forward — without it, the second target's
+renderer is a copy of CUDA's.
 
 ---
 

@@ -85,7 +85,7 @@ def compile_program(program: Program, project_name: str) -> CompileResult:
   (renders it in a webview) branch from.
   '''
   hir = compile_to_hir(program)
-  mir = compile_to_mir(program)
+  mir = compile_to_mir(program, hir=hir)
 
   ext_db = f"{project_name}_DB"
   device_db = f"{ext_db}_DeviceDB"

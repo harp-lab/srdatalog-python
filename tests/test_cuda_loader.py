@@ -15,12 +15,12 @@ import sys
 import tempfile
 from pathlib import Path
 
-from srdatalog.ir.dialects.target.cuda.build.compiler import (
+from srdatalog.ir.codegen.cuda.build.compiler import (
   CompilerConfig,
   compile_cpp,
   link_shared,
 )
-from srdatalog.ir.dialects.target.cuda.build.loader import (
+from srdatalog.ir.codegen.cuda.build.loader import (
   EntryPoint,
   JitRuntime,
   _apply_errcheck_default,

@@ -20,7 +20,7 @@ import tempfile
 from pathlib import Path
 from unittest import mock
 
-from srdatalog.ir.dialects.target.cuda.build.compiler import (
+from srdatalog.ir.codegen.cuda.build.compiler import (
   BuildResult,
   CompilerConfig,
   _base_cxx_flags,
@@ -73,7 +73,7 @@ def test_detect_cxx_prefers_env():
 def test_detect_cxx_falls_back_to_clangpp():
   with mock.patch.dict(os.environ, {}, clear=False):
     os.environ.pop("CXX", None)
-    with mock.patch("srdatalog.ir.dialects.target.cuda.build.compiler.shutil.which") as w:
+    with mock.patch("srdatalog.ir.codegen.cuda.build.compiler.shutil.which") as w:
       w.side_effect = lambda c: "/usr/bin/clang++" if c == "clang++" else None
       assert _detect_cxx() == "clang++"
 
@@ -81,9 +81,7 @@ def test_detect_cxx_falls_back_to_clangpp():
 def test_detect_cxx_raises_when_none_available():
   with mock.patch.dict(os.environ, {}, clear=False):
     os.environ.pop("CXX", None)
-    with mock.patch(
-      "srdatalog.ir.dialects.target.cuda.build.compiler.shutil.which", return_value=None
-    ):
+    with mock.patch("srdatalog.ir.codegen.cuda.build.compiler.shutil.which", return_value=None):
       try:
         _detect_cxx()
       except RuntimeError as e:
@@ -221,7 +219,7 @@ def test_compile_cpp_cached_path_doesnt_spawn_subprocess():
     _write_stamp(obj, _stamp_digest(src, cmd))
 
     with mock.patch(
-      "srdatalog.ir.dialects.target.cuda.build.compiler.subprocess.run",
+      "srdatalog.ir.codegen.cuda.build.compiler.subprocess.run",
     ) as run_mock:
       result = compile_cpp(src, obj, cfg)
     assert result.cached
@@ -241,7 +239,7 @@ def test_compile_cpp_skip_env_forces_cached():
         {"SRDATALOG_JIT_SKIP_COMPILE": "1"},
       ),
       mock.patch(
-        "srdatalog.ir.dialects.target.cuda.build.compiler.subprocess.run",
+        "srdatalog.ir.codegen.cuda.build.compiler.subprocess.run",
       ) as run_mock,
     ):
       result = compile_cpp(src, obj, cfg)
@@ -259,7 +257,7 @@ def test_compile_cpp_invokes_subprocess_on_miss():
     cfg = CompilerConfig(cxx="/fake/clang++")
     fake = mock.Mock(returncode=0, stdout="", stderr="")
     with mock.patch(
-      "srdatalog.ir.dialects.target.cuda.build.compiler.subprocess.run",
+      "srdatalog.ir.codegen.cuda.build.compiler.subprocess.run",
       return_value=fake,
     ) as run_mock:
       # Fake "object" materializing by compile.
@@ -282,7 +280,7 @@ def test_compile_cpp_failure_does_not_write_stamp():
     cfg = CompilerConfig(cxx="/fake/clang++")
     fake = mock.Mock(returncode=1, stdout="", stderr="bang")
     with mock.patch(
-      "srdatalog.ir.dialects.target.cuda.build.compiler.subprocess.run",
+      "srdatalog.ir.codegen.cuda.build.compiler.subprocess.run",
       return_value=fake,
     ):
       result = compile_cpp(src, obj, cfg)
@@ -331,7 +329,7 @@ def test_compile_jit_project_aggregates_compile_and_link():
       return mock.Mock(returncode=0, stdout="", stderr="")
 
     with mock.patch(
-      "srdatalog.ir.dialects.target.cuda.build.compiler.subprocess.run",
+      "srdatalog.ir.codegen.cuda.build.compiler.subprocess.run",
       side_effect=fake_run,
     ):
       # Force ThreadPoolExecutor path — this test mocks out per-TU
@@ -380,7 +378,7 @@ def test_compile_jit_project_reports_compile_failure():
       return next(outcomes)
 
     with mock.patch(
-      "srdatalog.ir.dialects.target.cuda.build.compiler.subprocess.run",
+      "srdatalog.ir.codegen.cuda.build.compiler.subprocess.run",
       side_effect=fake_run,
     ):
       result = compile_jit_project(project_result, cfg, use_ninja=False)

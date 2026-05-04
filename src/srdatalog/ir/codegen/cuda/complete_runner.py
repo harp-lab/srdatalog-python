@@ -29,48 +29,48 @@ dedup_hash, balanced scan, fan-out, materialized pipelines.
 from __future__ import annotations
 
 # Side-effect import: pulling in the D2L dialect auto-registers its
-# CUDA plugin with `target.cuda.plugin`. Without this,
+# CUDA plugin with `codegen.cuda.plugin`. Without this,
 # `plugin_view_count` falls back to the default plugin (view_count=1
 # for every version) for any relation declared with
 # `index_type="...Device2LevelIndex"`, silently undercounting
 # NumSources and diverging from upstream.
 import srdatalog.ir.dialects.relation.d2l  # noqa: F401
 import srdatalog.ir.mir.types as m
-from srdatalog.ir.dialects.target.cuda.materialized import is_materialized_pipeline
-from srdatalog.ir.dialects.target.cuda.pipeline_utils import (
+from srdatalog.ir.codegen.cuda.materialized import is_materialized_pipeline
+from srdatalog.ir.codegen.cuda.pipeline_utils import (
   assign_handle_positions,
   has_balanced_scan,
   has_tiled_cartesian_eligible,
 )
-from srdatalog.ir.dialects.target.cuda.plugin import plugin_gen_host_view_setup, plugin_view_count
+from srdatalog.ir.codegen.cuda.plugin import plugin_gen_host_view_setup, plugin_view_count
 
 # Pure-template phase emitters now live in the dialect's runner module.
 # Local aliases preserve the legacy call sites until the rest of this
 # file migrates over.
-from srdatalog.ir.dialects.target.cuda.runner import emit_execute as _gen_execute
-from srdatalog.ir.dialects.target.cuda.runner import emit_execute_fused as _gen_execute_fused
-from srdatalog.ir.dialects.target.cuda.runner import emit_grid_config_code as _gen_grid_config_code
-from srdatalog.ir.dialects.target.cuda.runner import emit_launch_count as _gen_launch_count
-from srdatalog.ir.dialects.target.cuda.runner import emit_launch_fused as _gen_launch_fused
-from srdatalog.ir.dialects.target.cuda.runner import (
+from srdatalog.ir.codegen.cuda.runner import emit_execute as _gen_execute
+from srdatalog.ir.codegen.cuda.runner import emit_execute_fused as _gen_execute_fused
+from srdatalog.ir.codegen.cuda.runner import emit_grid_config_code as _gen_grid_config_code
+from srdatalog.ir.codegen.cuda.runner import emit_launch_count as _gen_launch_count
+from srdatalog.ir.codegen.cuda.runner import emit_launch_fused as _gen_launch_fused
+from srdatalog.ir.codegen.cuda.runner import (
   emit_launch_materialize as _gen_launch_materialize,
 )
-from srdatalog.ir.dialects.target.cuda.runner import (
+from srdatalog.ir.codegen.cuda.runner import (
   emit_launch_params_struct as _gen_launch_params_struct,
 )
-from srdatalog.ir.dialects.target.cuda.runner import (
+from srdatalog.ir.codegen.cuda.runner import (
   emit_method_forward_decls as _gen_method_forward_decls,
 )
-from srdatalog.ir.dialects.target.cuda.runner import (
+from srdatalog.ir.codegen.cuda.runner import (
   emit_read_fused_result as _gen_read_fused_result,
 )
-from srdatalog.ir.dialects.target.cuda.runner import emit_read_total as _gen_read_total
-from srdatalog.ir.dialects.target.cuda.runner import emit_scan_and_resize as _gen_scan_and_resize
-from srdatalog.ir.dialects.target.cuda.runner import emit_scan_only as _gen_scan_only
-from srdatalog.ir.dialects.target.cuda.runner import (
+from srdatalog.ir.codegen.cuda.runner import emit_read_total as _gen_read_total
+from srdatalog.ir.codegen.cuda.runner import emit_scan_and_resize as _gen_scan_and_resize
+from srdatalog.ir.codegen.cuda.runner import emit_scan_only as _gen_scan_only
+from srdatalog.ir.codegen.cuda.runner import (
   emit_struct_type_aliases as _gen_struct_type_aliases,
 )
-from srdatalog.ir.dialects.target.cuda.view_slots import (
+from srdatalog.ir.codegen.cuda.view_slots import (
   compute_total_view_count,
   source_spec_key,
 )
@@ -251,7 +251,7 @@ def _gen_kernel_count(
     for i in range(1, len(node.dest_specs)):
       output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
 
-  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+  from srdatalog.ir.codegen.cuda.api import compile_kernel_body
 
   code += compile_kernel_body(
     node,
@@ -358,7 +358,7 @@ def _gen_kernel_materialize(
         output_var_name = output_var
     code += "\n"
 
-  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+  from srdatalog.ir.codegen.cuda.api import compile_kernel_body
 
   body = compile_kernel_body(
     node,
@@ -425,7 +425,7 @@ def _gen_kernel_fused(
   # reuse the materialize pipeline body verbatim (matches Nim exactly).
   if tiled_cartesian_eligible:
     output_vars = {dest.rel_name: f"output_ctx_{i}" for i, dest in enumerate(dest_specs)}
-    from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+    from srdatalog.ir.codegen.cuda.api import compile_kernel_body
 
     code += compile_kernel_body(
       node,
@@ -510,7 +510,7 @@ def _gen_kernel_bg_count(
     output_vars[node.dest_specs[0].rel_name] = "output_ctx"
     for i in range(1, len(node.dest_specs)):
       output_vars[node.dest_specs[i].rel_name] = "__skip_counting__"
-  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+  from srdatalog.ir.codegen.cuda.api import compile_kernel_body
 
   code += compile_kernel_body(
     node,
@@ -580,7 +580,7 @@ def _gen_kernel_bg_materialize(
     if i == 0:
       output_var_name = output_var
   code += "\n"
-  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+  from srdatalog.ir.codegen.cuda.api import compile_kernel_body
 
   code += compile_kernel_body(
     node,
@@ -643,7 +643,7 @@ def _gen_kernel_bg_fused(
     )
 
   output_vars = {dest.rel_name: f"output_ctx_{i}" for i, dest in enumerate(dest_specs)}
-  from srdatalog.ir.dialects.target.cuda.api import compile_kernel_body
+  from srdatalog.ir.codegen.cuda.api import compile_kernel_body
 
   code += compile_kernel_body(
     node,

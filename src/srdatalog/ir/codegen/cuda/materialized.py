@@ -42,7 +42,7 @@ Public API:
 from __future__ import annotations
 
 import srdatalog.ir.mir.types as m
-from srdatalog.ir.dialects.target.cuda.context import CodeGenContext, ind
+from srdatalog.ir.codegen.cuda.context import CodeGenContext, ind
 from srdatalog.ir.hir.types import Version
 
 # -----------------------------------------------------------------------------

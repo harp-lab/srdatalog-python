@@ -25,8 +25,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from srdatalog.ir.dialects.target.cuda.build.cache import JitProjectLayout, write_jit_project
-from srdatalog.ir.dialects.target.cuda.main_file import (
+from srdatalog.ir.codegen.cuda.build.cache import JitProjectLayout, write_jit_project
+from srdatalog.ir.codegen.cuda.main_file import (
   gen_extern_c_shim,
   gen_main_file_content,
   gen_run_dispatcher_file,

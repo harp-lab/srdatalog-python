@@ -11,8 +11,8 @@ shape this module reproduces.
 
 from __future__ import annotations
 
+from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
 from srdatalog.ir.core import Dialect
-from srdatalog.ir.dialects.target.cuda.emit import EmitCtx, emit
 
 DIALECT = Dialect(name='target.cuda')
 

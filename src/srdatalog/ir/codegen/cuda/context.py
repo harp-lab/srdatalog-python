@@ -25,7 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from srdatalog.ir.dialects.target.cuda.plugin import (
+from srdatalog.ir.codegen.cuda.plugin import (
   plugin_chained_prefix_calls,
   plugin_chained_prefix_with_last_lower_bound,
   plugin_gen_child,

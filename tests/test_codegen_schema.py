@@ -4,7 +4,7 @@ Verifies the `using` aliases emitted by `FactDefinition` / `SchemaDefinition`
 match the non-template API's expected C++.
 '''
 
-from srdatalog.ir.dialects.target.cuda.schema import FactDefinition, Pragma, SchemaDefinition
+from srdatalog.ir.codegen.cuda.schema import FactDefinition, Pragma, SchemaDefinition
 
 
 def test_fact_definition_default_semiring():

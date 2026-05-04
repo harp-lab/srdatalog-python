@@ -1,7 +1,7 @@
 '''D2L dialect ↔ CUDA target plugin.
 
 How the D2L (Device2LevelIndex) dialect emits as CUDA: registers an
-`IndexPlugin` with `target.cuda.plugin`'s registry that supplies the
+`IndexPlugin` with `codegen.cuda.plugin`'s registry that supplies the
 per-version view_count (FULL=2 for HEAD+FULL, DELTA/NEW=1) and the
 host-side view-setup code emitted around CUDA kernels. Importing
 this module — typically via `import srdatalog.ir.dialects.relation.d2l`
@@ -21,7 +21,7 @@ Usage in schema:
   Path {. index: "SRDatalog::GPU::Device2LevelIndex" .}: Relation[int, int]
 '''
 
-from srdatalog.ir.dialects.target.cuda.plugin import (
+from srdatalog.ir.codegen.cuda.plugin import (
   IndexPlugin,
   new_default_plugin,
   register_index_plugin,

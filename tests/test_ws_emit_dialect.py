@@ -20,13 +20,13 @@ on synthetic contexts.
 from __future__ import annotations
 
 import srdatalog.ir.mir.types as mir
+from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
 from srdatalog.ir.dialects.iir.cf import Block as IirBlock
 from srdatalog.ir.dialects.relation.sorted_array.lowerings import (
   LoweringCtx,
   _lower_inner_chain,
   _lower_insert_into,
 )
-from srdatalog.ir.dialects.target.cuda.emit import EmitCtx, emit
 from srdatalog.ir.hir.types import Version
 
 

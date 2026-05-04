@@ -25,7 +25,8 @@ reference, modulo `_cpp_norm` whitespace/comment normalization.
 | Legacy elimination | ✅ all `codegen/jit/{pipeline,instructions,root,scan_negation,kernel_functor,file}.py` deleted | — |
 | Layout reorg | ✅ Phase A (`codegen/jit/` → `ir/dialects/target/cuda/`), Phase B (`ir/` namespace) | ⬜ Phase C (R1–R6 below) |
 | Docs / test rename sync | ✅ README + 10 `test_jit_*.py` → `test_cuda_*.py` | — |
-| Open work | HIR/MIR catalog (step 1) | WS full runner, CPU/WASM target, HIR/MIR full Op-subclass+frozen migration (step 2), `complete_runner.py` templating |
+| **Stage 3 (IR framework consolidation)** | ✅ HIR/MIR dialect catalog ([PR #10](https://github.com/harp-lab/srdatalog-python/pull/10), opens Stage 3B) | ⬜ S3A.0–S3A.9 (P1/P2/P3 realization, codegen rename, renderer registry); S3B planning only |
+| Open work | — | Stage 3A (next — see [`stage3a_execution_plan.md`](./stage3a_execution_plan.md)), WS full runner, CPU/WASM target, HIR/MIR full Op-subclass migration (Stage 3B), `complete_runner.py` templating |
 
 **Test gates currently passing (after Refactor PR R1–R9):**
 - 272/272 runner byte-equivalence (`tests/test_runner_byte_equivalence.py`) — 2 skipped (WS runner only)
@@ -111,6 +112,92 @@ into reviewable commits:
 9. Docs + milestone update
 
 Each commit should keep tests green so bisect stays useful.
+
+---
+
+## Stage 3 — IR framework consolidation
+
+**Goal:** realize Properties P1 / P2 / P3 from
+[`ir_lowering_semantics.md` §4](./ir_lowering_semantics.md) — the spec
+documents them, but the codebase doesn't enforce them. Production
+bypasses the framework; lowerings exist as ad-hoc Python functions, not
+typed `Lowering` instances; `PassDriver.run` is a no-op. Adding a new
+dialect today requires editing existing files (the 41-case match in
+`target/cuda/emit.py`), violating P1.
+
+**Binding vocabulary (resolved during planning):**
+- **Lowering** ($D_1.\text{Op} \to D_2.\text{Op}^*$, data → data, framework-dispatched)
+- **Render** ($D.\text{Op} \to \text{str}$, data → target text, codegen-dispatched)
+- **Print** ($D.\text{Op} \to \text{s-expr}$, data → canonical text, dialect-owned)
+
+These are three different operations the current code conflates. Each IR
+layer has one Print; only IIR has Renders (one per codegen). HIR and MIR
+do not go to target text.
+
+**Dialect ≠ Codegen.** Dialects own IR data $\langle T, O, L^{\text{out}}, R, V \rangle + \text{Print}$.
+Codegens own a Render registry plus target configuration — no ops, no
+lowerings, no rewrites. GPU codegen is a "dumb printer" by design.
+
+**Sequencing rationale:** Stage 3A realizes the framework on the dialects
+that already exist. Stage 3B (HIR/MIR onto `Op`/`Type` subclasses) waits
+because re-evaluation after 3A may show HIR/MIR are better off with typed
+adapters at the framework boundary than full migration.
+
+### Stage 3A — realize P1/P2/P3 (do first)
+
+Full execution plan with per-task scope, approach, risk, and test gate:
+see [`stage3a_execution_plan.md`](./stage3a_execution_plan.md). The table
+below is the index.
+
+| ID | Task | Why |
+|---|---|---|
+| **S3A.0** | Rename `ir/dialects/target/cuda/` → `ir/codegen/cuda/` | Resolve the category error: codegen is not a dialect. Foundational; everything below assumes the right vocabulary. |
+| **S3A.1** | Add Print_i (IIR s-expression printer) per dialect | Give IIR an inspectable text form; enables byte-equal s-expr testing of MIR→IIR lowerings. |
+| **S3A.2** | `sorted_array/lowerings.py` returns IIR data, not C++ text | Make IIR exist as inspectable data between lowering and render — separates the conflated steps. |
+| **S3A.3** | Split `codegen/cuda/emit.py` (41-case match) into `codegen/cuda/render/` package, registry-dispatched | **P1 fix.** Adding a dialect no longer requires editing codegen core. |
+| **S3A.4** | Formalize MIR→IIR lowerings as `Lowering` instances on each relation dialect's $L^{\text{out}}$ | **P3 realization.** |
+| **S3A.5** | Formalize R1–R5 (sorted_array §11 rewrites) as `Rewrite` instances on `sorted_array.R` | **P3 realization.** |
+| **S3A.6** | `PassDriver.run` dispatches lowerings/rewrites by type instead of being a no-op stub | The framework actually runs. |
+| **S3A.7** | Wire `Dialect.verifier` into PassDriver at phase boundaries | **D10.** |
+| **S3A.8** | Per-`Codegen` plugin registry; explicit `register_*` calls (no side effects) | **A6 + A7.** |
+| **S3A.9** | (Cleanup) no double `compile_to_hir`; relocate `block_group.py` emit functions into `codegen/cuda/render/parallel_data.py` | Independent small fixes. |
+
+**S3A acceptance gate:**
+
+- New `tests/test_ir_no_import_side_effects.py` — importing a module under
+  `ir/dialects/` or `ir/codegen/` must not mutate state in any other module (A7).
+- `tests/test_ir_core_discipline.py` extended — no module under `ir/dialects/`
+  or `ir/codegen/` defines a top-level mutable dict/list (A6).
+- New `tests/test_codegen_completeness.py` — every Codegen has renderers for
+  every op in every supported dialect (catches "added op, forgot renderer"
+  at `Compiler()` construction, not at first emit).
+- New `tests/test_lowering_registry.py` — every documented MIR op has a
+  registered `Lowering` on every relation dialect that supports it.
+- ddisasm fixture and the full byte-equivalence suite still pass
+  (1009/5 skip baseline preserved).
+- Each S3A task ships as its own PR (Step 1 / PR #10 set the precedent —
+  even modest IR changes warrant their own scope).
+
+### Stage 3B — unify HIR/MIR onto the Op/Dialect framework (planning only)
+
+**Status:** *planning only.* Land Stage 3A first. After 3A, re-evaluate
+whether 3B is the right next move or whether HIR/MIR should stay as their
+own frozen-dataclass IRs with typed adapters at the framework boundary.
+
+| ID | Description | Discipline rule |
+|---|---|---|
+| **S3B.1** | Convert HIR types in [hir/types.py](../src/srdatalog/ir/hir/types.py) to `Op`/`Type` subclasses. | D1, D2, D3, D4, D11 |
+| **S3B.2** | Convert MIR types in [mir/types.py](../src/srdatalog/ir/mir/types.py) similarly. | D1, D2, D3, D4, D11 |
+| **S3B.3** | Replace the ~15 `dataclasses.replace`-style mutation sites with strategy combinators from [core/strategy.py](../src/srdatalog/ir/core/strategy.py). | D6, D7 |
+| **S3B.4** | Migrate the monolithic [hir/lower.py](../src/srdatalog/ir/hir/lower.py) into per-op `Lowering`s registered on the HIR dialect (uses S3A.4 + S3A.6 infra). | (composability) |
+| **S3B.5** | Lift HIR passes (`stratify`, `split`, `semi_naive`, `plan`, `index`, `rule_rewrite`) onto `core/passes.py`. | unifies pass infra |
+| **S3B.6** | Replace the hardcoded sequence in [pipeline.py:80-88](../src/srdatalog/ir/pipeline.py#L80-L88) with `compiler.run(passes=[...])`, allowing external code to reorder/insert/skip passes. | (composability) |
+
+**S3B open question:** does the unified framework cleanly express HIR's
+program-level operations (stratification, semi-naive variant generation),
+which are not per-op rewrites? If not, HIR may need to stay outside the
+dialect framework with a typed adapter at the boundary, and 3B narrows to
+just MIR.
 
 ---
 
@@ -295,15 +382,14 @@ Not part of any milestone series; flagged for awareness.
 
 | Topic | Effort | Trade-off |
 |---|---|---|
-| **Promote HIR / MIR to real dialects** | medium | Step 1 landed: `Dialect("hir")` + `Dialect("mir")` catalog registrations alongside `iir.cf`, `relation.sorted_array`, `target.cuda`; renamed the colliding `srdatalog.ir.hir.pass_.Dialect` Enum to `IRLevel` to disambiguate. Step 2 (frozen+slots+`Op` subclass + ~15 mutation-site refactor to use `dataclasses.replace`) deferred to a follow-up PR. |
 | **`complete_runner.py` templating** | large | ~700 lines of f-string-heavy CUDA emission. Either lift more shapes into structured ops, or introduce a templating layer (jinja-style or `quote`-style). Long-term direction question. |
 | **WS full runner** | LARGE | Net-new — legacy never finished it. Would design the WCOJTask queue, cross-warp stealing, `par.data.atomic_ws` dialect. Currently blocks 2 skipped fixtures. |
-| **Second target (CPU / WASM)** | very large | Would actually exercise the IR layering — same IIR, different emit. Validates the "target.cuda" prefix in the layout. |
+| **Second target (CPU / WASM)** | very large | Would actually exercise the IR layering — same IIR, different emit. Validates the "target.cuda" prefix in the layout. Strong forcing function for Stage 3A.1 (plugin-ized emit dispatch). |
 | **Mypy cleanup in `ir/dialects/target/cuda/`** | medium | ~6 pre-existing errors (unreachable, missing type args). Inherited from legacy moves; not blocking. |
-| **`ir/core/` strategy / pattern infra** | medium | Stratego-style combinators in `strategy.py` are barely used. Either commit to using them in lowering / passes, or trim. |
 | **Provenance / SR semiring path** | very large | Touched in `provenance.py` but not woven through dialect lowering. Would be a sizable IR project if provenance becomes first-class. |
-| **HIR-level passes (`stratify`, `split`, `semi_naive`, `plan`)** | medium | Real passes but not under `ir/core` pass framework. Aligning would unify pass infrastructure. |
 | **`ir/dialects/target/cuda/context.py` simplification** | small | After legacy deletion, only `materialized.py` / `view_slots.py` / `block_group.py` (lazy) and unit tests still need it. Mostly inlinable. |
+
+*Promoted into Stage 3 (above):* HIR/MIR catalog registration → ✅ landed via [PR #10](https://github.com/harp-lab/srdatalog-python/pull/10) (opens Stage 3B); HIR/MIR Op-subclass migration → S3B.1–S3B.2; HIR-level passes onto `core/passes.py` → S3B.5; commit to the `core/strategy.py` combinators → S3B.3.
 
 ---
 

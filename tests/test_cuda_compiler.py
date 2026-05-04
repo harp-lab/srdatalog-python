@@ -81,9 +81,7 @@ def test_detect_cxx_falls_back_to_clangpp():
 def test_detect_cxx_raises_when_none_available():
   with mock.patch.dict(os.environ, {}, clear=False):
     os.environ.pop("CXX", None)
-    with mock.patch(
-      "srdatalog.ir.codegen.cuda.build.compiler.shutil.which", return_value=None
-    ):
+    with mock.patch("srdatalog.ir.codegen.cuda.build.compiler.shutil.which", return_value=None):
       try:
         _detect_cxx()
       except RuntimeError as e:

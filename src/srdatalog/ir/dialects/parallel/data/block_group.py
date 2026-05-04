@@ -26,13 +26,11 @@ This module owns the block-group **dialect ops**:
     segment-loops, and the wrapped body into one IR op.
   - `BgSourceSpec` — per-source descriptor consumed by `BgRootCjMulti`.
 
-CUDA emission lives in [codegen/cuda/render/parallel_data.py][1] —
-both `_render_bg_root_cj_multi` (BgRootCjMulti's renderer) and
+CUDA emission lives in `codegen/cuda/render/parallel_data.py` — both
+`_render_bg_root_cj_multi` (BgRootCjMulti's renderer) and
 `emit_bg_histogram_kernel` (the standalone histogram template called
 by the runner). Per docs/stage3a_execution_plan.md §7 task S3A.9b,
 the dialect file holds only data; rendering is the codegen's job.
-
-[1]: ../../codegen/cuda/render/parallel_data.py
 '''
 
 from __future__ import annotations

@@ -342,17 +342,23 @@ def _lower_root_scan(
   idx_var = ctx.fresh('idx')
 
   # Count-phase var elision: in count phase, mirror Nim's
-  # `varName notin body` substring check on the rendered body string.
-  # This catches the case where the rendered body doesn't reference
-  # the var (e.g. `cartesian_as_product` short-circuits the InsertInto
-  # entirely). The structural `_scan_var_used` predicate isn't enough —
-  # it returns True for any var in InsertInto.vars even when the body
-  # never emits those vars (R1 short-circuit case).
+  # `varName notin body` substring check that says "if this var
+  # doesn't show up anywhere in the body, don't bother binding it."
+  # The structural `_scan_var_used` predicate isn't enough — it
+  # returns True for any var in InsertInto.vars even when the body
+  # never emits those vars (R1 / cartesian_as_product short-circuits
+  # the InsertInto entirely).
+  #
+  # S3A.2 (lowering ↔ render separation): use Print_i (the canonical
+  # IIR s-expr form) instead of calling the C++ render. Both forms
+  # contain every var name that appears in any IIR string field, so
+  # substring semantics are preserved. The lowering no longer depends
+  # on codegen.cuda.emit — IIR exists as data, only Print walks it.
   body_text_for_elision = ''
   if ctx.is_counting:
-    from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
+    from srdatalog.ir.print_iir import print_iir
 
-    body_text_for_elision = emit(body_op, EmitCtx(indent_level=0))
+    body_text_for_elision = print_iir(body_op)
 
   var_bind_stmts: list[Op] = []
   for col, var_name in enumerate(scan_op.vars):

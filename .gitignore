@@ -24,6 +24,9 @@ venv/
 .idea/
 *.swp
 
+# Claude Code IDE/extension per-project state
+.claude/
+
 # xmake (no longer used; kept gitignored if anything appears locally)
 .xmake/
 

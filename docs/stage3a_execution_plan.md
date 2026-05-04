@@ -11,7 +11,7 @@ plan.
 Binding specs (read first):
 - [`design_principles.md`](./design_principles.md) — D-rules and A-rules
 - [`ir_lowering_semantics.md`](./ir_lowering_semantics.md) Part I §3–§4 — dialect ABI + P1/P2/P3
-- [`src/srdatalog/ir/core/CLAUDE.md`](../src/srdatalog/ir/core/CLAUDE.md) — `ir/core/` invariants
+- `src/srdatalog/ir/core/CLAUDE.md` — `ir/core/` invariants (in-tree, not built into sphinx)
 
 ## 1. Vocabulary (binding)
 
@@ -309,7 +309,7 @@ dialect that supports it.
 ### S3A.5 — formalize R1–R5 as `Rewrite` instances on `sorted_array.R`
 
 **Goal.** Realize P3 for rewrites. R1–R5 from
-[ir_lowering_semantics.md §11](./ir_lowering_semantics.md#L494) exist in
+[`ir_lowering_semantics.md`](./ir_lowering_semantics.md) §11 exist in
 code (count-as-product, hint introduction, negation pre-narrow, etc.) but
 not as `Rewrite` instances.
 

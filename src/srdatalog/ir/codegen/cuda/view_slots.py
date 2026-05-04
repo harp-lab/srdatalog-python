@@ -20,13 +20,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 import srdatalog.ir.mir.types as m
-from srdatalog.ir.dialects.target.cuda.context import (
+from srdatalog.ir.codegen.cuda.context import (
   CodeGenContext,
   gen_view_access,
   get_view_slot_base,
   ind,
 )
-from srdatalog.ir.dialects.target.cuda.plugin import plugin_view_count
+from srdatalog.ir.codegen.cuda.plugin import plugin_view_count
 
 # -----------------------------------------------------------------------------
 # Source-spec helpers

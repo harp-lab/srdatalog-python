@@ -1,4 +1,4 @@
-'''target.cuda.build — CUDA build / loader / cache subsystem.
+'''codegen.cuda.build — CUDA build / loader / cache subsystem.
 
 Wraps NVCC + Ninja to compile generated `.cu` source into a shared
 library, caches compiled artifacts by content-hash, and loads them

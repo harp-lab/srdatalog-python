@@ -28,7 +28,7 @@ import pytest
 from integration_helpers import _cpp_norm, _unified_cpp_diff
 
 from srdatalog.compile import compile_pipeline
-from srdatalog.ir.dialects.target.cuda.batchfile import _collect_pipelines
+from srdatalog.ir.codegen.cuda.batchfile import _collect_pipelines
 from srdatalog.ir.hir import compile_to_mir
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / 'fixtures' / 'jit'

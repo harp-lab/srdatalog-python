@@ -3,8 +3,8 @@
 import sys
 
 import srdatalog.ir.mir.types as m
-from srdatalog.ir.dialects.target.cuda.context import new_code_gen_context
-from srdatalog.ir.dialects.target.cuda.view_slots import (
+from srdatalog.ir.codegen.cuda.context import new_code_gen_context
+from srdatalog.ir.codegen.cuda.view_slots import (
   ViewSpec,
   build_root_slot_map,
   collect_unique_view_specs,

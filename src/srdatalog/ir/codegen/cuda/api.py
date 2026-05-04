@@ -48,7 +48,7 @@ def compile_pipeline(ep: m.ExecutePipeline, *, target: Target = 'cuda') -> str:
   if target != 'cuda':
     raise ValueError(f'compile_pipeline: unsupported target {target!r}')
 
-  from srdatalog.ir.dialects.target.cuda.envelope import (
+  from srdatalog.ir.codegen.cuda.envelope import (
     assign_handle_positions,
     emit_full_file,
   )
@@ -72,10 +72,10 @@ def compile_runner(
   methods + execute(). Production output: this is what
   `jit_runner.<rule>.cpp` golden files capture.
 
-  The dialect's `target.cuda.runner` module owns the runner emission
+  The dialect's `codegen.cuda.runner` module owns the runner emission
   surface. Most pieces (phase methods, execute, BG variants, fused
   kernel) currently delegate to legacy helpers in
-  `ir.dialects.target.cuda.complete_runner`; later milestones (N2/N4/N5/N6/N8)
+  `ir.codegen.cuda.complete_runner`; later milestones (N2/N4/N5/N6/N8)
   collapse them into native dialect emission.
 
   Kernel *bodies* (count + materialize) already route through
@@ -87,7 +87,7 @@ def compile_runner(
   anchors this entry point to the upstream goldens throughout the
   migration.
   '''
-  from srdatalog.ir.dialects.target.cuda.runner import emit_runner_full
+  from srdatalog.ir.codegen.cuda.runner import emit_runner_full
 
   return emit_runner_full(ep, db_type_name, rel_index_types=rel_index_types)
 
@@ -134,16 +134,16 @@ def compile_kernel_body(
       slots advance by 2 per FULL_VER D2L source — matching legacy
       `compute_view_slot_offsets`. Pass {} or None for plain DSAI.
   '''
+  from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
+  from srdatalog.ir.codegen.cuda.envelope import (
+    assign_handle_positions,
+    collect_unique_view_specs,
+    emit_view_declarations,
+  )
   from srdatalog.ir.dialects.relation.d2l import view_counts_for_specs
   from srdatalog.ir.dialects.relation.sorted_array.lowerings import (
     LoweringCtx,
     lower_scan_pipeline,
-  )
-  from srdatalog.ir.dialects.target.cuda.emit import EmitCtx, emit
-  from srdatalog.ir.dialects.target.cuda.envelope import (
-    assign_handle_positions,
-    collect_unique_view_specs,
-    emit_view_declarations,
   )
 
   pipeline = list(ep.pipeline)

@@ -350,7 +350,7 @@ def _lower_root_scan(
   # never emits those vars (R1 short-circuit case).
   body_text_for_elision = ''
   if ctx.is_counting:
-    from srdatalog.ir.dialects.target.cuda.emit import EmitCtx, emit
+    from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
 
     body_text_for_elision = emit(body_op, EmitCtx(indent_level=0))
 

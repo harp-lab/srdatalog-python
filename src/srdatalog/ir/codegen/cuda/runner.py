@@ -6,7 +6,7 @@ per-rule `JitRunner_<rule>` struct plus all kernel definitions and
 out-of-line phase methods — the content of `jit_runner.<rule>.cpp`.
 
 Today the implementation delegates to the legacy
-`ir.dialects.target.cuda.complete_runner.gen_complete_runner` for the runner
+`ir.codegen.cuda.complete_runner.gen_complete_runner` for the runner
 scaffolding (phase methods, type aliases, execute() dispatcher,
 LaunchParams struct, BG variants, fused kernel) and routes kernel
 *bodies* through `compile_kernel_body` when `_dialect_safe_kernel`
@@ -755,7 +755,7 @@ def emit_runner_full(
   '''Emit the full per-rule runner — struct + kernel defs + out-of-line
   phase methods + execute(). Goes into the per-rule `jit_batch_N.cpp`
   file at production-build time.'''
-  from srdatalog.ir.dialects.target.cuda.complete_runner import gen_complete_runner
+  from srdatalog.ir.codegen.cuda.complete_runner import gen_complete_runner
 
   _decl, full = gen_complete_runner(
     ep,
@@ -773,7 +773,7 @@ def emit_runner_decl(
   '''Emit the forward-declaration variant — type aliases + LaunchParams
   + method declarations only. Goes into the main compile unit so the
   orchestrator can call `JitRunner_<rule>::execute()`.'''
-  from srdatalog.ir.dialects.target.cuda.complete_runner import gen_complete_runner
+  from srdatalog.ir.codegen.cuda.complete_runner import gen_complete_runner
 
   decl, _full = gen_complete_runner(
     ep,

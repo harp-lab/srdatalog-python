@@ -14,13 +14,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from srdatalog.ir.dialects.target.cuda.batchfile import _collect_pipelines
-from srdatalog.ir.dialects.target.cuda.complete_runner import gen_complete_runner
-from srdatalog.ir.dialects.target.cuda.main_file import (
+from srdatalog.ir.codegen.cuda.batchfile import _collect_pipelines
+from srdatalog.ir.codegen.cuda.complete_runner import gen_complete_runner
+from srdatalog.ir.codegen.cuda.main_file import (
   gen_db_type_alias_for_batch,
   gen_schema_definitions_for_batch,
 )
-from srdatalog.ir.dialects.target.cuda.orchestrator import gen_step_body
+from srdatalog.ir.codegen.cuda.orchestrator import gen_step_body
 from srdatalog.ir.hir import compile_to_hir, compile_to_mir
 
 if TYPE_CHECKING:

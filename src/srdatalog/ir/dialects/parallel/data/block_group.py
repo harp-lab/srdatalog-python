@@ -20,7 +20,7 @@ This module owns:
 
   - `emit_bg_histogram_kernel(ep, rel_index_types)` — the histogram
     kernel template (lifted from
-    `ir.dialects.target.cuda.complete_runner._gen_kernel_bg_histogram`).
+    `ir.codegen.cuda.complete_runner._gen_kernel_bg_histogram`).
   - `BgRootCjMulti` op — the BG dispatch shape for root multi-source
     ColumnJoin (count/materialize/fused kernel bodies). Lifted N4.1
     from legacy `jit_root_column_join_block_group`. Bundles the
@@ -116,9 +116,9 @@ def emit_bg_histogram_kernel(
   render. Imports plugin/view-management helpers from `codegen.jit`
   for now; those move with N5 (relation.d2l dialect).
   '''
-  from srdatalog.ir.dialects.target.cuda.context import gen_root_handle as _gen_rh
-  from srdatalog.ir.dialects.target.cuda.plugin import plugin_view_count
-  from srdatalog.ir.dialects.target.cuda.view_slots import (
+  from srdatalog.ir.codegen.cuda.context import gen_root_handle as _gen_rh
+  from srdatalog.ir.codegen.cuda.plugin import plugin_view_count
+  from srdatalog.ir.codegen.cuda.view_slots import (
     collect_unique_view_specs,
     compute_view_slot_offsets,
   )

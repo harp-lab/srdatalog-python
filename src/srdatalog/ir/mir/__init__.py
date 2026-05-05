@@ -86,3 +86,17 @@ DIALECT = Dialect(
     Program,
   ],
 )
+
+
+# Verifier scaffolding — MIR invariants (well-formed pipelines, every
+# Scan/ColumnSource has a registered relation, etc.) land incrementally
+# as we encode them.
+def _register_passes() -> None:
+  from srdatalog.ir.core.passes import verifier
+
+  @verifier(DIALECT)
+  def _verify(_prog):
+    return []
+
+
+_register_passes()

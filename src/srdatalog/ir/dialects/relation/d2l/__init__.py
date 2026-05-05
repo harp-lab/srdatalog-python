@@ -51,12 +51,18 @@ The legacy `plugin_view_count` is the underlying source for
 from __future__ import annotations
 
 from srdatalog.ir.codegen.cuda.envelope import ViewSpec
+from srdatalog.ir.core import Dialect
 
 # Side-effect import: registers D2L's CUDA plugin with
 # `codegen.cuda.plugin` so `plugin_view_count` etc. dispatch correctly
 # for relations declared `index_type="...Device2LevelIndex"`.
 from srdatalog.ir.dialects.relation.d2l import cuda as _cuda
 from srdatalog.ir.dialects.relation.d2l.ops import D2lSegmentLoop
+
+DIALECT = Dialect(
+  name='relation.d2l',
+  ops=[D2lSegmentLoop],
+)
 
 
 def view_count(version: str, index_type: str) -> int:
@@ -83,4 +89,17 @@ def view_counts_for_specs(
   return [view_count(sp.version, rel_index_types.get(sp.rel_name, '')) for sp in view_specs]
 
 
-__all__ = ['D2lSegmentLoop', 'view_count', 'view_counts_for_specs']
+__all__ = ['DIALECT', 'D2lSegmentLoop', 'view_count', 'view_counts_for_specs']
+
+
+# Verifier scaffolding — D2L invariants (segment_depth coherence, etc.)
+# land incrementally as we encode them.
+def _register_passes() -> None:
+  from srdatalog.ir.core.passes import verifier
+
+  @verifier(DIALECT)
+  def _verify(_prog):
+    return []
+
+
+_register_passes()

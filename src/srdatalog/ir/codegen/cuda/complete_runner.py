@@ -28,14 +28,12 @@ dedup_hash, balanced scan, fan-out, materialized pipelines.
 
 from __future__ import annotations
 
-# Side-effect import: pulling in the D2L dialect auto-registers its
-# CUDA plugin with `codegen.cuda.plugin`. Without this,
-# `plugin_view_count` falls back to the default plugin (view_count=1
-# for every version) for any relation declared with
-# `index_type="...Device2LevelIndex"`, silently undercounting
-# NumSources and diverging from upstream.
-import srdatalog.ir.dialects.relation.d2l  # noqa: F401
 import srdatalog.ir.mir.types as m
+
+# Per S3A.8 (kill A7), CUDA index plugins are now registered by
+# `codegen.cuda.register_default_plugins()` at compile time (called
+# by every entry point in `codegen.cuda.api`). The previous
+# side-effect import of `srdatalog.ir.dialects.relation.d2l` is gone.
 from srdatalog.ir.codegen.cuda.materialized import is_materialized_pipeline
 from srdatalog.ir.codegen.cuda.pipeline_utils import (
   assign_handle_positions,

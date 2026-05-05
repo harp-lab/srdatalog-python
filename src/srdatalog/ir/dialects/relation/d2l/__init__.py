@@ -52,12 +52,12 @@ from __future__ import annotations
 
 from srdatalog.ir.codegen.cuda.envelope import ViewSpec
 from srdatalog.ir.core import Dialect
-
-# Side-effect import: registers D2L's CUDA plugin with
-# `codegen.cuda.plugin` so `plugin_view_count` etc. dispatch correctly
-# for relations declared `index_type="...Device2LevelIndex"`.
-from srdatalog.ir.dialects.relation.d2l import cuda as _cuda
 from srdatalog.ir.dialects.relation.d2l.ops import D2lSegmentLoop
+
+# Per S3A.8 (kill A7), this package no longer triggers CUDA plugin
+# registration as a side effect of import. The codegen calls
+# `srdatalog.ir.codegen.cuda.register_default_plugins()` at compile
+# time to wire the D2L plugin into its registry.
 
 DIALECT = Dialect(
   name='relation.d2l',

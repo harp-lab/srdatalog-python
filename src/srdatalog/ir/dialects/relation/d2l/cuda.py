@@ -3,10 +3,14 @@
 How the D2L (Device2LevelIndex) dialect emits as CUDA: registers an
 `IndexPlugin` with `codegen.cuda.plugin`'s registry that supplies the
 per-version view_count (FULL=2 for HEAD+FULL, DELTA/NEW=1) and the
-host-side view-setup code emitted around CUDA kernels. Importing
-this module — typically via `import srdatalog.ir.dialects.relation.d2l`
-— is enough to register the plugin (the D2L package's `__init__`
-re-imports this side-effectfully).
+host-side view-setup code emitted around CUDA kernels.
+
+Per S3A.8 / docs/stage3a_execution_plan.md §7 (kill A7), the registration
+is exposed as an explicit `register_d2l_cuda_plugin()` function. The
+CUDA codegen calls it at compile time via
+`codegen.cuda.register_default_plugins()` — no module-import-time
+side effects. Calling `import srdatalog.ir.dialects.relation.d2l`
+no longer mutates the codegen's plugin registry as a side effect.
 
 D2L design recap:
   - HEAD + FULL sorted arrays per relation.
@@ -60,6 +64,23 @@ def new_two_level_plugin() -> IndexPlugin:
   return plugin
 
 
-# Module-level instance + registration (compile-time in Nim; import-time here).
 two_level_plugin = new_two_level_plugin()
-register_index_plugin(two_level_plugin)
+
+
+def register_d2l_cuda_plugin() -> None:
+  '''Register the Device2LevelIndex plugin with codegen.cuda.plugin's
+  default registry. Idempotent — re-registering with the same cpp_type
+  key is safe (overwrites with the same value).
+
+  Called by `codegen.cuda.register_default_plugins()` at compile time.
+  Per S3A.8, no caller invokes this at import time.
+  '''
+  register_index_plugin(two_level_plugin)
+
+
+__all__ = [
+  'IndexPlugin',
+  'new_two_level_plugin',
+  'register_d2l_cuda_plugin',
+  'two_level_plugin',
+]

@@ -17,4 +17,19 @@ from srdatalog.ir.core import Dialect
 DIALECT = Dialect(name='target.cuda')
 
 
-__all__ = ['DIALECT', 'EmitCtx', 'emit']
+def register_default_plugins() -> None:
+  '''Register the default CUDA index plugins. Idempotent.
+
+  Per S3A.8 / docs/stage3a_execution_plan.md §7 (kill A7), each compile
+  entry point in `codegen.cuda.api` calls this at the start of compile
+  time. No module-import-time side effects from dialect packages — the
+  codegen is the registry's owner and explicitly opts into each plugin
+  here. Adding a new index dialect = adding a `register_X_cuda_plugin()`
+  function in that dialect and calling it from this function.
+  '''
+  from srdatalog.ir.dialects.relation.d2l.cuda import register_d2l_cuda_plugin
+
+  register_d2l_cuda_plugin()
+
+
+__all__ = ['DIALECT', 'EmitCtx', 'emit', 'register_default_plugins']

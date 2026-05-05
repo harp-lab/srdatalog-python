@@ -48,10 +48,13 @@ def compile_pipeline(ep: m.ExecutePipeline, *, target: Target = 'cuda') -> str:
   if target != 'cuda':
     raise ValueError(f'compile_pipeline: unsupported target {target!r}')
 
+  from srdatalog.ir.codegen.cuda import register_default_plugins
   from srdatalog.ir.codegen.cuda.envelope import (
     assign_handle_positions,
     emit_full_file,
   )
+
+  register_default_plugins()
 
   pipeline = list(ep.pipeline)
   assign_handle_positions(pipeline)
@@ -87,8 +90,10 @@ def compile_runner(
   anchors this entry point to the upstream goldens throughout the
   migration.
   '''
+  from srdatalog.ir.codegen.cuda import register_default_plugins
   from srdatalog.ir.codegen.cuda.runner import emit_runner_full
 
+  register_default_plugins()
   return emit_runner_full(ep, db_type_name, rel_index_types=rel_index_types)
 
 
@@ -134,6 +139,7 @@ def compile_kernel_body(
       slots advance by 2 per FULL_VER D2L source — matching legacy
       `compute_view_slot_offsets`. Pass {} or None for plain DSAI.
   '''
+  from srdatalog.ir.codegen.cuda import register_default_plugins
   from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
   from srdatalog.ir.codegen.cuda.envelope import (
     assign_handle_positions,
@@ -146,6 +152,7 @@ def compile_kernel_body(
     lower_scan_pipeline,
   )
 
+  register_default_plugins()
   pipeline = list(ep.pipeline)
   assign_handle_positions(pipeline)
 

@@ -44,6 +44,8 @@ from srdatalog.ir.dialects.iir.cf import (
   TiledBallotBlock,
   VarRef,
 )
+from srdatalog.ir.dialects.iir.expr import BinOp
+from srdatalog.ir.dialects.iir.expr.ops import bin_op_chain
 from srdatalog.ir.dialects.parallel.data.block_group import (
   BgRootCjMulti,
   BgSourceSpec,
@@ -501,7 +503,7 @@ def _lower_root_cart(
   outer_stmts.append(
     Bind(
       name=total_var,
-      expr=RawString(text=' * '.join(degree_var_names)),
+      expr=bin_op_chain('*', [VarRef(name=v) for v in degree_var_names]),
       type_decl='uint32_t',
     )
   )
@@ -533,14 +535,22 @@ def _lower_root_cart(
     inner_decompose_stmts.append(
       Bind(
         name=idx_vars[0],
-        expr=RawString(text=f'{flat_idx_var} / {degree_var_names[1]}'),
+        expr=BinOp(
+          op_str='/',
+          lhs=VarRef(name=flat_idx_var),
+          rhs=VarRef(name=degree_var_names[1]),
+        ),
         type_decl='uint32_t',
       )
     )
     inner_decompose_stmts.append(
       Bind(
         name=idx_vars[1],
-        expr=RawString(text=f'{flat_idx_var} % {degree_var_names[1]}'),
+        expr=BinOp(
+          op_str='%',
+          lhs=VarRef(name=flat_idx_var),
+          rhs=VarRef(name=degree_var_names[1]),
+        ),
         type_decl='uint32_t',
       )
     )
@@ -1213,7 +1223,7 @@ def _lower_nested_cart_tiled(
   stmts.append(
     Bind(
       name=total_var,
-      expr=RawString(text=' * '.join(degree_var_names)),
+      expr=bin_op_chain('*', [VarRef(name=v) for v in degree_var_names]),
       type_decl='uint32_t',
     )
   )
@@ -1734,7 +1744,7 @@ def _lower_nested_cart(
   stmts.append(
     Bind(
       name=total_var,
-      expr=RawString(text=' * '.join(degree_var_names)),
+      expr=bin_op_chain('*', [VarRef(name=v) for v in degree_var_names]),
       type_decl='uint32_t',
     )
   )

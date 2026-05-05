@@ -133,6 +133,7 @@ def _eager_register_all() -> None:
   from srdatalog.ir.codegen.cuda.render import (
     d2l,
     iir_cf,
+    iir_expr,
     parallel_data,
     sorted_array,
   )

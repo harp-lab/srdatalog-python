@@ -77,6 +77,8 @@ def print_iir(op: Op, indent: int = 0) -> str:
   # print.py imports helpers from this module).
   from srdatalog.ir.dialects.iir.cf.print import OPS as cf_OPS
   from srdatalog.ir.dialects.iir.cf.print import print_op as cf_print
+  from srdatalog.ir.dialects.iir.expr.print import OPS as expr_OPS
+  from srdatalog.ir.dialects.iir.expr.print import print_op as expr_print
   from srdatalog.ir.dialects.parallel.data.print import OPS as pd_OPS
   from srdatalog.ir.dialects.parallel.data.print import print_op as pd_print
   from srdatalog.ir.dialects.relation.d2l.print import OPS as d2l_OPS
@@ -86,6 +88,8 @@ def print_iir(op: Op, indent: int = 0) -> str:
 
   if isinstance(op, cf_OPS):
     return cf_print(op, indent)
+  if isinstance(op, expr_OPS):
+    return expr_print(op, indent)
   if isinstance(op, sa_OPS):
     return sa_print(op, indent)
   if isinstance(op, d2l_OPS):

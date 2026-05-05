@@ -156,13 +156,14 @@ def test_pass_driver_run_validates_then_verifies():
 def _all_production_dialects():
   '''Every framework-tracked dialect in srdatalog.ir.'''
   from srdatalog.ir.dialects.iir.cf import DIALECT as cf_d
+  from srdatalog.ir.dialects.iir.expr import DIALECT as expr_d
   from srdatalog.ir.dialects.parallel.data import DIALECT as pd_d
   from srdatalog.ir.dialects.relation.d2l import DIALECT as d2l_d
   from srdatalog.ir.dialects.relation.sorted_array import DIALECT as sa_d
   from srdatalog.ir.hir import DIALECT as hir_d
   from srdatalog.ir.mir import DIALECT as mir_d
 
-  return [hir_d, mir_d, cf_d, sa_d, d2l_d, pd_d]
+  return [hir_d, mir_d, cf_d, expr_d, sa_d, d2l_d, pd_d]
 
 
 def test_every_production_dialect_has_a_verifier():

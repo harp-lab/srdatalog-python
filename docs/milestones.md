@@ -240,6 +240,11 @@ regardless of target.
 
 ### Stage 4 task index (planning)
 
+Full inventory + per-category proposed structured ops:
+[`stage4_iir_vocabulary.md`](./stage4_iir_vocabulary.md). The table
+below is the index.
+
+
 | ID | Task | Why |
 |---|---|---|
 | **S4.0** | Inventory the 46 `RawString` sites in `sorted_array/lowerings.py`. Categorize into: bare identifier (~10), arithmetic expression (~15), array index (~5), member access (~6), compound statement (~10). | Defines the new ops that need to exist. |

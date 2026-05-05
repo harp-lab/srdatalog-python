@@ -821,7 +821,7 @@ def _lower_root_cj_multi(
 
   loop = GridStrideLoop(
     idx_name=y_idx_var,
-    bound=RawString(text='num_unique_root_keys'),
+    bound=VarRef(name='num_unique_root_keys'),
     body=loop_body,
   )
   outer_stmts.append(ParallelFor(strategy='warp_strided', body=loop))

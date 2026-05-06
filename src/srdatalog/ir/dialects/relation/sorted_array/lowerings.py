@@ -44,7 +44,7 @@ from srdatalog.ir.dialects.iir.cf import (
   TiledBallotBlock,
   VarRef,
 )
-from srdatalog.ir.dialects.iir.expr import BinOp
+from srdatalog.ir.dialects.iir.expr import BinOp, IndexExpr, MemberCall
 from srdatalog.ir.dialects.iir.expr.ops import bin_op_chain
 from srdatalog.ir.dialects.parallel.data.block_group import (
   BgRootCjMulti,
@@ -692,7 +692,7 @@ def _lower_root_cj_multi(
   loop_inner_stmts: list[Op] = [
     Bind(
       name=root_val_var,
-      expr=RawString(text=f'root_unique_values[{y_idx_var}]'),
+      expr=IndexExpr(arr=VarRef(name='root_unique_values'), idx=VarRef(name=y_idx_var)),
     ),
     BlankLine(),
   ]
@@ -1178,14 +1178,14 @@ def _lower_nested_cart_tiled(
   stmts.append(
     Bind(
       name=lane_var,
-      expr=RawString(text=f'{ctx.tile_var}.thread_rank()'),
+      expr=MemberCall(obj=VarRef(name=ctx.tile_var), method='thread_rank', args=()),
       type_decl='uint32_t',
     )
   )
   stmts.append(
     Bind(
       name=group_size_var,
-      expr=RawString(text=f'{ctx.tile_var}.size()'),
+      expr=MemberCall(obj=VarRef(name=ctx.tile_var), method='size', args=()),
       type_decl='uint32_t',
     )
   )
@@ -1681,14 +1681,14 @@ def _lower_nested_cart(
   stmts.append(
     Bind(
       name=lane_var,
-      expr=RawString(text=f'{ctx.tile_var}.thread_rank()'),
+      expr=MemberCall(obj=VarRef(name=ctx.tile_var), method='thread_rank', args=()),
       type_decl='uint32_t',
     )
   )
   stmts.append(
     Bind(
       name=group_size_var,
-      expr=RawString(text=f'{ctx.tile_var}.size()'),
+      expr=MemberCall(obj=VarRef(name=ctx.tile_var), method='size', args=()),
       type_decl='uint32_t',
     )
   )

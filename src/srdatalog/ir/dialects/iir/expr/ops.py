@@ -19,6 +19,46 @@ from srdatalog.ir.core import Op
 
 @final
 @dataclass(frozen=True, slots=True)
+class IndexExpr(Op):
+  '''Subscript expression: `<arr>[<idx>]`.
+
+  Renders to `<arr>[<idx>]`. `arr` and `idx` are both expression-shaped
+  ops (typically `VarRef`s but may be more complex).
+  '''
+
+  arr: Op
+  idx: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class MemberAccess(Op):
+  '''Member access without call: `<obj>.<member>`.
+
+  Renders to `<obj>.<member>`. Used for field reads like
+  `view.num_rows_`. Method calls (with parens) use `MemberCall`.
+  '''
+
+  obj: Op
+  member: str
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class MemberCall(Op):
+  '''Member function call: `<obj>.<method>(<args...>)`.
+
+  Renders to `<obj>.<method>(<args...>)`. `args` is a tuple of
+  expression-shaped ops; empty tuple = no-arg call (`obj.method()`).
+  '''
+
+  obj: Op
+  method: str
+  args: tuple[Op, ...]
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class BinOp(Op):
   '''Binary operator expression.
 
@@ -58,4 +98,4 @@ def bin_op_chain(op_str: str, exprs: list[Op]) -> Op:
   return result
 
 
-__all__ = ['BinOp', 'bin_op_chain']
+__all__ = ['BinOp', 'IndexExpr', 'MemberAccess', 'MemberCall', 'bin_op_chain']

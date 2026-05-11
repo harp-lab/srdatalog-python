@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from srdatalog.ir.dialects.iir.cf.ops import (
   AddCount,
+  Assign,
   Bind,
   BlankLine,
   Block,
@@ -41,6 +42,7 @@ from srdatalog.ir.print_iir import _bool, _ind, _quoted, _str_tuple, print_iir
 
 OPS: tuple[type, ...] = (
   AddCount,
+  Assign,
   BlankLine,
   Bind,
   Block,
@@ -86,6 +88,10 @@ def print_op(op, indent: int = 0) -> str:
 
   if isinstance(op, BlankLine):
     return p + '(blank-line)'
+
+  if isinstance(op, Assign):
+    value = print_iir(op.value, indent + 1)
+    return p + f'(assign #:target {op.target}\n' + p + '  #:value\n' + value + ')'
 
   # --- Bindings & references ---
 

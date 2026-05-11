@@ -12,8 +12,23 @@ from srdatalog.ir.dialects.iir.expr.ops import (
   IntLit,
   MemberAccess,
   MemberCall,
+  Parens,
+  Ternary,
   UnaryOp,
 )
+
+
+@register_render(Parens, mode='expr')
+def _render_parens(op: Parens, ctx: EmitCtx) -> str:
+  return f'({emit_expr(op.expr, ctx)})'
+
+
+@register_render(Ternary, mode='expr')
+def _render_ternary(op: Ternary, ctx: EmitCtx) -> str:
+  '''Renders `<cond> ? <then> : <else>` with no surrounding parens.
+  Caller wraps in `Parens(...)` if precedence with the surrounding
+  context requires it.'''
+  return f'{emit_expr(op.cond, ctx)} ? {emit_expr(op.then_, ctx)} : {emit_expr(op.else_, ctx)}'
 
 
 @register_render(IntLit, mode='expr')

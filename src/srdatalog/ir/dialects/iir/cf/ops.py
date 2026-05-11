@@ -85,6 +85,24 @@ class VarRef(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class Assign(Op):
+  '''Assignment statement: `<target> = <value>;`.
+
+  `target` is a string (the var name being assigned). `value` is an
+  expression-shaped Op. Renders to `<target> = <value>;` followed by
+  newline.
+
+  Used for compound forms like `x = x && cond;` or
+  `x = (cond) ? a : b;` that the lowering would otherwise emit as
+  RawString-wrapped C++ statements.
+  '''
+
+  target: str
+  value: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class IfReturnIfNot(Op):
   '''`if (!<cond>) return;` — the validity guard pattern.'''
 

@@ -19,6 +19,38 @@ from srdatalog.ir.core import Op
 
 @final
 @dataclass(frozen=True, slots=True)
+class Parens(Op):
+  '''Explicit parenthesization: `(<expr>)`.
+
+  Renders to `(<expr>)`. Use when the expression must be parenthesized
+  for either C++ precedence correctness OR for byte-equivalence with
+  legacy text-based emitters (which often had explicit parens that
+  precedence rules would otherwise allow to be elided).
+
+  Per docs/stage4_iir_vocabulary.md S4.5: lowerings that previously
+  embedded `'( <subexpr> )'` in RawString text wrap the `<subexpr>`
+  Op in `Parens(...)` to preserve the rendering exactly.
+  '''
+
+  expr: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class Ternary(Op):
+  '''Conditional expression: `<cond> ? <then_> : <else_>`.
+
+  Renders to `<cond> ? <then_> : <else_>` with no surrounding parens.
+  Wrap in `Parens` if precedence with the surrounding context requires it.
+  '''
+
+  cond: Op
+  then_: Op
+  else_: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class IntLit(Op):
   '''Integer literal.
 
@@ -131,6 +163,8 @@ __all__ = [
   'IntLit',
   'MemberAccess',
   'MemberCall',
+  'Parens',
+  'Ternary',
   'UnaryOp',
   'bin_op_chain',
 ]

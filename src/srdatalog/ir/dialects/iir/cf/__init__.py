@@ -18,6 +18,7 @@ from __future__ import annotations
 from srdatalog.ir.core import Dialect
 from srdatalog.ir.dialects.iir.cf.ops import (
   AddCount,
+  Assign,
   Bind,
   BlankLine,
   Block,
@@ -47,6 +48,7 @@ DIALECT = Dialect(
   name='iir.cf',
   ops=[
     AddCount,
+    Assign,
     BlankLine,
     Block,
     Bind,
@@ -76,6 +78,7 @@ DIALECT = Dialect(
 __all__ = [
   'DIALECT',
   'AddCount',
+  'Assign',
   'BlankLine',
   'Bind',
   'Block',

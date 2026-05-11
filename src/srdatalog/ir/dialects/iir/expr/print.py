@@ -8,11 +8,22 @@ from srdatalog.ir.dialects.iir.expr.ops import (
   IntLit,
   MemberAccess,
   MemberCall,
+  Parens,
+  Ternary,
   UnaryOp,
 )
 from srdatalog.ir.print_iir import _ind, print_iir
 
-OPS: tuple[type, ...] = (BinOp, IndexExpr, IntLit, MemberAccess, MemberCall, UnaryOp)
+OPS: tuple[type, ...] = (
+  BinOp,
+  IndexExpr,
+  IntLit,
+  MemberAccess,
+  MemberCall,
+  Parens,
+  Ternary,
+  UnaryOp,
+)
 
 
 def print_op(op, indent: int = 0) -> str:
@@ -24,6 +35,31 @@ def print_op(op, indent: int = 0) -> str:
   if isinstance(op, UnaryOp):
     expr = print_iir(op.expr, indent + 1)
     return p + f'(unary-op #:op-str "{op.op_str}"\n' + p + '  #:expr\n' + expr + ')'
+
+  if isinstance(op, Parens):
+    expr = print_iir(op.expr, indent + 1)
+    return p + '(parens\n' + expr + ')'
+
+  if isinstance(op, Ternary):
+    cond = print_iir(op.cond, indent + 1)
+    then_ = print_iir(op.then_, indent + 1)
+    else_ = print_iir(op.else_, indent + 1)
+    return (
+      p
+      + '(ternary\n'
+      + p
+      + '  #:cond\n'
+      + cond
+      + '\n'
+      + p
+      + '  #:then\n'
+      + then_
+      + '\n'
+      + p
+      + '  #:else\n'
+      + else_
+      + ')'
+    )
 
   if isinstance(op, BinOp):
     lhs = print_iir(op.lhs, indent + 1)

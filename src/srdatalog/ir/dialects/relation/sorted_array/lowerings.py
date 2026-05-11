@@ -24,6 +24,7 @@ import srdatalog.ir.mir.types as mir
 from srdatalog.ir.core import Op
 from srdatalog.ir.dialects.iir.cf import (
   AddCount,
+  Assign,
   Bind,
   BlankLine,
   Block,
@@ -46,7 +47,16 @@ from srdatalog.ir.dialects.iir.cf import (
   TiledBallotBlock,
   VarRef,
 )
-from srdatalog.ir.dialects.iir.expr import BinOp, IndexExpr, IntLit, MemberCall, UnaryOp
+from srdatalog.ir.dialects.iir.expr import (
+  BinOp,
+  IndexExpr,
+  IntLit,
+  MemberAccess,
+  MemberCall,
+  Parens,
+  Ternary,
+  UnaryOp,
+)
 from srdatalog.ir.dialects.iir.expr.ops import bin_op_chain
 
 
@@ -748,21 +758,42 @@ def _lower_root_cj_multi(
       hint_lo = ctx.fresh('hint_lo')
       hint_hi = ctx.fresh('hint_hi')
       loop_inner_stmts.append(Bind(name=hint_lo, expr=VarRef(name=y_idx_var), type_decl='uint32_t'))
+      _num_rows = MemberAccess(obj=VarRef(name=src_view), member='num_rows_')
       loop_inner_stmts.append(
         Bind(
           name=hint_hi,
-          expr=RawString(text=f'{src_view}.num_rows_ - (num_unique_root_keys - {y_idx_var} - 1)'),
+          expr=BinOp(
+            op_str='-',
+            lhs=_num_rows,
+            rhs=Parens(
+              expr=bin_op_chain(
+                '-',
+                [VarRef(name='num_unique_root_keys'), VarRef(name=y_idx_var), IntLit(value=1)],
+              ),
+            ),
+          ),
           type_decl='uint32_t',
         )
       )
       loop_inner_stmts.append(
-        RawString(
-          text=f'{hint_hi} = ({hint_hi} <= {src_view}.num_rows_) ? '
-          f'{hint_hi} : {src_view}.num_rows_;'
+        Assign(
+          target=hint_hi,
+          value=Ternary(
+            cond=Parens(expr=BinOp(op_str='<=', lhs=VarRef(name=hint_hi), rhs=_num_rows)),
+            then_=VarRef(name=hint_hi),
+            else_=_num_rows,
+          ),
         )
       )
       loop_inner_stmts.append(
-        RawString(text=f'{hint_hi} = ({hint_hi} > {hint_lo}) ? {hint_hi} : {src_view}.num_rows_;')
+        Assign(
+          target=hint_hi,
+          value=Ternary(
+            cond=Parens(expr=BinOp(op_str='>', lhs=VarRef(name=hint_hi), rhs=VarRef(name=hint_lo))),
+            then_=VarRef(name=hint_hi),
+            else_=_num_rows,
+          ),
+        )
       )
       loop_inner_stmts.append(
         Bind(
@@ -1398,17 +1429,21 @@ def _lower_negation(
     else:
       check_var = info.var_name
 
+    _not_valid = UnaryOp(
+      op_str='!',
+      expr=MemberCall(obj=VarRef(name=check_var), method='valid', args=()),
+    )
     fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
     if fold_var:
-      stmts.append(RawString(text=f'{fold_var} = {fold_var} && (!{check_var}.valid());'))
-      stmts.append(body_op)
-    else:
       stmts.append(
-        If(
-          cond=RawString(text=f'!{check_var}.valid()'),
-          body=body_op,
+        Assign(
+          target=fold_var,
+          value=BinOp(op_str='&&', lhs=VarRef(name=fold_var), rhs=Parens(expr=_not_valid)),
         )
       )
+      stmts.append(body_op)
+    else:
+      stmts.append(If(cond=_not_valid, body=body_op))
     return Block(stmts=tuple(stmts))
 
   # Standard path: const_args path not yet lowered here (only the
@@ -1460,17 +1495,21 @@ def _lower_negation(
     )
 
   stmts.append(Bind(name=neg_handle_var, expr=parent_expr))
+  _not_valid = UnaryOp(
+    op_str='!',
+    expr=MemberCall(obj=VarRef(name=neg_handle_var), method='valid', args=()),
+  )
   fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
   if fold_var:
-    stmts.append(RawString(text=f'{fold_var} = {fold_var} && (!{neg_handle_var}.valid());'))
-    stmts.append(body_op)
-  else:
     stmts.append(
-      If(
-        cond=RawString(text=f'!{neg_handle_var}.valid()'),
-        body=body_op,
+      Assign(
+        target=fold_var,
+        value=BinOp(op_str='&&', lhs=VarRef(name=fold_var), rhs=Parens(expr=_not_valid)),
       )
     )
+    stmts.append(body_op)
+  else:
+    stmts.append(If(cond=_not_valid, body=body_op))
   return Block(stmts=tuple(stmts))
 
 

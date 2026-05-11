@@ -30,12 +30,14 @@ from srdatalog.ir.dialects.iir.expr.ops import (
   IntLit,
   MemberAccess,
   MemberCall,
+  Parens,
+  Ternary,
   UnaryOp,
 )
 
 DIALECT = Dialect(
   name='iir.expr',
-  ops=[BinOp, IndexExpr, IntLit, MemberAccess, MemberCall, UnaryOp],
+  ops=[BinOp, IndexExpr, IntLit, MemberAccess, MemberCall, Parens, Ternary, UnaryOp],
 )
 
 
@@ -60,5 +62,7 @@ __all__ = [
   'IntLit',
   'MemberAccess',
   'MemberCall',
+  'Parens',
+  'Ternary',
   'UnaryOp',
 ]

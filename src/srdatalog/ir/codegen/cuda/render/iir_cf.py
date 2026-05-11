@@ -14,6 +14,7 @@ from __future__ import annotations
 from srdatalog.ir.codegen.cuda.render import EmitCtx, emit, emit_expr, register_render
 from srdatalog.ir.dialects.iir.cf.ops import (
   AddCount,
+  Assign,
   Bind,
   BlankLine,
   Block,
@@ -66,6 +67,11 @@ def _render_blank_line(op: BlankLine, ctx: EmitCtx) -> str:
 @register_render(Bind, mode='stmt')
 def _render_bind(op: Bind, ctx: EmitCtx) -> str:
   return f'{ctx.ind()}{op.type_decl} {op.name} = {emit_expr(op.expr, ctx)};\n'
+
+
+@register_render(Assign, mode='stmt')
+def _render_assign(op: Assign, ctx: EmitCtx) -> str:
+  return f'{ctx.ind()}{op.target} = {emit_expr(op.value, ctx)};\n'
 
 
 @register_render(IfReturnIfNot, mode='stmt')

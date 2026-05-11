@@ -106,6 +106,31 @@ class IfContinueIfNot(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class IfReturn(Op):
+  '''`if (<cond>) return;` — non-inverted early-exit guard.
+
+  Mirror of `IfReturnIfNot` for cases where the condition is
+  naturally positive (e.g. "if any source is invalid, return";
+  the condition itself is the disjunction of invalidity checks).
+  '''
+
+  cond: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class IfContinue(Op):
+  '''`if (<cond>) continue;` — non-inverted inner-loop early-skip.
+
+  Mirror of `IfContinueIfNot` for cases where the condition is
+  naturally positive.
+  '''
+
+  cond: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class CartesianFlatLoop(Op):
   '''Flat for-loop over the Cartesian product, partitioned by lane.
 

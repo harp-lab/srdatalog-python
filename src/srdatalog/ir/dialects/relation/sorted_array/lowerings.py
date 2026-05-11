@@ -33,7 +33,9 @@ from srdatalog.ir.dialects.iir.cf import (
   Comment,
   GridStrideLoop,
   If,
+  IfContinue,
   IfContinueIfNot,
+  IfReturn,
   IfReturnIfNot,
   IndentBlock,
   IntersectIter,
@@ -44,8 +46,25 @@ from srdatalog.ir.dialects.iir.cf import (
   TiledBallotBlock,
   VarRef,
 )
-from srdatalog.ir.dialects.iir.expr import BinOp, IndexExpr, MemberCall
+from srdatalog.ir.dialects.iir.expr import BinOp, IndexExpr, IntLit, MemberCall, UnaryOp
 from srdatalog.ir.dialects.iir.expr.ops import bin_op_chain
+
+
+def _any_handle_invalid(handle_var_names: list[str]) -> Op:
+  '''Build the structured form of `'||'.join(f'!{h}.valid()' for h in ...)`.
+
+  Returns an Op rendering as `!h1.valid() || !h2.valid() || ...`.
+  Used by the three identical validity-check sites in this module.
+  '''
+  return bin_op_chain(
+    '||',
+    [
+      UnaryOp(op_str='!', expr=MemberCall(obj=VarRef(name=h), method='valid', args=()))
+      for h in handle_var_names
+    ],
+  )
+
+
 from srdatalog.ir.dialects.parallel.data.block_group import (
   BgRootCjMulti,
   BgSourceSpec,
@@ -486,8 +505,7 @@ def _lower_root_cart(
   outer_stmts.append(BlankLine())
 
   # Combined validity check uses `return` (root level), not `continue`.
-  validity_parts = ' || '.join(f'!{h}.valid()' for h in handle_var_names)
-  outer_stmts.append(RawString(text=f'if ({validity_parts}) return;'))
+  outer_stmts.append(IfReturn(cond=_any_handle_invalid(handle_var_names)))
   outer_stmts.append(BlankLine())
 
   for i in range(num_sources):
@@ -507,7 +525,9 @@ def _lower_root_cart(
       type_decl='uint32_t',
     )
   )
-  outer_stmts.append(RawString(text=f'if ({total_var} == 0) return;'))
+  outer_stmts.append(
+    IfReturn(cond=BinOp(op_str='==', lhs=VarRef(name=total_var), rhs=IntLit(value=0))),
+  )
   outer_stmts.append(BlankLine())
 
   flat_idx_var = ctx.fresh('flat_idx')
@@ -1207,8 +1227,7 @@ def _lower_nested_cart_tiled(
       )
   stmts.append(BlankLine())
 
-  validity_parts = ' || '.join(f'!{h}.valid()' for h in handle_var_names)
-  stmts.append(RawString(text=f'if ({validity_parts}) continue;'))
+  stmts.append(IfContinue(cond=_any_handle_invalid(handle_var_names)))
   stmts.append(BlankLine())
 
   for i in range(num_sources):
@@ -1227,7 +1246,9 @@ def _lower_nested_cart_tiled(
       type_decl='uint32_t',
     )
   )
-  stmts.append(RawString(text=f'if ({total_var} == 0) continue;'))
+  stmts.append(
+    IfContinue(cond=BinOp(op_str='==', lhs=VarRef(name=total_var), rhs=IntLit(value=0))),
+  )
   stmts.append(BlankLine())
 
   stmts.append(
@@ -1728,8 +1749,7 @@ def _lower_nested_cart(
       )
   stmts.append(BlankLine())
 
-  validity_parts = ' || '.join(f'!{h}.valid()' for h in handle_var_names)
-  stmts.append(RawString(text=f'if ({validity_parts}) continue;'))
+  stmts.append(IfContinue(cond=_any_handle_invalid(handle_var_names)))
   stmts.append(BlankLine())
 
   for i in range(num_sources):
@@ -1748,7 +1768,9 @@ def _lower_nested_cart(
       type_decl='uint32_t',
     )
   )
-  stmts.append(RawString(text=f'if ({total_var} == 0) continue;'))
+  stmts.append(
+    IfContinue(cond=BinOp(op_str='==', lhs=VarRef(name=total_var), rhs=IntLit(value=0))),
+  )
   stmts.append(BlankLine())
 
   # Pre-narrow handle bindings — between total/0 check and flat

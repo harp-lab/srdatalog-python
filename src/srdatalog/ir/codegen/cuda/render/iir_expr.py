@@ -6,7 +6,26 @@ Per docs/stage4_iir_vocabulary.md S4.2.
 from __future__ import annotations
 
 from srdatalog.ir.codegen.cuda.render import EmitCtx, emit_expr, register_render
-from srdatalog.ir.dialects.iir.expr.ops import BinOp, IndexExpr, MemberAccess, MemberCall
+from srdatalog.ir.dialects.iir.expr.ops import (
+  BinOp,
+  IndexExpr,
+  IntLit,
+  MemberAccess,
+  MemberCall,
+  UnaryOp,
+)
+
+
+@register_render(IntLit, mode='expr')
+def _render_int_lit(op: IntLit, ctx: EmitCtx) -> str:
+  return str(op.value)
+
+
+@register_render(UnaryOp, mode='expr')
+def _render_unary_op(op: UnaryOp, ctx: EmitCtx) -> str:
+  '''Renders `<op_str><expr>` with no surrounding parens. Matches the
+  existing raw-text behavior for unary `!h.valid()` etc.'''
+  return f'{op.op_str}{emit_expr(op.expr, ctx)}'
 
 
 @register_render(BinOp, mode='expr')

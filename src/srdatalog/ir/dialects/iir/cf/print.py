@@ -22,7 +22,9 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   Comment,
   GridStrideLoop,
   If,
+  IfContinue,
   IfContinueIfNot,
+  IfReturn,
   IfReturnIfNot,
   IndentBlock,
   IntersectIter,
@@ -48,7 +50,9 @@ OPS: tuple[type, ...] = (
   Comment,
   GridStrideLoop,
   If,
+  IfContinue,
   IfContinueIfNot,
+  IfReturn,
   IfReturnIfNot,
   IndentBlock,
   IntersectIter,
@@ -103,6 +107,14 @@ def print_op(op, indent: int = 0) -> str:
   if isinstance(op, IfContinueIfNot):
     cond = print_iir(op.cond, indent + 1)
     return p + '(if-continue-if-not\n' + cond + ')'
+
+  if isinstance(op, IfReturn):
+    cond = print_iir(op.cond, indent + 1)
+    return p + '(if-return\n' + cond + ')'
+
+  if isinstance(op, IfContinue):
+    cond = print_iir(op.cond, indent + 1)
+    return p + '(if-continue\n' + cond + ')'
 
   if isinstance(op, If):
     cond = print_iir(op.cond, indent + 1)

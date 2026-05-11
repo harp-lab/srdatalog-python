@@ -24,11 +24,18 @@ registry — it is not a purely cosmetic split.
 from __future__ import annotations
 
 from srdatalog.ir.core import Dialect
-from srdatalog.ir.dialects.iir.expr.ops import BinOp, IndexExpr, MemberAccess, MemberCall
+from srdatalog.ir.dialects.iir.expr.ops import (
+  BinOp,
+  IndexExpr,
+  IntLit,
+  MemberAccess,
+  MemberCall,
+  UnaryOp,
+)
 
 DIALECT = Dialect(
   name='iir.expr',
-  ops=[BinOp, IndexExpr, MemberAccess, MemberCall],
+  ops=[BinOp, IndexExpr, IntLit, MemberAccess, MemberCall, UnaryOp],
 )
 
 
@@ -46,4 +53,12 @@ def _register_passes() -> None:
 _register_passes()
 
 
-__all__ = ['DIALECT', 'BinOp', 'IndexExpr', 'MemberAccess', 'MemberCall']
+__all__ = [
+  'DIALECT',
+  'BinOp',
+  'IndexExpr',
+  'IntLit',
+  'MemberAccess',
+  'MemberCall',
+  'UnaryOp',
+]

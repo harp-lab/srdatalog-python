@@ -23,7 +23,9 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   Comment,
   GridStrideLoop,
   If,
+  IfContinue,
   IfContinueIfNot,
+  IfReturn,
   IfReturnIfNot,
   IndentBlock,
   IntersectIter,
@@ -74,6 +76,16 @@ def _render_if_return_if_not(op: IfReturnIfNot, ctx: EmitCtx) -> str:
 @register_render(IfContinueIfNot, mode='stmt')
 def _render_if_continue_if_not(op: IfContinueIfNot, ctx: EmitCtx) -> str:
   return f'{ctx.ind()}if (!{emit_expr(op.cond, ctx)}) continue;\n'
+
+
+@register_render(IfReturn, mode='stmt')
+def _render_if_return(op: IfReturn, ctx: EmitCtx) -> str:
+  return f'{ctx.ind()}if ({emit_expr(op.cond, ctx)}) return;\n'
+
+
+@register_render(IfContinue, mode='stmt')
+def _render_if_continue(op: IfContinue, ctx: EmitCtx) -> str:
+  return f'{ctx.ind()}if ({emit_expr(op.cond, ctx)}) continue;\n'
 
 
 @register_render(IntersectIter, mode='stmt')

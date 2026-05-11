@@ -19,6 +19,33 @@ from srdatalog.ir.core import Op
 
 @final
 @dataclass(frozen=True, slots=True)
+class IntLit(Op):
+  '''Integer literal.
+
+  Renders to the decimal representation of `value`. No type suffix
+  (use a wrapping Cast if a specific C++ type is required).
+  '''
+
+  value: int
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class UnaryOp(Op):
+  '''Unary operator expression.
+
+  `op_str` is the C++ unary operator literal (e.g. `'!'`, `'-'`, `'~'`).
+  Renders to `<op_str><expr>` with no surrounding parens. Per the
+  same generic-vs-per-operator decision as BinOp (see iir.expr docs),
+  this is intentionally generic.
+  '''
+
+  op_str: str
+  expr: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class IndexExpr(Op):
   '''Subscript expression: `<arr>[<idx>]`.
 
@@ -98,4 +125,12 @@ def bin_op_chain(op_str: str, exprs: list[Op]) -> Op:
   return result
 
 
-__all__ = ['BinOp', 'IndexExpr', 'MemberAccess', 'MemberCall', 'bin_op_chain']
+__all__ = [
+  'BinOp',
+  'IndexExpr',
+  'IntLit',
+  'MemberAccess',
+  'MemberCall',
+  'UnaryOp',
+  'bin_op_chain',
+]

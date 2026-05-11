@@ -2,14 +2,28 @@
 
 from __future__ import annotations
 
-from srdatalog.ir.dialects.iir.expr.ops import BinOp, IndexExpr, MemberAccess, MemberCall
+from srdatalog.ir.dialects.iir.expr.ops import (
+  BinOp,
+  IndexExpr,
+  IntLit,
+  MemberAccess,
+  MemberCall,
+  UnaryOp,
+)
 from srdatalog.ir.print_iir import _ind, print_iir
 
-OPS: tuple[type, ...] = (BinOp, IndexExpr, MemberAccess, MemberCall)
+OPS: tuple[type, ...] = (BinOp, IndexExpr, IntLit, MemberAccess, MemberCall, UnaryOp)
 
 
 def print_op(op, indent: int = 0) -> str:
   p = _ind(indent)
+
+  if isinstance(op, IntLit):
+    return p + f'(int-lit #:value {op.value})'
+
+  if isinstance(op, UnaryOp):
+    expr = print_iir(op.expr, indent + 1)
+    return p + f'(unary-op #:op-str "{op.op_str}"\n' + p + '  #:expr\n' + expr + ')'
 
   if isinstance(op, BinOp):
     lhs = print_iir(op.lhs, indent + 1)

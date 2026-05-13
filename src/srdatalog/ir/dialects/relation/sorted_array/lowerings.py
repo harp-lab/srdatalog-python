@@ -28,6 +28,7 @@ from srdatalog.ir.dialects.iir.cf import (
   Bind,
   BlankLine,
   Block,
+  BracedBlock,
   Cartesian2DDecompose,
   CartesianFlatLoop,
   CartesianNDecompose,
@@ -49,11 +50,13 @@ from srdatalog.ir.dialects.iir.cf import (
 )
 from srdatalog.ir.dialects.iir.expr import (
   BinOp,
+  CCast,
   IndexExpr,
   IntLit,
   MemberAccess,
   MemberCall,
   Parens,
+  StaticCast,
   Ternary,
   UnaryOp,
 )
@@ -1861,41 +1864,51 @@ def _lower_nested_cart(
 
   # R1 short-circuit: emit per-lane add_count, no inner loop.
   if cartesian_as_product:
-    total_expr = ' * (uint64_t)'.join(degree_var_names)
+    # cap_total = (uint64_t)d0 * (uint64_t)d1 * ... (cast each operand)
+    cap_total_expr = bin_op_chain(
+      '*',
+      [CCast(type_str='uint64_t', expr=VarRef(name=d)) for d in degree_var_names],
+    )
+    # lane_share = (lane_var < lane_total)
+    #              ? ((lane_total - lane_var + group_size_var - 1) / group_size_var)
+    #              : 0
+    _arith = BinOp(
+      op_str='-',
+      lhs=BinOp(
+        op_str='+',
+        lhs=BinOp(op_str='-', lhs=VarRef(name='lane_total'), rhs=VarRef(name=lane_var)),
+        rhs=VarRef(name=group_size_var),
+      ),
+      rhs=IntLit(value=1),
+    )
+    lane_share_expr = Ternary(
+      cond=Parens(
+        expr=BinOp(op_str='<', lhs=VarRef(name=lane_var), rhs=VarRef(name='lane_total')),
+      ),
+      then_=Parens(
+        expr=BinOp(op_str='/', lhs=Parens(expr=_arith), rhs=VarRef(name=group_size_var)),
+      ),
+      else_=IntLit(value=0),
+    )
     short_circuit_stmts: list[Op] = []
     if ctx.debug:
       short_circuit_stmts.append(
         Comment(text='Count-as-product: per-lane share without inner loop')
       )
-    short_circuit_stmts.append(RawString(text='{'))
     short_circuit_stmts.append(
-      IndentBlock(
-        extra=1,
+      BracedBlock(
         stmts=(
-          Bind(
-            name='cap_total',
-            expr=RawString(text=f'(uint64_t){total_expr}'),
-            type_decl='uint64_t',
-          ),
+          Bind(name='cap_total', expr=cap_total_expr, type_decl='uint64_t'),
           Bind(
             name='lane_total',
-            expr=RawString(text='static_cast<uint32_t>(cap_total)'),
+            expr=StaticCast(type_str='uint32_t', expr=VarRef(name='cap_total')),
             type_decl='uint32_t',
           ),
-          Bind(
-            name='lane_share',
-            expr=RawString(
-              text=f'({lane_var} < lane_total) ? '
-              f'((lane_total - {lane_var} + {group_size_var} - 1) / '
-              f'{group_size_var}) : 0'
-            ),
-            type_decl='uint32_t',
-          ),
+          Bind(name='lane_share', expr=lane_share_expr, type_decl='uint32_t'),
           AddCount(output_var=ctx.output_var, delta=VarRef(name='lane_share')),
-        ),
+        )
       )
     )
-    short_circuit_stmts.append(RawString(text='}'))
     stmts.extend(short_circuit_stmts)
     return Block(stmts=tuple(stmts))
 

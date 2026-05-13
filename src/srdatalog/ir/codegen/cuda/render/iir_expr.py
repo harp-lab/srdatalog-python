@@ -8,14 +8,26 @@ from __future__ import annotations
 from srdatalog.ir.codegen.cuda.render import EmitCtx, emit_expr, register_render
 from srdatalog.ir.dialects.iir.expr.ops import (
   BinOp,
+  CCast,
   IndexExpr,
   IntLit,
   MemberAccess,
   MemberCall,
   Parens,
+  StaticCast,
   Ternary,
   UnaryOp,
 )
+
+
+@register_render(CCast, mode='expr')
+def _render_c_cast(op: CCast, ctx: EmitCtx) -> str:
+  return f'({op.type_str}){emit_expr(op.expr, ctx)}'
+
+
+@register_render(StaticCast, mode='expr')
+def _render_static_cast(op: StaticCast, ctx: EmitCtx) -> str:
+  return f'static_cast<{op.type_str}>({emit_expr(op.expr, ctx)})'
 
 
 @register_render(Parens, mode='expr')

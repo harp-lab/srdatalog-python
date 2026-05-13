@@ -85,6 +85,24 @@ class VarRef(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class BracedBlock(Op):
+  '''Anonymous C++ scope: `{ ...stmts... }`.
+
+  Renders the opening brace on its own line at the current indent,
+  bumps the indent by 1 for the inner stmts, then closes the brace
+  at the original indent. Distinct from `Block` (which has no
+  scoping/indent semantics — just statement concatenation) and
+  `IndentBlock` (which bumps indent but emits no braces).
+
+  Used for legacy short-circuit emission patterns where the lowering
+  manually opens an anonymous scope to introduce local declarations.
+  '''
+
+  stmts: tuple[Op, ...]
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class Assign(Op):
   '''Assignment statement: `<target> = <value>;`.
 

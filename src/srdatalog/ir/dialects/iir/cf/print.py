@@ -17,6 +17,7 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   Bind,
   BlankLine,
   Block,
+  BracedBlock,
   Cartesian2DDecompose,
   CartesianFlatLoop,
   CartesianNDecompose,
@@ -46,6 +47,7 @@ OPS: tuple[type, ...] = (
   BlankLine,
   Bind,
   Block,
+  BracedBlock,
   Cartesian2DDecompose,
   CartesianFlatLoop,
   CartesianNDecompose,
@@ -92,6 +94,12 @@ def print_op(op, indent: int = 0) -> str:
   if isinstance(op, Assign):
     value = print_iir(op.value, indent + 1)
     return p + f'(assign #:target {op.target}\n' + p + '  #:value\n' + value + ')'
+
+  if isinstance(op, BracedBlock):
+    if not op.stmts:
+      return p + '(braced-block)'
+    body = '\n'.join(print_iir(s, indent + 1) for s in op.stmts)
+    return p + '(braced-block\n' + body + ')'
 
   # --- Bindings & references ---
 

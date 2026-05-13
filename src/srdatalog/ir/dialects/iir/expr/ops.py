@@ -51,6 +51,29 @@ class Ternary(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class CCast(Op):
+  '''C-style cast: `(<type>)<expr>`.
+
+  Renders to `(<type_str>)<expr>` — no space between cast and expr.
+  Type binds tighter than most operators, so `(uint64_t)a * b` parses
+  as `((uint64_t)a) * b` — matching the legacy text-based emission.
+  '''
+
+  type_str: str
+  expr: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class StaticCast(Op):
+  '''C++ `static_cast<T>(expr)`.'''
+
+  type_str: str
+  expr: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class IntLit(Op):
   '''Integer literal.
 
@@ -159,11 +182,13 @@ def bin_op_chain(op_str: str, exprs: list[Op]) -> Op:
 
 __all__ = [
   'BinOp',
+  'CCast',
   'IndexExpr',
   'IntLit',
   'MemberAccess',
   'MemberCall',
   'Parens',
+  'StaticCast',
   'Ternary',
   'UnaryOp',
   'bin_op_chain',

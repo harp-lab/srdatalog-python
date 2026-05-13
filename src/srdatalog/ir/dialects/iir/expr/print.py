@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from srdatalog.ir.dialects.iir.expr.ops import (
   BinOp,
+  CCast,
   IndexExpr,
   IntLit,
   MemberAccess,
   MemberCall,
   Parens,
+  StaticCast,
   Ternary,
   UnaryOp,
 )
@@ -16,11 +18,13 @@ from srdatalog.ir.print_iir import _ind, print_iir
 
 OPS: tuple[type, ...] = (
   BinOp,
+  CCast,
   IndexExpr,
   IntLit,
   MemberAccess,
   MemberCall,
   Parens,
+  StaticCast,
   Ternary,
   UnaryOp,
 )
@@ -31,6 +35,14 @@ def print_op(op, indent: int = 0) -> str:
 
   if isinstance(op, IntLit):
     return p + f'(int-lit #:value {op.value})'
+
+  if isinstance(op, CCast):
+    expr = print_iir(op.expr, indent + 1)
+    return p + f'(c-cast #:type-str "{op.type_str}"\n' + p + '  #:expr\n' + expr + ')'
+
+  if isinstance(op, StaticCast):
+    expr = print_iir(op.expr, indent + 1)
+    return p + f'(static-cast #:type-str "{op.type_str}"\n' + p + '  #:expr\n' + expr + ')'
 
   if isinstance(op, UnaryOp):
     expr = print_iir(op.expr, indent + 1)

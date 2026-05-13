@@ -26,18 +26,31 @@ from __future__ import annotations
 from srdatalog.ir.core import Dialect
 from srdatalog.ir.dialects.iir.expr.ops import (
   BinOp,
+  CCast,
   IndexExpr,
   IntLit,
   MemberAccess,
   MemberCall,
   Parens,
+  StaticCast,
   Ternary,
   UnaryOp,
 )
 
 DIALECT = Dialect(
   name='iir.expr',
-  ops=[BinOp, IndexExpr, IntLit, MemberAccess, MemberCall, Parens, Ternary, UnaryOp],
+  ops=[
+    BinOp,
+    CCast,
+    IndexExpr,
+    IntLit,
+    MemberAccess,
+    MemberCall,
+    Parens,
+    StaticCast,
+    Ternary,
+    UnaryOp,
+  ],
 )
 
 
@@ -58,11 +71,13 @@ _register_passes()
 __all__ = [
   'DIALECT',
   'BinOp',
+  'CCast',
   'IndexExpr',
   'IntLit',
   'MemberAccess',
   'MemberCall',
   'Parens',
+  'StaticCast',
   'Ternary',
   'UnaryOp',
 ]

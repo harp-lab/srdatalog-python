@@ -18,6 +18,7 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   Bind,
   BlankLine,
   Block,
+  BracedBlock,
   Cartesian2DDecompose,
   CartesianFlatLoop,
   CartesianNDecompose,
@@ -62,6 +63,19 @@ def _render_indent_block(op: IndentBlock, ctx: EmitCtx) -> str:
 @register_render(BlankLine, mode='stmt')
 def _render_blank_line(op: BlankLine, ctx: EmitCtx) -> str:
   return '\n'
+
+
+@register_render(BracedBlock, mode='stmt')
+def _render_braced_block(op: BracedBlock, ctx: EmitCtx) -> str:
+  '''Anonymous `{ ... }` scope. Opens brace at current indent, bumps
+  inner indent by 1, closes brace at original indent.'''
+  head = f'{ctx.ind()}{{\n'
+  ctx.indent_level += 1
+  try:
+    body = ''.join(emit(s, ctx) for s in op.stmts)
+  finally:
+    ctx.indent_level -= 1
+  return head + body + f'{ctx.ind()}}}\n'
 
 
 @register_render(Bind, mode='stmt')

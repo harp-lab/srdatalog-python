@@ -18,6 +18,7 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   Bind,
   BlankLine,
   Block,
+  BracedBlock,
   Cartesian2DDecompose,
   CartesianFlatLoop,
   CartesianNDecompose,
@@ -29,12 +30,14 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   IfReturn,
   IfReturnIfNot,
   IndentBlock,
+  IndexedAssign,
   IntersectIter,
   LaneZeroGuard,
   OuterAnchor,
   ParallelFor,
   Phase,
   RawString,
+  StmtExpr,
   TiledBallotBlock,
   VarRef,
   WriteOutput,
@@ -64,6 +67,19 @@ def _render_blank_line(op: BlankLine, ctx: EmitCtx) -> str:
   return '\n'
 
 
+@register_render(BracedBlock, mode='stmt')
+def _render_braced_block(op: BracedBlock, ctx: EmitCtx) -> str:
+  '''Anonymous `{ ... }` scope. Opens brace at current indent, bumps
+  inner indent by 1, closes brace at original indent.'''
+  head = f'{ctx.ind()}{{\n'
+  ctx.indent_level += 1
+  try:
+    body = ''.join(emit(s, ctx) for s in op.stmts)
+  finally:
+    ctx.indent_level -= 1
+  return head + body + f'{ctx.ind()}}}\n'
+
+
 @register_render(Bind, mode='stmt')
 def _render_bind(op: Bind, ctx: EmitCtx) -> str:
   return f'{ctx.ind()}{op.type_decl} {op.name} = {emit_expr(op.expr, ctx)};\n'
@@ -72,6 +88,18 @@ def _render_bind(op: Bind, ctx: EmitCtx) -> str:
 @register_render(Assign, mode='stmt')
 def _render_assign(op: Assign, ctx: EmitCtx) -> str:
   return f'{ctx.ind()}{op.target} = {emit_expr(op.value, ctx)};\n'
+
+
+@register_render(IndexedAssign, mode='stmt')
+def _render_indexed_assign(op: IndexedAssign, ctx: EmitCtx) -> str:
+  return (
+    f'{ctx.ind()}{emit_expr(op.arr, ctx)}[{emit_expr(op.idx, ctx)}] = {emit_expr(op.value, ctx)};\n'
+  )
+
+
+@register_render(StmtExpr, mode='stmt')
+def _render_stmt_expr(op: StmtExpr, ctx: EmitCtx) -> str:
+  return f'{ctx.ind()}{emit_expr(op.expr, ctx)};\n'
 
 
 @register_render(IfReturnIfNot, mode='stmt')
@@ -214,10 +242,13 @@ def _render_phase(op: Phase, ctx: EmitCtx) -> str:
 
 @register_render(LaneZeroGuard, mode='stmt')
 def _render_lane_zero_guard(op: LaneZeroGuard, ctx: EmitCtx) -> str:
-  # One-liner if body is a single RawString (matches the common legacy
-  # form); otherwise braced block.
+  # One-liner if body is a single statement (matches the legacy
+  # `if (...) <stmt>` form); otherwise braced block. RawString covers
+  # the pre-S4 path; StmtExpr covers the post-S4 structured path.
   if isinstance(op.body, RawString):
     return f'{ctx.ind()}if ({ctx.tile_var}.thread_rank() == 0) {op.body.text}\n'
+  if isinstance(op.body, StmtExpr):
+    return f'{ctx.ind()}if ({ctx.tile_var}.thread_rank() == 0) {emit_expr(op.body.expr, ctx)};\n'
   lz_head = f'{ctx.ind()}if ({ctx.tile_var}.thread_rank() == 0) {{\n'
   ctx.indent_level += 1
   try:

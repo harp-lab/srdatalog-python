@@ -185,8 +185,33 @@ def compile_kernel_body(
     bg_enabled=bg_enabled,
   )
   iir = lower_scan_pipeline(pipeline, lower_ctx)
+  iir = _apply_dialect_rewrites(iir)
   emit_ctx = EmitCtx(indent_level=4)
   return view_decls + emit(iir, emit_ctx)
+
+
+def _apply_dialect_rewrites(iir):
+  '''Drive any registered `@rewrite`s to fixpoint before codegen.
+
+  Per `docs/ir_dialect_contract.md` §2.1, COMPOUND ops (today:
+  `sorted_array.DedupTryInsert`) carry a `@rewrite` that decomposes
+  them to LEAF ops; the codegen tree-walk only sees the LEAF form.
+
+  No-op for IIR trees that contain no COMPOUND ops — the fixpoint
+  loop in `apply_rewrites_to_fixpoint` returns on the first
+  no-change pass, so the cost is one walk over the tree.
+  '''
+  from srdatalog.ir.core import Compiler, PassDriver
+  from srdatalog.ir.dialects.iir.cf import DIALECT as _IIR_CF
+  from srdatalog.ir.dialects.iir.expr import DIALECT as _IIR_EXPR
+  from srdatalog.ir.dialects.parallel.data import DIALECT as _PAR
+  from srdatalog.ir.dialects.relation.d2l import DIALECT as _D2L
+  from srdatalog.ir.dialects.relation.sorted_array import DIALECT as _SA
+
+  compiler = Compiler()
+  for d in (_IIR_CF, _IIR_EXPR, _SA, _D2L, _PAR):
+    compiler.register_dialect(d)
+  return PassDriver(compiler).apply_rewrites_to_fixpoint(iir)
 
 
 __all__ = ['Target', 'compile_kernel_body', 'compile_pipeline', 'compile_runner']

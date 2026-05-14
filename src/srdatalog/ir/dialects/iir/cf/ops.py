@@ -85,6 +85,24 @@ class VarRef(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class BracedBlock(Op):
+  '''Anonymous C++ scope: `{ ...stmts... }`.
+
+  Renders the opening brace on its own line at the current indent,
+  bumps the indent by 1 for the inner stmts, then closes the brace
+  at the original indent. Distinct from `Block` (which has no
+  scoping/indent semantics — just statement concatenation) and
+  `IndentBlock` (which bumps indent but emits no braces).
+
+  Used for legacy short-circuit emission patterns where the lowering
+  manually opens an anonymous scope to introduce local declarations.
+  '''
+
+  stmts: tuple[Op, ...]
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class Assign(Op):
   '''Assignment statement: `<target> = <value>;`.
 
@@ -99,6 +117,37 @@ class Assign(Op):
 
   target: str
   value: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class IndexedAssign(Op):
+  '''Indexed assignment: `<arr>[<idx>] = <value>;`.
+
+  `arr`, `idx`, `value` are all expression-shaped Ops. Renders to
+  `<arr>[<idx>] = <value>;` followed by newline. Distinct from
+  `Assign`, whose `target` is a plain string — `IndexedAssign` is the
+  structured form for writing to a slot in an array whose subscript
+  is itself an arithmetic expression (e.g.,
+  `out_data_0[(pos + base) + col * stride] = val;`).
+  '''
+
+  arr: Op
+  idx: Op
+  value: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class StmtExpr(Op):
+  '''Statement-form wrapper around an expression: `<expr>;`.
+
+  Used for side-effecting expressions (member/function calls,
+  postfix increments) that need to appear as statements. Renders to
+  `<expr>;` followed by newline.
+  '''
+
+  expr: Op
 
 
 @final

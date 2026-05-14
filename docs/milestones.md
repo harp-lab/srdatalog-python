@@ -253,10 +253,10 @@ below is the index.
 | **S4.3** | Define `IndexExpr(arr, idx)` op + renderer. Replace ~5 RawString sites that currently embed `arr[i]` text. | |
 | **S4.4** | Define `MemberAccess(obj, member)` op + renderer. Replace ~6 RawString sites that embed `obj.member` text. | |
 | **S4.5** | Define `Ternary(cond, then_, else_)` op + renderer. Some compound statements decompose to ternaries. | |
-| **S4.6** | Tackle the ~10 gnarly compound RawString sites individually. Some may want their own structured ops; others may decompose into combinations of S4.2-S4.5 ops. | Hardest tier; do last. |
-| **S4.7** | Discipline test pinning RawString count at 0 (or a documented small N for inherently-target-specific intrinsics that don't have a structured form yet). New RawString uses caught in CI. | Caps regression. |
-| **S4.8** | Now-tractable: formalize R1–R5 from `ir_lowering_semantics.md` §11 as `Rewrite` instances on `sorted_array.R` (S3A.5 from the original Stage 3A scope, deferred here). | The rewrites operate on structured ops, not on text-fragments-wrapped-in-IR. |
-| **S4.9** | Once a real consumer exists (Stage 4's structured ops give one), implement op-level dispatch in `PassDriver.run` using the `core/strategy.py` combinators. | Op-level dispatch is YAGNI without Stage 4's semantic ops. |
+| **S4.6** | Tackle the ~10 gnarly compound RawString sites individually. Some may want their own structured ops; others may decompose into combinations of S4.2-S4.5 ops. | Hardest tier; do last. S4.6a (BracedBlock + CCast/StaticCast + L1 cluster) ✅. S4.6b (DedupTryInsert + decompose-rewrite, L2 cluster cleanup, per [`ir_dialect_contract.md`](./ir_dialect_contract.md)) ✅ — drops cap from 17 → 5. |
+| **S4.7** | Discipline test pinning RawString count at 0 (or a documented small N for inherently-target-specific intrinsics that don't have a structured form yet). New RawString uses caught in CI. | Caps regression. Current cap: 5 (3 Category J + 2 Category K). |
+| **S4.8** | Now-tractable: formalize R1–R5 from `ir_lowering_semantics.md` §11 as `Rewrite` instances on `sorted_array.R` (S3A.5 from the original Stage 3A scope, deferred here). | The rewrites operate on structured ops, not on text-fragments-wrapped-in-IR. The `@rewrite` decorator + driver are now in place (S4.9). |
+| **S4.9** | Implement `apply_rewrites_to_fixpoint` and `verify_renderability` in `PassDriver.run`, per the per-op contract in [`ir_dialect_contract.md`](./ir_dialect_contract.md). Promotes `@rewrite` from inert metadata to a real transform pass. | ✅ — driver now runs rewrites bottom-up + repeat to fixpoint; first consumer is S4.6b's `DedupTryInsert`. |
 
 **Forcing function:** committing to add a second target (CPU/WASM)
 would push Stage 4 forward — without it, the second target's

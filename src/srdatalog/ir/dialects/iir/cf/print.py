@@ -17,6 +17,7 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   Bind,
   BlankLine,
   Block,
+  BracedBlock,
   Cartesian2DDecompose,
   CartesianFlatLoop,
   CartesianNDecompose,
@@ -28,12 +29,14 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   IfReturn,
   IfReturnIfNot,
   IndentBlock,
+  IndexedAssign,
   IntersectIter,
   LaneZeroGuard,
   OuterAnchor,
   ParallelFor,
   Phase,
   RawString,
+  StmtExpr,
   TiledBallotBlock,
   VarRef,
   WriteOutput,
@@ -46,6 +49,7 @@ OPS: tuple[type, ...] = (
   BlankLine,
   Bind,
   Block,
+  BracedBlock,
   Cartesian2DDecompose,
   CartesianFlatLoop,
   CartesianNDecompose,
@@ -57,12 +61,14 @@ OPS: tuple[type, ...] = (
   IfReturn,
   IfReturnIfNot,
   IndentBlock,
+  IndexedAssign,
   IntersectIter,
   LaneZeroGuard,
   OuterAnchor,
   ParallelFor,
   Phase,
   RawString,
+  StmtExpr,
   TiledBallotBlock,
   VarRef,
   WriteOutput,
@@ -92,6 +98,37 @@ def print_op(op, indent: int = 0) -> str:
   if isinstance(op, Assign):
     value = print_iir(op.value, indent + 1)
     return p + f'(assign #:target {op.target}\n' + p + '  #:value\n' + value + ')'
+
+  if isinstance(op, IndexedAssign):
+    arr = print_iir(op.arr, indent + 1)
+    idx = print_iir(op.idx, indent + 1)
+    value = print_iir(op.value, indent + 1)
+    return (
+      p
+      + '(indexed-assign\n'
+      + p
+      + '  #:arr\n'
+      + arr
+      + '\n'
+      + p
+      + '  #:idx\n'
+      + idx
+      + '\n'
+      + p
+      + '  #:value\n'
+      + value
+      + ')'
+    )
+
+  if isinstance(op, StmtExpr):
+    expr = print_iir(op.expr, indent + 1)
+    return p + '(stmt-expr\n' + expr + ')'
+
+  if isinstance(op, BracedBlock):
+    if not op.stmts:
+      return p + '(braced-block)'
+    body = '\n'.join(print_iir(s, indent + 1) for s in op.stmts)
+    return p + '(braced-block\n' + body + ')'
 
   # --- Bindings & references ---
 

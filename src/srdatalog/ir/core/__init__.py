@@ -37,7 +37,15 @@ from typing import NoReturn
 
 from srdatalog.ir.core.dialect import Compiler, Dialect
 from srdatalog.ir.core.ops import Op, Type
-from srdatalog.ir.core.passes import Lowering, PassDriver, Rewrite
+from srdatalog.ir.core.passes import (
+  Lowering,
+  PassDriver,
+  Rewrite,
+  RewriteContext,
+  RewriteRegistrationConflict,
+  UnrenderableOp,
+  UnrenderableOpError,
+)
 from srdatalog.ir.core.strategy import (
   Strategy,
   all_,
@@ -73,8 +81,12 @@ __all__ = [
   'Op',
   'PassDriver',
   'Rewrite',
+  'RewriteContext',
+  'RewriteRegistrationConflict',
   'Strategy',
   'Type',
+  'UnrenderableOp',
+  'UnrenderableOpError',
   'VerificationError',
   'all_',
   'assert_never',

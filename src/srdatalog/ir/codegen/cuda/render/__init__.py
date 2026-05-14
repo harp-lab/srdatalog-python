@@ -92,6 +92,15 @@ def register_render(op_class: type[Op], *, mode: str = 'stmt') -> Callable[[Rend
   return _wrap
 
 
+def has_renderer(op_class: type[Op]) -> bool:
+  '''Return True iff at least one renderer (stmt or expr) is registered
+  for `op_class`. Used by `PassDriver.verify_renderability` to check
+  the post-fixpoint closure property — see
+  `docs/ir_dialect_contract.md` §3.'''
+  _eager_register_all()
+  return op_class in _STMT_HANDLERS or op_class in _EXPR_HANDLERS
+
+
 def emit(op: Op, ctx: EmitCtx) -> str:
   '''Statement-mode dispatch. Returns C++ source text ending in `\\n`.'''
   handler = _STMT_HANDLERS.get(type(op))
@@ -149,4 +158,4 @@ _registered_all = False
 _eager_register_all()
 
 
-__all__ = ['EmitCtx', 'RenderFn', 'register_render', 'emit', 'emit_expr']
+__all__ = ['EmitCtx', 'RenderFn', 'emit', 'emit_expr', 'has_renderer', 'register_render']

@@ -38,6 +38,7 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   RawString,
   StmtExpr,
   TiledBallotBlock,
+  UserCode,
   VarRef,
   WriteOutput,
 )
@@ -70,6 +71,7 @@ OPS: tuple[type, ...] = (
   RawString,
   StmtExpr,
   TiledBallotBlock,
+  UserCode,
   VarRef,
   WriteOutput,
 )
@@ -134,8 +136,14 @@ def print_op(op, indent: int = 0) -> str:
 
   if isinstance(op, Bind):
     expr = print_iir(op.expr, indent + 1)
+    comment_form = f' #:inline-comment {_quoted(op.inline_comment)}' if op.inline_comment else ''
     return (
-      p + f'(bind #:name {op.name} #:type-decl {op.type_decl}\n' + p + '  #:expr\n' + expr + ')'
+      p
+      + f'(bind #:name {op.name} #:type-decl {op.type_decl}{comment_form}\n'
+      + p
+      + '  #:expr\n'
+      + expr
+      + ')'
     )
 
   if isinstance(op, VarRef):
@@ -263,6 +271,9 @@ def print_op(op, indent: int = 0) -> str:
 
   if isinstance(op, RawString):
     return p + f'(raw-string #:text {_quoted(op.text)})'
+
+  if isinstance(op, UserCode):
+    return p + f'(user-code #:text {_quoted(op.text)})'
 
   # --- Tiled-Cartesian ballot block ---
 

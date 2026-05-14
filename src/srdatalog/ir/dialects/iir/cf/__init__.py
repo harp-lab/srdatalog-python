@@ -43,6 +43,7 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   RawString,
   StmtExpr,
   TiledBallotBlock,
+  UserCode,
   VarRef,
   WriteOutput,
 )
@@ -76,6 +77,7 @@ DIALECT = Dialect(
     RawString,
     StmtExpr,
     TiledBallotBlock,
+    UserCode,
     VarRef,
     WriteOutput,
   ],
@@ -109,6 +111,7 @@ __all__ = [
   'RawString',
   'StmtExpr',
   'TiledBallotBlock',
+  'UserCode',
   'VarRef',
   'WriteOutput',
 ]

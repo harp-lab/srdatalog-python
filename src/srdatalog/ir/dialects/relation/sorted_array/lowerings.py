@@ -45,9 +45,9 @@ from srdatalog.ir.dialects.iir.cf import (
   LaneZeroGuard,
   OuterAnchor,
   ParallelFor,
-  RawString,
   StmtExpr,
   TiledBallotBlock,
+  UserCode,
   VarRef,
 )
 from srdatalog.ir.dialects.iir.expr import (
@@ -1073,17 +1073,29 @@ def _lower_inner_chain(
     # ws_cartesian_valid_var / tiled_cartesian_valid_var branches.
     fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
     if fold_var:
+      # `<fold_var> = <fold_var> && (<user_cond>);` — structured Assign
+      # over BinOp('&&', VarRef, Parens(UserCode(cond_expr))). UserCode
+      # is the typed escape hatch for Filter/ConstantBind text the IR
+      # cannot structurally interpret (Category J per
+      # docs/ir_dialect_contract.md §4).
       return Block(
         stmts=(
-          RawString(text=f'{fold_var} = {fold_var} && ({cond_expr});'),
+          Assign(
+            target=fold_var,
+            value=BinOp(
+              op_str='&&',
+              lhs=VarRef(name=fold_var),
+              rhs=Parens(expr=UserCode(text=cond_expr)),
+            ),
+          ),
           body_op,
         )
       )
-    return If(cond=RawString(text=cond_expr), body=body_op)
+    return If(cond=UserCode(text=cond_expr), body=body_op)
 
   if isinstance(head, mir.ConstantBind):
     var = _sanitize_var_name(head.var_name)
-    bind_stmt = Bind(name=var, expr=RawString(text=head.code))
+    bind_stmt = Bind(name=var, expr=UserCode(text=head.code))
     rest_op = _lower_inner_chain(tail, ctx)
     if isinstance(rest_op, Block):
       return Block(stmts=(bind_stmt, *rest_op.stmts))
@@ -1253,8 +1265,10 @@ def _lower_nested_cart_tiled(
   for i in range(num_sources):
     if alias_targets[i] is not None:
       stmts.append(
-        RawString(
-          text=f'auto {handle_var_names[i]} = {alias_targets[i]};  // reusing narrowed handle'
+        Bind(
+          name=handle_var_names[i],
+          expr=VarRef(name=alias_targets[i]),
+          inline_comment='reusing narrowed handle',
         )
       )
     else:
@@ -1768,8 +1782,10 @@ def _lower_nested_cart(
     if alias_targets[i] is not None:
       # Reuse narrowed handle from parent (with legacy comment).
       stmts.append(
-        RawString(
-          text=f'auto {handle_var_names[i]} = {alias_targets[i]};  // reusing narrowed handle'
+        Bind(
+          name=handle_var_names[i],
+          expr=VarRef(name=alias_targets[i]),
+          inline_comment='reusing narrowed handle',
         )
       )
     elif src.prefix_vars:

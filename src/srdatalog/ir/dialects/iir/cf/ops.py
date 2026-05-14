@@ -67,12 +67,16 @@ class Bind(Op):
   '''Declare `auto <name> = <expr>;` (or `<type> <name> = <expr>;`).
 
   `expr` is an expression-shaped Op; the target lowering renders it
-  via emit_expr().
+  via emit_expr(). When `inline_comment` is non-empty, renders as
+  `<type> <name> = <expr>;  // <inline_comment>` — used for the
+  handle-alias-reuse pattern (Category K) where the trailing comment
+  documents that the binding aliases an already-narrowed handle.
   '''
 
   name: str
   expr: Op
   type_decl: str = 'auto'
+  inline_comment: str = ''
 
 
 @final
@@ -135,6 +139,31 @@ class IndexedAssign(Op):
   arr: Op
   idx: Op
   value: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class UserCode(Op):
+  '''User-supplied expression text, kept opaque to the IR.
+
+  Per docs/ir_dialect_contract.md §4 / docs/stage4_iir_vocabulary.md
+  Category J: `Filter.code` and `ConstantBind.code` arrive from the
+  user as C++ expression fragments. The IR cannot structurally
+  parse them — but it can give them a *typed* slot that's distinct
+  from `RawString` (which is the framework's escape-hatch debt).
+
+  Renders to `op.text` in expression mode (no leading indent, no
+  semicolon — the parent op wraps it as needed). No statement-mode
+  renderer; user code that arrives as a statement should be
+  pre-extracted into expression form by the caller (see
+  `_filter_expr` for the `Filter.code` -> bare-expression strip).
+
+  The discipline test (`tests/test_iir_no_raw_string_growth.py`)
+  counts `RawString(` only — `UserCode(` is the legitimate form for
+  Category J sites and does not increment the cap.
+  '''
+
+  text: str
 
 
 @final

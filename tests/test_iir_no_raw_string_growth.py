@@ -8,18 +8,17 @@ explicit "Category J — user-supplied code" treatment.
 The number below ratchets DOWN as Stage 4 continues. Don't raise it
 without a documented reason — that's the regression this test catches.
 
-Current acceptable counts:
-  - sorted_array/lowerings.py: 5 (after S4.6b — DedupTryInsert
-    COMPOUND op + decompose-rewrite cleared the L2 dedup cluster,
-    per docs/ir_dialect_contract.md §1)
-    - 3 are Category J (Filter/ConstantBind user-supplied code at
-      lines around 1070, 1074, 1078)
-    - 2 are Category K (handle-alias inline decls with trailing
-      comments — deferred per the inventory)
+Current acceptable count:
+  - sorted_array/lowerings.py: 0 (Stage 4 closed cleanly).
+    - Category J (3 user-supplied-code sites) now use the dedicated
+      `iir.cf.UserCode` op (see docs/ir_dialect_contract.md §4).
+    - Category K (2 handle-alias inline-decl sites) now use
+      `iir.cf.Bind(..., inline_comment=...)`.
+    - No Category L sites left (S4.6a + S4.6b cleared them via
+      structured ops + DedupTryInsert COMPOUND op).
 
-Subsequent S4 tasks should LOWER this number. When the count drops,
-update the constant below in the SAME commit that does the cleanup —
-this is a contract, not a moving target.
+The cap stays at 0 going forward. Any new RawString site is a
+contract violation — add a structured op or use UserCode instead.
 '''
 
 from __future__ import annotations
@@ -41,7 +40,7 @@ _LOWERINGS_PATH = (
 # RATCHET: only DECREASE this. New uses must motivate the increase
 # explicitly in the PR description + this docstring + a Category J/K/L
 # inventory note.
-_MAX_RAWSTRING_CALLS = 5
+_MAX_RAWSTRING_CALLS = 0
 
 
 def test_lowerings_rawstring_count_at_or_below_cap() -> None:

@@ -191,27 +191,35 @@ def compile_kernel_body(
 
 
 def _apply_dialect_rewrites(iir):
-  '''Drive any registered `@rewrite`s to fixpoint before codegen.
+  '''Drive registered `@rewrite`s to fixpoint, then verify renderability.
 
-  Per `docs/ir_dialect_contract.md` §2.1, COMPOUND ops (today:
-  `sorted_array.DedupTryInsert`) carry a `@rewrite` that decomposes
-  them to LEAF ops; the codegen tree-walk only sees the LEAF form.
+  Per `docs/ir_dialect_contract.md` §2 and §3:
+    1. `apply_rewrites_to_fixpoint` decomposes COMPOUND ops (today:
+       `sorted_array.DedupTryInsert`) into LEAF ops via `@rewrite`.
+    2. `verify_renderability` confirms every surviving op has a
+       registered CUDA renderer — catches the case where someone
+       adds a COMPOUND op without a `@rewrite`, or adds a new IIR op
+       without a renderer. Loud failure at compile time is the
+       contract's enforcement teeth.
 
-  No-op for IIR trees that contain no COMPOUND ops — the fixpoint
-  loop in `apply_rewrites_to_fixpoint` returns on the first
-  no-change pass, so the cost is one walk over the tree.
+  No-op cost when no rewrites match: the fixpoint loop returns on
+  the first no-change pass, then `verify_renderability` does one
+  walk to check op-type membership in the CUDA renderer registry.
   '''
+  from srdatalog.ir.codegen.cuda.render import has_renderer
   from srdatalog.ir.core import Compiler, PassDriver
   from srdatalog.ir.dialects.iir.cf import DIALECT as _IIR_CF
   from srdatalog.ir.dialects.iir.expr import DIALECT as _IIR_EXPR
   from srdatalog.ir.dialects.parallel.data import DIALECT as _PAR
   from srdatalog.ir.dialects.relation.d2l import DIALECT as _D2L
   from srdatalog.ir.dialects.relation.sorted_array import DIALECT as _SA
+  from srdatalog.ir.hir import DIALECT as _HIR
+  from srdatalog.ir.mir import DIALECT as _MIR
 
   compiler = Compiler()
-  for d in (_IIR_CF, _IIR_EXPR, _SA, _D2L, _PAR):
+  for d in (_HIR, _MIR, _IIR_CF, _IIR_EXPR, _SA, _D2L, _PAR):
     compiler.register_dialect(d)
-  return PassDriver(compiler).apply_rewrites_to_fixpoint(iir)
+  return PassDriver(compiler).run(iir, target='cuda', has_renderer=has_renderer)
 
 
 __all__ = ['Target', 'compile_kernel_body', 'compile_pipeline', 'compile_runner']

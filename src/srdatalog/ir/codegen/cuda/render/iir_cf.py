@@ -39,6 +39,7 @@ from srdatalog.ir.dialects.iir.cf.ops import (
   RawString,
   StmtExpr,
   TiledBallotBlock,
+  UserCode,
   VarRef,
   WriteOutput,
 )
@@ -82,7 +83,10 @@ def _render_braced_block(op: BracedBlock, ctx: EmitCtx) -> str:
 
 @register_render(Bind, mode='stmt')
 def _render_bind(op: Bind, ctx: EmitCtx) -> str:
-  return f'{ctx.ind()}{op.type_decl} {op.name} = {emit_expr(op.expr, ctx)};\n'
+  base = f'{ctx.ind()}{op.type_decl} {op.name} = {emit_expr(op.expr, ctx)};'
+  if op.inline_comment:
+    return f'{base}  // {op.inline_comment}\n'
+  return f'{base}\n'
 
 
 @register_render(Assign, mode='stmt')
@@ -327,4 +331,9 @@ def _render_var_ref(op: VarRef, ctx: EmitCtx) -> str:
 
 @register_render(RawString, mode='expr')
 def _render_raw_string_expr(op: RawString, ctx: EmitCtx) -> str:
+  return op.text
+
+
+@register_render(UserCode, mode='expr')
+def _render_user_code(op: UserCode, ctx: EmitCtx) -> str:
   return op.text

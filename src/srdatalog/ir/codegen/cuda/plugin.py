@@ -141,56 +141,206 @@ def new_default_plugin() -> IndexPlugin:
 
 
 # -----------------------------------------------------------------------------
-# Global registry
+# PluginRegistry — encapsulated state (Bundle C / S3A.8 close-out)
 # -----------------------------------------------------------------------------
 
-_PLUGIN_REGISTRY: dict[str, IndexPlugin] = {}
-_DEFAULT_PLUGIN: IndexPlugin = new_default_plugin()
+
+class PluginRegistry:
+  '''A per-instance plugin registry. Each instance owns:
+
+    * `_by_type`: cpp_type -> IndexPlugin (the registered plugins).
+    * `_default`: the fallback plugin for `index_type=""` and unknown types.
+
+  This is the encapsulation step of the A6 (no module-global state)
+  cleanup. Today, a single module-level singleton (`_default_registry`)
+  backs the legacy module-function API (`register_index_plugin`,
+  `resolve_plugin`, `plugin_gen_X`). New code can construct its own
+  `PluginRegistry` and call methods on it directly — and a future Compiler
+  instance can hold its own `PluginRegistry` to fully eliminate the
+  module-global state per the dialect contract.
+
+  Methods mirror the legacy module-level functions one-for-one so the
+  refactor is mechanical at the call sites that adopt the instance
+  form.
+  '''
+
+  def __init__(self, default: IndexPlugin | None = None) -> None:
+    self._by_type: dict[str, IndexPlugin] = {}
+    self._default: IndexPlugin = default if default is not None else new_default_plugin()
+
+  # --- Registration / lookup ----------------------------------------
+
+  def register(self, plugin: IndexPlugin) -> None:
+    '''Register `plugin` keyed by its `cpp_type`. Idempotent: re-registering
+    the same `cpp_type` overwrites the previous binding (matches Nim's
+    compile-time registration semantics, which the CUDA emit was ported
+    from).'''
+    self._by_type[plugin.cpp_type] = plugin
+
+  def resolve(self, index_type: str) -> IndexPlugin:
+    '''Look up by C++ type. Empty string OR unknown type returns the
+    default plugin. Substring match (either direction) lets partial type
+    strings resolve, mirroring Nim's resolvePlugin behavior.'''
+    if not index_type:
+      return self._default
+    if index_type in self._by_type:
+      return self._by_type[index_type]
+    for key, plugin in self._by_type.items():
+      if key in index_type or index_type in key:
+        return plugin
+    return self._default
+
+  # --- Introspection (for tests + diagnostics) ----------------------
+
+  def __contains__(self, cpp_type: str) -> bool:
+    '''True iff `cpp_type` has a registered plugin (does NOT consider
+    substring fallback; for that, use `resolve(cpp_type) is not default`).'''
+    return cpp_type in self._by_type
+
+  def registered_types(self) -> frozenset[str]:
+    '''Snapshot of all registered cpp_types (defensive copy — mutating
+    the result has no effect on the registry).'''
+    return frozenset(self._by_type)
+
+  # ------------------------------------------------------------------
+
+  def extra_headers_for_types(self, index_types: list[str]) -> list[str]:
+    '''Collect unique C++ headers declared by the plugins that
+    `index_types` resolve to. Empty strings are skipped.'''
+    out: list[str] = []
+    for t in index_types:
+      if not t:
+        continue
+      for h in self.resolve(t).cpp_headers:
+        if h not in out:
+          out.append(h)
+    return out
+
+  # --- Expression-level dispatch (mirror module-level wrappers) -----
+
+  def gen_root_handle(self, view_var: str, index_type: str = '') -> str:
+    return self.resolve(index_type).gen_root_handle(view_var)
+
+  def gen_prefix(
+    self,
+    handle: str,
+    key: str,
+    view_var: str,
+    mode: PrefixMode,
+    index_type: str = '',
+  ) -> str:
+    return self.resolve(index_type).gen_prefix(handle, key, view_var, mode)
+
+  def gen_prefix_lower_bound(
+    self,
+    handle: str,
+    key: str,
+    view_var: str,
+    mode: PrefixMode,
+    index_type: str = '',
+  ) -> str:
+    return self.resolve(index_type).gen_prefix_lower_bound(handle, key, view_var, mode)
+
+  def gen_degree(self, handle: str, index_type: str = '') -> str:
+    return self.resolve(index_type).gen_degree(handle)
+
+  def gen_valid(self, handle: str, index_type: str = '') -> str:
+    return self.resolve(index_type).gen_valid(handle)
+
+  def gen_get_value_at(self, handle: str, view_var: str, idx: str, index_type: str = '') -> str:
+    return self.resolve(index_type).gen_get_value_at(handle, view_var, idx)
+
+  def gen_get_value(self, view_var: str, col: int, pos: str, index_type: str = '') -> str:
+    return self.resolve(index_type).gen_get_value(view_var, col, pos)
+
+  def gen_child(self, handle: str, idx: str, index_type: str = '') -> str:
+    return self.resolve(index_type).gen_child(handle, idx)
+
+  def gen_child_range(
+    self,
+    handle: str,
+    pos: str,
+    key: str,
+    tile: str,
+    view_var: str,
+    index_type: str = '',
+  ) -> str:
+    return self.resolve(index_type).gen_child_range(handle, pos, key, tile, view_var)
+
+  def gen_iterators(self, handle: str, view_var: str, index_type: str = '') -> str:
+    return self.resolve(index_type).gen_iterators(handle, view_var)
+
+  def view_count(self, version: str, index_type: str = '') -> int:
+    return self.resolve(index_type).view_count(version)
+
+  def gen_host_view_setup(
+    self,
+    idx_expr: str,
+    version: str,
+    index_type: str = '',
+  ) -> list[str]:
+    return self.resolve(index_type).gen_host_view_setup(idx_expr, version)
+
+
+# -----------------------------------------------------------------------------
+# Module-level default registry (legacy API back-compat)
+# -----------------------------------------------------------------------------
+#
+# All module-level functions below operate on this singleton. Tests and
+# new per-Compiler code can construct their own PluginRegistry instances
+# and call methods on those directly — see `PluginRegistry` above.
+
+_default_registry: PluginRegistry = PluginRegistry()
+
+# Back-compat alias — refers to the same dict the registry uses
+# internally. Existing tests that capture/restore registry state via
+# direct dict access continue to work; new code should call methods
+# on the PluginRegistry instance instead.
+_PLUGIN_REGISTRY: dict[str, IndexPlugin] = _default_registry._by_type
+
+
+def get_default_registry() -> PluginRegistry:
+  '''Public accessor for the module-level default registry. Intended for
+  callers that want to inspect or temporarily replace the registry (e.g.
+  test fixtures). Production code should call `register_index_plugin`
+  / `resolve_plugin` / `plugin_gen_X` for back-compat, or hold its own
+  `PluginRegistry` instance.'''
+  return _default_registry
 
 
 def register_index_plugin(plugin: IndexPlugin) -> None:
-  '''Register a plugin by its `cpp_type` string. Called from each index
-  module at import time (mirroring Nim's compile-time registration).
-  '''
-  _PLUGIN_REGISTRY[plugin.cpp_type] = plugin
+  '''Register a plugin on the module-level default registry. Called by
+  `codegen.cuda.register_default_plugins()` at compile entry-time;
+  no module-import-time side effects (per S3A.8 / A7 cleanup).'''
+  _default_registry.register(plugin)
 
 
 def resolve_plugin(index_type: str) -> IndexPlugin:
-  '''Look up plugin by C++ type; empty string / unknown type returns the
-  default (DSAI). Substring match lets partial type strings resolve, matching
-  Nim's resolvePlugin behavior.
-  '''
-  if not index_type:
-    return _DEFAULT_PLUGIN
-  if index_type in _PLUGIN_REGISTRY:
-    return _PLUGIN_REGISTRY[index_type]
-  for key, plugin in _PLUGIN_REGISTRY.items():
-    if key in index_type or index_type in key:
-      return plugin
-  return _DEFAULT_PLUGIN
+  '''Look up by C++ type on the module-level default registry. Empty
+  string / unknown type returns the default (DSAI). Substring match
+  lets partial type strings resolve — mirrors Nim's resolvePlugin.'''
+  return _default_registry.resolve(index_type)
 
 
 def get_extra_headers_for_types(index_types: list[str]) -> list[str]:
   '''Collect unique C++ headers declared by the plugins resolving from
   `index_types`. Empty strings are skipped.'''
-  out: list[str] = []
-  for t in index_types:
-    if not t:
-      continue
-    for h in resolve_plugin(t).cpp_headers:
-      if h not in out:
-        out.append(h)
-  return out
+  return _default_registry.extra_headers_for_types(index_types)
 
 
 # -----------------------------------------------------------------------------
 # Plugin-dispatched expression wrappers (the public API every other
 # codegen module calls into). `index_type=""` always hits the DSAI default.
+#
+# All thin shims over `_default_registry`'s methods — kept as
+# module-level functions for back-compat with the many call sites in
+# `codegen/cuda/context.py` etc. New code should prefer holding its own
+# PluginRegistry and calling methods on it directly.
 # -----------------------------------------------------------------------------
 
 
-def plugin_gen_root_handle(view_var: str, index_type: str = "") -> str:
-  return resolve_plugin(index_type).gen_root_handle(view_var)
+def plugin_gen_root_handle(view_var: str, index_type: str = '') -> str:
+  return _default_registry.gen_root_handle(view_var, index_type)
 
 
 def plugin_gen_prefix(
@@ -198,9 +348,9 @@ def plugin_gen_prefix(
   key: str,
   view_var: str,
   mode: PrefixMode,
-  index_type: str = "",
+  index_type: str = '',
 ) -> str:
-  return resolve_plugin(index_type).gen_prefix(handle, key, view_var, mode)
+  return _default_registry.gen_prefix(handle, key, view_var, mode, index_type)
 
 
 def plugin_gen_prefix_lower_bound(
@@ -208,34 +358,29 @@ def plugin_gen_prefix_lower_bound(
   key: str,
   view_var: str,
   mode: PrefixMode,
-  index_type: str = "",
+  index_type: str = '',
 ) -> str:
-  return resolve_plugin(index_type).gen_prefix_lower_bound(
-    handle,
-    key,
-    view_var,
-    mode,
-  )
+  return _default_registry.gen_prefix_lower_bound(handle, key, view_var, mode, index_type)
 
 
-def plugin_gen_degree(handle: str, index_type: str = "") -> str:
-  return resolve_plugin(index_type).gen_degree(handle)
+def plugin_gen_degree(handle: str, index_type: str = '') -> str:
+  return _default_registry.gen_degree(handle, index_type)
 
 
-def plugin_gen_valid(handle: str, index_type: str = "") -> str:
-  return resolve_plugin(index_type).gen_valid(handle)
+def plugin_gen_valid(handle: str, index_type: str = '') -> str:
+  return _default_registry.gen_valid(handle, index_type)
 
 
-def plugin_gen_get_value_at(handle: str, view_var: str, idx: str, index_type: str = "") -> str:
-  return resolve_plugin(index_type).gen_get_value_at(handle, view_var, idx)
+def plugin_gen_get_value_at(handle: str, view_var: str, idx: str, index_type: str = '') -> str:
+  return _default_registry.gen_get_value_at(handle, view_var, idx, index_type)
 
 
-def plugin_gen_get_value(view_var: str, col: int, pos: str, index_type: str = "") -> str:
-  return resolve_plugin(index_type).gen_get_value(view_var, col, pos)
+def plugin_gen_get_value(view_var: str, col: int, pos: str, index_type: str = '') -> str:
+  return _default_registry.gen_get_value(view_var, col, pos, index_type)
 
 
-def plugin_gen_child(handle: str, idx: str, index_type: str = "") -> str:
-  return resolve_plugin(index_type).gen_child(handle, idx)
+def plugin_gen_child(handle: str, idx: str, index_type: str = '') -> str:
+  return _default_registry.gen_child(handle, idx, index_type)
 
 
 def plugin_gen_child_range(
@@ -244,25 +389,25 @@ def plugin_gen_child_range(
   key: str,
   tile: str,
   view_var: str,
-  index_type: str = "",
+  index_type: str = '',
 ) -> str:
-  return resolve_plugin(index_type).gen_child_range(handle, pos, key, tile, view_var)
+  return _default_registry.gen_child_range(handle, pos, key, tile, view_var, index_type)
 
 
-def plugin_gen_iterators(handle: str, view_var: str, index_type: str = "") -> str:
-  return resolve_plugin(index_type).gen_iterators(handle, view_var)
+def plugin_gen_iterators(handle: str, view_var: str, index_type: str = '') -> str:
+  return _default_registry.gen_iterators(handle, view_var, index_type)
 
 
-def plugin_view_count(version: str, index_type: str = "") -> int:
-  return resolve_plugin(index_type).view_count(version)
+def plugin_view_count(version: str, index_type: str = '') -> int:
+  return _default_registry.view_count(version, index_type)
 
 
 def plugin_gen_host_view_setup(
   idx_expr: str,
   version: str,
-  index_type: str = "",
+  index_type: str = '',
 ) -> list[str]:
-  return resolve_plugin(index_type).gen_host_view_setup(idx_expr, version)
+  return _default_registry.gen_host_view_setup(idx_expr, version, index_type)
 
 
 # -----------------------------------------------------------------------------

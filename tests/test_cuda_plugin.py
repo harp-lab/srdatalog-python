@@ -188,6 +188,93 @@ def test_chained_prefix_with_last_lower_bound():
   )
 
 
+# -----------------------------------------------------------------------------
+# PluginRegistry instance form (Bundle C — encapsulated state)
+# -----------------------------------------------------------------------------
+
+
+def test_registry_fresh_instance_resolves_to_default():
+  '''A fresh PluginRegistry has DSAI as its default and no registered
+  plugins; resolve("") and resolve(unknown) both return DSAI.'''
+  from srdatalog.ir.codegen.cuda.plugin import PluginRegistry
+
+  reg = PluginRegistry()
+  assert reg.resolve("").name == "DeviceSortedArrayIndex"
+  assert reg.resolve("Some::Unknown::Index").name == "DeviceSortedArrayIndex"
+  assert reg.registered_types() == frozenset()
+
+
+def test_registry_register_then_resolve_exact():
+  from srdatalog.ir.codegen.cuda.plugin import PluginRegistry
+
+  reg = PluginRegistry()
+  custom = IndexPlugin(
+    name="MyIndex",
+    cpp_type="My::Index",
+    cpp_headers=["my_index.h"],
+    gen_root_handle=lambda v: f"MyHandle({v})",
+  )
+  reg.register(custom)
+  assert reg.resolve("My::Index").name == "MyIndex"
+  assert reg.gen_root_handle("v", "My::Index") == "MyHandle(v)"
+  assert "My::Index" in reg
+  assert reg.registered_types() == frozenset({"My::Index"})
+
+
+def test_registry_substring_match_resolves_partial_type():
+  '''resolve("My::Index<int, 4>") matches the registered "My::Index"
+  because of the substring fallback (mirrors Nim's resolvePlugin).'''
+  from srdatalog.ir.codegen.cuda.plugin import PluginRegistry
+
+  reg = PluginRegistry()
+  reg.register(
+    IndexPlugin(name="Mine", cpp_type="My::Index", gen_degree=lambda h: f"{h}.deg_mine()")
+  )
+  assert reg.resolve("My::Index<int, 4>").name == "Mine"
+  assert reg.gen_degree("h", "My::Index<int, 4>") == "h.deg_mine()"
+
+
+def test_registry_register_is_idempotent_overwrite():
+  '''Re-registering the same cpp_type overwrites the previous entry.'''
+  from srdatalog.ir.codegen.cuda.plugin import PluginRegistry
+
+  reg = PluginRegistry()
+  reg.register(IndexPlugin(name="V1", cpp_type="X"))
+  reg.register(IndexPlugin(name="V2", cpp_type="X"))
+  assert reg.resolve("X").name == "V2"
+  assert reg.registered_types() == frozenset({"X"})
+
+
+def test_registry_extra_headers_for_types_dedupes_and_skips_empty():
+  from srdatalog.ir.codegen.cuda.plugin import PluginRegistry
+
+  reg = PluginRegistry()
+  reg.register(IndexPlugin(name="A", cpp_type="A_T", cpp_headers=["a.h", "shared.h"]))
+  reg.register(IndexPlugin(name="B", cpp_type="B_T", cpp_headers=["b.h", "shared.h"]))
+  got = reg.extra_headers_for_types(["", "A_T", "B_T", "A_T"])
+  assert got == ["a.h", "shared.h", "b.h"]
+
+
+def test_registry_instances_are_isolated():
+  '''Two PluginRegistry instances do not share state.'''
+  from srdatalog.ir.codegen.cuda.plugin import PluginRegistry
+
+  reg_a = PluginRegistry()
+  reg_b = PluginRegistry()
+  reg_a.register(IndexPlugin(name="OnlyInA", cpp_type="A::Only"))
+  assert "A::Only" in reg_a
+  assert "A::Only" not in reg_b
+  assert reg_b.resolve("A::Only").name == "DeviceSortedArrayIndex"
+
+
+def test_get_default_registry_returns_singleton():
+  '''The module-level default registry is a singleton; back-compat
+  module functions all delegate to it.'''
+  from srdatalog.ir.codegen.cuda.plugin import get_default_registry
+
+  assert get_default_registry() is get_default_registry()
+
+
 if __name__ == "__main__":
   import inspect
 

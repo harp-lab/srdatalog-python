@@ -4,10 +4,15 @@ Per docs/stage3a_execution_plan.md §6.1: importing a module under
 `ir/dialects/` must not mutate state in any *other* module. The
 historical violation: importing `srdatalog.ir.dialects.relation.d2l`
 triggered a side-effect import of `d2l/cuda.py`, which called
-`register_index_plugin(two_level_plugin)` and mutated
-`codegen/cuda/plugin._PLUGIN_REGISTRY`. After S3A.8 the registration
-is explicit (`codegen.cuda.register_default_plugins()`); importing
-the dialect alone does nothing to the codegen registry.
+`register_index_plugin(two_level_plugin)` and mutated the codegen
+plugin registry. After S3A.8 the registration is explicit
+(`codegen.cuda.register_default_plugins()`); importing the dialect
+alone does nothing to the codegen registry.
+
+Bundle C (PluginRegistry encapsulation) replaced the bare
+`_PLUGIN_REGISTRY` dict with a `PluginRegistry` class — these tests
+now read state via `get_default_registry().registered_types()` /
+`in get_default_registry()` instead of poking the private dict.
 
 The test runs in a subprocess because Python caches modules — a
 second import of d2l in the same process is a no-op even if the
@@ -42,14 +47,14 @@ def test_d2l_import_does_not_mutate_codegen_plugin_registry():
 import sys
 
 # Snapshot before any d2l-related imports.
-import srdatalog.ir.codegen.cuda.plugin as p
-before = dict(p._PLUGIN_REGISTRY)
+from srdatalog.ir.codegen.cuda.plugin import get_default_registry
+before = get_default_registry().registered_types()
 
 # Import the dialect.
 import srdatalog.ir.dialects.relation.d2l  # noqa: F401
 
 # Snapshot after.
-after = dict(p._PLUGIN_REGISTRY)
+after = get_default_registry().registered_types()
 
 if before != after:
     added = set(after) - set(before)
@@ -72,12 +77,12 @@ def test_d2l_cuda_module_import_does_not_mutate_registry():
   code = """
 import sys
 
-import srdatalog.ir.codegen.cuda.plugin as p
-before = dict(p._PLUGIN_REGISTRY)
+from srdatalog.ir.codegen.cuda.plugin import get_default_registry
+before = get_default_registry().registered_types()
 
 import srdatalog.ir.dialects.relation.d2l.cuda  # noqa: F401
 
-after = dict(p._PLUGIN_REGISTRY)
+after = get_default_registry().registered_types()
 
 if before != after:
     print(f'FAIL: importing d2l.cuda mutated registry. diff={set(after) ^ set(before)}',
@@ -96,10 +101,10 @@ def test_register_default_plugins_does_register_d2l():
   code = """
 import sys
 
-import srdatalog.ir.codegen.cuda.plugin as p
+from srdatalog.ir.codegen.cuda.plugin import get_default_registry
 import srdatalog.ir.dialects.relation.d2l.cuda  # safe per the test above
 
-before = 'SRDatalog::GPU::Device2LevelIndex' in p._PLUGIN_REGISTRY
+before = 'SRDatalog::GPU::Device2LevelIndex' in get_default_registry()
 if before:
     print(f'FAIL: d2l already registered before explicit call', file=sys.stderr)
     sys.exit(1)
@@ -107,7 +112,7 @@ if before:
 from srdatalog.ir.codegen.cuda import register_default_plugins
 register_default_plugins()
 
-if 'SRDatalog::GPU::Device2LevelIndex' not in p._PLUGIN_REGISTRY:
+if 'SRDatalog::GPU::Device2LevelIndex' not in get_default_registry():
     print(f'FAIL: register_default_plugins did not register d2l', file=sys.stderr)
     sys.exit(1)
 print('OK')
@@ -136,8 +141,8 @@ prog = Program(rules=[
     (path(X, Z) <= edge(X, Y) & path(Y, Z)).named('Rec'),
 ])
 
-import srdatalog.ir.codegen.cuda.plugin as p
-before = 'SRDatalog::GPU::Device2LevelIndex' in p._PLUGIN_REGISTRY
+from srdatalog.ir.codegen.cuda.plugin import get_default_registry
+before = 'SRDatalog::GPU::Device2LevelIndex' in get_default_registry()
 if before:
     print('FAIL: d2l already registered before compile_program', file=sys.stderr)
     sys.exit(1)
@@ -147,7 +152,7 @@ from srdatalog.ir.pipeline import compile_program
 # api.compile_kernel_body which calls register_default_plugins().
 compile_program(prog, 'TestProj')
 
-if 'SRDatalog::GPU::Device2LevelIndex' not in p._PLUGIN_REGISTRY:
+if 'SRDatalog::GPU::Device2LevelIndex' not in get_default_registry():
     print('FAIL: d2l not registered after compile_program', file=sys.stderr)
     sys.exit(1)
 print('OK')

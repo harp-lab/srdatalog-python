@@ -159,7 +159,7 @@ below is the index.
 | **S3A.5** | Formalize R1–R5 (sorted_array §11 rewrites) as `Rewrite` instances | ⬜ deferred to Stage 4 | The R1-R5 are entangled with `RawString` construction in lowerings.py. Cleanly extracting them needs the new structured ops Stage 4 introduces. |
 | **S3A.6** | `PassDriver` dependency validation + decorator infra | ✅ Bundle B | `@lowering`/`@rewrite`/`@verifier` decorators + `validate_dependencies()` raises `PassDependencyError` on unmet `consumes`. Op-level dispatch deferred (no production consumer yet). |
 | **S3A.7** | Wire `Dialect.verifier` into PassDriver | ✅ Bundle B | All 6 dialects ship a no-op verifier; `PassDriver.verify_all` walks them. Real per-dialect invariants land incrementally. |
-| **S3A.8** | Per-`Codegen` plugin registry; explicit `register_*` calls (no side effects) | ⬜ Bundle C | **A6 + A7.** |
+| **S3A.8** | Per-`Codegen` plugin registry; explicit `register_*` calls (no side effects) | 🟡 Bundle C step 1 ✅ | **A6 + A7.** A7 ✅ since `register_default_plugins()` (no import-time side effects). A6 step 1 ✅: `_PLUGIN_REGISTRY` encapsulated into `PluginRegistry` class with module-level singleton; new code can hold its own instance. Full per-`Codegen` threading (kill the singleton) deferred — needs `EmitCtx` to carry a `PluginRegistry` reference, which ripples to ~15 `context.py` shim sites. |
 | **S3A.9** | (Cleanup) no double `compile_to_hir`; relocate `block_group.py` emit | ✅ PR #13 + Bundle A | |
 
 **S3A acceptance gate:**
@@ -180,18 +180,20 @@ below is the index.
 
 ### Stage 3B — unify HIR/MIR onto the Op/Dialect framework (planning only)
 
-**Status:** *planning only.* Land Stage 3A first. After 3A, re-evaluate
-whether 3B is the right next move or whether HIR/MIR should stay as their
-own frozen-dataclass IRs with typed adapters at the framework boundary.
+**Status:** *planning only.* Stage 3A landed. **Scope correction (post-Stage-4 close-out):** S3B.1 (HIR onto Op) is the **wrong abstraction** — HIR types (`HirProgram`, `HirStratum`, `HirRuleVariant`, `RelationDecl`) are *planning records* with mutable list fields that get filled in by passes (e.g., `strata: list[HirStratum]`, `required_indices: dict[str, list[list[int]]]`). Forcing them onto `frozen=True, slots=True` `Op` would require rebuilding the whole HIR on every pass touch — the semantics are wrong. HIR should stay as plain dataclass planning records with typed adapters at the framework boundary. **Only MIR (60 op classes) is the right target for Op-promotion.**
 
-| ID | Description | Discipline rule |
-|---|---|---|
-| **S3B.1** | Convert HIR types in [hir/types.py](../src/srdatalog/ir/hir/types.py) to `Op`/`Type` subclasses. | D1, D2, D3, D4, D11 |
-| **S3B.2** | Convert MIR types in [mir/types.py](../src/srdatalog/ir/mir/types.py) similarly. | D1, D2, D3, D4, D11 |
-| **S3B.3** | Replace the ~15 `dataclasses.replace`-style mutation sites with strategy combinators from [core/strategy.py](../src/srdatalog/ir/core/strategy.py). | D6, D7 |
-| **S3B.4** | Migrate the monolithic [hir/lower.py](../src/srdatalog/ir/hir/lower.py) into per-op `Lowering`s registered on the HIR dialect (uses S3A.4 + S3A.6 infra). | (composability) |
-| **S3B.5** | Lift HIR passes (`stratify`, `split`, `semi_naive`, `plan`, `index`, `rule_rewrite`) onto `core/passes.py`. | unifies pass infra |
-| **S3B.6** | Replace the hardcoded sequence in [pipeline.py:80-88](../src/srdatalog/ir/pipeline.py#L80-L88) with `compiler.run(passes=[...])`, allowing external code to reorder/insert/skip passes. | (composability) |
+| ID | Description | Discipline rule | Status |
+|---|---|---|---|
+| ~~**S3B.1**~~ | ~~Convert HIR types to `Op`/`Type` subclasses.~~ | — | ❌ **Dropped — wrong abstraction.** HIR types are planning records, not op trees; see scope correction above. |
+| **S3B.2** | Convert MIR types in [mir/types.py](../src/srdatalog/ir/mir/types.py) to `@dataclass(frozen=True, slots=True)` + `Op` subclass. 60 classes; risk is mutation breakage (`pipeline.append(...)`-style sites). | D1, D2, D3, D4, D11 | ⬜ |
+| **S3B.3** | Replace the ~15 `dataclasses.replace`-style mutation sites with strategy combinators from [core/strategy.py](../src/srdatalog/ir/core/strategy.py). | D6, D7 | ⬜ |
+| **S3B.4** | Migrate the monolithic [hir/lower.py](../src/srdatalog/ir/hir/lower.py) into per-op `Lowering`s registered on the HIR dialect (uses S3A.4 + S3A.6 infra). | (composability) | ⬜ |
+| **S3B.5** | Lift HIR passes (`stratify`, `split`, `semi_naive`, `plan`, `index`, `rule_rewrite`) onto `core/passes.py`. | unifies pass infra | ⬜ |
+| **S3B.6** | Replace the hardcoded sequence in [pipeline.py:80-88](../src/srdatalog/ir/pipeline.py#L80-L88) with `compiler.run(passes=[...])`, allowing external code to reorder/insert/skip passes. | (composability) | ⬜ |
+
+S3B.4–S3B.6 cover HIR's *passes* (which are program-level transformations, fitting `Lowering`/`Rewrite` shape) — these still apply even though S3B.1 (HIR types onto Op) was dropped. The split: HIR types stay as plain records; HIR *passes* go onto the framework.
+
+After S3B.2 lands, S4.8 (R1–R5 from `ir_lowering_semantics.md` §11 as `@rewrite` instances on MIR) becomes tractable.
 
 **Honest scope note (added after Bundle B planning):** Stage 3A's
 "framework realization" is **structural** — the registry holds

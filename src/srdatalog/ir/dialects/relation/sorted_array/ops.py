@@ -265,3 +265,42 @@ class SaTiledCartesian2D(Op):
   idx0_var: str
   idx1_var: str
   body: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class DedupTryInsert(Op):
+  '''COMPOUND op: dedup-hash gate around an emission body.
+
+  This is the *first* COMPOUND op in the codebase — per
+  `docs/ir_dialect_contract.md`, COMPOUND ops have no direct renderer
+  but carry a registered `@rewrite` that decomposes them into LEAF
+  ops before codegen sees them. The rewrite expands to:
+
+      {
+        bool _p = dedup_table.try_insert(thread_id, <args...>);
+        if (_p) {
+          <then_body>
+        }
+      }
+
+  i.e. `BracedBlock` + `Bind` + `If` from `iir.cf`, with
+  `MemberCall` from `iir.expr`. After
+  `PassDriver.apply_rewrites_to_fixpoint`, no `DedupTryInsert` remains
+  in the tree — only the LEAF decomposition.
+
+  `args` is the tuple of expression-shaped Ops to pass to
+  `try_insert` after the leading `thread_id` (the row-keying value
+  set that dedup is supposed to suppress duplicates of).
+
+  `then_body` is the statement-shaped Op to execute when the
+  try_insert returns true (i.e. this thread "won" the slot and the
+  emission should proceed). Typically a `Block` or `LaneZeroGuard`.
+
+  The `dedup_table` and `thread_id` operand names are fixed
+  identifiers in the kernel scaffold; they don't appear as fields
+  here because they're scaffold-global, not per-call.
+  '''
+
+  args: tuple[Op, ...]
+  then_body: Op

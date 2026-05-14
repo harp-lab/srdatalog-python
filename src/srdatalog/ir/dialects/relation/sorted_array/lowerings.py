@@ -40,22 +40,26 @@ from srdatalog.ir.dialects.iir.cf import (
   IfReturn,
   IfReturnIfNot,
   IndentBlock,
+  IndexedAssign,
   IntersectIter,
   LaneZeroGuard,
   OuterAnchor,
   ParallelFor,
   RawString,
+  StmtExpr,
   TiledBallotBlock,
   VarRef,
 )
 from srdatalog.ir.dialects.iir.expr import (
   BinOp,
   CCast,
+  FuncCall,
   IndexExpr,
   IntLit,
   MemberAccess,
   MemberCall,
   Parens,
+  PostfixIncrement,
   StaticCast,
   Ternary,
   UnaryOp,
@@ -84,6 +88,7 @@ from srdatalog.ir.dialects.parallel.data.block_group import (
 )
 from srdatalog.ir.dialects.relation.d2l import D2lSegmentLoop, view_count
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
+  DedupTryInsert,
   SaChildRange,
   SaDegree,
   SaGetVal,
@@ -2182,17 +2187,54 @@ def _lower_nested_cj_multi(
   return Block(stmts=tuple(stmts))
 
 
+def _dedup_materialize_write(sanitized_list: list[str]) -> list[Op]:
+  '''Build the structured atomic-add + per-column write block for
+  the materialize-phase dedup path. The output shape is
+
+      uint32_t pos = atomicAdd(atomic_write_pos, 1u);
+      out_data_0[(pos + out_base_0) + 0 * out_stride_0] = v0;
+      out_data_0[(pos + out_base_0) + 1 * out_stride_0] = v1;
+      ...
+
+  The caller wraps this in `If(...)` (lane-0 gated) or `BracedBlock`
+  (inside Cartesian) depending on the context. Returns a list of
+  statement-shaped ops, ready to splice into a Block.
+  '''
+  pos_bind = Bind(
+    name='pos',
+    type_decl='uint32_t',
+    expr=FuncCall(
+      func_name='atomicAdd',
+      args=(VarRef(name='atomic_write_pos'), IntLit(value=1, suffix='u')),
+    ),
+  )
+  writes: list[Op] = []
+  for col, name in enumerate(sanitized_list):
+    # Idx = (pos + out_base_0) + col * out_stride_0
+    idx_expr = BinOp(
+      op_str='+',
+      lhs=Parens(
+        expr=BinOp(op_str='+', lhs=VarRef(name='pos'), rhs=VarRef(name='out_base_0')),
+      ),
+      rhs=BinOp(op_str='*', lhs=IntLit(value=col), rhs=VarRef(name='out_stride_0')),
+    )
+    writes.append(
+      IndexedAssign(arr=VarRef(name='out_data_0'), idx=idx_expr, value=VarRef(name=name))
+    )
+  return [pos_bind, *writes]
+
+
 def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
   '''Lower an InsertInto under the M1-M3 narrow-flag assumptions.
 
-  When `ctx.dedup_hash` is set, the entire emit is wrapped in a
-    `{ bool _p = dedup_table.try_insert(thread_id, v0, ...);
-       if (_p) { <write> } }`
-  gate. In materialize phase the write goes through
-    `[if (lane==0)] { uint32_t pos = atomicAdd(atomic_write_pos, 1u);
-       out_data_0[(pos + out_base_0) + col * out_stride_0] = vN; ... }`
-  instead of `output.emit_direct(...)`. The `out_data_0` /
-  `atomic_write_pos` names are kernel parameters injected by the
+  When `ctx.dedup_hash` is set, the inner emission is wrapped in a
+  `DedupTryInsert(args, then_body)` COMPOUND op (decomposed by the
+  registered `@rewrite` to `BracedBlock { Bind _p; If (_p) { ... } }`
+  before codegen sees it — see `docs/ir_dialect_contract.md` §1).
+
+  In materialize phase, the write goes through an atomic-add into
+  `out_data_0` instead of `output.emit_direct(...)`. The `out_data_0`
+  / `atomic_write_pos` names are kernel parameters injected by the
   runner-side dedup_hash plumbing — the dialect treats them as
   free variables.
   '''
@@ -2215,59 +2257,70 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
   sanitized_list = [_sanitize_var_name(v) for v in vars_list]
   use_dedup = ctx.dedup_hash and bool(vars_list)
 
-  if use_dedup:
-    args_str = ', '.join(sanitized_list)
-    stmts.append(RawString(text=f'{{ bool _p = dedup_table.try_insert(thread_id, {args_str});'))
-    stmts.append(RawString(text='  if (_p) {'))
-
+  # Build the inner emission body (count or materialize) as a single
+  # Op. When use_dedup, this becomes the `then_body` of DedupTryInsert.
+  inner: Op
   if ctx.is_counting:
     if ctx.ws_enabled:
-      # WS count: per-thread `local_count` (uint32_t) — `<out>++`
-      # instead of `<out>.emit_direct()`. Lane-0 guard outside Cart.
-      body: Op = RawString(text=f'{out_var}++;')
+      # WS count: `<out_var>++;` — postfix increment.
+      count_body: Op = StmtExpr(expr=PostfixIncrement(expr=VarRef(name=out_var)))
     else:
-      body = RawString(text=f'{out_var}.emit_direct();')
-    if not ctx.inside_cartesian:
-      stmts.append(LaneZeroGuard(body=body))
-    else:
-      stmts.append(body)
-  elif use_dedup:
-    # Materialize + dedup: atomic-add write into out_data_0.
-    # Inner block at SAME indent as the surrounding lines (the
-    # `if (lane==0) {` opener and matching `}` on their own
-    # ctx.ind() lines; per-write rows carry an embedded 2-space
-    # prefix in the RawString text — mirrors legacy emit_helpers).
-    if not ctx.inside_cartesian:
-      stmts.append(RawString(text=f'if ({ctx.tile_var}.thread_rank() == 0) {{'))
-    else:
-      stmts.append(RawString(text='{'))
-    stmts.append(RawString(text='  uint32_t pos = atomicAdd(atomic_write_pos, 1u);'))
-    for col, name in enumerate(sanitized_list):
-      stmts.append(
-        RawString(text=f'  out_data_0[(pos + out_base_0) + {col} * out_stride_0] = {name};')
+      count_body = StmtExpr(
+        expr=MemberCall(obj=VarRef(name=out_var), method='emit_direct', args=())
       )
-    stmts.append(RawString(text='}'))
+    inner = LaneZeroGuard(body=count_body) if not ctx.inside_cartesian else count_body
+  elif use_dedup:
+    # Materialize + dedup: atomic-add write block, lane-0 gated outside
+    # Cartesian, raw braced block inside.
+    write_stmts = tuple(_dedup_materialize_write(sanitized_list))
+    if not ctx.inside_cartesian:
+      inner = If(
+        cond=BinOp(
+          op_str='==',
+          lhs=MemberCall(obj=VarRef(name=ctx.tile_var), method='thread_rank', args=()),
+          rhs=IntLit(value=0),
+        ),
+        body=Block(stmts=write_stmts),
+      )
+    else:
+      inner = BracedBlock(stmts=write_stmts)
   elif ctx.ws_cartesian_valid_var:
     # WS Cartesian batched-valid materialize: emit_warp_coalesced(
     # tile, valid, args). All threads call cooperatively — no lane-0
     # guard, valid bit gates the actual write.
-    sanitized = ', '.join(sanitized_list)
-    stmts.append(
-      RawString(
-        text=f'{out_var}.emit_warp_coalesced({ctx.tile_var}, '
-        f'{ctx.ws_cartesian_valid_var}, {sanitized});'
+    inner = StmtExpr(
+      expr=MemberCall(
+        obj=VarRef(name=out_var),
+        method='emit_warp_coalesced',
+        args=(
+          VarRef(name=ctx.tile_var),
+          VarRef(name=ctx.ws_cartesian_valid_var),
+          *(VarRef(name=n) for n in sanitized_list),
+        ),
       )
     )
   else:
-    sanitized = ', '.join(sanitized_list)
-    body = RawString(text=f'{out_var}.emit_direct({sanitized});')
-    if not ctx.inside_cartesian:
-      stmts.append(LaneZeroGuard(body=body))
-    else:
-      stmts.append(body)
+    materialize_body = StmtExpr(
+      expr=MemberCall(
+        obj=VarRef(name=out_var),
+        method='emit_direct',
+        args=tuple(VarRef(name=n) for n in sanitized_list),
+      )
+    )
+    inner = LaneZeroGuard(body=materialize_body) if not ctx.inside_cartesian else materialize_body
 
   if use_dedup:
-    stmts.append(RawString(text='} }'))
+    # Wrap the inner in the dedup-table gate. The COMPOUND
+    # DedupTryInsert is decomposed by `@rewrite` to BracedBlock + Bind
+    # + If at PassDriver-fixpoint time.
+    stmts.append(
+      DedupTryInsert(
+        args=tuple(VarRef(name=n) for n in sanitized_list),
+        then_body=inner,
+      )
+    )
+  else:
+    stmts.append(inner)
 
   return stmts
 

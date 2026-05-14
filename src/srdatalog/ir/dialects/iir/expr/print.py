@@ -5,11 +5,13 @@ from __future__ import annotations
 from srdatalog.ir.dialects.iir.expr.ops import (
   BinOp,
   CCast,
+  FuncCall,
   IndexExpr,
   IntLit,
   MemberAccess,
   MemberCall,
   Parens,
+  PostfixIncrement,
   StaticCast,
   Ternary,
   UnaryOp,
@@ -19,11 +21,13 @@ from srdatalog.ir.print_iir import _ind, print_iir
 OPS: tuple[type, ...] = (
   BinOp,
   CCast,
+  FuncCall,
   IndexExpr,
   IntLit,
   MemberAccess,
   MemberCall,
   Parens,
+  PostfixIncrement,
   StaticCast,
   Ternary,
   UnaryOp,
@@ -34,7 +38,8 @@ def print_op(op, indent: int = 0) -> str:
   p = _ind(indent)
 
   if isinstance(op, IntLit):
-    return p + f'(int-lit #:value {op.value})'
+    suffix_form = f' #:suffix "{op.suffix}"' if op.suffix else ''
+    return p + f'(int-lit #:value {op.value}{suffix_form})'
 
   if isinstance(op, CCast):
     expr = print_iir(op.expr, indent + 1)
@@ -47,6 +52,10 @@ def print_op(op, indent: int = 0) -> str:
   if isinstance(op, UnaryOp):
     expr = print_iir(op.expr, indent + 1)
     return p + f'(unary-op #:op-str "{op.op_str}"\n' + p + '  #:expr\n' + expr + ')'
+
+  if isinstance(op, PostfixIncrement):
+    expr = print_iir(op.expr, indent + 1)
+    return p + '(postfix-increment\n' + expr + ')'
 
   if isinstance(op, Parens):
     expr = print_iir(op.expr, indent + 1)
@@ -97,6 +106,12 @@ def print_op(op, indent: int = 0) -> str:
   if isinstance(op, MemberAccess):
     obj = print_iir(op.obj, indent + 1)
     return p + f'(member-access #:member "{op.member}"\n' + p + '  #:obj\n' + obj + ')'
+
+  if isinstance(op, FuncCall):
+    if not op.args:
+      return p + f'(func-call #:func-name "{op.func_name}")'
+    args = '\n'.join(print_iir(a, indent + 2) for a in op.args)
+    return p + f'(func-call #:func-name "{op.func_name}"\n' + p + '  #:args (\n' + args + '))'
 
   if isinstance(op, MemberCall):
     obj = print_iir(op.obj, indent + 1)

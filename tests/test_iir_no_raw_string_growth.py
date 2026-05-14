@@ -9,13 +9,13 @@ The number below ratchets DOWN as Stage 4 continues. Don't raise it
 without a documented reason — that's the regression this test catches.
 
 Current acceptable counts:
-  - sorted_array/lowerings.py: 17 (after L1 cluster cleanup in S4.6a)
+  - sorted_array/lowerings.py: 5 (after S4.6b — DedupTryInsert
+    COMPOUND op + decompose-rewrite cleared the L2 dedup cluster,
+    per docs/ir_dialect_contract.md §1)
     - 3 are Category J (Filter/ConstantBind user-supplied code at
       lines around 1070, 1074, 1078)
     - 2 are Category K (handle-alias inline decls with trailing
       comments — deferred per the inventory)
-    - ~12 are Category L2 (dedup-table emission block — the hardest
-      tier, scheduled for S4.6b)
 
 Subsequent S4 tasks should LOWER this number. When the count drops,
 update the constant below in the SAME commit that does the cleanup —
@@ -41,7 +41,7 @@ _LOWERINGS_PATH = (
 # RATCHET: only DECREASE this. New uses must motivate the increase
 # explicitly in the PR description + this docstring + a Category J/K/L
 # inventory note.
-_MAX_RAWSTRING_CALLS = 17
+_MAX_RAWSTRING_CALLS = 5
 
 
 def test_lowerings_rawstring_count_at_or_below_cap() -> None:

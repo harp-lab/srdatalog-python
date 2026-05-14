@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from srdatalog.ir.core import Dialect
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
+  DedupTryInsert,
   SaChildRange,
   SaDegree,
   SaGetVal,
@@ -39,6 +40,7 @@ DIALECT = Dialect(
   name='relation.sorted_array',
   types=[SaHandle, SaView],
   ops=[
+    DedupTryInsert,
     SaChildRange,
     SaDegree,
     SaGetVal,
@@ -55,6 +57,7 @@ DIALECT = Dialect(
 
 __all__ = [
   'DIALECT',
+  'DedupTryInsert',
   'SaChildRange',
   'SaDegree',
   'SaGetVal',
@@ -89,7 +92,9 @@ __all__ = [
 
 def _register_passes() -> None:
   import srdatalog.ir.mir.types as mir
-  from srdatalog.ir.core.passes import lowering, verifier
+  from srdatalog.ir.core.passes import lowering, rewrite, verifier
+  from srdatalog.ir.dialects.iir.cf import Bind, BracedBlock, If, VarRef
+  from srdatalog.ir.dialects.iir.expr import MemberCall
   from srdatalog.ir.dialects.relation.sorted_array.lowerings import lower_scan_pipeline
 
   @lowering(
@@ -100,6 +105,31 @@ def _register_passes() -> None:
   )
   def lower_execute_pipeline(ep, ctx):
     return lower_scan_pipeline(ep.pipeline, ctx)
+
+  # COMPOUND op decomposition (S4.6b) — per docs/ir_dialect_contract.md
+  # §1, COMPOUND ops have no direct renderer; they expand into LEAF
+  # ops here, before the codegen tree-walk sees them.
+  @rewrite(
+    DIALECT,
+    DedupTryInsert,
+    consumes=('relation.sorted_array',),
+    produces=('iir.cf', 'iir.expr'),
+  )
+  def _decompose_dedup_try_insert(op, _ctx):
+    return BracedBlock(
+      stmts=(
+        Bind(
+          name='_p',
+          type_decl='bool',
+          expr=MemberCall(
+            obj=VarRef(name='dedup_table'),
+            method='try_insert',
+            args=(VarRef(name='thread_id'), *op.args),
+          ),
+        ),
+        If(cond=VarRef(name='_p'), body=op.then_body),
+      )
+    )
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.

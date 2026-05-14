@@ -7,6 +7,7 @@ contract. Twelve ops, each maps to a single s-expression form.
 from __future__ import annotations
 
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
+  DedupTryInsert,
   SaChildRange,
   SaDegree,
   SaGetVal,
@@ -23,6 +24,7 @@ from srdatalog.ir.dialects.relation.sorted_array.ops import (
 from srdatalog.ir.print_iir import _ind, print_iir
 
 OPS: tuple[type, ...] = (
+  DedupTryInsert,
   SaChildRange,
   SaDegree,
   SaGetVal,
@@ -40,6 +42,15 @@ OPS: tuple[type, ...] = (
 
 def print_op(op, indent: int = 0) -> str:
   p = _ind(indent)
+
+  if isinstance(op, DedupTryInsert):
+    then_body = print_iir(op.then_body, indent + 1)
+    if not op.args:
+      args_form = p + '  #:args ()\n'
+    else:
+      args = '\n'.join(print_iir(a, indent + 2) for a in op.args)
+      args_form = p + '  #:args (\n' + args + ')\n'
+    return p + '(dedup-try-insert\n' + args_form + p + '  #:then-body\n' + then_body + ')'
 
   if isinstance(op, SaRoot):
     return p + f'(sa-root #:view-name {op.view_name})'

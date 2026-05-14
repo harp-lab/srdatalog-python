@@ -48,11 +48,14 @@ See docs/ir_lowering_semantics.md, section 21.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import dataclasses
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
 from srdatalog.ir.core.dialect import Compiler, Dialect
+from srdatalog.ir.core.ops import Op
+from srdatalog.ir.core.strategy import bottom_up, repeat, try_
 
 
 @dataclass
@@ -218,22 +221,118 @@ class PassDependencyError(Exception):
 
 
 # -----------------------------------------------------------------------------
+# Rewrite-to-fixpoint + renderability verification (S4.9)
+# Per docs/ir_dialect_contract.md §2 and §3.
+# -----------------------------------------------------------------------------
+
+
+class RewriteRegistrationConflict(Exception):
+  '''Two `@rewrite` decorators target the same op type. Per the
+  dialect contract (`docs/ir_dialect_contract.md` §2.2), at most one
+  rewrite per op type is allowed until an optimizer phase introduces
+  ordering metadata. Raised at PassDriver use, not at decoration time
+  (decorators don't see sibling dialects).'''
+
+  def __init__(self, op_type: type, in_dialects: list[str]) -> None:
+    self.op_type = op_type
+    self.in_dialects = in_dialects
+    super().__init__(
+      f'multiple rewrites registered for op {op_type.__name__}: '
+      f'in dialects {in_dialects!r}. Per ir_dialect_contract.md §2.2, '
+      f'at most one rewrite per op type. If both are normalizing, '
+      f'merge them; if one is optimizing, defer until phase metadata exists.'
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class UnrenderableOp:
+  '''An op surfaced by `verify_renderability`: present in the IR after
+  rewrite-to-fixpoint, but no renderer is registered for the active
+  target. Either a missing rewrite (the op should have decomposed) or
+  a missing renderer (the op is intended as LEAF but the codegen
+  hasn't been wired up).'''
+
+  op_type: type
+  target: str
+
+  def __str__(self) -> str:
+    return (
+      f'no renderer registered for {self.op_type.__name__} '
+      f'(module={self.op_type.__module__!r}) on target={self.target!r}'
+    )
+
+
+class UnrenderableOpError(Exception):
+  '''`verify_renderability` found one or more ops with no renderer
+  registered for the active target. Aggregates an `UnrenderableOp`
+  per offending op type.'''
+
+  def __init__(self, errors: list[UnrenderableOp]) -> None:
+    self.errors = errors
+    summary = '\n'.join(f'  - {e}' for e in errors)
+    super().__init__(
+      f'verify_renderability found {len(errors)} unrenderable op type(s):\n{summary}'
+    )
+
+
+@dataclass(frozen=True)
+class RewriteContext:
+  '''Context passed to `Rewrite.apply(op, ctx)` during fixpoint
+  rewriting. Carries a back-reference to the Compiler so a rewrite
+  can look up sibling dialects if needed.'''
+
+  compiler: Compiler
+
+
+def _walk(op: Any) -> Iterator[Op]:
+  '''Pre-order iterator yielding `op` and every Op-typed descendant.
+
+  Children are discovered the same way `core/strategy.py` does: walk
+  dataclass fields, descend into Op-valued fields and into
+  list/tuple containers. Non-Op fields are skipped.'''
+  if not isinstance(op, Op):
+    return
+  yield op
+  for f in dataclasses.fields(op):
+    yield from _walk_value(getattr(op, f.name))
+
+
+def _walk_value(v: Any) -> Iterator[Op]:
+  if isinstance(v, Op):
+    yield from _walk(v)
+  elif isinstance(v, (list, tuple)):
+    for x in v:
+      yield from _walk_value(x)
+
+
+# -----------------------------------------------------------------------------
 # PassDriver
 # -----------------------------------------------------------------------------
 
 
 class PassDriver:
-  '''Runs registered rewrites and lowerings.
+  '''Runs registered rewrites, lowerings, and verifiers.
 
-  Today the driver does dependency validation (catches "pass P
-  consumes dialect D not enabled") and verifier dispatch. Op-level
-  dispatch (a tree walker that finds the registered Lowering for
-  each op kind and applies it) lands when the first production
-  consumer needs it; until then, callers invoke lowering functions
-  directly and the registry serves as introspection metadata.
+  Responsibilities:
 
-  The driver does not know about specific dialects. New dialects
-  participate by being registered; the driver consults the registry.
+    1. `validate_dependencies` — every Lowering/Rewrite's `consumes`
+       names a registered dialect. Loud failure on missing deps.
+    2. `apply_rewrites_to_fixpoint` — bottom-up + repeat over all
+       registered `@rewrite` rules, until a full pass is a no-op.
+       Implements the "rewrite COMPOUND ops away before codegen sees
+       them" half of the dialect contract
+       (`docs/ir_dialect_contract.md` §2.1).
+    3. `verify_renderability` — every op surviving fixpoint has a
+       registered renderer for the active target. Loud-failure
+       replacement for the implicit "everything in IIR has a
+       renderer" assumption (contract §3).
+    4. `verify_all` — runs each dialect's verifier.
+
+  The driver does not know about specific dialects or targets. New
+  dialects participate by being registered; renderability is checked
+  via a caller-supplied `has_renderer` callable (so target-specific
+  registries stay out of `core/`). This preserves the
+  no-imports-from-dialects invariant in `ir/core/CLAUDE.md`.
   '''
 
   def __init__(self, compiler: Compiler) -> None:
@@ -254,6 +353,84 @@ class PassDriver:
               in_dialect=d.name,
             )
 
+  def _build_rewrite_table(self) -> dict[type, tuple[Rewrite, str]]:
+    '''Index every registered Rewrite by its `matches` op type.
+
+    Returns `{op_type: (rewrite, dialect_name)}`. Raises
+    `RewriteRegistrationConflict` if two dialects register a rewrite
+    for the same op type (contract §2.2).'''
+    table: dict[type, tuple[Rewrite, str]] = {}
+    for d in self._compiler.dialects:
+      for r in d.rewrites:
+        if r.matches in table:
+          _existing_rule, existing_dialect = table[r.matches]
+          raise RewriteRegistrationConflict(
+            op_type=r.matches,
+            in_dialects=[existing_dialect, d.name],
+          )
+        table[r.matches] = (r, d.name)
+    return table
+
+  def apply_rewrites_to_fixpoint(self, prog: Any, *, max_iters: int = 1024) -> Any:
+    '''Apply registered `@rewrite` rules to `prog` until a full
+    bottom-up pass produces no change.
+
+    Bottom-up + repeat semantics: each iteration walks the tree
+    postorder, applies the matching rewrite (if any) at each node,
+    rebuilds parents with `dataclasses.replace`. Iterates the whole
+    pass until fixpoint. Raises `RuntimeError` (from `repeat`) if
+    `max_iters` is exceeded — the catch for divergent rewrites.
+
+    No-op when no rewrites are registered (early return).'''
+    table = self._build_rewrite_table()
+    if not table:
+      return prog
+    ctx = RewriteContext(compiler=self._compiler)
+
+    def _rewrite_one(op: Op) -> Op | None:
+      entry = table.get(type(op))
+      if entry is None:
+        return None
+      rule, _dialect_name = entry
+      return rule.apply(op, ctx)
+
+    return repeat(bottom_up(try_(_rewrite_one)), max_iters=max_iters)(prog)
+
+  def verify_renderability(
+    self,
+    prog: Any,
+    *,
+    target: str,
+    has_renderer: Callable[[type], bool],
+  ) -> list[UnrenderableOp]:
+    '''Walk `prog` and return one `UnrenderableOp` per op type that
+    has no renderer for `target`. Returns `[]` if every op is
+    renderable.
+
+    `target` is a label used only in error messages — the actual
+    decision is delegated to `has_renderer(op_type) -> bool`. This
+    keeps `core/passes.py` decoupled from any specific codegen
+    registry (per the `ir/core/CLAUDE.md` no-imports-from-dialects
+    invariant).
+
+    Caller wires it up with the target's renderer registry:
+
+        from srdatalog.ir.codegen.cuda.render import has_renderer
+        errs = driver.verify_renderability(
+            prog, target='cuda', has_renderer=has_renderer,
+        )
+    '''
+    errors: list[UnrenderableOp] = []
+    seen: set[type] = set()
+    for op in _walk(prog):
+      op_type = type(op)
+      if op_type in seen:
+        continue
+      seen.add(op_type)
+      if not has_renderer(op_type):
+        errors.append(UnrenderableOp(op_type=op_type, target=target))
+    return errors
+
   def verify_all(self, prog: Any) -> list[Any]:
     '''Invoke every registered dialect's verifier on `prog` and
     aggregate the returned VerificationErrors. Returns [] if all
@@ -264,15 +441,39 @@ class PassDriver:
         errors.extend(d.verifier(prog))
     return errors
 
-  def run(self, prog: Any) -> Any:
-    '''Run all registered passes against `prog`. Returns the (possibly
-    transformed) program.
+  def run(
+    self,
+    prog: Any,
+    *,
+    target: str | None = None,
+    has_renderer: Callable[[type], bool] | None = None,
+  ) -> Any:
+    '''Run all registered passes against `prog`. Returns the
+    (possibly transformed) program.
 
-    Validates pass dependencies first; raises PassDependencyError on
-    unmet consumes. Then runs verifiers and returns prog unchanged
-    (op-level dispatch is caller-driven for now; see class docstring).
-    '''
+    Pipeline (per `docs/ir_dialect_contract.md` §2):
+
+      1. `validate_dependencies` — catches missing-dialect deps.
+      2. `apply_rewrites_to_fixpoint` — decomposes COMPOUND ops.
+      3. `verify_renderability` — only when `target` and
+         `has_renderer` are both provided. Raises
+         `UnrenderableOpError` on closure violation.
+      4. `verify_all` — per-dialect verifiers.
+
+    The renderability check is opt-in (target-aware); legacy callers
+    that don't pass `target=` keep their pre-S4.9 behavior.'''
     self.validate_dependencies()
+    prog = self.apply_rewrites_to_fixpoint(prog)
+    if target is not None:
+      if has_renderer is None:
+        raise ValueError(
+          "PassDriver.run: target=given but has_renderer=None — provide "
+          "the target's renderer-check callable so verify_renderability "
+          'can run.'
+        )
+      rerrs = self.verify_renderability(prog, target=target, has_renderer=has_renderer)
+      if rerrs:
+        raise UnrenderableOpError(rerrs)
     errors = self.verify_all(prog)
     if errors:
       raise RuntimeError(f'Verification failed: {errors}')
@@ -284,6 +485,10 @@ __all__ = [
   'PassDependencyError',
   'PassDriver',
   'Rewrite',
+  'RewriteContext',
+  'RewriteRegistrationConflict',
+  'UnrenderableOp',
+  'UnrenderableOpError',
   'lowering',
   'rewrite',
   'verifier',

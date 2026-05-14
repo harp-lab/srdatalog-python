@@ -77,11 +77,15 @@ class StaticCast(Op):
 class IntLit(Op):
   '''Integer literal.
 
-  Renders to the decimal representation of `value`. No type suffix
-  (use a wrapping Cast if a specific C++ type is required).
+  Renders to `<value><suffix>` — `suffix` is empty by default (so
+  legacy `IntLit(0)` keeps rendering as `0`). Common suffixes: `'u'`
+  (unsigned), `'ull'` (unsigned long long). Use the suffix when the
+  literal type matters for overload selection (e.g.
+  `atomicAdd(p, IntLit(1, suffix='u'))` → `atomicAdd(p, 1u)`).
   '''
 
   value: int
+  suffix: str = ''
 
 
 @final
@@ -96,6 +100,21 @@ class UnaryOp(Op):
   '''
 
   op_str: str
+  expr: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class PostfixIncrement(Op):
+  '''Postfix increment: `<expr>++`.
+
+  Renders to `<expr>++` (no surrounding parens, no semicolon — wrap
+  in `iir.cf.StmtExpr` to use as a statement). Use for the idiomatic
+  `local_count++` counting pattern; renders identically to
+  `BinOp('=', expr, BinOp('+', expr, IntLit(1)))` but is more
+  compact and matches the legacy emitter convention.
+  '''
+
   expr: Op
 
 
@@ -136,6 +155,22 @@ class MemberCall(Op):
 
   obj: Op
   method: str
+  args: tuple[Op, ...]
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class FuncCall(Op):
+  '''Free-function call: `<func_name>(<args...>)`.
+
+  Renders to `<func_name>(<arg1>, <arg2>, ...)`. `args` is a tuple
+  of expression-shaped ops; empty tuple = no-arg call. Distinct from
+  `MemberCall` (which renders `obj.method(...)`) — this is for
+  unqualified or globally-qualified functions like `atomicAdd`,
+  `min`, `__ballot_sync`, etc.
+  '''
+
+  func_name: str
   args: tuple[Op, ...]
 
 
@@ -183,11 +218,13 @@ def bin_op_chain(op_str: str, exprs: list[Op]) -> Op:
 __all__ = [
   'BinOp',
   'CCast',
+  'FuncCall',
   'IndexExpr',
   'IntLit',
   'MemberAccess',
   'MemberCall',
   'Parens',
+  'PostfixIncrement',
   'StaticCast',
   'Ternary',
   'UnaryOp',

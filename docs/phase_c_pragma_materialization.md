@@ -2,17 +2,29 @@
 orphan: true
 ---
 
-# Phase C — Pragma materialization (`@pragma` + sub-dialects)
+# Phase C — Pragma materialization (`@pragma_handler` + sub-dialects)
 
 The phase that deletes `if ctx.<pragma>:` branches. Each pragma
 becomes a typed op insertion at MIR time; the lowering for the
-inserted op handles the codegen specialization. Pragma flags vanish
-after `MirPragmaPass`; downstream code never reads them.
+inserted op handles the codegen specialization. Pragma instances
+vanish after `MirPragmaPass`; downstream code never reads them.
+
+> **AMENDMENT — pragmas are typed objects, not strings.** This doc
+> originally described `@pragma(name="dedup_hash", value_type=bool)`
+> with a `pragmas: tuple[tuple[str, Any], ...]` field. That sketch
+> has been superseded by [`pragma_as_typed_object.md`](pragma_as_typed_object.md):
+> pragmas are `Pragma` subclass instances (typed Python classes);
+> registration is `@pragma_handler(PragmaCls, on=MirOpCls)`; the MIR
+> field is `pragmas: tuple[Pragma, ...]`. **Read `pragma_as_typed_object.md`
+> first.** Sections below have been kept for the per-pragma sub-dialect
+> design, ordering decisions, and Wave 2C plan; the API specifics use
+> the typed-object form.
 
 Companion to [`compiler_redesign.md`](compiler_redesign.md) §6
-(partial-eval framing) and §7 (sub-dialect criteria), and
-[`ir_derivation_topology.md`](ir_derivation_topology.md) §3.2.2
-(pragma wrap ops).
+(partial-eval framing) and §7 (sub-dialect criteria),
+[`pragma_as_typed_object.md`](pragma_as_typed_object.md) (the typed-
+object contract), and [`ir_derivation_topology.md`](ir_derivation_topology.md)
+§3.2.2 (pragma wrap ops).
 
 ## 1. Goal
 

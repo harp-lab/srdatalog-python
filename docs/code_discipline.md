@@ -115,11 +115,14 @@ Each row gets a discipline test in `tests/test_discipline_*.py`.
 | **D5** | New `RawString(...)` call site anywhere in `src/srdatalog/ir/` | Per Stage 4 contract. | `test_iir_no_raw_string_growth` (already exists, whole-tree) |
 | **D6** | `from srdatalog.core import` referencing dialect symbols | Core is dialect-agnostic. | `test_core_has_no_dialect_imports` — AST scan of `core/*.py` |
 | **D7** | New `if`-branch in an existing lowering function (where a `@lowering` registration is the right shape) | This is the "moving code around" anti-pattern. | `test_lowering_files_have_one_lowering_each` — files matching `lower_mir_*.py` must contain exactly ONE `@lowering` decoration |
-| **D8** | Hardcoded pragma names in core or in the default pipeline | Pragmas are plugin-discovered. Core doesn't know names. | `test_core_has_no_hardcoded_pragma_names` — grep |
-| **D9** | `@lowering` / `@rewrite` / `@pragma` registration with no caller-exercised path | The infrastructure-without-consumer anti-pattern (the original sin). | `test_every_registration_is_exercised` — every registration must be hit by at least one production-path test (coverage assertion) |
+| **D8** | Imports of concrete `Pragma` subclasses (e.g. `from srdatalog.pragmas import DedupHash`) anywhere in `core/`. Hardcoded pragma string names also forbidden. | Pragmas are plugin-discovered typed objects. Core knows only the `Pragma` base class — never specific subclasses or names. (Per [`pragma_as_typed_object.md`](pragma_as_typed_object.md) §8.) | `test_core_has_no_pragma_imports` — AST scan for `from srdatalog.pragmas` / `from <plugin>.pragmas` style imports under `core/` |
+| **D9** | `@lowering` / `@rewrite` / `@pragma_handler` / `@register_render` registration with no caller-exercised path | The infrastructure-without-consumer anti-pattern (the original sin). | `test_every_registration_is_exercised` — every registration must be hit by at least one production-path test (coverage assertion) |
 | **D10** | New field added to `LowerCtx` | `LowerCtx` is fixed at 5 fields after F3. Extending it requires a doc amendment. | `test_lower_ctx_field_count_pinned_at_five` — counts dataclass fields, must be exactly 5 |
 | **D11** | New file in `core/` after Layer 1 | Core is frozen post-foundation. | `test_core_module_set_pinned` — pins the file list under `core/` |
 | **D12** | Removal of an op from `USE_DECLARATIVE` set during migration | The migration ratchet is monotonic. | `test_use_declarative_is_monotonic` — git-history check (or test fixture pin) |
+| **D13** | `Pragma` subclass without `@final + @dataclass(frozen=True, slots=True)` | Pragmas are pure compile-time data; same discipline as `Op` subclasses. (Per [`pragma_as_typed_object.md`](pragma_as_typed_object.md) §8.) | `test_pragma_subclasses_are_frozen_final` — parametrized over all Pragma subclasses |
+| **D14** | Method on a `Pragma` subclass other than `__post_init__` (or pure-data dataclass mechanics) | Behavior lives in `@pragma_handler`, not on the class. Symmetric with D1 (no methods on Op subclasses). | `test_pragma_subclasses_are_pure_data` — AST scan |
+| **D15** | DSL `Rule.with_pragma(...)` accepts non-`Pragma` arg (after migration window) | Pragmas are typed objects, not strings. The `(name, value)` form is deprecated; final cleanup removes it. | `test_with_pragma_rejects_non_pragma` — `Rule(...).with_pragma("foo", True)` raises `TypeError` |
 
 The load-bearing test is **D9**. A registration that no production test
 triggers is dead infra. CI fails until either the registration is
@@ -135,7 +138,8 @@ repeating.
 | **R2** | Every dialect ships a `@verifier` (even if no-op) | Per S3A.7 | already enforced, kept |
 | **R3** | Every concrete IIR op has either `@register_render(target=cuda)` OR a `@rewrite` registered | Per `ir_dialect_contract.md` §1 (LEAF-or-COMPOUND contract) | `verify_renderability` (already wired in production via `_apply_dialect_rewrites`) |
 | **R4** | Every concrete MIR op has a registered `@lowering(target=IIR, source=mir.X)` | Cross-IR completeness | `test_every_mir_op_has_lowering` |
-| **R5** | Every named pragma the DSL can produce has a `@pragma` registration | Closed-form pragma surface, fail-loud on typos | `test_dsl_pragma_names_are_registered` |
+| **R5** | Every concrete `Pragma` subclass the DSL can produce has a registered `@pragma_handler(PragmaCls, on=...)`. (Per [`pragma_as_typed_object.md`](pragma_as_typed_object.md) §8.) | Closed-form pragma surface; missing handler = `UnconsumedPragmaError` at compile, with did-you-mean class-name list. | `test_pragma_handler_registry_completeness` — parametrized over all known `Pragma` subclasses |
+| **R5b** | `op.pragmas` is empty after `MirPragmaPass`. | Materialization is the only consumer; surviving pragma instances are bugs. (Per [`pragma_as_typed_object.md`](pragma_as_typed_object.md) §8.) | `test_pragmas_empty_after_materialization` |
 | **R6** | Every PR adds NEW files only; existing-file edits are limited to additions in designated registry sets (`DEFAULT_PIPELINE`, `USE_DECLARATIVE`, plugin entry points, `__all__`) | Anti-monolith | per-PR review checklist (§4) |
 | **R7** | Every NEW class / function has at least one production-path call site | Anti-dead-infra | overlaps with D9 |
 
@@ -260,7 +264,8 @@ The discipline test suite (`tests/test_discipline_*.py`):
 | `test_discipline_registrations_exercised.py` | D9 |
 | `test_discipline_lower_ctx_pinned.py` | D10 |
 | `test_discipline_use_declarative_monotonic.py` | D12 |
-| `test_discipline_pipeline_completeness.py` | R1, R4, R5 |
+| `test_discipline_pragma_typed_objects.py` | D13, D14, D15 (per [`pragma_as_typed_object.md`](pragma_as_typed_object.md)) |
+| `test_discipline_pipeline_completeness.py` | R1, R4, R5, R5b |
 | `test_codegen_completeness.py` | R3 (existing — verify_renderability) |
 
 Most ship in Layer 1 (foundation). All must be green for any Layer 2+

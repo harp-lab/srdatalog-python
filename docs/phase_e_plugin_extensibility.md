@@ -9,8 +9,17 @@ The phase that proves the redesign delivers on its central promise:
 external package can add new pragmas / dialects / targets without
 touching core**.
 
+> **AMENDMENT — pragmas in this doc are typed objects, not strings.**
+> The original worked example used string-keyed `@pragma(name="jaccard")`;
+> the canonical form is now `@pragma_handler(Jaccard, on=...)` with
+> `Jaccard` as a typed `Pragma` subclass, per
+> [`pragma_as_typed_object.md`](pragma_as_typed_object.md). The
+> jaccard worked example below uses the typed form.
+
 Companion to [`compiler_redesign.md`](compiler_redesign.md) §3 (the
-language is a configuration of the compiler).
+language is a configuration of the compiler) and
+[`pragma_as_typed_object.md`](pragma_as_typed_object.md) (typed-pragma
+contract).
 
 ## 1. Goal
 

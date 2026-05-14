@@ -280,33 +280,43 @@ removed information is either materialized as ops or passed explicitly.
 
 ## 6. Pragmas are partial evaluation
 
-A pragma is a known-at-compile-time fact about a rule (`dedup_hash =
-True`). The compiler partially-evaluates the rule's lowering for that
-fact, producing specialized code. The "specialization" is the
-substitution of one MIR op (generic) with a wrap op + lowering chain
-(specialized).
+> **NOTE — supersedes the string-keyed sketch below.**
+> The canonical spec is now [`pragma_as_typed_object.md`](pragma_as_typed_object.md).
+> Pragmas are first-class **typed compile-time objects** (Python class
+> instances), not string keys. The `@pragma(name=..., value_type=...)`
+> decorator below has been replaced by `@pragma_handler(PragmaCls, on=MirOpCls)`.
+> Read `pragma_as_typed_object.md` first; the example below is kept here
+> for the conceptual framing only.
+
+A pragma is a known-at-compile-time fact about a rule (e.g. an
+instance of `DedupHash(hash_size=2**20)`). The compiler
+partially-evaluates the rule's lowering for that fact, producing
+specialized code. The "specialization" is the substitution of one
+MIR op (generic) with a wrap op + lowering chain (specialized). The
+fact itself is a typed `Pragma` subclass instance — see
+[`pragma_as_typed_object.md`](pragma_as_typed_object.md) for the
+full contract.
 
 ```python
-# The contract:
+# The conceptual contract (typed-object form — see pragma_as_typed_object.md):
 
-@pragma(name="dedup_hash", on=mir.ExecutePipeline,
-        value_type=bool,
-        before=("count_as_product",), after=())
-def materialize_dedup_hash(op, ctx):
+@pragma_handler(DedupHash, on=mir.ExecutePipeline,
+                before=(CountAsProduct,))
+def materialize_dedup_hash(op, pragma: DedupHash, ctx) -> Op | None:
     """Per docs/compiler_redesign.md §6 (partial evaluation): when
-    op.pragmas['dedup_hash'] is True, specialize the IR by inserting
-    DedupGate wrap ops, then clear the flag. Downstream passes never
-    see the flag — they only see the wrap ops.
+    op.pragmas contains a DedupHash instance, specialize the IR by
+    inserting DedupGate wrap ops, then remove the DedupHash from
+    op.pragmas. Downstream passes never see DedupHash — they only see
+    the typed wrap ops.
     """
-    if not op.pragmas.get("dedup_hash"):
-        return None  # pragma didn't apply — leave op unchanged
     new_pipeline = tuple(
-        mir.DedupGate(inner=child) if isinstance(child, mir.InsertInto)
+        mir.DedupGate(inner=child, hash_size=pragma.hash_size)
+        if isinstance(child, mir.InsertInto)
         else child
         for child in op.pipeline
     )
-    new_pragmas = {k: v for k, v in op.pragmas.items() if k != "dedup_hash"}
-    return op.replace(pipeline=new_pipeline, pragmas=tuple(new_pragmas.items()))
+    new_pragmas = tuple(p for p in op.pragmas if not isinstance(p, DedupHash))
+    return op.replace(pipeline=new_pipeline, pragmas=new_pragmas)
 ```
 
 `MirPragmaPass` walks the registry of `@pragma` registrations,

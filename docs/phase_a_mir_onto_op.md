@@ -22,8 +22,12 @@ After Phase A:
 - The `mir.Program` tree is a frozen Op tree, walkable by
   `core.passes._walk(prog)`.
 - `mir.ExecutePipeline` carries `pragmas: tuple[tuple[str, Any], ...]`
-  (open key/value list) instead of named bool fields
-  (`dedup_hash`, `work_stealing`, ...).
+  (transition shape — open key/value list) instead of named bool
+  fields (`dedup_hash`, `work_stealing`, ...). **This is the Phase A
+  shape only.** Once `core/pragma.py` lands (Layer 1), the field
+  becomes `pragmas: tuple[Pragma, ...]` per
+  [`pragma_as_typed_object.md`](pragma_as_typed_object.md). A2 or a
+  follow-up converts the wire format to the typed-object form.
 - All sites that mutate MIR in-place (`pipeline.append(...)`,
   `node.handle_start = ...`) have been replaced with
   `dataclasses.replace(...)` or proper builders.

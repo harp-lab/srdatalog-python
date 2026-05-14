@@ -448,11 +448,33 @@ class Comment(Op):
 @final
 @dataclass(frozen=True, slots=True)
 class RawString(Op):
-  '''Escape hatch for emission templates we haven't dialectified yet.
-  Carries a literal string into the C++ output. The byte-equivalence
-  port uses RawString sparingly to bridge gaps as it ports each MIR
-  op kind. Each use is a candidate for replacement by a proper IR op
-  in a later milestone.'''
+  '''Transition-only escape hatch — DO NOT USE in new lowerings.
+
+  Carries a literal string into the C++ output. Originally used during
+  the byte-equivalence port to bridge gaps as each MIR op kind got
+  ported. After Stage 4 close-out (per docs/ir_dialect_contract.md
+  §4) every legitimate use case has a structured replacement:
+
+    * User-supplied expression text (Filter/ConstantBind code) →
+      `iir.cf.UserCode` (Category J).
+    * Inline trailing comment on a binding → `iir.cf.Bind(...,
+      inline_comment=...)` (Category K).
+    * Arithmetic / index / member-access fragments → ops in
+      `iir.expr` (BinOp, IndexExpr, MemberCall, FuncCall,
+      PostfixIncrement, IntLit-with-suffix, ...).
+    * Compound emission patterns → COMPOUND ops with `@rewrite` (e.g.
+      `sorted_array.DedupTryInsert`).
+
+  The class is preserved for two reasons:
+    1. A future IR layer (HIR/MIR-onto-Op in Stage 3B, or a new
+       relation dialect) may need a temporary escape hatch during its
+       own port — the same way `sorted_array` did during Stage 4.
+    2. The CUDA renderer registers handlers for it so it can't go
+       silently missing if it does reappear.
+
+  `tests/test_iir_no_raw_string_growth.py` enforces zero RawString
+  call sites across the entire `src/srdatalog/ir/` tree. New uses
+  must motivate themselves and update the cap atomically.'''
 
   text: str
 

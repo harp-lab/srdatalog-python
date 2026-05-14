@@ -174,26 +174,39 @@ boundary.
 
 ## 4. RawString reclassification
 
-`iir.cf.RawString` becomes a renderer-registered escape hatch reserved
-for **Category J** (user-supplied code, per
-[`stage4_iir_vocabulary.md`](stage4_iir_vocabulary.md)): expressions
-and predicate fragments that arrive from `Filter` / `ConstantBind`
-and are by-construction opaque to the IR.
+After Stage 4 close-out, `iir.cf.RawString` is a **transition-only
+escape hatch with zero production users**. Every legitimate use case
+has a structured replacement:
 
-All other current uses are framework debt to be cleared by Stage 4
-under the per-op contract:
+| Original RawString pattern | Replacement | Status |
+|---|---|---|
+| User-supplied predicate text (`Filter.code`, `ConstantBind.code`) | `iir.cf.UserCode(text)` (Category J — typed expression escape hatch) | ✅ |
+| `RawString('handle.member()')` | `MemberCall` (LEAF in `iir.expr`) | ✅ |
+| `RawString('a + b')` | `BinOp` (LEAF in `iir.expr`) | ✅ |
+| `RawString('arr[i]')` | `IndexExpr` (LEAF in `iir.expr`) | ✅ |
+| `RawString('atomicAdd(...)')` | `FuncCall` (LEAF in `iir.expr`) | ✅ |
+| `RawString('local_count++;')` | `StmtExpr(PostfixIncrement(...))` (LEAFs in `iir.cf` + `iir.expr`) | ✅ |
+| `RawString('arr[i] = v;')` | `IndexedAssign` (LEAF in `iir.cf`) | ✅ |
+| `RawString('auto h = parent;  // reusing narrowed handle')` | `Bind(..., inline_comment=...)` (Category K — inline-comment field) | ✅ |
+| `RawString('{ ... multi-line dedup ... }')` | `DedupTryInsert` (COMPOUND in `sorted_array`, rewrite to `BracedBlock + Bind + If + MemberCall`) | ✅ |
 
-| Current pattern | Reclassification |
-|---|---|
-| `RawString('handle.member()')` | `MemberCall` (LEAF) |
-| `RawString('a + b')` | `BinOp` (LEAF) |
-| `RawString('arr[i]')` | `IndexExpr` (LEAF) |
-| `RawString('{ ... multi-line dedup ... }')` | `DedupTryInsert` (COMPOUND, rewrite to `BracedBlock + Bind + If + MemberCall`) |
+The discipline test
+(`tests/test_iir_no_raw_string_growth.py`) enforces this whole-tree:
+no `RawString(...)` call site anywhere in `src/srdatalog/ir/`. The
+class itself remains in `iir.cf.ops` for two reasons:
 
-The S4.7 ratchet test (`tests/test_iir_no_raw_string_growth.py`) is
-the mechanical enforcement: the count drops monotonically as
-compound ops land; new `RawString` sites must be Category J or
-motivate an exception with documented categorization.
+1. **Future port flexibility.** A subsequent IR migration (e.g. Stage
+   3B promoting MIR/HIR onto `Op`, or a new relation dialect) may
+   need a temporary escape hatch the same way `sorted_array` did
+   during Stage 4. Keeping `RawString` available avoids re-inventing
+   it under a different name.
+2. **Loud failure on regression.** The CUDA renderer registers
+   `RawString` handlers, so any accidental reintroduction renders
+   correctly while the discipline test fails CI loudly. The error
+   message points the offender at the structured replacement.
+
+The `RawString` docstring itself documents the "do not use" rule for
+new code, with a reference back to this section.
 
 ## 5. Migration plan
 

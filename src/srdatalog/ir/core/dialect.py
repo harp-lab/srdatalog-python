@@ -65,3 +65,31 @@ class Compiler:
   def dialects(self) -> list[Dialect]:
     '''All registered dialects, in registration order.'''
     return list(self._dialects.values())
+
+  def run(self, prog: Any, *, pipeline: list[Any]) -> Any:
+    '''Drive a list of `Pass` instances over `prog`. Returns the
+    (possibly transformed) prog.
+
+    Pre-flight: validate pipeline ordering. For each `Pass`, check
+    that all `consumes` dialects are either registered with this
+    Compiler OR produced by an earlier Pass in the list. Raises
+    `PassOrderingError` on mismatch — at construction time, before
+    any pass executes.
+
+    Per `docs/compiler_redesign.md` §4 and the R4 research report:
+    pipelines are data; ordering errors are caught up-front.
+    '''
+    # Local import to avoid a circular at module-load time
+    # (passes.py imports Compiler from this module).
+    from srdatalog.ir.core.passes import PassOrderingError
+
+    available: set[str] = {d.name for d in self.dialects}
+    for i, p in enumerate(pipeline):
+      for needed in p.consumes:
+        if needed not in available:
+          raise PassOrderingError(p.name, needed, i)
+      available |= set(p.produces)
+
+    for p in pipeline:
+      prog = p.apply(prog, self)
+    return prog

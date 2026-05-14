@@ -17,6 +17,9 @@ Public API:
   Strategy combinators — top_down, bottom_up, seq, choice, repeat,
                          try_, all_, one, some, id_, fail.
   assert_never        — exhaustiveness check for match defaults.
+  Pragma + @pragma_handler — typed compile-time pragma objects (F-pragma).
+  Pass kinds (LoweringPass, RewritePass, ProgramPass) + program_pass
+                       — F1 declarative-pipeline framework.
 
 Design invariants:
 
@@ -37,7 +40,19 @@ from typing import NoReturn
 
 from srdatalog.ir.core.dialect import Compiler, Dialect
 from srdatalog.ir.core.ops import Op, Type
-from srdatalog.ir.core.passes import Lowering, PassDriver, Rewrite
+from srdatalog.ir.core.passes import (
+  AmbiguousLowering,
+  Lowering,
+  LoweringMissingError,
+  LoweringPass,
+  Pass,
+  PassDriver,
+  PassOrderingError,
+  ProgramPass,
+  Rewrite,
+  RewritePass,
+  program_pass,
+)
 from srdatalog.ir.core.pragma import (
   Pragma,
   PragmaConfigError,
@@ -78,16 +93,23 @@ def assert_never(value: object) -> NoReturn:
 
 
 __all__ = [
+  'AmbiguousLowering',
   'Compiler',
   'Dialect',
   'Lowering',
+  'LoweringMissingError',
+  'LoweringPass',
   'Op',
+  'Pass',
   'PassDriver',
+  'PassOrderingError',
   'Pragma',
   'PragmaConfigError',
   'PragmaCtx',
   'PragmaOrderingError',
+  'ProgramPass',
   'Rewrite',
+  'RewritePass',
   'Strategy',
   'Type',
   'UnconsumedPragmaError',
@@ -103,6 +125,7 @@ __all__ = [
   'id_',
   'one',
   'pragma_handler',
+  'program_pass',
   'repeat',
   'seq',
   'some',

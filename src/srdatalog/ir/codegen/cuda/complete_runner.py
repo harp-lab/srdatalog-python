@@ -936,9 +936,9 @@ def gen_complete_runner(
   # tail-mode fused kernel doesn't apply.
   is_fused_eligible = not is_count and not node.dedup_hash
 
-  # Mutate a copy so handle positions don't leak back.
-  mutable_pipe = list(node.pipeline)
-  assign_handle_positions(mutable_pipe)
+  # MIR is frozen; assign_handle_positions returns a new pipeline with
+  # replaced nodes (handle_start filled in).
+  mutable_pipe = assign_handle_positions(list(node.pipeline))
 
   first_src = node.source_specs[0]
   first_schema = _src_schema(first_src)

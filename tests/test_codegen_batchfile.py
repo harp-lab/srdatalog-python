@@ -230,8 +230,11 @@ def test_generate_runner_balanced_scan_emits_histogram_kernel():
 
 
 def test_generate_runner_work_stealing_marker():
+  import dataclasses
+
   ep = _andersen_base_pipeline()
-  ep.work_stealing = True
+  # MIR is frozen post-Phase-A; replace rather than mutate.
+  ep = dataclasses.replace(ep, work_stealing=True)
   full, _ = generate_runner(ep, "Andersen")
   assert "TODO: Implement work-stealing logic" in full
 

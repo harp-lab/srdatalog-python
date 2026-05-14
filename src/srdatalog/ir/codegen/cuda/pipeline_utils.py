@@ -93,10 +93,11 @@ def get_balanced_scan_info(ops: list[m.MirNode]) -> BalancedScanInfo:
 
 
 def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None:
-  '''Recursively assign `handle_start` to this node and any children.
+  '''Assign `handle_start` to this node and any children, IN PLACE
+  (via `object.__setattr__` shim — same pattern as the envelope.py
+  twin and as the orchestrator concurrent_write shim).
 
-  `offset_box` is a single-element list used as a mutable counter
-  (Python closures can't reassign captured ints cleanly in a loop).
+  `offset_box` is a single-element list used as a mutable counter.
   '''
   if (
     isinstance(node, m.ColumnSource)
@@ -104,14 +105,14 @@ def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None
     or isinstance(node, m.Aggregate)
     or isinstance(node, m.Negation)
   ):
-    node.handle_start = offset_box[0]
+    object.__setattr__(node, 'handle_start', offset_box[0])
     offset_box[0] += 1
   elif isinstance(node, m.ColumnJoin) or isinstance(node, m.CartesianJoin):
-    node.handle_start = offset_box[0]
+    object.__setattr__(node, 'handle_start', offset_box[0])
     for src in node.sources:
       _assign_handle_positions_rec(src, offset_box)
   elif isinstance(node, m.BalancedScan):
-    node.handle_start = offset_box[0]
+    object.__setattr__(node, 'handle_start', offset_box[0])
     _assign_handle_positions_rec(node.source1, offset_box)
     _assign_handle_positions_rec(node.source2, offset_box)
   elif isinstance(node, m.PositionedExtract):
@@ -119,13 +120,15 @@ def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None
       _assign_handle_positions_rec(src, offset_box)
 
 
-def assign_handle_positions(ops: list[m.MirNode]) -> None:
+def assign_handle_positions(ops: list[m.MirNode]) -> list[m.MirNode]:
   '''Assign `handle_start` to every source-bearing node in pipeline
-  order starting from 0. Mutates `ops` in place. Mirrors Nim's
-  assignHandlePositions.'''
+  order starting from 0. Mutates in place via the shim; returns
+  `ops` for chain convenience. Mirrors Nim's assignHandlePositions.
+  '''
   offset_box = [0]
   for op in ops:
     _assign_handle_positions_rec(op, offset_box)
+  return ops
 
 
 def count_handles_in_pipeline(ops: list[m.MirNode]) -> int:

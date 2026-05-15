@@ -13,16 +13,18 @@ What remains:
     whether to emit a balanced-scan kernel variant.
   - `has_tiled_cartesian_eligible` — runner uses this to decide
     whether to enable the tiled-Cartesian materialize path.
-  - `assign_handle_positions` / `count_handles_in_pipeline` — pipeline
-    pre-pass + view-slot counting. Note: `dialects.target.cuda.
-    envelope` has its own `assign_handle_positions` for the dialect
-    path; this one stays for the runner-side prepass that mutates
-    `mutable_pipe` before kernel emission.
+  - `assign_handle_positions` / `assign_handle_positions_in_ep` /
+    `count_handles_in_pipeline` — pipeline pre-pass + view-slot
+    counting. Note: `codegen.cuda.envelope` has its own
+    `assign_handle_positions` for the dialect path; this one stays for
+    the runner-side prepass. Both are pure: they return a new pipeline
+    (or new EP) with `handle_start` filled in, never mutating input.
 '''
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from typing import overload
 
 import srdatalog.ir.mir.types as m
 
@@ -92,12 +94,22 @@ def get_balanced_scan_info(ops: list[m.MirNode]) -> BalancedScanInfo:
 # -----------------------------------------------------------------------------
 
 
-def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None:
-  '''Assign `handle_start` to this node and any children, IN PLACE
-  (via `object.__setattr__` shim — same pattern as the envelope.py
-  twin and as the orchestrator concurrent_write shim).
+@overload
+def _assign_handle_positions_rec(
+  node: m.ColumnSource, offset_box: list[int]
+) -> m.ColumnSource: ...
+@overload
+def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> m.MirNode: ...
+def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> m.MirNode:
+  '''Return a copy of `node` with `handle_start` filled in (and any
+  source-bearing descendants rebuilt likewise). Pure: input `node` is
+  not mutated.
 
-  `offset_box` is a single-element list used as a mutable counter.
+  Twin of `envelope._assign_handle_positions_rec` — they share the
+  same walk shape (joins claim a slot before recursing into their
+  children) so the runner-side and dialect-side handle assignment
+  agree byte-for-byte. `offset_box` is a single-element list used as
+  a mutable counter.
   '''
   if (
     isinstance(node, m.ColumnSource)
@@ -105,30 +117,52 @@ def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None
     or isinstance(node, m.Aggregate)
     or isinstance(node, m.Negation)
   ):
-    object.__setattr__(node, 'handle_start', offset_box[0])
+    new_node = replace(node, handle_start=offset_box[0])
     offset_box[0] += 1
-  elif isinstance(node, m.ColumnJoin) or isinstance(node, m.CartesianJoin):
-    object.__setattr__(node, 'handle_start', offset_box[0])
-    for src in node.sources:
-      _assign_handle_positions_rec(src, offset_box)
-  elif isinstance(node, m.BalancedScan):
-    object.__setattr__(node, 'handle_start', offset_box[0])
-    _assign_handle_positions_rec(node.source1, offset_box)
-    _assign_handle_positions_rec(node.source2, offset_box)
-  elif isinstance(node, m.PositionedExtract):
-    for src in node.sources:
-      _assign_handle_positions_rec(src, offset_box)
+    return new_node
+  if isinstance(node, m.ColumnJoin) or isinstance(node, m.CartesianJoin):
+    handle = offset_box[0]
+    new_sources = [_assign_handle_positions_rec(src, offset_box) for src in node.sources]
+    return replace(node, handle_start=handle, sources=new_sources)
+  if isinstance(node, m.BalancedScan):
+    handle = offset_box[0]
+    new_source1 = _assign_handle_positions_rec(node.source1, offset_box)
+    new_source2 = _assign_handle_positions_rec(node.source2, offset_box)
+    return replace(node, handle_start=handle, source1=new_source1, source2=new_source2)
+  if isinstance(node, m.PositionedExtract):
+    new_sources = [_assign_handle_positions_rec(src, offset_box) for src in node.sources]
+    return replace(node, sources=new_sources)
+  return node
 
 
 def assign_handle_positions(ops: list[m.MirNode]) -> list[m.MirNode]:
-  '''Assign `handle_start` to every source-bearing node in pipeline
-  order starting from 0. Mutates in place via the shim; returns
-  `ops` for chain convenience. Mirrors Nim's assignHandlePositions.
+  '''Return a NEW pipeline list where every source-bearing node has its
+  `handle_start` filled in. Mirrors Nim's `assignHandlePositions`.
+
+  Caller rebinds: `pipeline = assign_handle_positions(pipeline)`. For
+  ExecutePipeline contexts where `source_specs` must agree with the
+  pipeline, prefer `assign_handle_positions_in_ep` instead.
   '''
   offset_box = [0]
-  for op in ops:
-    _assign_handle_positions_rec(op, offset_box)
-  return ops
+  return [_assign_handle_positions_rec(op, offset_box) for op in ops]
+
+
+def assign_handle_positions_in_ep(ep: m.ExecutePipeline) -> m.ExecutePipeline:
+  '''Return a NEW `ExecutePipeline` with `handle_start` filled in on
+  both the pipeline ops AND the parallel `source_specs` references.
+
+  Twin of `envelope.assign_handle_positions_in_ep` — they delegate to
+  the same `_extract_pipeline_sources` to keep source_specs aligned
+  with the rebuilt pipeline. See that function's docstring for why
+  rebuilding source_specs is required.
+  '''
+  from srdatalog.ir.hir.lower import _extract_pipeline_sources
+
+  new_pipeline = assign_handle_positions(list(ep.pipeline))
+  new_source_specs: list[m.ColumnSource | m.Scan | m.Negation | m.Aggregate] = []
+  for op in new_pipeline:
+    _extract_pipeline_sources(op, new_source_specs)
+  return replace(ep, pipeline=new_pipeline, source_specs=new_source_specs)
 
 
 def count_handles_in_pipeline(ops: list[m.MirNode]) -> int:

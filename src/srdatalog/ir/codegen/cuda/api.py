@@ -49,12 +49,15 @@ def compile_pipeline(ep: m.ExecutePipeline, *, target: Target = 'cuda') -> str:
     raise ValueError(f'compile_pipeline: unsupported target {target!r}')
 
   from srdatalog.ir.codegen.cuda.envelope import (
-    assign_handle_positions,
+    assign_handle_positions_in_ep,
     emit_full_file,
   )
 
-  pipeline = list(ep.pipeline)
-  pipeline = assign_handle_positions(pipeline)
+  # Rebuild EP with handle_start filled in on both pipeline ops AND the
+  # parallel source_specs references. `emit_full_file` reads handles
+  # off `ep.pipeline` via `count_handles`; `compile_kernel_body` walks
+  # `ep.pipeline` to assign view slots. Both must see the same handles.
+  ep = assign_handle_positions_in_ep(ep)
 
   # Standalone jit_batch shape uses handle_idx-based view slots; runner
   # contexts (compile_runner / compile_kernel_body) default to positional.

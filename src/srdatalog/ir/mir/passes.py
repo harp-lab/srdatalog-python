@@ -9,11 +9,19 @@ Order (matches Nim's registerMirOptimizePass priorities):
   3. balanced_scan_pass — DEFERRED (DSL lacks balanced pragma)
   4. apply_concurrent_write_marking — Phase A2.2 (compute-once
      concurrent_write decision; replaces orchestrator's mutation shim)
+
+Threading model (post-A2):
+  All helpers RETURN NEW INSTANCES via `dataclasses.replace`. MIR is
+  frozen (dataclass `frozen=True`); no `object.__setattr__` shims
+  remain in this module. Callers must rebind the return value — see
+  `apply_clause_order_reordering`, `apply_prefix_source_reordering`,
+  `apply_balanced_scan_pass` for the canonical walk pattern.
 '''
 
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Callable
 
 import srdatalog.ir.mir.types as mir
 from srdatalog.ir.hir.types import Version
@@ -23,25 +31,25 @@ from srdatalog.ir.hir.types import Version
 # -----------------------------------------------------------------------------
 
 
-def _has_prefix(source) -> bool:
+def _has_prefix(source: mir.MirNode) -> bool:
   '''Source node has a non-empty prefix. Mirrors Nim's hasPrefix.'''
   if isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation)):
     return len(source.prefix_vars) > 0
   return False
 
 
-def _regenerate_source_specs(ep: mir.ExecutePipeline) -> None:
-  '''After source reordering, regenerate `source_specs` from the
-  (possibly reordered) pipeline body. Mutates `ep.source_specs` in
-  place via `object.__setattr__` shim (MIR is frozen post-Phase-A;
-  A2/A3 will thread this properly).
+def _regenerate_source_specs(ep: mir.ExecutePipeline) -> mir.ExecutePipeline:
+  '''After source reordering, return a new `ExecutePipeline` whose
+  `source_specs` is regenerated from the (possibly reordered) pipeline
+  body. MIR is frozen; this returns a fresh instance instead of
+  mutating `ep` in place.
   '''
   from srdatalog.ir.hir.lower import _extract_pipeline_sources
 
   specs: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
   for op in ep.pipeline:
     _extract_pipeline_sources(op, specs)
-  object.__setattr__(ep, 'source_specs', specs)
+  return dataclasses.replace(ep, source_specs=specs)
 
 
 # -----------------------------------------------------------------------------
@@ -151,6 +159,34 @@ def insert_pre_reconstruct_rebuilds(
 
 
 # -----------------------------------------------------------------------------
+# Tree-walk helper shared by reorder + balanced-scan passes
+# -----------------------------------------------------------------------------
+
+
+def _walk_pipelines(
+  node: mir.MirNode,
+  transform_ep: Callable[[mir.ExecutePipeline], mir.ExecutePipeline],
+) -> mir.MirNode:
+  '''Walk `node`, applying `transform_ep: ExecutePipeline -> ExecutePipeline`
+  to each `ExecutePipeline` encountered (directly or under a `FixpointPlan`
+  / `ParallelGroup`). Returns a new node tree (or the same node, if no
+  transform changed anything below).
+
+  Centralizes the recursive walk so each pass only needs to define how
+  it transforms one ExecutePipeline.
+  '''
+  if isinstance(node, mir.ExecutePipeline):
+    return transform_ep(node)
+  if isinstance(node, mir.FixpointPlan):
+    new_instructions = [_walk_pipelines(instr, transform_ep) for instr in node.instructions]
+    return dataclasses.replace(node, instructions=new_instructions)
+  if isinstance(node, mir.ParallelGroup):
+    new_ops = [_walk_pipelines(op, transform_ep) for op in node.ops]
+    return dataclasses.replace(node, ops=new_ops)
+  return node
+
+
+# -----------------------------------------------------------------------------
 # Pass 1: clause_order_reorder
 # -----------------------------------------------------------------------------
 
@@ -163,57 +199,65 @@ def _position_in(clause_order: list[int], clause_idx: int) -> int:
     return len(clause_order)
 
 
-def _reorder_column_join_by_clause_order(cj: mir.ColumnJoin, clause_order: tuple[int, ...]) -> None:
-  '''Reorder cj.sources in place via `object.__setattr__` shim
-  (transition tech-debt; A2/A3 threads properly).'''
+def _reorder_column_join_by_clause_order(
+  cj: mir.ColumnJoin, clause_order: tuple[int, ...]
+) -> mir.ColumnJoin:
+  '''Return a new ColumnJoin with `sources` reordered by `clause_order`.
+  Returns `cj` unchanged when `clause_order` is empty.
+  '''
   if not clause_order:
-    return
-  new_sources = tuple(sorted(cj.sources, key=lambda s: _position_in(clause_order, s.clause_idx)))
-  object.__setattr__(cj, 'sources', list(new_sources))
+    return cj
+  new_sources = sorted(cj.sources, key=lambda s: _position_in(clause_order, s.clause_idx))
+  return dataclasses.replace(cj, sources=list(new_sources))
 
 
 def _reorder_cartesian_join_by_clause_order(
   cart: mir.CartesianJoin, clause_order: tuple[int, ...]
-) -> None:
-  '''Reorder cart.sources + cart.var_from_source in place.'''
+) -> mir.CartesianJoin:
+  '''Return a new CartesianJoin with `sources` + `var_from_source`
+  jointly reordered by `clause_order`.
+  '''
   if not clause_order:
-    return
+    return cart
   pairs = list(zip(cart.sources, cart.var_from_source))
   pairs.sort(key=lambda p: _position_in(clause_order, p[0].clause_idx))
-  object.__setattr__(cart, 'sources', [p[0] for p in pairs])
-  object.__setattr__(cart, 'var_from_source', [p[1] for p in pairs])
+  return dataclasses.replace(
+    cart,
+    sources=[p[0] for p in pairs],
+    var_from_source=[p[1] for p in pairs],
+  )
 
 
-def _apply_clause_order_reorder(ep: mir.ExecutePipeline) -> None:
-  '''Reorder ColumnJoin/CartesianJoin sources in place + regenerate
-  source_specs.'''
+def _apply_clause_order_reorder(ep: mir.ExecutePipeline) -> mir.ExecutePipeline:
+  '''Return a new ExecutePipeline whose ColumnJoin / CartesianJoin
+  sources are reordered by `ep.clause_order`, and whose `source_specs`
+  is regenerated from the new pipeline body.
+
+  Sequencing note: `_regenerate_source_specs` MUST be called on the
+  ExecutePipeline whose `pipeline` already reflects the reorder —
+  otherwise byte-equivalence breaks (source_specs would mirror the
+  pre-reorder layout).
+  '''
+  new_pipeline: list[mir.MirNode] = []
   for op in ep.pipeline:
     if isinstance(op, mir.ColumnJoin):
-      _reorder_column_join_by_clause_order(op, ep.clause_order)
+      new_pipeline.append(_reorder_column_join_by_clause_order(op, ep.clause_order))
     elif isinstance(op, mir.CartesianJoin):
-      _reorder_cartesian_join_by_clause_order(op, ep.clause_order)
-  _regenerate_source_specs(ep)
+      new_pipeline.append(_reorder_cartesian_join_by_clause_order(op, ep.clause_order))
+    else:
+      new_pipeline.append(op)
+  new_ep = dataclasses.replace(ep, pipeline=new_pipeline)
+  return _regenerate_source_specs(new_ep)
 
 
 def apply_clause_order_reordering(
   steps: list[tuple[mir.MirNode, bool]],
 ) -> list[tuple[mir.MirNode, bool]]:
-  '''Reorder every ColumnJoin/CartesianJoin's sources by the enclosing
-  ExecutePipeline's clause_order. Mutates in place via shim; returns
-  `steps` for chain convenience.
+  '''Reorder every ColumnJoin / CartesianJoin's sources by the
+  enclosing ExecutePipeline's `clause_order`. Returns a new steps list
+  with new MIR nodes (does not mutate inputs).
   '''
-  for node, _ in steps:
-    if isinstance(node, mir.FixpointPlan):
-      for instr in node.instructions:
-        if isinstance(instr, mir.ParallelGroup):
-          for op in instr.ops:
-            if isinstance(op, mir.ExecutePipeline):
-              _apply_clause_order_reorder(op)
-        elif isinstance(instr, mir.ExecutePipeline):
-          _apply_clause_order_reorder(instr)
-    elif isinstance(node, mir.ExecutePipeline):
-      _apply_clause_order_reorder(node)
-  return steps
+  return [(_walk_pipelines(node, _apply_clause_order_reorder), is_rec) for node, is_rec in steps]
 
 
 # -----------------------------------------------------------------------------
@@ -221,61 +265,65 @@ def apply_clause_order_reordering(
 # -----------------------------------------------------------------------------
 
 
-def _reorder_column_join_by_prefix(cj: mir.ColumnJoin) -> None:
-  '''Move prefixed sources to front in place via shim.'''
+def _reorder_column_join_by_prefix(cj: mir.ColumnJoin) -> mir.ColumnJoin:
+  '''Return a new ColumnJoin with prefixed sources moved to the front.
+  Returns `cj` unchanged if no reorder is needed.
+  '''
   if len(cj.sources) < 2:
-    return
+    return cj
   if _has_prefix(cj.sources[0]):
-    return
+    return cj
   if not any(_has_prefix(s) for s in cj.sources[1:]):
-    return
+    return cj
   new_sources = sorted(cj.sources, key=lambda s: 0 if _has_prefix(s) else 1)
-  object.__setattr__(cj, 'sources', new_sources)
+  return dataclasses.replace(cj, sources=new_sources)
 
 
-def _reorder_cartesian_join_by_prefix(cart: mir.CartesianJoin) -> None:
-  '''Move prefixed sources to front + paired-reorder var_from_source.'''
+def _reorder_cartesian_join_by_prefix(cart: mir.CartesianJoin) -> mir.CartesianJoin:
+  '''Return a new CartesianJoin with prefixed sources moved to the
+  front and `var_from_source` paired-reordered to match. Returns `cart`
+  unchanged if no reorder is needed.
+  '''
   if len(cart.sources) < 2:
-    return
+    return cart
   if _has_prefix(cart.sources[0]):
-    return
+    return cart
   if not any(_has_prefix(s) for s in cart.sources[1:]):
-    return
+    return cart
   pairs = list(zip(cart.sources, cart.var_from_source))
   pairs.sort(key=lambda p: 0 if _has_prefix(p[0]) else 1)
-  object.__setattr__(cart, 'sources', [p[0] for p in pairs])
-  object.__setattr__(cart, 'var_from_source', [p[1] for p in pairs])
+  return dataclasses.replace(
+    cart,
+    sources=[p[0] for p in pairs],
+    var_from_source=[p[1] for p in pairs],
+  )
 
 
-def _apply_prefix_reorder(ep: mir.ExecutePipeline) -> None:
-  '''Apply prefix reorder + regenerate source_specs in place.'''
+def _apply_prefix_reorder(ep: mir.ExecutePipeline) -> mir.ExecutePipeline:
+  '''Return a new ExecutePipeline with prefix-reorder applied to each
+  ColumnJoin / CartesianJoin and `source_specs` regenerated from the
+  new pipeline body.
+  '''
+  new_pipeline: list[mir.MirNode] = []
   for op in ep.pipeline:
     if isinstance(op, mir.ColumnJoin):
-      _reorder_column_join_by_prefix(op)
+      new_pipeline.append(_reorder_column_join_by_prefix(op))
     elif isinstance(op, mir.CartesianJoin):
-      _reorder_cartesian_join_by_prefix(op)
-  _regenerate_source_specs(ep)
+      new_pipeline.append(_reorder_cartesian_join_by_prefix(op))
+    else:
+      new_pipeline.append(op)
+  new_ep = dataclasses.replace(ep, pipeline=new_pipeline)
+  return _regenerate_source_specs(new_ep)
 
 
 def apply_prefix_source_reordering(
   steps: list[tuple[mir.MirNode, bool]],
 ) -> list[tuple[mir.MirNode, bool]]:
-  '''Move prefixed sources to the front of every ColumnJoin/CartesianJoin
-  (avoids "galloping from root" on unprefixed sources). Mutates in
-  place via shim; returns `steps` for chain convenience.
+  '''Move prefixed sources to the front of every ColumnJoin /
+  CartesianJoin (avoids "galloping from root" on unprefixed sources).
+  Returns a new steps list with new MIR nodes.
   '''
-  for node, _ in steps:
-    if isinstance(node, mir.FixpointPlan):
-      for instr in node.instructions:
-        if isinstance(instr, mir.ParallelGroup):
-          for op in instr.ops:
-            if isinstance(op, mir.ExecutePipeline):
-              _apply_prefix_reorder(op)
-        elif isinstance(instr, mir.ExecutePipeline):
-          _apply_prefix_reorder(instr)
-    elif isinstance(node, mir.ExecutePipeline):
-      _apply_prefix_reorder(node)
-  return steps
+  return [(_walk_pipelines(node, _apply_prefix_reorder), is_rec) for node, is_rec in steps]
 
 
 # -----------------------------------------------------------------------------
@@ -310,24 +358,11 @@ def _transform_balanced_pipeline(pipeline: list[mir.MirNode]) -> list[mir.MirNod
   return out
 
 
-def _apply_balanced_scan_pass_recursive(node: mir.MirNode) -> mir.MirNode:
-  '''Walk the MIR tree; transform each ExecutePipeline in place via
-  shim (MIR is frozen; A2/A3 will thread properly).
+def _apply_balanced_scan_to_ep(ep: mir.ExecutePipeline) -> mir.ExecutePipeline:
+  '''Return a new ExecutePipeline whose `pipeline` has had the
+  balanced-scan -> positioned-extract transform applied.
   '''
-  if isinstance(node, mir.ExecutePipeline):
-    object.__setattr__(node, 'pipeline', _transform_balanced_pipeline(node.pipeline))
-    return node
-  if isinstance(node, mir.FixpointPlan):
-    object.__setattr__(
-      node,
-      'instructions',
-      [_apply_balanced_scan_pass_recursive(instr) for instr in node.instructions],
-    )
-    return node
-  if isinstance(node, mir.ParallelGroup):
-    object.__setattr__(node, 'ops', [_apply_balanced_scan_pass_recursive(op) for op in node.ops])
-    return node
-  return node
+  return dataclasses.replace(ep, pipeline=_transform_balanced_pipeline(ep.pipeline))
 
 
 def apply_balanced_scan_pass(
@@ -336,10 +371,9 @@ def apply_balanced_scan_pass(
   '''Apply balanced-scan -> positioned-extract transform to every
   ExecutePipeline. No-op when the Python DSL hasn't emitted a BalancedScan
   (current default: never, since balanced-scan lowering isn't wired in).
+  Returns a new steps list with new MIR nodes.
   '''
-  for node, _ in steps:
-    _apply_balanced_scan_pass_recursive(node)
-  return steps
+  return [(_walk_pipelines(node, _apply_balanced_scan_to_ep), is_rec) for node, is_rec in steps]
 
 
 # -----------------------------------------------------------------------------

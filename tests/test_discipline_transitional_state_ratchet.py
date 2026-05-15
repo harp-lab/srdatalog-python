@@ -46,12 +46,7 @@ _SRC_ROOTS = (Path(__file__).resolve().parent.parent / 'src' / 'srdatalog' / 'ir
 #   in this way. Documented inline at the call site.
 _EXCLUDED: frozenset[Path] = frozenset(
   {
-    Path(__file__).resolve().parent.parent
-    / 'src'
-    / 'srdatalog'
-    / 'ir'
-    / 'core'
-    / 'passes.py',
+    Path(__file__).resolve().parent.parent / 'src' / 'srdatalog' / 'ir' / 'core' / 'passes.py',
   }
 )
 

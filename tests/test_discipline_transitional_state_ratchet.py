@@ -66,19 +66,16 @@ def _all_shim_sites() -> dict[Path, int]:
 # RATCHET: only DECREASE this. Increases require explicit owner
 # sign-off + amendment of D18 in `docs/code_discipline.md`.
 #
-# Snapshot taken at `feat/a2-1-handle-positions-threading` (post-A2.1):
+# Snapshot post-A2.2 (orchestrator concurrent_write shim removed via
+# the new `apply_concurrent_write_marking` MIR pass; rebased on top
+# of A2.1 which already removed the 6 envelope + pipeline_utils shims):
 #   ir/mir/passes.py                      10
-#   ir/codegen/cuda/orchestrator.py        1
+#   ir/codegen/cuda/orchestrator.py        0  (was 1)
 #                                       ----
-#                              total      11
+#                              total      10
 #
-# A2.1 removed the envelope.py + pipeline_utils.py
-# `_assign_handle_positions_rec` shims (6 sites) by threading
-# handle_start through `dataclasses.replace` and rebuilding the EP's
-# parallel `source_specs` references via `assign_handle_positions_in_ep`.
-# A2.2 removes the orchestrator concurrent_write shim. A2.3 removes
-# the mir/passes.py reorder shims.
-_MAX_TRANSITIONAL_SHIMS = 11
+# A2.3 removes the mir/passes.py reorder shims (10 → 0).
+_MAX_TRANSITIONAL_SHIMS = 10
 
 
 def test_no_transitional_shim_growth() -> None:

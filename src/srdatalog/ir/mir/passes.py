@@ -7,9 +7,13 @@ Order (matches Nim's registerMirOptimizePass priorities):
   1. apply_clause_order_reordering
   2. apply_prefix_source_reordering
   3. balanced_scan_pass — DEFERRED (DSL lacks balanced pragma)
+  4. apply_concurrent_write_marking — Phase A2.2 (compute-once
+     concurrent_write decision; replaces orchestrator's mutation shim)
 '''
 
 from __future__ import annotations
+
+import dataclasses
 
 import srdatalog.ir.mir.types as mir
 from srdatalog.ir.hir.types import Version
@@ -339,6 +343,121 @@ def apply_balanced_scan_pass(
 
 
 # -----------------------------------------------------------------------------
+# Pass 4: concurrent_write marking (Phase A2.2)
+# -----------------------------------------------------------------------------
+
+
+def _ep_is_single_dest_concat_eligible(ep: mir.ExecutePipeline) -> bool:
+  '''Same predicate `_gen_parallel_group` uses to filter `single_in_dest`:
+  exactly one dest, no work-stealing, no dedup-hash. Mirrors the
+  upstream Nim orchestrator decision so byte-equivalence holds.
+  '''
+  return len(ep.dest_specs) == 1 and not ep.work_stealing and not ep.dedup_hash
+
+
+def _mark_concurrent_writes_in_parallel_group(
+  pg: mir.ParallelGroup,
+) -> mir.ParallelGroup:
+  '''Compute the concurrent_write decision for a ParallelGroup and
+  return a new ParallelGroup whose ExecutePipeline children carry
+  `concurrent_write=True` where appropriate. Mirrors the legacy
+  orchestrator branch:
+
+    has_concat = (dest_rel has >= 2 single-dest writers in this group)
+    if has_concat:
+        for each single-dest writer in this dest: concurrent_write=True
+
+  Skips groups that take the dedup-sequential or single-rule path
+  in `_gen_parallel_group` — those never set the flag.
+  '''
+  exec_pairs: list[tuple[int, mir.ExecutePipeline]] = [
+    (idx, op) for idx, op in enumerate(pg.ops) if isinstance(op, mir.ExecutePipeline)
+  ]
+
+  if len(exec_pairs) <= 1:
+    return pg
+
+  exec_indices = [i for i, _ in exec_pairs]
+  exec_ops = [op for _, op in exec_pairs]
+  if any(op.dedup_hash for op in exec_ops):
+    # Dedup-sequential path in `_gen_parallel_group`: no marking.
+    return pg
+
+  # Build dest_rel -> [exec_indices] for single-dest concat-eligible EPs.
+  dest_single_rules: dict[str, list[int]] = {}
+  for ep_pos, op in enumerate(exec_ops):
+    if not _ep_is_single_dest_concat_eligible(op):
+      continue
+    dest = op.dest_specs[0]
+    if isinstance(dest, mir.InsertInto):
+      dest_single_rules.setdefault(dest.rel_name, []).append(ep_pos)
+
+  # Identify which exec_ops positions need concurrent_write=True.
+  to_mark: set[int] = set()
+  for _dest_rel, positions in dest_single_rules.items():
+    if len(positions) >= 2:
+      to_mark.update(positions)
+
+  if not to_mark:
+    return pg
+
+  # Rebuild ops list with replacements. Only the marked
+  # ExecutePipelines are replaced; everything else is identity.
+  new_ops: list[mir.MirNode] = list(pg.ops)
+  for ep_pos in to_mark:
+    src_idx = exec_indices[ep_pos]
+    new_ops[src_idx] = dataclasses.replace(exec_ops[ep_pos], concurrent_write=True)
+
+  return dataclasses.replace(pg, ops=new_ops)
+
+
+def _mark_concurrent_writes_in_node(node: mir.MirNode) -> mir.MirNode:
+  '''Walk a top-level step node, returning a new node whose enclosed
+  ParallelGroups carry the concurrent_write decision. Recurses into
+  FixpointPlan + Block instruction lists.
+  '''
+  if isinstance(node, mir.ParallelGroup):
+    return _mark_concurrent_writes_in_parallel_group(node)
+  if isinstance(node, mir.FixpointPlan):
+    new_instructions: list[mir.MirNode] = [
+      _mark_concurrent_writes_in_node(instr) for instr in node.instructions
+    ]
+    if all(a is b for a, b in zip(new_instructions, node.instructions)):
+      return node
+    return dataclasses.replace(node, instructions=new_instructions)
+  if isinstance(node, mir.Block):
+    new_instructions = [_mark_concurrent_writes_in_node(instr) for instr in node.instructions]
+    if all(a is b for a, b in zip(new_instructions, node.instructions)):
+      return node
+    return dataclasses.replace(node, instructions=new_instructions)
+  return node
+
+
+def apply_concurrent_write_marking(
+  steps: list[tuple[mir.MirNode, bool]],
+) -> list[tuple[mir.MirNode, bool]]:
+  '''Mark `ExecutePipeline.concurrent_write=True` for any pipeline that
+  participates in a ParallelGroup where two or more single-dest
+  pipelines share a destination relation. Computes the decision once
+  at MIR-pass time and propagates via `dataclasses.replace`, replacing
+  the `object.__setattr__` shim previously living in
+  `ir/codegen/cuda/orchestrator.py` `_gen_parallel_group` (Phase A2.2,
+  per `docs/phase_a_mir_onto_op.md` section 8 + `docs/code_discipline.md`
+  D18).
+
+  The orchestrator + `complete_runner.py` both read the flag off the
+  same MIR program after this pass, so the decision is consistent
+  across orchestrator emit + per-rule runner emit (the
+  `tiled_cartesian_eligible` check on the runner side disables tiled
+  Cartesian when the flag is set).
+  '''
+  out: list[tuple[mir.MirNode, bool]] = []
+  for node, is_rec in steps:
+    out.append((_mark_concurrent_writes_in_node(node), is_rec))
+  return out
+
+
+# -----------------------------------------------------------------------------
 # Chain
 # -----------------------------------------------------------------------------
 
@@ -349,4 +468,5 @@ def apply_all_mir_passes(steps: list[tuple[mir.MirNode, bool]]) -> list[tuple[mi
   steps = apply_clause_order_reordering(steps)
   steps = apply_prefix_source_reordering(steps)
   steps = apply_balanced_scan_pass(steps)
+  steps = apply_concurrent_write_marking(steps)
   return steps

@@ -414,19 +414,14 @@ def _gen_parallel_group(
     has_concat = dest_rel in dest_single_rules and len(dest_single_rules[dest_rel]) >= 2
 
     if has_concat:
-      for rule_idx in single_in_dest:
-        # MIR is frozen post-Phase-A but `_collect_pipelines(mir)` later
-        # in the same compile produces parallel references to the SAME
-        # ExecutePipeline objects; using `dataclasses.replace` here would
-        # only update the orchestrator's local list slot, leaving the
-        # mir.steps reference stale and the runner-side
-        # `tiled_cartesian_eligible` check reading the wrong value.
-        # Until A2/A3 promotes this to a proper MIR pass that materializes
-        # `concurrent_write` once before both orchestrator + runner read
-        # it, use `object.__setattr__` to mutate in place (transition
-        # tech-debt; mirrors the pattern in mir/types.py
-        # `_coerce_list_fields_to_tuple`).
-        object.__setattr__(exec_ops[rule_idx], 'concurrent_write', True)
+      # The `concurrent_write=True` flag on these ExecutePipelines was
+      # set ahead of time by `apply_concurrent_write_marking` in
+      # `mir/passes.py` (Phase A2.2). The orchestrator just reads it
+      # here; both this code path and `complete_runner.py`'s
+      # `tiled_cartesian_eligible` check now see the same value because
+      # both walk the same already-marked MIR program (replaces the
+      # A1-era `object.__setattr__` shim per `docs/code_discipline.md`
+      # D18 + `docs/phase_a_mir_onto_op.md` section 8).
       for rule_idx in single_in_dest:
         op = exec_ops[rule_idx]
         for local_idx, dest in enumerate(op.dest_specs):

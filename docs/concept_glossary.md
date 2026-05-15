@@ -160,7 +160,150 @@ Four concepts in one function. The redesign separates them:
 
 When in doubt, ask: **am I describing data shape (IR/dialect), execution (pass), or packaging (plugin)?** That's the test for whether a piece of code lives in the right place.
 
-## 12. References
+## 13. Boundary semantics — soft vs hard, multi-dialect-in-one-stage, topology checks
+
+### 13.1 The two kinds of boundary
+
+| Boundary | Within an IR stage | Between IR stages |
+|---|---|---|
+| **Nature** | **SOFT** — multiple dialects coexist freely in one op tree | **HARD** — explicit `LoweringPass` mediates the transition |
+| **Example** | An IIR tree contains `iir.cf.Block` (parent) → `parallel.block_group.BgRootCJ` (child) → `sorted_array.SaRoot` (grandchild) — three dialects, one tree | MIR ops never appear inside an IIR tree; `MirToIirLowering` walks MIR and produces IIR |
+| **What enforces it** | `verify_renderability` (every op in the tree has a renderer) + `@lowering` consumes/produces declarations | `Compiler.run` pre-flight: each Pass's `consumes` satisfied by earlier `produces` |
+
+**The mental model:** dialects within an IR are like neighboring rooms in a house — same building, walls are decorative grouping, ops freely cross between rooms. **IR stages are like floors** — you can only move between floors via the staircase (a Pass).
+
+### 13.2 Why multi-dialect-in-one-stage is the COMMON case
+
+The pragma materialization pattern produces multi-dialect IIR by design. A rule with three pragmas (`DedupHash` + `BlockGroup` + `WorkStealing`) generates IIR that mixes ops from `sorted_array` + `parallel.block_group` + `parallel.atomic_ws` + `iir.cf` + `iir.expr` — five dialects, one tree, one IR stage.
+
+End-to-end walkthrough:
+
+```
+Stage 1 — HIR (planning records)
+   HirRuleVariant.pragmas = (DedupHash(), BlockGroup(...), WorkStealing())
+
+Stage 2 — HIR → MIR (LoweringPass)
+   ExecutePipeline.pragmas = (DedupHash(), BlockGroup(...), WorkStealing())
+   ExecutePipeline.pipeline = [Scan, ColumnJoin, ..., InsertInto]
+
+Stage 3 — MirPragmaPass (RewritePass within MIR)
+   Topo-sorted handlers fire:
+     dedup_hash:    each InsertInto → DedupGate(InsertInto)
+     block_group:   root ColumnJoin → BlockGroupRoot(ColumnJoin)
+     work_stealing: each (Dedup-wrapped) InsertInto → WSScope(...)
+   Result: pragmas=() ; pipeline contains typed wrap ops (all in mir
+   dialect)
+
+Stage 4 — MIR → IIR (LoweringPass; per-op @lowering dispatch)
+   Each MIR op lowers to ops that may belong to multiple IIR dialects:
+     mir.Scan            → iir.cf + sorted_array ops
+     mir.BlockGroupRoot  → parallel.block_group + iir.cf ops
+     mir.WSScope         → parallel.atomic_ws + iir.cf ops
+     mir.DedupGate       → sorted_array.DedupTryInsert (COMPOUND)
+     mir.InsertInto      → iir.cf + sorted_array ops
+   Result: IIR tree with FIVE dialects coexisting
+
+Stage 5 — IirCanonicalizePass (RewritePass within IIR, fixpoint)
+   COMPOUND ops decompose to LEAFs. Tree still mixes dialects.
+
+Stage 6 — verify_renderability(target='cuda')   ← THE CLOSURE CHECK
+   For every op type reachable in tree, assert a registered renderer.
+   Multi-dialect tree, multi-plugin contributions — must all close.
+
+Stage 7 — CudaRenderPass (terminal)
+   Walks tree; @register_render dispatches per (op, target).
+```
+
+**The IIR tree mixes 5 dialects throughout stages 4-7. That's normal.**
+
+### 13.3 The four topology checks
+
+Each operates at a different scope. Together they enforce both soft (within-stage) and hard (between-stage) boundaries.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│ #1 — Plugin loading (compiler bootstrap)                     │
+│   Kahn sort plugins by `provides` / `requires` attrs         │
+│   Cycle → PluginCycleError                                   │
+│   Conflict → PluginConflictError (unless `replaces=()`)      │
+│   When: Compiler.with_default_plugins()                      │
+│   Scope: BOOTSTRAP-LEVEL — registration order                │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│ #2 — Pipeline ordering (pre-flight, per Compiler.run)        │
+│   For each Pass, set(consumes) ⊆ available_dialects          │
+│   available = registered ∪ produces of earlier passes        │
+│   Mismatch → PassOrderingError (NEVER reaches apply())       │
+│   When: Compiler.run(prog, pipeline=[...])                   │
+│   Scope: PIPELINE-LEVEL — ordered list of Passes             │
+│   Polices the HARD boundary between IR stages                │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│ #3 — Pragma materialization (within MirPragmaPass)           │
+│   Kahn sort @pragma_handler regs by before / after           │
+│   Cycle → PragmaOrderingError                                │
+│   Pragma key survives pass → UnconsumedPragmaError           │
+│   When: MirPragmaPass.apply()                                │
+│   Scope: WITHIN ONE PASS — handler invocation order          │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│ #4 — Renderability closure (after IIR fixpoint)              │
+│   For each op type in IIR tree post-rewrite:                 │
+│     ∃ @register_render(op_type, target=...)                  │
+│   No → UnrenderableOpError                                   │
+│   When: end of IirCanonicalizePass / start of CudaRenderPass │
+│   Scope: TREE-LEVEL — multi-dialect closure                  │
+│   Polices the SOFT boundary within an IR stage               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 13.4 Where each check fires for the multi-pragma case
+
+| Stage | Topology check | Catches |
+|---|---|---|
+| Compiler bootstrap | #1 — Plugin loading | `parallel.block_group` plugin requires `iir.cf` plugin and the latter isn't loaded → bootstrap fails. |
+| `Compiler.run` pre-flight | #2 — Pipeline ordering | User puts `MirToIirLowering` BEFORE `MirPragmaPass` in custom pipeline → fail before any work. |
+| `MirPragmaPass.apply` | #3 — Pragma topo-sort | `dedup_hash` declares `before=(WorkStealing,)` and `WorkStealing` declares `before=(DedupHash,)` → fail at MirPragmaPass start. |
+| `MirPragmaPass.apply` end | #3 — Unconsumed pragma | DSL produced a pragma name no `@pragma_handler` claims → loud failure with "did you mean" hint. |
+| `MirToIirLowering.apply` | Per-op `@lowering` lookup | `mir.BlockGroupRoot` was inserted but no plugin registered `@lowering(target=IIR, source=BlockGroupRoot)` → `LoweringMissingError`. |
+| `IirCanonicalizePass.apply` | Per-op `@rewrite` lookup | A COMPOUND op (`sorted_array.DedupTryInsert`) without a registered decomposing `@rewrite` survives the fixpoint pass — caught by check #4. |
+| Post-fixpoint | #4 — Renderability closure | After fixpoint, any op type without `@register_render(target='cuda')` → `UnrenderableOpError`. **This is where "the dialect's render contribution is missing" gets caught.** |
+| `CudaRenderPass` | Per-op render dispatch | Should never fail at this point (#4 is the gate); `KeyError` is the loud-fallback. |
+
+### 13.5 Where dialect boundaries actually matter
+
+Within an IR stage, dialect boundaries are visible only in:
+
+1. **`@lowering` / `@rewrite` registration sites.** A `@lowering(target=IIR_CF, source=mir.X)` registers ON the dialect that owns it (typically `sorted_array`, where most MIR-to-IIR lowerings live). The dialect identity matters for *who is responsible*, not for *what the lowering can produce*. A lowering on `sorted_array` can produce ops in `iir.cf` + `parallel.block_group` + `sorted_array` — it's not constrained to its own dialect.
+
+2. **Plugin packaging.** `pip install my-srdatalog-jaccard` gets you one plugin that registers ONE dialect (`relation.jaccard`). The package's bounding box is the dialect. Once loaded, the dialect's ops mix freely with everyone else's in the IIR tree.
+
+3. **Discipline rules.** D6 ("core has no imports from dialects") enforces that the framework infra doesn't know about specific dialects. But within an IR tree, there's no such restriction.
+
+### 13.6 The closure invariant (D-rule R3 + the renderability check)
+
+The load-bearing invariant for multi-dialect IIR:
+
+> **For every op type reachable in the post-fixpoint IIR tree, EITHER a `@register_render(op_type, target=T)` is registered OR a `@rewrite(dialect, op_type)` is registered (and the rewrite's output is closed under the same condition).**
+
+`verify_renderability` enforces it; `UnrenderableOpError` is the loud failure. This is what makes multi-dialect-in-one-stage SAFE — the closure check guarantees that whatever combination of dialects ends up in the tree, the codegen has a path for every op.
+
+### 13.7 TL;DR
+
+Multi-pragma → multi-dialect in one IR stage is the design's COMMON case, not an edge case. The dialect boundary within an IR is intentionally soft — it's a NAMESPACE distinction (who owns each op type), not a containment distinction (what tree shapes are valid).
+
+The four topology checks operate at four different scopes:
+- **#1 Plugin loading** — bootstrap, dialect-name level.
+- **#2 Pipeline ordering** — per-run, dialect-name level. Polices HARD boundary (IR stages).
+- **#3 Pragma materialization** — within `MirPragmaPass`, pragma-class level.
+- **#4 Renderability closure** — within `verify_renderability`, op-type level. Polices SOFT boundary (multi-dialect tree).
+
+The IR-stage boundary (HARD) is policed by check #2; the within-stage multi-dialect boundary (SOFT) is policed by check #4. Together they cover both axes.
+
+## 14. References
 
 - `docs/compiler_redesign.md` — architectural spine; defines the three Pass kinds.
 - `docs/ir_derivation_topology.md` — IR layer + dialect graph; per-dialect tables.

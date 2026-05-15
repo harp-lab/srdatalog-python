@@ -38,7 +38,7 @@ import srdatalog.ir.dialects.relation.d2l  # noqa: F401
 import srdatalog.ir.mir.types as m
 from srdatalog.ir.codegen.cuda.materialized import is_materialized_pipeline
 from srdatalog.ir.codegen.cuda.pipeline_utils import (
-  assign_handle_positions,
+  assign_handle_positions_in_ep,
   has_balanced_scan,
   has_tiled_cartesian_eligible,
 )
@@ -936,9 +936,13 @@ def gen_complete_runner(
   # tail-mode fused kernel doesn't apply.
   is_fused_eligible = not is_count and not node.dedup_hash
 
-  # MIR is frozen; assign_handle_positions returns a new pipeline with
-  # replaced nodes (handle_start filled in).
-  mutable_pipe = assign_handle_positions(list(node.pipeline))
+  # MIR is frozen. Rebuild `node` with handle_start filled in on both
+  # the pipeline ops AND the parallel `source_specs` references —
+  # downstream consumers (e.g. _gen_kernel_bg_histogram ->
+  # compute_view_slot_offsets) read handle_start off source_specs, so
+  # both views must agree.
+  node = assign_handle_positions_in_ep(node)
+  mutable_pipe = list(node.pipeline)
 
   first_src = node.source_specs[0]
   first_schema = _src_schema(first_src)

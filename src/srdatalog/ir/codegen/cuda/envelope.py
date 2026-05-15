@@ -26,7 +26,8 @@ the legacy copies go with them.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import overload
 
 import srdatalog.ir.mir.types as m
 
@@ -71,46 +72,77 @@ JIT_FILE_FOOTER = """
 # -----------------------------------------------------------------------------
 
 
-def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None:
-  '''Assign `handle_start` to this node and any children, IN PLACE.
+@overload
+def _assign_handle_positions_rec(
+  node: m.ColumnSource, offset_box: list[int]
+) -> m.ColumnSource: ...
+@overload
+def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> m.MirNode: ...
+def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> m.MirNode:
+  '''Return a copy of `node` with `handle_start` filled in (and any
+  source-bearing descendants rebuilt likewise). Pure: input `node` is
+  not mutated.
 
-  MIR is frozen post-Phase-A, but `source_specs` on the parent
-  ExecutePipeline holds parallel references to the same source ops as
-  `pipeline`. A `dataclasses.replace`-based rewrite would update one
-  reference and leave the other stale, causing the runner-side
-  rendering to read the old handle_start (-1).
-
-  Until A2/A3 introduces a proper MIR pass that materializes
-  handle_start once and threads the new pipeline back into
-  source_specs, use `object.__setattr__` to mutate in place. Mirrors
-  the shim in mir/types.py `_coerce_list_fields_to_tuple` and the one
-  in codegen/cuda/orchestrator.py for `concurrent_write`.
+  `offset_box` is a one-element list used as a mutable counter
+  (Python closures can't reassign captured ints). The walk order
+  preserves the legacy left-to-right pipeline traversal so the handle
+  counter advances identically — joins claim a slot first, then
+  recurse into their children.
   '''
   if isinstance(node, m.ColumnSource | m.Scan | m.Aggregate | m.Negation):
-    object.__setattr__(node, 'handle_start', offset_box[0])
+    new_node = replace(node, handle_start=offset_box[0])
     offset_box[0] += 1
-  elif isinstance(node, m.ColumnJoin | m.CartesianJoin):
-    object.__setattr__(node, 'handle_start', offset_box[0])
-    for src in node.sources:
-      _assign_handle_positions_rec(src, offset_box)
-  elif isinstance(node, m.BalancedScan):
-    object.__setattr__(node, 'handle_start', offset_box[0])
-    _assign_handle_positions_rec(node.source1, offset_box)
-    _assign_handle_positions_rec(node.source2, offset_box)
-  elif isinstance(node, m.PositionedExtract):
-    for src in node.sources:
-      _assign_handle_positions_rec(src, offset_box)
+    return new_node
+  if isinstance(node, m.ColumnJoin | m.CartesianJoin):
+    handle = offset_box[0]
+    new_sources = [_assign_handle_positions_rec(src, offset_box) for src in node.sources]
+    return replace(node, handle_start=handle, sources=new_sources)
+  if isinstance(node, m.BalancedScan):
+    handle = offset_box[0]
+    new_source1 = _assign_handle_positions_rec(node.source1, offset_box)
+    new_source2 = _assign_handle_positions_rec(node.source2, offset_box)
+    return replace(node, handle_start=handle, source1=new_source1, source2=new_source2)
+  if isinstance(node, m.PositionedExtract):
+    new_sources = [_assign_handle_positions_rec(src, offset_box) for src in node.sources]
+    return replace(node, sources=new_sources)
+  return node
 
 
 def assign_handle_positions(ops: list[m.MirNode]) -> list[m.MirNode]:
-  '''Assign `handle_start` to every source-bearing node in pipeline
-  order starting from 0. Returns the same list (mutates in place via
-  the `object.__setattr__` shim — see `_assign_handle_positions_rec`).
+  '''Return a NEW pipeline list where every source-bearing node has its
+  `handle_start` filled in. The handle counter starts at 0 and bumps
+  in pipeline-order, left-to-right — joins claim a slot before their
+  children recurse, matching the legacy in-place walk so byte-equiv
+  is preserved.
+
+  Caller rebinds: `pipeline = assign_handle_positions(pipeline)`. For
+  ExecutePipeline contexts where `source_specs` must agree with the
+  pipeline, prefer `assign_handle_positions_in_ep` instead.
   '''
   offset_box = [0]
-  for op in ops:
-    _assign_handle_positions_rec(op, offset_box)
-  return ops
+  return [_assign_handle_positions_rec(op, offset_box) for op in ops]
+
+
+def assign_handle_positions_in_ep(ep: m.ExecutePipeline) -> m.ExecutePipeline:
+  '''Return a NEW `ExecutePipeline` with `handle_start` filled in on
+  both the pipeline ops AND the parallel `source_specs` references.
+
+  `source_specs` holds flattened references to the same source ops
+  embedded inside the pipeline (joins flatten into their leaf
+  sources). When the pipeline is rebuilt with fresh handle_start
+  values, source_specs must be regenerated from the new pipeline so
+  downstream consumers (e.g. `compute_view_slot_offsets` in
+  `codegen.cuda.view_slots`) see matching handles, not stale -1s.
+
+  Mirrors `_extract_pipeline_sources` in `srdatalog.ir.hir.lower`.
+  '''
+  from srdatalog.ir.hir.lower import _extract_pipeline_sources
+
+  new_pipeline = assign_handle_positions(list(ep.pipeline))
+  new_source_specs: list[m.ColumnSource | m.Scan | m.Negation | m.Aggregate] = []
+  for op in new_pipeline:
+    _extract_pipeline_sources(op, new_source_specs)
+  return replace(ep, pipeline=new_pipeline, source_specs=new_source_specs)
 
 
 def count_handles(ops: list[m.MirNode]) -> int:
@@ -492,6 +524,7 @@ __all__ = [
   'JIT_FILE_PRELUDE',
   'ViewSpec',
   'assign_handle_positions',
+  'assign_handle_positions_in_ep',
   'collect_unique_view_specs',
   'count_handles',
   'emit_dedup_table_struct',

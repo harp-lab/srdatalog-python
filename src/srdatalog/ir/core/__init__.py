@@ -20,6 +20,10 @@ Public API:
   Pragma + @pragma_handler — typed compile-time pragma objects (F-pragma).
   Pass kinds (LoweringPass, RewritePass, ProgramPass) + program_pass
                        — F1 declarative-pipeline framework.
+  LowerCtx + NameGen + ViewLayout
+                       — F3 per-pass state for `LoweringPass`
+                         dispatchers (5 fields, D10-pinned).
+  Scope + EmptyScope   — F3 per-op-family lexical-context base.
 
 Design invariants:
 
@@ -39,6 +43,7 @@ from __future__ import annotations
 from typing import NoReturn
 
 from srdatalog.ir.core.dialect import Compiler, Dialect
+from srdatalog.ir.core.lower_ctx import LowerCtx, NameGen, ViewLayout
 from srdatalog.ir.core.ops import Op, Type
 from srdatalog.ir.core.passes import (
   AmbiguousLowering,
@@ -70,6 +75,7 @@ from srdatalog.ir.core.pragma import (
   has_pragma,
   pragma_handler,
 )
+from srdatalog.ir.core.scope import EmptyScope, Scope
 from srdatalog.ir.core.strategy import (
   Strategy,
   all_,
@@ -102,9 +108,12 @@ __all__ = [
   'AmbiguousLowering',
   'Compiler',
   'Dialect',
+  'EmptyScope',
+  'LowerCtx',
   'Lowering',
   'LoweringMissingError',
   'LoweringPass',
+  'NameGen',
   'Op',
   'Pass',
   'PassDriver',
@@ -120,11 +129,13 @@ __all__ = [
   'ProgramPass',
   'Rewrite',
   'RewritePass',
+  'Scope',
   'Strategy',
   'Type',
   'UnconsumedPragmaError',
   'UnregisteredPragmaError',
   'VerificationError',
+  'ViewLayout',
   'all_',
   'assert_never',
   'bottom_up',

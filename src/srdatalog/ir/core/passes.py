@@ -391,34 +391,6 @@ class Pass(ABC):
     ...
 
 
-@dataclass
-class _LoweringDispatcher:
-  '''Internal: bridges between a frozen `LoweringPass` and its
-  per-call dispatch table.
-
-  F3 promotes this to the public `LowerCtx` with 5 fields per
-  `compiler_redesign.md` §5. F1 ships only the minimum to dispatch
-  (just `compiler` + the table + `lower(op)`); production lowerings
-  that need `name_gen`, `view_layout`, `plugin_registry`, `target`
-  are not yet wired up here — those land in F3.
-  '''
-
-  compiler: Any
-  table: dict[type, Lowering]
-  target_dialect_name: str = ''
-
-  def lower(self, op: Any) -> Any:
-    '''Dispatch entry; looks up the registered Lowering for
-    `type(op)` and applies it. Raises `LoweringMissingError` if no
-    registration exists. Lowerings call this back into the
-    dispatcher for child ops they want to recurse into (per R1's
-    explicit-recursion rule).'''
-    low = self.table.get(type(op))
-    if low is None:
-      raise LoweringMissingError(type(op), self.target_dialect_name)
-    return low.apply(op, self)
-
-
 @dataclass(frozen=True)
 class LoweringPass(Pass):
   '''Cross-dialect, source-driven, per-op dispatch.
@@ -439,21 +411,37 @@ class LoweringPass(Pass):
       style auto-walk; lowerings that want auto-walk implement it
       themselves.
 
-  This PR implements the Pass class shape but NOT the full 5-field
-  `LowerCtx`. The dispatcher passes a placeholder `ctx` (with
-  `compiler` + `lower()` only) sufficient to dispatch; F3 lands the
-  full `LowerCtx` and threads it through registered lowerings.
+  F3 promotes the per-call ``ctx`` to the public 5-field `LowerCtx`
+  (see `srdatalog.ir.core.lower_ctx`). The dispatch table is
+  attached to the ctx via ``object.__setattr__`` — this is the one
+  permitted use of that escape hatch on `LowerCtx` (framework infra,
+  NOT a D18 transition shim; documented at the call site below).
   '''
 
   target_dialect_name: str = ''
 
   def apply(self, prog: Any, compiler: Any) -> Any:
+    # Local imports avoid the framework-init cycle between
+    # passes.py and lower_ctx.py.
+    from srdatalog.ir.core.lower_ctx import LowerCtx, NameGen, ViewLayout
+
     table = self._build_table(compiler)
-    ctx = _LoweringDispatcher(
+    ctx = LowerCtx(
       compiler=compiler,
-      table=table,
-      target_dialect_name=self.target_dialect_name,
+      name_gen=NameGen(),
+      view_layout=ViewLayout(),  # F5 will populate from prog
+      plugin_registry=None,  # F4-shape; F5 wires up
+      target=self.target_dialect_name,
     )
+    # Framework infra: attach the per-call dispatch table to the
+    # frozen ctx. This is the SOLE permitted use of object.__setattr__
+    # on LowerCtx — it threads the LoweringPass-built table into the
+    # ctx without growing LowerCtx beyond its D10-pinned 5 fields.
+    # NOT counted in the D18 transitional-state ratchet (D18 covers
+    # shims on frozen Op subclasses + DEPRECATED fields + module-
+    # global mutable registries; framework dispatch wiring is none of
+    # those).
+    object.__setattr__(ctx, '_table', table)
     return ctx.lower(prog)
 
   def _build_table(self, compiler: Any) -> dict[type, Lowering]:

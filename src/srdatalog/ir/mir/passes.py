@@ -27,17 +27,17 @@ def _has_prefix(source) -> bool:
 
 
 def _regenerate_source_specs(ep: mir.ExecutePipeline) -> None:
-  '''After any in-place source reordering, the ExecutePipeline's
-  source_specs list must be rebuilt from the pipeline body. Otherwise
-  the generated C++ source_specs type drifts out of sync with the actual
-  MIR source order and handles point at the wrong views.
+  '''After source reordering, regenerate `source_specs` from the
+  (possibly reordered) pipeline body. Mutates `ep.source_specs` in
+  place via `object.__setattr__` shim (MIR is frozen post-Phase-A;
+  A2/A3 will thread this properly).
   '''
   from srdatalog.ir.hir.lower import _extract_pipeline_sources
 
   specs: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
   for op in ep.pipeline:
     _extract_pipeline_sources(op, specs)
-  ep.source_specs = specs
+  object.__setattr__(ep, 'source_specs', specs)
 
 
 # -----------------------------------------------------------------------------
@@ -159,24 +159,30 @@ def _position_in(clause_order: list[int], clause_idx: int) -> int:
     return len(clause_order)
 
 
-def _reorder_column_join_by_clause_order(cj: mir.ColumnJoin, clause_order: list[int]) -> None:
+def _reorder_column_join_by_clause_order(cj: mir.ColumnJoin, clause_order: tuple[int, ...]) -> None:
+  '''Reorder cj.sources in place via `object.__setattr__` shim
+  (transition tech-debt; A2/A3 threads properly).'''
   if not clause_order:
     return
-  cj.sources.sort(key=lambda s: _position_in(clause_order, s.clause_idx))
+  new_sources = tuple(sorted(cj.sources, key=lambda s: _position_in(clause_order, s.clause_idx)))
+  object.__setattr__(cj, 'sources', list(new_sources))
 
 
 def _reorder_cartesian_join_by_clause_order(
-  cart: mir.CartesianJoin, clause_order: list[int]
+  cart: mir.CartesianJoin, clause_order: tuple[int, ...]
 ) -> None:
+  '''Reorder cart.sources + cart.var_from_source in place.'''
   if not clause_order:
     return
   pairs = list(zip(cart.sources, cart.var_from_source))
   pairs.sort(key=lambda p: _position_in(clause_order, p[0].clause_idx))
-  cart.sources = [p[0] for p in pairs]
-  cart.var_from_source = [p[1] for p in pairs]
+  object.__setattr__(cart, 'sources', [p[0] for p in pairs])
+  object.__setattr__(cart, 'var_from_source', [p[1] for p in pairs])
 
 
 def _apply_clause_order_reorder(ep: mir.ExecutePipeline) -> None:
+  '''Reorder ColumnJoin/CartesianJoin sources in place + regenerate
+  source_specs.'''
   for op in ep.pipeline:
     if isinstance(op, mir.ColumnJoin):
       _reorder_column_join_by_clause_order(op, ep.clause_order)
@@ -189,8 +195,8 @@ def apply_clause_order_reordering(
   steps: list[tuple[mir.MirNode, bool]],
 ) -> list[tuple[mir.MirNode, bool]]:
   '''Reorder every ColumnJoin/CartesianJoin's sources by the enclosing
-  ExecutePipeline's clause_order. Mutates in place; returns `steps` for
-  chain convenience.
+  ExecutePipeline's clause_order. Mutates in place via shim; returns
+  `steps` for chain convenience.
   '''
   for node, _ in steps:
     if isinstance(node, mir.FixpointPlan):
@@ -212,19 +218,19 @@ def apply_clause_order_reordering(
 
 
 def _reorder_column_join_by_prefix(cj: mir.ColumnJoin) -> None:
-  '''Put prefixed sources first, but only if the first source isn't
-  already prefixed (short-circuit avoids disrupting already-good orders).
-  '''
+  '''Move prefixed sources to front in place via shim.'''
   if len(cj.sources) < 2:
     return
   if _has_prefix(cj.sources[0]):
     return
   if not any(_has_prefix(s) for s in cj.sources[1:]):
     return
-  cj.sources.sort(key=lambda s: 0 if _has_prefix(s) else 1)
+  new_sources = sorted(cj.sources, key=lambda s: 0 if _has_prefix(s) else 1)
+  object.__setattr__(cj, 'sources', new_sources)
 
 
 def _reorder_cartesian_join_by_prefix(cart: mir.CartesianJoin) -> None:
+  '''Move prefixed sources to front + paired-reorder var_from_source.'''
   if len(cart.sources) < 2:
     return
   if _has_prefix(cart.sources[0]):
@@ -233,11 +239,12 @@ def _reorder_cartesian_join_by_prefix(cart: mir.CartesianJoin) -> None:
     return
   pairs = list(zip(cart.sources, cart.var_from_source))
   pairs.sort(key=lambda p: 0 if _has_prefix(p[0]) else 1)
-  cart.sources = [p[0] for p in pairs]
-  cart.var_from_source = [p[1] for p in pairs]
+  object.__setattr__(cart, 'sources', [p[0] for p in pairs])
+  object.__setattr__(cart, 'var_from_source', [p[1] for p in pairs])
 
 
 def _apply_prefix_reorder(ep: mir.ExecutePipeline) -> None:
+  '''Apply prefix reorder + regenerate source_specs in place.'''
   for op in ep.pipeline:
     if isinstance(op, mir.ColumnJoin):
       _reorder_column_join_by_prefix(op)
@@ -250,7 +257,8 @@ def apply_prefix_source_reordering(
   steps: list[tuple[mir.MirNode, bool]],
 ) -> list[tuple[mir.MirNode, bool]]:
   '''Move prefixed sources to the front of every ColumnJoin/CartesianJoin
-  (avoids "galloping from root" on unprefixed sources). Mutates in place.
+  (avoids "galloping from root" on unprefixed sources). Mutates in
+  place via shim; returns `steps` for chain convenience.
   '''
   for node, _ in steps:
     if isinstance(node, mir.FixpointPlan):
@@ -299,17 +307,21 @@ def _transform_balanced_pipeline(pipeline: list[mir.MirNode]) -> list[mir.MirNod
 
 
 def _apply_balanced_scan_pass_recursive(node: mir.MirNode) -> mir.MirNode:
-  '''Walk the MIR tree, transforming each ExecutePipeline in place (via
-  pipeline replacement) when its body starts with BalancedScan.
+  '''Walk the MIR tree; transform each ExecutePipeline in place via
+  shim (MIR is frozen; A2/A3 will thread properly).
   '''
   if isinstance(node, mir.ExecutePipeline):
-    node.pipeline = _transform_balanced_pipeline(node.pipeline)
+    object.__setattr__(node, 'pipeline', _transform_balanced_pipeline(node.pipeline))
     return node
   if isinstance(node, mir.FixpointPlan):
-    node.instructions = [_apply_balanced_scan_pass_recursive(instr) for instr in node.instructions]
+    object.__setattr__(
+      node,
+      'instructions',
+      [_apply_balanced_scan_pass_recursive(instr) for instr in node.instructions],
+    )
     return node
   if isinstance(node, mir.ParallelGroup):
-    node.ops = [_apply_balanced_scan_pass_recursive(op) for op in node.ops]
+    object.__setattr__(node, 'ops', [_apply_balanced_scan_pass_recursive(op) for op in node.ops])
     return node
   return node
 

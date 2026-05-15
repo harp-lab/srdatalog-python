@@ -72,18 +72,29 @@ JIT_FILE_FOOTER = """
 
 
 def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None:
-  '''Recursive helper for `assign_handle_positions`. `offset_box` is a
-  one-element list used as a mutable counter (Python closures can't
-  reassign captured ints).'''
+  '''Assign `handle_start` to this node and any children, IN PLACE.
+
+  MIR is frozen post-Phase-A, but `source_specs` on the parent
+  ExecutePipeline holds parallel references to the same source ops as
+  `pipeline`. A `dataclasses.replace`-based rewrite would update one
+  reference and leave the other stale, causing the runner-side
+  rendering to read the old handle_start (-1).
+
+  Until A2/A3 introduces a proper MIR pass that materializes
+  handle_start once and threads the new pipeline back into
+  source_specs, use `object.__setattr__` to mutate in place. Mirrors
+  the shim in mir/types.py `_coerce_list_fields_to_tuple` and the one
+  in codegen/cuda/orchestrator.py for `concurrent_write`.
+  '''
   if isinstance(node, m.ColumnSource | m.Scan | m.Aggregate | m.Negation):
-    node.handle_start = offset_box[0]
+    object.__setattr__(node, 'handle_start', offset_box[0])
     offset_box[0] += 1
   elif isinstance(node, m.ColumnJoin | m.CartesianJoin):
-    node.handle_start = offset_box[0]
+    object.__setattr__(node, 'handle_start', offset_box[0])
     for src in node.sources:
       _assign_handle_positions_rec(src, offset_box)
   elif isinstance(node, m.BalancedScan):
-    node.handle_start = offset_box[0]
+    object.__setattr__(node, 'handle_start', offset_box[0])
     _assign_handle_positions_rec(node.source1, offset_box)
     _assign_handle_positions_rec(node.source2, offset_box)
   elif isinstance(node, m.PositionedExtract):
@@ -91,12 +102,15 @@ def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None
       _assign_handle_positions_rec(src, offset_box)
 
 
-def assign_handle_positions(ops: list[m.MirNode]) -> None:
+def assign_handle_positions(ops: list[m.MirNode]) -> list[m.MirNode]:
   '''Assign `handle_start` to every source-bearing node in pipeline
-  order starting from 0. Mutates `ops` in place.'''
+  order starting from 0. Returns the same list (mutates in place via
+  the `object.__setattr__` shim — see `_assign_handle_positions_rec`).
+  '''
   offset_box = [0]
   for op in ops:
     _assign_handle_positions_rec(op, offset_box)
+  return ops
 
 
 def count_handles(ops: list[m.MirNode]) -> int:

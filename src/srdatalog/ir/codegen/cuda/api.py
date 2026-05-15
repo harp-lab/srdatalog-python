@@ -54,7 +54,7 @@ def compile_pipeline(ep: m.ExecutePipeline, *, target: Target = 'cuda') -> str:
   )
 
   pipeline = list(ep.pipeline)
-  assign_handle_positions(pipeline)
+  pipeline = assign_handle_positions(pipeline)
 
   # Standalone jit_batch shape uses handle_idx-based view slots; runner
   # contexts (compile_runner / compile_kernel_body) default to positional.
@@ -147,7 +147,7 @@ def compile_kernel_body(
   )
 
   pipeline = list(ep.pipeline)
-  assign_handle_positions(pipeline)
+  pipeline = assign_handle_positions(pipeline)
 
   view_specs = collect_unique_view_specs(pipeline)
   view_counts = view_counts_for_specs(view_specs, rel_index_types or {})

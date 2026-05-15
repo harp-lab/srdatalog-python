@@ -23,6 +23,10 @@ shape of the current compiler. The companion docs are:
 - [`phase_e_plugin_extensibility.md`](phase_e_plugin_extensibility.md) —
   entry-point discovery, `register_plugin`, what's "core" vs "default
   plugin set", how to ship an external pragma / dialect.
+- [`phase_f5_declarative_pipeline.md`](phase_f5_declarative_pipeline.md) —
+  declarative pipeline shim (last Foundation piece): reduces
+  `compile_to_mir` + `compile_kernel_body` to `Compiler.run(prog,
+  pipeline=DEFAULT_PIPELINE)`.
 
 ## 1. The diagnosis
 

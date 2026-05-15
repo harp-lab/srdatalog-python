@@ -159,8 +159,8 @@ class InnerPipeline(Op):
   '''
 
   rule_name: str
-  input_handles: list[Op] = field(default_factory=list)
-  inner_ops: list[Op] = field(default_factory=list)
+  input_handles: list['MirNode'] = field(default_factory=list)
+  inner_ops: list['MirNode'] = field(default_factory=list)
   bound_vars: list[str] = field(default_factory=list)
 
 
@@ -304,7 +304,7 @@ class ExecutePipeline(Op):
   fields) — the named bools are deprecated migration sugar.
   '''
 
-  pipeline: list[Op]
+  pipeline: list['MirNode']
   # column-source / scan / negation / aggregate leaves for scheduler
   source_specs: list[Union[ColumnSource, Scan, Negation, Aggregate]]
   dest_specs: list[InsertInto]  # insert-into targets
@@ -323,7 +323,7 @@ class ExecutePipeline(Op):
 class FixpointPlan(Op):
   '''(fixpoint-plan <instructions...>)'''
 
-  instructions: list[Op]
+  instructions: list['MirNode']
   schema_arities: list[tuple[str, int]] = field(default_factory=list)
 
 
@@ -331,7 +331,7 @@ class FixpointPlan(Op):
 class Block(Op):
   '''(block <instructions...>)'''
 
-  instructions: list[Op]
+  instructions: list['MirNode']
 
 
 @dataclass(frozen=True, slots=True)
@@ -370,7 +370,7 @@ class PositionedExtract(Op):
 class ParallelGroup(Op):
   '''(parallel-group <ops...>) — independent ops that can run concurrently.'''
 
-  ops: list[Op]
+  ops: list['MirNode']
 
 
 @dataclass(frozen=True, slots=True)
@@ -402,7 +402,7 @@ class PostStratumReconstructInternCols(Op):
 class Program(Op):
   '''(program (step #:recursive b <plan>) ...)'''
 
-  steps: list[tuple[Op, bool]]  # (plan, is_recursive)
+  steps: list[tuple['MirNode', bool]]  # (plan, is_recursive)
 
 
 # -----------------------------------------------------------------------------

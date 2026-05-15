@@ -60,6 +60,13 @@ cuda_pch_blocker
 api/index
 ```
 
+```{toctree}
+:hidden:
+:caption: Design notes (in-flight refactor)
+
+phase_f5_declarative_pipeline
+```
+
 ## Project status
 
 - **17 benchmarks** auto-migrated from the upstream Nim reference (doop,

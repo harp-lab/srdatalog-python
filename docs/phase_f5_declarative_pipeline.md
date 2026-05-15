@@ -208,7 +208,7 @@ That helper is out of F5's scope; F5 just declares the shims as
 module-level singletons that callers import directly:
 
 ```python
-# src/srdatalog/ir/pipeline.py
+# src/srdatalog/ir/default_pipelines.py
 DEFAULT_PROGRAM_PIPELINE: list[Pass] = [
     HirPlanningShim(),
     HirToMirShim(),
@@ -227,10 +227,15 @@ DEFAULT_PROGRAM_PIPELINE: list[Pass] = [
   registered with the Compiler"): F5 introduces the wiring; the
   ratchet stays at 0 violations from day one.
 - **D6** ("no imports from `dialects/` in core"): the shims live in
-  `ir/pipeline.py` (a NEW module under `ir/`, NOT under `ir/core/`).
-  `core/` stays dialect-agnostic. The shims are allowed to import
-  from `hir/`, `mir/`, `codegen/cuda/` because the shim module
-  itself is the integration layer.
+  `ir/default_pipelines.py` (a NEW module under `ir/`, NOT under
+  `ir/core/`). `core/` stays dialect-agnostic. The shims are allowed
+  to import from `hir/`, `mir/`, `codegen/cuda/` because the shim
+  module itself is the integration layer.
+
+  Naming note: the existing `ir/pipeline.py` is a different concern
+  (compile_program orchestration shared between `build.py` and
+  `viz`). F5 uses `ir/default_pipelines.py` (plural) to avoid the
+  collision and make the role explicit.
 
 ## 8. Acceptance test
 
@@ -258,7 +263,7 @@ unchanged after `compile_to_mir` + `compile_kernel_body` reduce to
 
 | Step | What | Lines | Test |
 |---|---|---|---|
-| **F5.1** | New module `src/srdatalog/ir/pipeline.py` defining `InitialProg`, `KernelCtx`, the 9 shim subclasses, `DEFAULT_PROGRAM_PIPELINE`, `DEFAULT_KERNEL_PIPELINE` | ~250 | `test_pipeline_shims_smoke.py` — each shim runs in isolation |
+| **F5.1** | New module `src/srdatalog/ir/default_pipelines.py` defining `InitialProg`, `KernelCtx`, the 9 shim subclasses, `DEFAULT_PROGRAM_PIPELINE`, `DEFAULT_KERNEL_PIPELINE` | ~250 | `test_pipeline_shims_smoke.py` — each shim runs in isolation |
 | **F5.2** | Reduce `compile_to_mir` to a 3-line `Compiler.run` call (preserves `apply_mir_passes=False` knob via pipeline filter) | ~10 changed | full byte-equivalence suite |
 | **F5.3** | Reduce `compile_kernel_body` to a 3-line `Compiler.run` call | ~80 changed (helpers already in shims) | full byte-equivalence suite |
 | **F5.4** | Add `test_default_pipelines_match_imperative_baseline` (golden anchor for §8) | new test | one-shot |

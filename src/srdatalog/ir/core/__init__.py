@@ -53,6 +53,12 @@ from srdatalog.ir.core.passes import (
   RewritePass,
   program_pass,
 )
+from srdatalog.ir.core.plugin import (
+  PluginConflictError,
+  PluginCycleError,
+  PluginInfo,
+  PluginLoadError,
+)
 from srdatalog.ir.core.pragma import (
   Pragma,
   PragmaConfigError,
@@ -103,6 +109,10 @@ __all__ = [
   'Pass',
   'PassDriver',
   'PassOrderingError',
+  'PluginConflictError',
+  'PluginCycleError',
+  'PluginInfo',
+  'PluginLoadError',
   'Pragma',
   'PragmaConfigError',
   'PragmaCtx',

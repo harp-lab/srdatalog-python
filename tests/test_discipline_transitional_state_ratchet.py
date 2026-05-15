@@ -39,12 +39,21 @@ _SRC_ROOTS = (Path(__file__).resolve().parent.parent / 'src' / 'srdatalog' / 'ir
 # inline rationale in the source file plus an entry in D18 of
 # `docs/code_discipline.md`.
 #
-# Currently empty: every `object.__setattr__(` call site under
-# `src/srdatalog/ir/` at the time this test ships is an A1-era
-# transition shim. `core/pragma.py` does not use the shim pattern
-# (the typed-Pragma registry is built by class-body decorators, not
-# instance mutation).
-_EXCLUDED: frozenset[Path] = frozenset()
+# - core/passes.py: LoweringPass.apply attaches the per-call dispatch
+#   table to the frozen LowerCtx via object.__setattr__. This is
+#   framework dispatch wiring, not a transition shim — keeping
+#   LowerCtx pinned at 5 fields per D10 requires threading the table
+#   in this way. Documented inline at the call site.
+_EXCLUDED: frozenset[Path] = frozenset(
+  {
+    Path(__file__).resolve().parent.parent
+    / 'src'
+    / 'srdatalog'
+    / 'ir'
+    / 'core'
+    / 'passes.py',
+  }
+)
 
 
 def _all_shim_sites() -> dict[Path, int]:

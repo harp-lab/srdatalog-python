@@ -73,9 +73,7 @@ JIT_FILE_FOOTER = """
 
 
 @overload
-def _assign_handle_positions_rec(
-  node: m.ColumnSource, offset_box: list[int]
-) -> m.ColumnSource: ...
+def _assign_handle_positions_rec(node: m.ColumnSource, offset_box: list[int]) -> m.ColumnSource: ...
 @overload
 def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> m.MirNode: ...
 def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> m.MirNode:

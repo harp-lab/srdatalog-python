@@ -123,6 +123,7 @@ Each row gets a discipline test in `tests/test_discipline_*.py`.
 | **D13** | `Pragma` subclass without `@final + @dataclass(frozen=True, slots=True)` | Pragmas are pure compile-time data; same discipline as `Op` subclasses. (Per [`pragma_as_typed_object.md`](pragma_as_typed_object.md) §8.) | `test_pragma_subclasses_are_frozen_final` — parametrized over all Pragma subclasses |
 | **D14** | Method on a `Pragma` subclass other than `__post_init__` (or pure-data dataclass mechanics) | Behavior lives in `@pragma_handler`, not on the class. Symmetric with D1 (no methods on Op subclasses). | `test_pragma_subclasses_are_pure_data` — AST scan |
 | **D15** | DSL `Rule.with_pragma(...)` accepts non-`Pragma` arg (after migration window) | Pragmas are typed objects, not strings. The `(name, value)` form is deprecated; final cleanup removes it. | `test_with_pragma_rejects_non_pragma` — `Rule(...).with_pragma("foo", True)` raises `TypeError` |
+| **D18** | **Transitional mutable state** that doesn't ratchet down. Three sub-cases: (a) `object.__setattr__(...)` calls on frozen `Op` subclasses (the migration shim from A1 onward); (b) `# DEPRECATED:` fields on dataclasses pending removal in a named phase; (c) module-global mutable registries with a documented per-`Compiler` migration target. Each occurrence MUST: (i) carry an inline `# TODO(phase-X): <action>` comment naming the phase that removes it, AND (ii) be inventoried in a ratchet test that fails CI if the count goes UP. | The redesign accepts transitional tech-debt because byte-equiv migration requires it (see PR #28's mutation shims) — but the debt MUST visibly decrease. Without a ratchet, transitional shims become permanent (the original sin this redesign reverses). Same pattern as D5 (`test_iir_no_raw_string_growth`) and D12 (`USE_DECLARATIVE` monotonic). | `test_transitional_mutable_state_ratchet` — counts `object.__setattr__(` calls on inferable-frozen-Op instances + counts `# DEPRECATED:` fields + counts known module-global mutable registries; per-category cap stored in the test; CI fails if count > cap. Each PR that removes a shim updates the cap atomically (same commit). |
 
 The load-bearing test is **D9**. A registration that no production test
 triggers is dead infra. CI fails until either the registration is
@@ -265,6 +266,7 @@ The discipline test suite (`tests/test_discipline_*.py`):
 | `test_discipline_lower_ctx_pinned.py` | D10 |
 | `test_discipline_use_declarative_monotonic.py` | D12 |
 | `test_discipline_pragma_typed_objects.py` | D13, D14, D15 (per [`pragma_as_typed_object.md`](pragma_as_typed_object.md)) |
+| `test_discipline_transitional_state_ratchet.py` | D18 (mutation shims, deprecated fields, module-global registries — see [`pragma_as_typed_object.md`](pragma_as_typed_object.md) and PR #28's A1 shims for current inventory) |
 | `test_discipline_pipeline_completeness.py` | R1, R4, R5, R5b |
 | `test_codegen_completeness.py` | R3 (existing — verify_renderability) |
 

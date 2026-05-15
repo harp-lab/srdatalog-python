@@ -49,6 +49,32 @@ Full spec: [`pragma_as_typed_object.md`](pragma_as_typed_object.md).
 Implications threaded into `code_discipline.md` (D8/D13/D14/D15/R5/R5b)
 and the affected phase docs.
 
+## 2.1 The transitional-state ratchet decision (#18)
+
+Beyond #17: **transitional mutable state must ratchet down.** Any
+`object.__setattr__` shim on frozen Op, `# DEPRECATED:` field pending
+removal, or module-global mutable registry with a documented
+per-Compiler migration target requires:
+
+1. An inline `# TODO(phase-X): <action>` comment naming the phase
+   that removes it.
+2. Inclusion in a discipline ratchet test (`test_discipline_transitional_state_ratchet`)
+   that fails CI if the count goes UP.
+
+Same shape as D5 (`test_iir_no_raw_string_growth`) and D12
+(`USE_DECLARATIVE` monotonic-add).
+
+**Why this matters:** the redesign accepts transitional debt because
+byte-equiv migration requires it. PR #28's A1 mutation shims (4
+sites, all marked TODO) are the first inventory entries. Without the
+ratchet, transitional shims become permanent — exactly the failure
+mode this whole redesign reverses (the "framework with shims that
+never get removed" anti-pattern).
+
+The first ratchet inventory snapshot lands when the test ships
+(probably with F1 or earlier in Layer 1). Subsequent PRs that remove
+shims update the cap atomically in the same commit.
+
 ## 3. Locked design contracts (Layer 1+ baseline)
 
 Implementation agents writing Layer 1 / Layer 2 PRs operate against
@@ -191,6 +217,7 @@ Beyond the existing D1–D12 / R1–R7 in `code_discipline.md`:
 | **D15** | DSL `Rule.with_pragma(...)` accepts non-`Pragma` arg (post-migration) | `test_with_pragma_rejects_non_pragma` |
 | **D16** | `Scope` subclass with > 8 fields | `test_scope_subclass_field_count_capped` |
 | **D17** | `LoweringPass.apply` skipping the table-build step (dispatch via isinstance directly) | `test_lowering_pass_uses_table_dispatch` (AST scan in `core/passes.py`) |
+| **D18** | **Transitional mutable state without ratchet.** `object.__setattr__` shims on frozen Op + `# DEPRECATED:` fields + module-global mutable registries that have a documented per-Compiler migration target. Every occurrence MUST carry a `# TODO(phase-X): <action>` comment AND be inventoried by a per-category cap that monotonically decreases. | `test_discipline_transitional_state_ratchet` — counts each category against a pinned cap; CI fails if count goes UP. Same shape as D5 (`test_iir_no_raw_string_growth`) and D12 (`USE_DECLARATIVE` monotonic). The redesign accepts transitional debt because byte-equiv migration requires it (PR #28's A1 mutation shims are the first example), but the debt MUST visibly decrease. |
 | **R5b** | `op.pragmas` empty after `MirPragmaPass` | `test_pragmas_empty_after_materialization` |
 | **R8** | Every Pass in `DEFAULT_PIPELINE` has `consumes` satisfied at its position | enforced at runtime by `Compiler.run`'s pre-flight; discipline test pins `DEFAULT_PIPELINE` is well-ordered |
 

@@ -212,7 +212,28 @@ owner sign-off.
 | Hashability breaks for types containing dicts (e.g., `Aggregate.func: str` if some site stores a dict) | Audit during A1; convert any dict fields to tuple-of-tuples. |
 | HIR↔MIR boundary: HIR is mutable, MIR is frozen — risk of "almost-Op" data crossing | The boundary is `lower_hir_to_mir_steps`. It builds MIR from scratch; no reference shared. |
 
-## 8. Sign-off
+## 8. Transition shims (D18 ratchet)
+
+A1 (PR #28) introduces 4 `object.__setattr__` mutation shims to keep
+byte-equivalence while MIR becomes frozen. Each is marked with an
+inline `# TODO(A2/A3): <action>` comment and inventoried under
+discipline rule **D18** (transitional mutable state ratchet — see
+[`code_discipline.md`](code_discipline.md) §2 D18 and
+[`phase_zero_prerequisites.md`](phase_zero_prerequisites.md) §2.1).
+
+Initial cap (per A1):
+
+| File | Site | Removed by |
+|---|---|---|
+| `codegen/cuda/envelope.py` | `_assign_handle_positions_rec` mutates `node.handle_start` | A2 (proper threading via MIR pass) |
+| `codegen/cuda/pipeline_utils.py` | `_assign_handle_positions_rec` (twin) | A2 |
+| `codegen/cuda/orchestrator.py` | `_gen_parallel_group` mutates `concurrent_write` | A2 (compute-once MIR pass) |
+| `mir/passes.py` | reorder passes mutate `sources` / `var_from_source` / `source_specs` (~6 sites) | A2 |
+
+A2's job: each removal updates the cap atomically in the same commit.
+A2 sign-off requires the cap to reach zero.
+
+## 9. Sign-off
 
 Phase A is complete iff:
 
@@ -224,6 +245,9 @@ Phase A is complete iff:
   bool fields (`dedup_hash=`, etc.) — only `pragmas=`.
 - [ ] `mir.Program(...)` is walkable by `_walk` end-to-end (test
   fixture covers a real compile output).
+- [ ] **D18 ratchet at zero for the MIR-shim category** by end of A2
+  (or with explicit owner sign-off if any shim is genuinely
+  permanent).
 
 After Phase A sign-off, Phase B (per-MIR-op `@lowering` migration)
 unblocks.

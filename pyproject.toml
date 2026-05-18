@@ -52,6 +52,18 @@ docs = [
 [project.scripts]
 srdatalog = "srdatalog.cli:main"
 
+# ---------------------------------------------------------------------------
+# Plugin entry points (srdatalog.plugins)
+#
+# Phase E validation: built-in dialects ship as discoverable plugins via
+# the same `srdatalog.plugins` entry-point group used by external
+# packages. `Compiler.with_default_plugins()` walks this group at
+# bootstrap. Spec: docs/phase_e_plugin_extensibility.md §2, §5.
+# ---------------------------------------------------------------------------
+
+[project.entry-points."srdatalog.plugins"]
+sorted_array = "srdatalog.ir.dialects.relation.sorted_array:register"
+
 [project.urls]
 Homepage = "https://github.com/anthropics/srdatalog-python"
 Issues = "https://github.com/anthropics/srdatalog-python/issues"

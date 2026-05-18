@@ -16,6 +16,8 @@ shapes the target lowering produces.
 
 from __future__ import annotations
 
+from typing import Any
+
 from srdatalog.ir.core import Dialect
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
   SaChildRange,
@@ -68,6 +70,7 @@ __all__ = [
   'SaRoot',
   'SaValid',
   'SaView',
+  'register',
 ]
 
 
@@ -170,3 +173,60 @@ def _register_passes() -> None:
 
 
 _register_passes()
+
+
+# ---------------------------------------------------------------------------
+# Phase E plugin entry point
+# ---------------------------------------------------------------------------
+#
+# `register(compiler)` is the callable invoked by F4's plugin discovery
+# (`Compiler.with_default_plugins()`) AND by explicit user-driven
+# `compiler.register_plugin(...)` calls. Wired in `pyproject.toml` under
+# `[project.entry-points."srdatalog.plugins"]`.
+#
+# Coexistence with legacy direct-import: the module-level
+# `_register_passes()` call above still runs on first import, so the
+# dialect's `lowerings` / `verifier` are populated regardless of whether
+# anyone goes through `register(compiler)`. Python's module cache makes
+# `_register_passes()` itself naturally idempotent (decorators only
+# fire on first import). What `register(compiler)` adds on top is the
+# per-Compiler `register_dialect(DIALECT)` step that F4's plugin
+# loader needs to attribute ownership of the dialect to this plugin
+# and populate the running Compiler's registry.
+#
+# Re-running `register(compiler)` on the same Compiler is safe: F4's
+# `register_plugin` (see `core/dialect.py`) short-circuits on
+# already-loaded plugin names.
+
+
+def register(compiler: Any) -> None:
+  '''Plugin entry point — register the `relation.sorted_array` dialect
+  on the given Compiler.
+
+  Lowerings / pragmas were wired by `_register_passes()` at module-
+  import time (a one-shot side effect; Python's module cache makes it
+  naturally idempotent). This callable only performs the per-Compiler
+  step: `compiler.register_dialect(DIALECT)`.
+
+  Idempotent: F4's `Compiler.register_plugin` short-circuits
+  re-registration of the same plugin name.
+  '''
+  compiler.register_dialect(DIALECT)
+
+
+# Plugin metadata read by F4's topo-sort + conflict detection
+# (see `core/plugin.py` — `_plugin_attr` reads these).
+#
+# `plugin_name` — what F4 records as the loaded-plugin identifier.
+#   Matches the entry-point name `sorted_array` declared in
+#   `pyproject.toml`.
+# `provides` — the dialect names this plugin contributes. Other
+#   plugins may `requires=('relation.sorted_array',)` to load after.
+# `requires` — dialects that must be loaded first. Empty for now: the
+#   `iir.cf` lowerings emitted by `_register_passes` are looked up by
+#   op-type during MIR→IIR; nothing here actually mutates `iir.cf`'s
+#   registry, so there is no bootstrap-time ordering requirement.
+#   (When `iir.cf` itself ships as a discoverable plugin, add it here.)
+register.plugin_name = 'sorted_array'  # type: ignore[attr-defined]
+register.provides = ('relation.sorted_array',)  # type: ignore[attr-defined]
+register.requires = ()  # type: ignore[attr-defined]

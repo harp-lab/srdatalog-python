@@ -59,6 +59,7 @@ USE_DECLARATIVE: frozenset[type] = frozenset(
   {
     _mir_for_use_declarative.Filter,
     _mir_for_use_declarative.ConstantBind,
+    _mir_for_use_declarative.InsertInto,
   }
 )
 
@@ -228,6 +229,30 @@ def _register_passes() -> None:
   )
   def _lower_mir_constant_bind_registered(op: Any, ctx: Any) -> Any:
     return lower_mir_constant_bind(op, ctx)
+
+  # Wave 2A / B-InsertInto (per docs/phase_b_lowering_dispatcher.md
+  # §4 row B-InsertInto): identical shape to B-Filter / B-ConstantBind
+  # above. `mir.InsertInto` is the terminal op in every
+  # `ExecutePipeline.pipeline`, so the chain-aware variant
+  # (`lower_mir_insert_into_in_chain`) handles the trailing
+  # multi-head InsertInto run as a single unit. The C2 / C4 / C6
+  # typed-pragma wrap ops (`DedupGate`, `WSScope`, `mir.FanOut`)
+  # are NOT in `USE_DECLARATIVE` and have their own `@lowering`
+  # rules that delegate back into the legacy `_lower_insert_into`
+  # helper — same helper that this migration's chain entry calls,
+  # so byte-equivalence holds across all four entry points.
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_insert_into import (
+    lower_mir_insert_into,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.InsertInto,
+    consumes=('mir',),
+    produces=('iir.cf',),
+  )
+  def _lower_mir_insert_into_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_insert_into(op, ctx)
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.

@@ -122,6 +122,25 @@ def _register_passes() -> None:
   def lower_mir_dedup_gate(op: Any, ctx: Any) -> Any:
     return lower_dedup_gate(op, ctx)
 
+  # C6 (per docs/phase_c_pragma_materialization.md §4.3): the
+  # `FanOut` pragma's MIR wrap op `mir.FanOut` lowers via the rule
+  # registered here. Same co-location pattern as `DedupGate` above.
+  # Importing the module also runs the @pragma_handler registration
+  # as a side effect (the side-effect is what gates DSL acceptance
+  # of `with_pragma(FanOut())`).
+  from srdatalog.ir.dialects.relation.sorted_array.pragmas.fanout import (
+    lower_fan_out,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.FanOut,
+    consumes=('mir',),
+    produces=('iir.cf', 'relation.sorted_array'),
+  )
+  def lower_mir_fan_out(op: Any, ctx: Any) -> Any:
+    return lower_fan_out(op, ctx)
+
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.
   @verifier(DIALECT)

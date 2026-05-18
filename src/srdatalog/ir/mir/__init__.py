@@ -47,6 +47,7 @@ from srdatalog.ir.mir.types import (
   RebuildIndex,
   RebuildIndexFromIndex,
   Scan,
+  WSScope,
 )
 
 DIALECT = Dialect(
@@ -60,6 +61,7 @@ DIALECT = Dialect(
     ConstantBind,
     CreateFlatView,
     DedupGate,
+    WSScope,
     Filter,
     GatherColumn,
     InnerPipeline,

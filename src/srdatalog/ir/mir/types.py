@@ -257,6 +257,37 @@ class DedupGate(Op):
   inner: InsertInto
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class WSScope(Op):
+  '''MIR wrap op: work-stealing scope around an emission op.
+
+  Inserted by `srdatalog.ir.dialects.parallel.atomic_ws.pragmas.
+  work_stealing.materialize_work_stealing` during `MirPragmaPass`
+  whenever an `ExecutePipeline` carries a `WorkStealing` pragma.
+  Lowered by the `@lowering(target=iir.cf, source=WSScope)` rule
+  registered by the `parallel.atomic_ws` sub-dialect to the same IIR
+  shape that the legacy `ctx.ws_enabled` branch inside
+  `_lower_insert_into` produces (count-phase `<out>++` instead of
+  `<out>.emit_direct()`).
+
+  The wrap op carries the inner `InsertInto` so the lowering has
+  everything it needs to emit the WS-count increment / pass-through
+  the materialize-phase write. The runner-level WS scaffolding
+  (WCOJTask queue + steal loop) is out of C4 scope per
+  `docs/phase_c_pragma_materialization.md` §5 (PR row C4); this op
+  covers only the kernel-functor-level WS emit variant that the
+  legacy `ws_enabled` flag drives in `_lower_insert_into`.
+
+  Per spec §4.2, this op lives in the new `parallel.atomic_ws`
+  sub-dialect's lowering surface; the type itself lives here in
+  `mir/types.py` next to `DedupGate` so all MIR wrap ops are
+  discoverable in one place (matching the C2 placement).
+  '''
+
+  inner: InsertInto
+
+
 # -----------------------------------------------------------------------------
 # Fixpoint maintenance ops (scalar — no children)
 # -----------------------------------------------------------------------------
@@ -466,6 +497,7 @@ MirNode = Union[
   GatherColumn,
   InsertInto,
   DedupGate,
+  WSScope,
   RebuildIndex,
   ClearRelation,
   CheckSize,

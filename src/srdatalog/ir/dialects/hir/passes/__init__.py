@@ -16,6 +16,7 @@ from srdatalog.ir.dialects.hir.passes.plan import PlanPass
 from srdatalog.ir.dialects.hir.passes.semi_naive import SemiNaivePass
 from srdatalog.ir.dialects.hir.passes.split import SplitPass
 from srdatalog.ir.dialects.hir.passes.stratify import HirPlanState, StratifyPass
+from srdatalog.ir.dialects.hir.passes.temp_index import TempIndexPass
 
 __all__ = [
   'HirPlanState',
@@ -24,4 +25,5 @@ __all__ = [
   'SemiNaivePass',
   'SplitPass',
   'StratifyPass',
+  'TempIndexPass',
 ]

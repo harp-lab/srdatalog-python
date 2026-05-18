@@ -62,6 +62,7 @@ srdatalog = "srdatalog.cli:main"
 # ---------------------------------------------------------------------------
 
 [project.entry-points."srdatalog.plugins"]
+iir_cf = "srdatalog.ir.dialects.iir.cf:register"
 sorted_array = "srdatalog.ir.dialects.relation.sorted_array:register"
 
 [project.urls]

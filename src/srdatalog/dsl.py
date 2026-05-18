@@ -765,6 +765,13 @@ _BUILTIN_BOOL_SHADOW_PRAGMAS: tuple[tuple[str, str], ...] = (
     'srdatalog.ir.dialects.relation.sorted_array.pragmas.fanout.FanOut',
     'fanout',
   ),
+  # C3: `BlockGroup` shadows `PlanEntry.block_group` -> `variant.block_group`
+  # -> `ep.block_group`. Same dual-write contract as `DedupHash`:
+  # handler short-circuits when `ep.block_group is True`.
+  (
+    'srdatalog.ir.dialects.parallel.block_group.pragmas.block_group.BlockGroup',
+    'block_group',
+  ),
 )
 
 

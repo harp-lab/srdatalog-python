@@ -352,6 +352,37 @@ class FanOut(Op):
   inner: InsertInto
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class BlockGroupRoot(Op):
+  '''MIR wrap op: block-group work-balanced dispatch around a root join.
+
+  Inserted by `srdatalog.ir.dialects.parallel.block_group.pragmas.
+  block_group.materialize_block_group` during `MirPragmaPass` whenever
+  an `ExecutePipeline` carries a `BlockGroup` pragma whose root
+  pipeline op is a multi-source `ColumnJoin` (the only legacy-supported
+  BG shape — `jit_root_column_join_block_group` only fires on root CJ
+  multi). Lowered by the `@lowering(target=iir.cf, source=BlockGroupRoot)`
+  rule registered in the same module to the same IIR shape that the
+  legacy `ctx.bg_enabled` dispatch in `_lower_root_cj_multi` emits.
+
+  The wrap op carries the inner root op (the `ColumnJoin`) so the
+  lowering can re-dispatch through `_lower_root_cj_bg` with
+  `ctx.bg_enabled` forced True for the duration of the call —
+  byte-equivalence by construction with the legacy bool-driven path.
+
+  Phase C scope (per spec §4.1): block_group materialization owns a
+  NEW sub-dialect `parallel.block_group` because the lowering target
+  has multiple ops (`BgRootCjMulti`, `BgSourceSpec`), distinct
+  codegen scaffolding (per-warp work balance setup), and plausible
+  external re-use. The wrap op stays at MIR scope; the dialect's
+  lowerings + render live under `parallel.block_group/lowerings/`
+  + `codegen/cuda/render/parallel_data.py`.
+  '''
+
+  inner: Any  # MirNode at runtime; forward-ref via Any since MirNode union is defined below.
+
+
 # -----------------------------------------------------------------------------
 # Fixpoint maintenance ops (scalar — no children)
 # -----------------------------------------------------------------------------
@@ -564,6 +595,7 @@ MirNode = Union[
   WSScope,
   CountPhase,
   FanOut,
+  BlockGroupRoot,
   RebuildIndex,
   ClearRelation,
   CheckSize,

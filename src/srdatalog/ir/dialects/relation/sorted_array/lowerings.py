@@ -270,7 +270,40 @@ def lower_scan_pipeline(
   The function name is historical (M1 only handled Scan-rooted
   pipelines); it now dispatches on the head op. Raises ValueError
   if the shape isn't supported.
+
+  C3 (per docs/phase_c_pragma_materialization.md §4.1): when the
+  head op is a `BlockGroupRoot` wrap (inserted by the `BlockGroup`
+  pragma handler at MirPragmaPass time), unwrap it and re-dispatch
+  through `_lower_root_cj_bg` with `ctx.bg_enabled=True` for the
+  duration. The unwrap happens here (not in the wrap op's
+  registered `@lowering`) because the wrap op only carries the
+  root; the trailing `rest = ops[1:]` lives on the enclosing
+  pipeline and is naturally accessible at this dispatch site.
   '''
+  head = ops[0] if ops else None
+  if isinstance(head, mir.BlockGroupRoot):
+    inner = head.inner
+    rest = ops[1:]
+    if not isinstance(inner, mir.ColumnJoin) or len(inner.sources) < 2:
+      raise ValueError(
+        f'lower_scan_pipeline: BlockGroupRoot wraps unsupported inner op '
+        f'{type(inner).__name__!r}; expected multi-source ColumnJoin'
+      )
+    # Construct the unwrapped pipeline for the supported-shape check —
+    # the BG path is structurally identical to non-BG root CJ multi,
+    # so reusing `_supported_pipeline` here catches malformed rest.
+    if not _supported_pipeline([inner, *rest]):
+      raise ValueError(
+        f'lower_scan_pipeline: unsupported pipeline shape '
+        f'{[type(o).__name__ for o in [inner, *rest]]} under BlockGroupRoot'
+      )
+    prev_bg = ctx.bg_enabled
+    try:
+      ctx.bg_enabled = True
+      return _lower_root_cj_bg(inner, rest, ctx)
+    finally:
+      ctx.bg_enabled = prev_bg
+
   if not _supported_pipeline(ops):
     raise ValueError(
       f'lower_scan_pipeline: unsupported pipeline shape {[type(o).__name__ for o in ops]}'
@@ -613,6 +646,20 @@ def _lower_root_cj_multi(
 
   When `ctx.bg_enabled` is set, dispatches to `_lower_root_cj_bg`
   (block-group work-balanced variant — N4.1).
+
+  DEAD CODE NOTE (C3): the `if ctx.bg_enabled:` branch below is
+  superseded by the `BlockGroupRoot` wrap op + the registered
+  `@lowering(target=iir.cf, source=mir.BlockGroupRoot)` rule (in
+  `parallel.block_group.pragmas.block_group`). The new lowering
+  delegates back into `_lower_root_cj_bg` with `ctx.bg_enabled`
+  forced True, so the branch remains functionally LIVE during the
+  C3 dual-write transition (the `with_pragma(BlockGroup())` DSL
+  dual-writes both the bool field AND the typed pragma; see
+  `pragmas/block_group.py: materialize_block_group`). The branch
+  will be removable once Phase A3 drops the `block_group: bool`
+  field on `mir.ExecutePipeline` and Phase B migrates the host
+  `_lower_root_cj_multi` lowering out of this monolith — until then
+  it is the byte-equivalence anchor for the dual-write transition.
   '''
   if ctx.bg_enabled:
     return _lower_root_cj_bg(cj_op, rest, ctx)

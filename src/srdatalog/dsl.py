@@ -749,6 +749,10 @@ _BUILTIN_BOOL_SHADOW_PRAGMAS: tuple[tuple[str, str], ...] = (
     'srdatalog.ir.dialects.relation.sorted_array.pragmas.dedup_hash.DedupHash',
     'dedup_hash',
   ),
+  (
+    'srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing.WorkStealing',
+    'work_stealing',
+  ),
 )
 
 

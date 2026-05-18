@@ -1051,6 +1051,39 @@ def _lower_inner_chain(
       stmts.extend(_lower_insert_into(ins, ctx))
     return Block(stmts=tuple(stmts))
 
+  # Phase B / Wave 2A (per docs/phase_b_lowering_dispatcher.md §5):
+  # MIR op types registered in `USE_DECLARATIVE` route through their
+  # per-op `@lowering` rules instead of the legacy `if isinstance`
+  # branches below. The legacy branches stay LIVE in this file as
+  # the safety-net implementation — the chain-aware variants in
+  # `lowerings/lower_mir_<op>.py` delegate back into helpers from
+  # this module (`_filter_expr`, `_sanitize_var_name`,
+  # `_lower_inner_chain`) so byte-equivalence holds by construction.
+  # Layer 3 cleanup deletes both the legacy branches AND
+  # `USE_DECLARATIVE` once every MIR op is migrated. Imports are
+  # function-local to keep the module import graph linear
+  # (the sibling per-op modules import back from this file).
+  from srdatalog.ir.dialects.relation.sorted_array import USE_DECLARATIVE
+
+  if type(head) in USE_DECLARATIVE:
+    if isinstance(head, mir.Filter):
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_filter import (
+        lower_mir_filter_in_chain,
+      )
+
+      return lower_mir_filter_in_chain(head, tail, ctx)
+    if isinstance(head, mir.ConstantBind):
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_constant_bind import (
+        lower_mir_constant_bind_in_chain,
+      )
+
+      return lower_mir_constant_bind_in_chain(head, tail, ctx)
+    raise AssertionError(
+      f'_lower_inner_chain: USE_DECLARATIVE contains {type(head).__name__!r} '
+      f'but no chain-dispatch wiring exists for it. Add the '
+      f'`lower_mir_<op>_in_chain` import + call above.'
+    )
+
   if isinstance(head, mir.Filter):
     cond_expr = _filter_expr(head.code)
     body_op = _lower_inner_chain(tail, ctx)

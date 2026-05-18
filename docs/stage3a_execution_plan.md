@@ -223,7 +223,7 @@ back. Frozen goldens added as IIR shapes stabilize.
 ### S3A.2 — sorted_array/lowerings returns IIR data, not C++ text
 
 **Goal.** Make IIR exist as inspectable data between lowering and render.
-Today [sorted_array/lowerings.py:353](../src/srdatalog/ir/dialects/relation/sorted_array/lowerings.py#L353)
+Today `sorted_array/lowerings/__init__.py:353`
 calls `target.cuda.emit.emit(op, ctx)` directly — IIR exists for ~one
 stack frame.
 
@@ -287,7 +287,7 @@ per dialect's handlers moved) + 1 (delete old emit.py).
 **Goal.** Realize P3 — typed pass dispatch via the framework.
 
 **Files.**
-- [sorted_array/lowerings.py](../src/srdatalog/ir/dialects/relation/sorted_array/lowerings.py) — main MIR→IIR lowerings
+- `sorted_array/lowerings/` (package; main MIR→IIR lowerings, with per-op modules under it)
 - [d2l/__init__.py](../src/srdatalog/ir/dialects/relation/d2l/__init__.py) — D2L-specific lowerings
 - Per-dialect `L^out` registration on the dialect's `DIALECT` record
 

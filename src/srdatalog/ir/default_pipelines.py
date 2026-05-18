@@ -47,12 +47,19 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class InitialProg:
   '''Program-pipeline through-state. Threaded by the four
-  `DEFAULT_PROGRAM_PIPELINE` shims; each fills one field.'''
+  `DEFAULT_PROGRAM_PIPELINE` shims; each fills one field.
+
+  `verbose` mirrors the legacy `compile_to_mir(verbose=...)` kwarg.
+  Read by `HirPlanningShim` when computing HIR from scratch; ignored
+  if `hir` is pre-populated by the caller. Added in F5.2 so the
+  declarative pipeline can preserve the imperative entry point's
+  verbosity knob byte-equivalently.'''
 
   program: Program
   hir: HirProgram | None = None
   steps: list[tuple[mir.MirNode, bool]] | None = None
   mir_program: mir.Program | None = None
+  verbose: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,7 +108,7 @@ class HirPlanningShim(ProgramPass):
       return state
     from srdatalog.ir.hir import compile_to_hir
 
-    return dataclasses.replace(state, hir=compile_to_hir(state.program))
+    return dataclasses.replace(state, hir=compile_to_hir(state.program, verbose=state.verbose))
 
 
 class HirToMirShim(ProgramPass):

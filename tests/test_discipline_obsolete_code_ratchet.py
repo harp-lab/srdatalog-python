@@ -102,7 +102,7 @@ def test_dead_code_markers_pinned_exact() -> None:
 # in that case and shrunk in the same PR that deletes the legacy
 # helper. Net trend is down.
 
-_MAX_MONOLITH_LOC = 2700  # current ~2606; small headroom for in-flight
+_MAX_MONOLITH_LOC = 3000  # post B-CJ-single + B-Negation: ~2858; headroom for B-Aggregate/Cart/CJ-multi/ExecutePipeline dispatch wiring (each adds ~6-10 LOC); Layer 3 cleanup later drops this back below 500
 _MONOLITH = (
   _SRC_ROOT / 'ir' / 'dialects' / 'relation' / 'sorted_array' / 'lowerings' / '__init__.py'
 )

@@ -71,6 +71,7 @@ USE_DECLARATIVE: frozenset[type] = frozenset(
     # in `lowerings/__init__.py` enforces the "type AND structural
     # shape" gate; B-CJ-multi drops the source-count guard there.
     _mir_for_use_declarative.ColumnJoin,
+    _mir_for_use_declarative.Negation,
   }
 )
 
@@ -315,6 +316,31 @@ def _register_passes() -> None:
   )
   def _lower_mir_cj_single_registered(op: Any, ctx: Any) -> Any:
     return lower_mir_cj_single(op, ctx)
+
+  # Wave 2A / B-Negation (per docs/phase_b_lowering_dispatcher.md §4
+  # row B-Negation, difficulty `hard`, order 9): `mir.Negation`
+  # migrates to a standalone `@lowering` registration in its own
+  # file under `lowerings/lower_mir_negation.py`. The registered stub
+  # asserts on direct invocation because the chain-aware variant
+  # (`lower_mir_negation_in_chain`) needs the trailing `tail` from
+  # `_lower_inner_chain` plus the surrounding `ctx.neg_pre_narrow`
+  # registration set up by `_lower_nested_cart` — same split
+  # rationale as Filter / ConstantBind / Scan above. The chain
+  # variant delegates straight back into the legacy `_lower_negation`
+  # helper so byte-equivalence holds by construction (including the
+  # N5.4 Nim-broken raise documented in `docs/milestones.md` F5).
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_negation import (
+    lower_mir_negation,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.Negation,
+    consumes=('mir',),
+    produces=('iir.cf',),
+  )
+  def _lower_mir_negation_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_negation(op, ctx)
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.

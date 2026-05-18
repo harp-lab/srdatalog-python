@@ -72,6 +72,7 @@ USE_DECLARATIVE: frozenset[type] = frozenset(
     # shape" gate; B-CJ-multi drops the source-count guard there.
     _mir_for_use_declarative.ColumnJoin,
     _mir_for_use_declarative.Negation,
+    _mir_for_use_declarative.Aggregate,
   }
 )
 
@@ -341,6 +342,37 @@ def _register_passes() -> None:
   )
   def _lower_mir_negation_registered(op: Any, ctx: Any) -> Any:
     return lower_mir_negation(op, ctx)
+
+  # Wave 2A / B-Aggregate (per docs/phase_b_lowering_dispatcher.md
+  # §4 row B-Aggregate, difficulty `hard`, order 8): identical
+  # split-with-stub shape to B-Filter / B-ConstantBind /
+  # B-InsertInto above. `mir.Aggregate` is a structurally-supported
+  # MIR op type (see runtime/generalized_datalog/mir_def.h for the
+  # C++ counterpart) but the Python lowering pipeline never
+  # constructs one today — the Nim reference also drops AggClause
+  # during HIR -> MIR lowering, so the legacy `_lower_inner_chain`
+  # has no dedicated branch and Aggregate falls through to the
+  # terminal `raise ValueError('unsupported inner op: ...')`. The
+  # registration here pins dialect ownership for the Phase B
+  # sign-off bullet "every concrete MIR op has an `@lowering`";
+  # `lower_mir_aggregate_in_chain` raises an identical
+  # `ValueError` so byte-equivalence holds against the legacy
+  # fall-through. See `lowerings/lower_mir_aggregate.py` for the
+  # full upgrade-path rationale and the `USE_DECLARATIVE` ratchet
+  # below routes chain dispatch through the new path while keeping
+  # this registration as the dialect-ownership contract.
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_aggregate import (
+    lower_mir_aggregate,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.Aggregate,
+    consumes=('mir',),
+    produces=('iir.cf',),
+  )
+  def _lower_mir_aggregate_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_aggregate(op, ctx)
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.

@@ -136,53 +136,35 @@ def compile_kernel_body(
       `relation.d2l` (and any future index dialect) so positional
       slots advance by 2 per FULL_VER D2L source — matching legacy
       `compute_view_slot_offsets`. Pass {} or None for plain DSAI.
+
+  Implementation: F5.3 routes this entry point through
+  `Compiler.run(KernelCtx(...), pipeline=DEFAULT_KERNEL_PIPELINE)` —
+  the imperative block that previously lived here is now five
+  `ProgramPass` shims in `srdatalog.ir.default_pipelines`. Output is
+  byte-equivalent (the shim composition mirrors the old block 1-to-1;
+  `AssignHandlesShim` is idempotent so re-running it over an EP whose
+  handles are already assigned — the `compile_pipeline` path — leaves
+  the pipeline byte-identical).
   '''
-  from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
-  from srdatalog.ir.codegen.cuda.envelope import (
-    assign_handle_positions,
-    collect_unique_view_specs,
-    emit_view_declarations,
-  )
-  from srdatalog.ir.dialects.relation.d2l import view_counts_for_specs
-  from srdatalog.ir.dialects.relation.sorted_array.lowerings import (
-    LoweringCtx,
-    lower_scan_pipeline,
-  )
+  from srdatalog.ir.core.dialect import Compiler
+  from srdatalog.ir.default_pipelines import DEFAULT_KERNEL_PIPELINE, KernelCtx
 
-  pipeline = list(ep.pipeline)
-  pipeline = assign_handle_positions(pipeline)
-
-  view_specs = collect_unique_view_specs(pipeline)
-  view_counts = view_counts_for_specs(view_specs, rel_index_types or {})
-  view_decls, view_vars = emit_view_declarations(
-    view_specs,
-    pipeline,
-    slot_mode=slot_mode,
-    view_counts=view_counts,
+  state: KernelCtx = Compiler().run(
+    KernelCtx(
+      ep=ep,
+      is_counting=is_counting,
+      output_var_name=output_var_name,
+      output_vars=output_vars,
+      slot_mode=slot_mode,
+      rel_index_types=rel_index_types,
+      tiled_cartesian=tiled_cartesian,
+      bg_enabled=bg_enabled,
+    ),
+    pipeline=DEFAULT_KERNEL_PIPELINE,
   )
-
-  # Split the combined view_vars dict into name-only (handle_idx ->
-  # view_var) and base-slot (handle_idx -> slot) maps. The envelope
-  # emits both into the same dict via a `__base__<idx>` sentinel.
-  name_map = {k: v for k, v in view_vars.items() if k.isdigit()}
-  base_map = {
-    k.removeprefix('__base__'): int(v) for k, v in view_vars.items() if k.startswith('__base__')
-  }
-
-  lower_ctx = LoweringCtx(
-    view_var_names=name_map,
-    is_counting=is_counting,
-    output_var=output_var_name,
-    output_var_overrides=dict(output_vars) if output_vars else {},
-    rel_index_types=dict(rel_index_types) if rel_index_types else {},
-    view_slot_bases=base_map,
-    dedup_hash=ep.dedup_hash,
-    tiled_cartesian=tiled_cartesian,
-    bg_enabled=bg_enabled,
-  )
-  iir = lower_scan_pipeline(pipeline, lower_ctx)
-  emit_ctx = EmitCtx(indent_level=4)
-  return view_decls + emit(iir, emit_ctx)
+  body_text = state.body_text
+  assert body_text is not None, 'compile_kernel_body: CudaRenderShim left body_text unset'
+  return body_text
 
 
 __all__ = ['Target', 'compile_kernel_body', 'compile_pipeline', 'compile_runner']

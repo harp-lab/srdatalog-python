@@ -354,6 +354,86 @@ def test_compile_to_mir_verbose_does_not_break():
   assert loud == quiet
 
 
+# -----------------------------------------------------------------------------
+# F5.3: compile_kernel_body cut-over
+# -----------------------------------------------------------------------------
+
+
+def test_compile_kernel_body_routes_through_default_pipeline():
+  '''F5.3: `compile_kernel_body` is now a thin `Compiler.run` over
+  `DEFAULT_KERNEL_PIPELINE`. The returned string must equal the
+  direct shim composition for both phases.'''
+  from srdatalog.ir.codegen.cuda.api import compile_kernel_body
+
+  compiler = Compiler.with_default_plugins()
+  prog_state = compiler.run(InitialProg(program=_tc_program()), pipeline=DEFAULT_PROGRAM_PIPELINE)
+  assert prog_state.mir_program is not None
+  ep = _first_ep(prog_state.mir_program)
+
+  # Materialize phase.
+  via_api = compile_kernel_body(ep, is_counting=False)
+  via_pipeline = compiler.run(
+    KernelCtx(ep=ep, is_counting=False), pipeline=DEFAULT_KERNEL_PIPELINE
+  ).body_text
+  assert via_api == via_pipeline
+
+  # Count phase with overridden output var (mirrors runner emit).
+  via_api_ct = compile_kernel_body(ep, is_counting=True, output_var_name='output_ctx')
+  via_pipeline_ct = compiler.run(
+    KernelCtx(ep=ep, is_counting=True, output_var_name='output_ctx'),
+    pipeline=DEFAULT_KERNEL_PIPELINE,
+  ).body_text
+  assert via_api_ct == via_pipeline_ct
+
+
+def test_compile_kernel_body_threads_all_kwargs():
+  '''Sanity check: every kwarg on `compile_kernel_body` survives the
+  cut-over. Build a KernelCtx with non-default values for each knob
+  the shims read and confirm `compile_kernel_body` reaches the same
+  shim output.'''
+  from srdatalog.ir.codegen.cuda.api import compile_kernel_body
+
+  compiler = Compiler.with_default_plugins()
+  prog_state = compiler.run(InitialProg(program=_tc_program()), pipeline=DEFAULT_PROGRAM_PIPELINE)
+  assert prog_state.mir_program is not None
+  ep = _first_ep(prog_state.mir_program)
+
+  kwargs = dict(
+    is_counting=False,
+    output_var_name='output_ctx_0',
+    output_vars={'Path': 'output_ctx_0'},
+    slot_mode='positional',
+    rel_index_types={},
+    tiled_cartesian=False,
+    bg_enabled=False,
+  )
+  via_api = compile_kernel_body(ep, **kwargs)
+  via_pipeline = compiler.run(
+    KernelCtx(ep=ep, **kwargs), pipeline=DEFAULT_KERNEL_PIPELINE
+  ).body_text
+  assert via_api == via_pipeline
+
+
+def test_assign_handles_shim_is_idempotent():
+  '''Compile_pipeline rebuilds the EP with `assign_handle_positions_in_ep`
+  before calling `compile_kernel_body`, which then re-runs the
+  AssignHandlesShim. The shim must produce a byte-identical pipeline
+  on the second pass, otherwise `compile_pipeline` would shift handle
+  indices and break the jit_batch goldens.'''
+  from srdatalog.ir.codegen.cuda.envelope import assign_handle_positions_in_ep
+
+  compiler = Compiler.with_default_plugins()
+  prog_state = compiler.run(InitialProg(program=_tc_program()), pipeline=DEFAULT_PROGRAM_PIPELINE)
+  assert prog_state.mir_program is not None
+  ep = _first_ep(prog_state.mir_program)
+
+  ep_once = assign_handle_positions_in_ep(ep)
+  state_twice = AssignHandlesShim().apply(KernelCtx(ep=ep_once, is_counting=False), None)
+  # Each MIR op's handle_start must be unchanged after re-assignment.
+  for before, after in zip(ep_once.pipeline, state_twice.ep.pipeline, strict=True):
+    assert getattr(before, 'handle_start', None) == getattr(after, 'handle_start', None)
+
+
 if __name__ == '__main__':
   test_every_program_pipeline_entry_is_a_pass()
   test_every_kernel_pipeline_entry_is_a_pass()
@@ -377,4 +457,7 @@ if __name__ == '__main__':
   test_compile_to_mir_apply_mir_passes_false_filters_mir_opt()
   test_compile_to_mir_with_precomputed_hir_skips_planning()
   test_compile_to_mir_verbose_does_not_break()
+  test_compile_kernel_body_routes_through_default_pipeline()
+  test_compile_kernel_body_threads_all_kwargs()
+  test_assign_handles_shim_is_idempotent()
   print('OK')

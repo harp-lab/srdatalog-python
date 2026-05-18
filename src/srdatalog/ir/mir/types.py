@@ -383,6 +383,34 @@ class BlockGroupRoot(Op):
   inner: Any  # MirNode at runtime; forward-ref via Any since MirNode union is defined below.
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class TiledCartesian(Op):
+  '''MIR wrap op: tiled-Cartesian dispatch around a nested CartesianJoin.
+
+  Inserted by `srdatalog.ir.dialects.relation.sorted_array.pragmas.
+  tiled_cartesian.materialize_tiled_cartesian` during `MirPragmaPass`
+  whenever an `ExecutePipeline` carries a `TiledCartesian` pragma AND
+  the legacy `ep.tiled_cartesian` dual-write bool is False. Lowered
+  by the `@lowering(target=iir.cf, source=TiledCartesian)` rule
+  registered in the same module to the same IIR shape that the
+  legacy `ctx.tiled_cartesian`-driven `_lower_nested_cart_tiled`
+  branch inside `_lower_nested_cart` produces.
+
+  The wrap op carries the inner eligible `CartesianJoin` so the
+  lowering can render the tiled smem dispatch (per-warp shared-mem
+  reads + ballot-coalesced writes) around the trailing chain.
+
+  Phase C scope (per spec §4.3): `tiled_cartesian` stays in
+  `relation.sorted_array` rather than spawning a new sub-dialect —
+  the materialized form delegates to the existing
+  `sorted_array.SaTiledCartesian2D` IIR op, which is tightly coupled
+  to sorted-array index access.
+  '''
+
+  inner: CartesianJoin
+
+
 # -----------------------------------------------------------------------------
 # Fixpoint maintenance ops (scalar — no children)
 # -----------------------------------------------------------------------------
@@ -483,6 +511,7 @@ class ExecutePipeline(Op):
   work_stealing: bool = False
   block_group: bool = False
   dedup_hash: bool = False
+  tiled_cartesian: bool = False  # C5 dual-write field; removed in A3
   count: bool = False
   concurrent_write: bool = False
 
@@ -596,6 +625,7 @@ MirNode = Union[
   CountPhase,
   FanOut,
   BlockGroupRoot,
+  TiledCartesian,
   RebuildIndex,
   ClearRelation,
   CheckSize,

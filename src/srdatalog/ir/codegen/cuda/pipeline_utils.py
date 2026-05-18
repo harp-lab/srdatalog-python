@@ -168,13 +168,22 @@ def count_handles_in_pipeline(ops: list[m.MirNode]) -> int:
   slots the kernel's `views[]` array needs. Zero when no op carries a
   handle_start (caller should still allocate 1 slot in that case; this
   function faithfully returns 0 to match Nim).
+
+  C5: `mir.TiledCartesian` wraps a `CartesianJoin`; the wrap is
+  opaque to this walk so we unwrap before accounting for the
+  underlying Cart's source handles.
   '''
   result = 0
   for op in ops:
-    if isinstance(op, m.ColumnJoin) or isinstance(op, m.CartesianJoin):
-      for src in op.sources:
+    actual = op.inner if isinstance(op, m.TiledCartesian) else op
+    if isinstance(actual, m.ColumnJoin) or isinstance(actual, m.CartesianJoin):
+      for src in actual.sources:
         h = getattr(src, "handle_start", -1)
         result = max(result, h + 1)
-    elif isinstance(op, m.Scan) or isinstance(op, m.Negation) or isinstance(op, m.Aggregate):
-      result = max(result, getattr(op, "handle_start", -1) + 1)
+    elif (
+      isinstance(actual, m.Scan)
+      or isinstance(actual, m.Negation)
+      or isinstance(actual, m.Aggregate)
+    ):
+      result = max(result, getattr(actual, "handle_start", -1) + 1)
   return result

@@ -588,6 +588,10 @@ def _extract_pipeline_sources(
   elif isinstance(op, mir.PositionedExtract):
     for s in op.sources:
       _extract_pipeline_sources(s, out)
+  # C5: `mir.TiledCartesian` wraps a `CartesianJoin` — recurse into
+  # `inner` so the wrapped Cart's sources appear in `source_specs`.
+  elif isinstance(op, mir.TiledCartesian):
+    _extract_pipeline_sources(op.inner, out)
 
 
 def wrap_in_execute_pipeline(

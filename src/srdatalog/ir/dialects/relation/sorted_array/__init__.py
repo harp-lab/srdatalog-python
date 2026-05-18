@@ -141,6 +141,27 @@ def _register_passes() -> None:
   def lower_mir_fan_out(op: Any, ctx: Any) -> Any:
     return lower_fan_out(op, ctx)
 
+  # C5 (per docs/phase_c_pragma_materialization.md §4.3): the
+  # `TiledCartesian` pragma's MIR wrap op `mir.TiledCartesian` lowers
+  # via the rule registered here. The dispatch entry point asserts
+  # because the actual emission needs the trailing chain from
+  # `_lower_inner_chain` — see the pragma module's
+  # `lower_tiled_cartesian_in_chain` docstring for the split rationale.
+  # This rule pins the dialect's ownership of `TiledCartesian` for
+  # the registry-completeness discipline test.
+  from srdatalog.ir.dialects.relation.sorted_array.pragmas.tiled_cartesian import (
+    lower_tiled_cartesian,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.TiledCartesian,
+    consumes=('mir',),
+    produces=('iir.cf', 'relation.sorted_array'),
+  )
+  def lower_mir_tiled_cartesian(op: Any, ctx: Any) -> Any:
+    return lower_tiled_cartesian(op, ctx)
+
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.
   @verifier(DIALECT)

@@ -60,6 +60,7 @@ USE_DECLARATIVE: frozenset[type] = frozenset(
     _mir_for_use_declarative.Filter,
     _mir_for_use_declarative.ConstantBind,
     _mir_for_use_declarative.InsertInto,
+    _mir_for_use_declarative.Scan,
   }
 )
 
@@ -253,6 +254,29 @@ def _register_passes() -> None:
   )
   def _lower_mir_insert_into_registered(op: Any, ctx: Any) -> Any:
     return lower_mir_insert_into(op, ctx)
+
+  # Wave 2A / B-Scan (per docs/phase_b_lowering_dispatcher.md §4 row
+  # B-Scan, difficulty `medium`): unlike Filter / ConstantBind which
+  # live mid-chain in `_lower_inner_chain`, `mir.Scan` is a ROOT-
+  # position op dispatched from `lower_scan_pipeline`. The split-with-
+  # stub pattern is the same — the chain-aware variant
+  # (`lower_mir_scan_in_chain`) needs the trailing pipeline `rest`
+  # from `lower_scan_pipeline`, so the `@lowering`-registered stub
+  # asserts on direct invocation. The `USE_DECLARATIVE` ratchet
+  # routes root dispatch through the new path while keeping this
+  # registration as the dialect-ownership contract.
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_scan import (
+    lower_mir_scan,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.Scan,
+    consumes=('mir',),
+    produces=('iir.cf',),
+  )
+  def _lower_mir_scan_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_scan(op, ctx)
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.

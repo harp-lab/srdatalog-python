@@ -278,6 +278,82 @@ def test_kernel_pipeline_count_phase_runs():
   assert len(out.body_text) > 0
 
 
+# -----------------------------------------------------------------------------
+# F5.2: compile_to_mir uses DEFAULT_PROGRAM_PIPELINE under the hood
+# -----------------------------------------------------------------------------
+
+
+def test_compile_to_mir_uses_default_pipeline():
+  '''F5.2 cut-over: `compile_to_mir(program)` is now a thin wrapper
+  over `Compiler().run(InitialProg(...), pipeline=DEFAULT_PROGRAM_PIPELINE)`.
+  The output must match the direct `Compiler.run` invocation byte-for-byte.'''
+  from srdatalog.ir.hir import compile_to_mir
+
+  prog = _tc_program()
+
+  # Compare imperative entry point against the declarative pipeline
+  # invoked directly (the pipeline IS the source of truth post-F5.2).
+  via_entry = compile_to_mir(prog)
+  via_pipeline = (
+    Compiler()
+    .run(
+      InitialProg(program=prog),
+      pipeline=DEFAULT_PROGRAM_PIPELINE,
+    )
+    .mir_program
+  )
+
+  assert via_entry == via_pipeline
+
+
+def test_compile_to_mir_apply_mir_passes_false_filters_mir_opt():
+  '''F5.2: `apply_mir_passes=False` drops `MirOptShim` from the pipeline.
+  The output must match a direct `Compiler.run` over the filtered
+  pipeline (i.e. raw HIR -> MIR steps, no optimization).'''
+  from srdatalog.ir.hir import compile_to_mir
+
+  prog = _tc_program()
+  via_entry = compile_to_mir(prog, apply_mir_passes=False)
+
+  filtered = [p for p in DEFAULT_PROGRAM_PIPELINE if not isinstance(p, MirOptShim)]
+  via_pipeline = (
+    Compiler()
+    .run(
+      InitialProg(program=prog),
+      pipeline=filtered,
+    )
+    .mir_program
+  )
+
+  assert via_entry == via_pipeline
+
+
+def test_compile_to_mir_with_precomputed_hir_skips_planning():
+  '''F5.2: passing `hir=...` short-circuits `HirPlanningShim` (which is
+  idempotent on `state.hir is not None`). Output must match the
+  default path.'''
+  from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+
+  prog = _tc_program()
+  hir = compile_to_hir(prog)
+  via_hir = compile_to_mir(prog, hir=hir)
+  default = compile_to_mir(prog)
+  assert via_hir == default
+
+
+def test_compile_to_mir_verbose_does_not_break():
+  '''F5.2: `verbose=True` is threaded through `InitialProg.verbose`
+  into `HirPlanningShim`, which forwards to `compile_to_hir`. Smoke
+  test: it doesn't crash and the output is byte-equivalent to the
+  non-verbose default (verbose only affects logging side effects).'''
+  from srdatalog.ir.hir import compile_to_mir
+
+  prog = _tc_program()
+  loud = compile_to_mir(prog, verbose=True)
+  quiet = compile_to_mir(prog)
+  assert loud == quiet
+
+
 if __name__ == '__main__':
   test_every_program_pipeline_entry_is_a_pass()
   test_every_kernel_pipeline_entry_is_a_pass()
@@ -297,4 +373,8 @@ if __name__ == '__main__':
   test_default_program_pipeline_end_to_end()
   test_default_kernel_pipeline_end_to_end()
   test_kernel_pipeline_count_phase_runs()
+  test_compile_to_mir_uses_default_pipeline()
+  test_compile_to_mir_apply_mir_passes_false_filters_mir_opt()
+  test_compile_to_mir_with_precomputed_hir_skips_planning()
+  test_compile_to_mir_verbose_does_not_break()
   print('OK')

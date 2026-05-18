@@ -110,15 +110,26 @@ def compile_to_mir(
   (`hir=None`) runs `compile_to_hir(program, verbose=verbose)` internally.
   Callers that already have HIR (e.g. `ir.pipeline.compile_program`)
   should pass it to avoid the redundant pass.
+
+  F5.2: implemented as a `Compiler.run` over `DEFAULT_PROGRAM_PIPELINE`.
+  The `apply_mir_passes=False` knob is preserved by filtering out
+  `MirOptShim` from the pipeline. The `verbose` + `hir` knobs flow into
+  `HirPlanningShim` via `InitialProg`. Spec: docs/phase_f5_declarative_pipeline.md
+  section 3.1.
   '''
-  import srdatalog.ir.mir.types as mir
-  from srdatalog.ir.hir.lower import lower_hir_to_mir_steps
+  from srdatalog.ir.core.dialect import Compiler
+  from srdatalog.ir.default_pipelines import (
+    DEFAULT_PROGRAM_PIPELINE,
+    InitialProg,
+    MirOptShim,
+  )
 
-  if hir is None:
-    hir = compile_to_hir(program, verbose=verbose)
-  steps = lower_hir_to_mir_steps(hir)
-  if apply_mir_passes:
-    from srdatalog.ir.mir.passes import apply_all_mir_passes
+  pipeline = DEFAULT_PROGRAM_PIPELINE
+  if not apply_mir_passes:
+    pipeline = [p for p in pipeline if not isinstance(p, MirOptShim)]
 
-    steps = apply_all_mir_passes(steps)
-  return mir.Program(steps=[(node, is_rec) for node, is_rec in steps])
+  state = Compiler().run(
+    InitialProg(program=program, hir=hir, verbose=verbose),
+    pipeline=pipeline,
+  )
+  return state.mir_program

@@ -110,10 +110,15 @@ def test_clause_order_reorder_column_join():
     rule_name="Test",
     clause_order=[1, 0],
   )
-  apply_clause_order_reordering([(ep, False)])
-  assert [s.clause_idx for s in cj.sources] == [1, 0]
+  new_steps = apply_clause_order_reordering([(ep, False)])
+  new_ep = new_steps[0][0]
+  new_cj = new_ep.pipeline[0]
+  assert [s.clause_idx for s in new_cj.sources] == [1, 0]
   # source_specs should be regenerated in the new order.
-  assert [s.clause_idx for s in ep.source_specs] == [1, 0]
+  assert [s.clause_idx for s in new_ep.source_specs] == [1, 0]
+  # Original ep is untouched (frozen + new-instance threading).
+  assert [s.clause_idx for s in cj.sources] == [0, 1]
+  assert [s.clause_idx for s in ep.source_specs] == [0, 1]
 
 
 def test_clause_order_reorder_cartesian_join_keeps_var_from_source_aligned():
@@ -133,9 +138,13 @@ def test_clause_order_reorder_cartesian_join_keeps_var_from_source_aligned():
     rule_name="Test",
     clause_order=[1, 0],
   )
-  apply_clause_order_reordering([(ep, False)])
-  assert [s.clause_idx for s in cart.sources] == [1, 0]
-  assert cart.var_from_source == [["z"], ["x"]]
+  new_steps = apply_clause_order_reordering([(ep, False)])
+  new_cart = new_steps[0][0].pipeline[0]
+  assert [s.clause_idx for s in new_cart.sources] == [1, 0]
+  assert new_cart.var_from_source == [["z"], ["x"]]
+  # Input is untouched.
+  assert [s.clause_idx for s in cart.sources] == [0, 1]
+  assert cart.var_from_source == [["x"], ["z"]]
 
 
 def test_clause_order_reorder_empty_clause_order_is_noop():
@@ -150,8 +159,9 @@ def test_clause_order_reorder_empty_clause_order_is_noop():
     rule_name="Test",
     clause_order=[],
   )
-  apply_clause_order_reordering([(ep, False)])
-  assert [s.clause_idx for s in cj.sources] == [0, 1]
+  new_steps = apply_clause_order_reordering([(ep, False)])
+  new_cj = new_steps[0][0].pipeline[0]
+  assert [s.clause_idx for s in new_cj.sources] == [0, 1]
 
 
 # -----------------------------------------------------------------------------
@@ -168,9 +178,12 @@ def test_prefix_reorder_moves_prefixed_to_front():
   cj = mir.ColumnJoin(var_name="y", sources=[s0, s1])
   ins = mir.InsertInto(rel_name="R", version=Version.NEW, vars=["y"], index=[0])
   ep = mir.ExecutePipeline(pipeline=[cj, ins], source_specs=[], dest_specs=[], rule_name="T")
-  apply_prefix_source_reordering([(ep, False)])
-  assert cj.sources[0].rel_name == "B"  # prefixed moved to front
-  assert cj.sources[1].rel_name == "A"
+  new_steps = apply_prefix_source_reordering([(ep, False)])
+  new_cj = new_steps[0][0].pipeline[0]
+  assert new_cj.sources[0].rel_name == "B"  # prefixed moved to front
+  assert new_cj.sources[1].rel_name == "A"
+  # Input is untouched.
+  assert [s.rel_name for s in cj.sources] == ["A", "B"]
 
 
 def test_prefix_reorder_noop_when_first_already_prefixed():
@@ -182,9 +195,10 @@ def test_prefix_reorder_noop_when_first_already_prefixed():
   cj = mir.ColumnJoin(var_name="y", sources=[s0, s1])
   ins = mir.InsertInto(rel_name="R", version=Version.NEW, vars=["y"], index=[0])
   ep = mir.ExecutePipeline(pipeline=[cj, ins], source_specs=[], dest_specs=[], rule_name="T")
-  apply_prefix_source_reordering([(ep, False)])
-  assert cj.sources[0].rel_name == "A"
-  assert cj.sources[1].rel_name == "B"
+  new_steps = apply_prefix_source_reordering([(ep, False)])
+  new_cj = new_steps[0][0].pipeline[0]
+  assert new_cj.sources[0].rel_name == "A"
+  assert new_cj.sources[1].rel_name == "B"
 
 
 def test_prefix_reorder_noop_when_no_prefixed_source():
@@ -194,8 +208,9 @@ def test_prefix_reorder_noop_when_no_prefixed_source():
   cj = mir.ColumnJoin(var_name="y", sources=[s0, s1])
   ins = mir.InsertInto(rel_name="R", version=Version.NEW, vars=["y"], index=[0])
   ep = mir.ExecutePipeline(pipeline=[cj, ins], source_specs=[], dest_specs=[], rule_name="T")
-  apply_prefix_source_reordering([(ep, False)])
-  assert [s.rel_name for s in cj.sources] == ["A", "B"]
+  new_steps = apply_prefix_source_reordering([(ep, False)])
+  new_cj = new_steps[0][0].pipeline[0]
+  assert [s.rel_name for s in new_cj.sources] == ["A", "B"]
 
 
 # -----------------------------------------------------------------------------
@@ -239,13 +254,16 @@ def test_balanced_scan_pass_converts_column_join_to_positioned_extract():
     dest_specs=[ins],
     rule_name="T",
   )
-  apply_balanced_scan_pass([(ep, False)])
+  new_steps = apply_balanced_scan_pass([(ep, False)])
+  new_ep = new_steps[0][0]
   # bs stays; cj turned into positioned-extract; ins stays.
-  assert isinstance(ep.pipeline[0], mir.BalancedScan)
-  assert isinstance(ep.pipeline[1], mir.PositionedExtract)
-  assert ep.pipeline[1].var_name == "a"
-  assert ep.pipeline[1].sources == [cj_src]
-  assert isinstance(ep.pipeline[2], mir.InsertInto)
+  assert isinstance(new_ep.pipeline[0], mir.BalancedScan)
+  assert isinstance(new_ep.pipeline[1], mir.PositionedExtract)
+  assert new_ep.pipeline[1].var_name == "a"
+  assert new_ep.pipeline[1].sources == [cj_src]
+  assert isinstance(new_ep.pipeline[2], mir.InsertInto)
+  # Input ep is untouched.
+  assert isinstance(ep.pipeline[1], mir.ColumnJoin)
 
 
 def test_balanced_scan_pass_leaves_non_balanced_var_alone():
@@ -270,8 +288,9 @@ def test_balanced_scan_pass_leaves_non_balanced_var_alone():
     dest_specs=[ins],
     rule_name="T",
   )
-  apply_balanced_scan_pass([(ep, False)])
-  assert isinstance(ep.pipeline[1], mir.ColumnJoin)
+  new_steps = apply_balanced_scan_pass([(ep, False)])
+  new_ep = new_steps[0][0]
+  assert isinstance(new_ep.pipeline[1], mir.ColumnJoin)
 
 
 def test_balanced_scan_pass_noop_when_no_balanced_scan():
@@ -286,8 +305,9 @@ def test_balanced_scan_pass_noop_when_no_balanced_scan():
     dest_specs=[ins],
     rule_name="T",
   )
-  apply_balanced_scan_pass([(ep, False)])
-  assert ep.pipeline == [scan, ins]
+  new_steps = apply_balanced_scan_pass([(ep, False)])
+  new_ep = new_steps[0][0]
+  assert new_ep.pipeline == [scan, ins]
 
 
 if __name__ == "__main__":

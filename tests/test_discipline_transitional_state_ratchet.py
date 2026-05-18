@@ -70,16 +70,22 @@ def _all_shim_sites() -> dict[Path, int]:
 # RATCHET: only DECREASE this. Increases require explicit owner
 # sign-off + amendment of D18 in `docs/code_discipline.md`.
 #
-# Snapshot post-A2.2 (orchestrator concurrent_write shim removed via
-# the new `apply_concurrent_write_marking` MIR pass; rebased on top
-# of A2.1 which already removed the 6 envelope + pipeline_utils shims):
-#   ir/mir/passes.py                      10
-#   ir/codegen/cuda/orchestrator.py        0  (was 1)
+# Snapshot post-A2.3 (final A2 endpoint — rebased on top of #33 + #35):
+# All transitional `object.__setattr__` shims on frozen MIR ops are
+# removed. A2.1 cleared the 6 envelope + pipeline_utils sites; A2.2
+# cleared the 1 orchestrator site via the new
+# `apply_concurrent_write_marking` MIR pass; A2.3 (this PR) clears
+# the 10 mir/passes.py reorder + source-spec + balanced-scan sites
+# via the return-new-instance pattern + `_walk_pipelines` helper.
+#   ir/mir/passes.py                       0
+#   ir/codegen/cuda/orchestrator.py        0
 #                                       ----
-#                              total      10
+#                              total       0
 #
-# A2.3 removes the mir/passes.py reorder shims (10 → 0).
-_MAX_TRANSITIONAL_SHIMS = 10
+# `core/passes.py` carries one permanent framework-infra
+# object.__setattr__ (LoweringPass dispatch table → frozen LowerCtx);
+# excluded via `_EXCLUDED` per D18 documentation.
+_MAX_TRANSITIONAL_SHIMS = 0
 
 
 def test_no_transitional_shim_growth() -> None:

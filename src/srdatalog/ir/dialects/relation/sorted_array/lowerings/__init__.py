@@ -322,6 +322,32 @@ def lower_scan_pipeline(
   head = ops[0]
   rest = ops[1:]
 
+  # Phase B / Wave 2A (per docs/phase_b_lowering_dispatcher.md §5):
+  # ROOT-position MIR op types registered in `USE_DECLARATIVE` route
+  # through their per-op `@lowering` rules instead of the legacy
+  # `if isinstance` branches below. Mirrors the `_lower_inner_chain`
+  # dispatch block for middle-of-chain ops (Filter / ConstantBind).
+  # Scan is the first root op migrated (B-Scan); future root-op
+  # migrations (B-CJ-single, B-CJ-multi, B-Cart) extend this block.
+  # Layer 3 cleanup deletes both branches AND `USE_DECLARATIVE` once
+  # every MIR op is migrated. Imports are function-local to keep the
+  # module import graph linear (the sibling per-op modules import
+  # back from this file).
+  from srdatalog.ir.dialects.relation.sorted_array import USE_DECLARATIVE
+
+  if type(head) in USE_DECLARATIVE:
+    if isinstance(head, mir.Scan):
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_scan import (
+        lower_mir_scan_in_chain,
+      )
+
+      return lower_mir_scan_in_chain(head, rest, ctx)
+    raise AssertionError(
+      f'lower_scan_pipeline: USE_DECLARATIVE contains {type(head).__name__!r} '
+      f'but no root-dispatch wiring exists for it. Add the '
+      f'`lower_mir_<op>_in_chain` import + call above.'
+    )
+
   if isinstance(head, mir.Scan):
     return _lower_root_scan(head, rest, ctx)
   if isinstance(head, mir.ColumnJoin):

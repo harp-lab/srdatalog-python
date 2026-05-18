@@ -103,6 +103,14 @@ def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> m.Mi
   if isinstance(node, m.PositionedExtract):
     new_sources = [_assign_handle_positions_rec(src, offset_box) for src in node.sources]
     return replace(node, sources=new_sources)
+  # C5: `mir.TiledCartesian` wraps an eligible `CartesianJoin` (the
+  # `TiledCartesian` pragma's materialized form). The wrap is opaque
+  # to the handle walk; recurse into `inner` so the wrapped Cart's
+  # handles get assigned identically to the unwrapped flow.
+  if isinstance(node, m.TiledCartesian):
+    new_inner = _assign_handle_positions_rec(node.inner, offset_box)
+    assert isinstance(new_inner, m.CartesianJoin)
+    return replace(node, inner=new_inner)
   return node
 
 
@@ -147,12 +155,16 @@ def count_handles(ops: list[m.MirNode]) -> int:
   '''Number of `views[]` slots needed by the kernel — `max(handle_start) + 1`.'''
   result = 0
   for op in ops:
-    if isinstance(op, m.ColumnJoin | m.CartesianJoin):
-      for src in op.sources:
+    # C5: `TiledCartesian` wraps a CartesianJoin; unwrap before
+    # accounting so the wrapped Cart's sources count toward the
+    # handle slot total identically to the unwrapped flow.
+    actual = op.inner if isinstance(op, m.TiledCartesian) else op
+    if isinstance(actual, m.ColumnJoin | m.CartesianJoin):
+      for src in actual.sources:
         h = getattr(src, 'handle_start', -1)
         result = max(result, h + 1)
-    elif isinstance(op, m.Scan | m.Negation | m.Aggregate):
-      result = max(result, getattr(op, 'handle_start', -1) + 1)
+    elif isinstance(actual, m.Scan | m.Negation | m.Aggregate):
+      result = max(result, getattr(actual, 'handle_start', -1) + 1)
   return result
 
 
@@ -207,10 +219,17 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
   '''Walk the pipeline and collect a deduplicated list of `ViewSpec`s in
   first-occurrence order. Covers every op that references a view
   (ColumnJoin, CartesianJoin, Scan, Negation, Aggregate, BalancedScan,
-  PositionedExtract).'''
+  PositionedExtract).
+
+  C5: `mir.TiledCartesian` wraps a `CartesianJoin`; the wrap is
+  opaque to this walk so we unwrap before dispatching to the same
+  source-collection logic used for the unwrapped Cart.
+  '''
   specs: list[ViewSpec] = []
   seen: set[str] = set()
   for op in ops:
+    if isinstance(op, m.TiledCartesian):
+      op = op.inner
     if isinstance(op, m.ColumnJoin | m.CartesianJoin):
       for src in op.sources:
         if isinstance(src, m.ColumnSource):
@@ -331,6 +350,11 @@ def emit_view_declarations(
     view_vars[key] = view_var
 
   for op in pipeline:
+    # C5: `TiledCartesian` wraps a `CartesianJoin` — unwrap so the
+    # handle-index map ('1' -> 'view_R_0_FULL_VER', etc.) gets
+    # populated identically to the unwrapped flow.
+    if isinstance(op, m.TiledCartesian):
+      op = op.inner
     if isinstance(op, m.ColumnJoin | m.CartesianJoin):
       for src in op.sources:
         k = _spec_key(src.rel_name, list(src.index), src.version.code)

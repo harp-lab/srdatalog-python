@@ -228,6 +228,11 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
     # dispatches to `_lower_nested_cart` via `_lower_inner_chain`,
     # which already handles 1+ source forms (with prefix narrowing).
     # Hit by ddisasm StackLiveVarBlockEnd1_D0_splitB.
+    #
+    # C5: `mir.TiledCartesian` (the wrap op the `TiledCartesian`
+    # pragma materializes around an eligible Cartesian) is accepted
+    # in the same slot — `_lower_inner_chain` dispatches it through
+    # `lower_tiled_cartesian_in_chain`.
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
@@ -235,18 +240,23 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
         continue
       if isinstance(op, mir.CartesianJoin):
         continue
+      if isinstance(op, mir.TiledCartesian):
+        continue
       return False
     return True
 
   if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
     # M3+M5+M7+M5.x shape: multi-source root CJ; middle can hold
     # nested CJs / Filter / ConstantBind / Negation / Cartesian.
+    # C5: same `mir.TiledCartesian` allowance as the Scan-rooted case.
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
       if isinstance(op, mir.ColumnJoin) and len(op.sources) >= 2:
         continue
       if isinstance(op, mir.CartesianJoin):
+        continue
+      if isinstance(op, mir.TiledCartesian):
         continue
       if isinstance(op, mir.Negation):
         continue
@@ -1073,6 +1083,21 @@ def _lower_inner_chain(
   if isinstance(head, mir.CartesianJoin):
     return _lower_nested_cart(head, tail, ctx)
 
+  # C5 (per docs/phase_c_pragma_materialization.md §4.3): the
+  # `TiledCartesian` MIR wrap op is the materialized form of the
+  # `TiledCartesian` Pragma. Dispatch here because the tiled emission
+  # helper (`_lower_nested_cart_tiled`) needs both the wrapped
+  # Cartesian AND the trailing chain (`tail`) — InsertIntos plus any
+  # Filter / ConstantBind. The standalone @lowering entry registered
+  # via the dialect package is a structural contract that asserts on
+  # direct invocation; real emission flows through this branch.
+  if isinstance(head, mir.TiledCartesian):
+    from srdatalog.ir.dialects.relation.sorted_array.pragmas.tiled_cartesian import (
+      lower_tiled_cartesian_in_chain,
+    )
+
+    return lower_tiled_cartesian_in_chain(head, tail, ctx)
+
   if isinstance(head, mir.Negation):
     return _lower_negation(head, tail, ctx)
 
@@ -1087,7 +1112,20 @@ def _tiled_cart_eligible(
   per-source / materialize phase / ctx.tiled_cartesian set. The `rest`
   shape is unconstrained (matches legacy) — Filters and other ops
   between Cart and the trailing InsertIntos pass through naturally
-  via `_lower_inner_chain` with `ctx.tiled_cartesian_valid_var` set.'''
+  via `_lower_inner_chain` with `ctx.tiled_cartesian_valid_var` set.
+
+  DEAD CODE NOTE (C5, per docs/phase_c_pragma_materialization.md §5.1):
+  the `ctx.tiled_cartesian` gate is the legacy `if ctx.tiled_cartesian:`
+  branch that the C5 PR migrates to the `TiledCartesian` Pragma +
+  `mir.TiledCartesian` wrap op. The predicate stays LIVE during the
+  C5 dual-write transition because `complete_runner.py` still
+  threads `LoweringCtx.tiled_cartesian` from
+  `has_tiled_cartesian_eligible(pipeline)` and the wrap op dispatch
+  in `_lower_inner_chain` flips the same flag for the body render.
+  Phase A3 deletes the `ctx.tiled_cartesian` field and this branch
+  collapses to the shape-only checks (which then move to
+  `pragmas/tiled_cartesian.py:_is_eligible_cart`).
+  '''
   if not ctx.tiled_cartesian or ctx.is_counting:
     return False
   if len(cart_op.sources) != 2:
@@ -1568,6 +1606,20 @@ def _lower_nested_cart(
   if num_sources < 1:
     raise ValueError('_lower_nested_cart: must have at least 1 source')
 
+  # DEAD CODE NOTE (C5, per docs/phase_c_pragma_materialization.md §5.1):
+  # this `if _tiled_cart_eligible(...)` dispatch is the legacy
+  # `if ctx.tiled_cartesian:` branch that the C5 PR migrates to the
+  # `mir.TiledCartesian` wrap op dispatched from `_lower_inner_chain`.
+  # The branch stays LIVE during the C5 dual-write transition because
+  # the legacy runner-driven path (`complete_runner.py` ->
+  # `LoweringCtx.tiled_cartesian`) still sets `ctx.tiled_cartesian=True`
+  # for shape-eligible pipelines, independent of any rule pragma. The
+  # wrap op fires only when `ep.tiled_cartesian is False` (synthesized
+  # EPs / post-A3 state); the dual-write `materialize_tiled_cartesian`
+  # handler short-circuits when the bool is set so the two paths
+  # never both fire on the same Cartesian. Phase A3 deletes the
+  # `ctx.tiled_cartesian` field, the bool short-circuit, and this
+  # dispatch — leaving the wrap-op path as the sole emission driver.
   if _tiled_cart_eligible(cart_op, ctx):
     return _lower_nested_cart_tiled(cart_op, rest, ctx)
 

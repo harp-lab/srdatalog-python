@@ -233,6 +233,11 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
     # pragma materializes around an eligible Cartesian) is accepted
     # in the same slot — `_lower_inner_chain` dispatches it through
     # `lower_tiled_cartesian_in_chain`.
+    #
+    # B-CJ-single: single-source ColumnJoin (`len(sources) == 1`)
+    # is accepted in the middle slot via `_lower_nested_cj_single` —
+    # see `_lower_inner_chain` for the dispatch + the new path under
+    # `USE_DECLARATIVE`.
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
@@ -242,6 +247,8 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
         continue
       if isinstance(op, mir.TiledCartesian):
         continue
+      if isinstance(op, mir.ColumnJoin) and len(op.sources) == 1:
+        continue
       return False
     return True
 
@@ -249,10 +256,13 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
     # M3+M5+M7+M5.x shape: multi-source root CJ; middle can hold
     # nested CJs / Filter / ConstantBind / Negation / Cartesian.
     # C5: same `mir.TiledCartesian` allowance as the Scan-rooted case.
+    # B-CJ-single: same single-source ColumnJoin allowance as above.
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
       if isinstance(op, mir.ColumnJoin) and len(op.sources) >= 2:
+        continue
+      if isinstance(op, mir.ColumnJoin) and len(op.sources) == 1:
         continue
       if isinstance(op, mir.CartesianJoin):
         continue
@@ -328,14 +338,20 @@ def lower_scan_pipeline(
   # `if isinstance` branches below. Mirrors the `_lower_inner_chain`
   # dispatch block for middle-of-chain ops (Filter / ConstantBind).
   # Scan is the first root op migrated (B-Scan); future root-op
-  # migrations (B-CJ-single, B-CJ-multi, B-Cart) extend this block.
+  # migrations (B-CJ-multi, B-Cart) extend this block.
   # Layer 3 cleanup deletes both branches AND `USE_DECLARATIVE` once
   # every MIR op is migrated. Imports are function-local to keep the
   # module import graph linear (the sibling per-op modules import
   # back from this file).
-  from srdatalog.ir.dialects.relation.sorted_array import USE_DECLARATIVE
-
-  if type(head) in USE_DECLARATIVE:
+  #
+  # B-CJ-single: `mir.ColumnJoin` is in `USE_DECLARATIVE` but only
+  # the single-source case routes through the new path — and even
+  # then only mid-chain (see `_lower_inner_chain`). Root-position
+  # single-source CJ is not a fixture today (`_supported_pipeline`
+  # requires `len(sources) >= 2` for root CJ). `_should_use_declarative`
+  # encodes the gate so root-position multi-source CJ keeps falling
+  # through to `_lower_root_cj_multi` below.
+  if _should_use_declarative(head):
     if isinstance(head, mir.Scan):
       from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_scan import (
         lower_mir_scan_in_chain,
@@ -344,8 +360,9 @@ def lower_scan_pipeline(
       return lower_mir_scan_in_chain(head, rest, ctx)
     raise AssertionError(
       f'lower_scan_pipeline: USE_DECLARATIVE contains {type(head).__name__!r} '
-      f'but no root-dispatch wiring exists for it. Add the '
-      f'`lower_mir_<op>_in_chain` import + call above.'
+      f'(and `_should_use_declarative` returned True) but no root-'
+      f'dispatch wiring exists for it. Add the `lower_mir_<op>_in_chain` '
+      f'import + call above.'
     )
 
   if isinstance(head, mir.Scan):
@@ -1042,6 +1059,38 @@ def _lower_root_cj_bg(
 # -----------------------------------------------------------------------------
 
 
+def _should_use_declarative(head: mir.MirNode) -> bool:
+  '''Gate: does the head op route through the new per-op `@lowering`
+  path (instead of the legacy `if isinstance` branches below)?
+
+  For most MIR op types this is just `type(head) in USE_DECLARATIVE`.
+  For `mir.ColumnJoin` it additionally checks the source count: the
+  single-source case (`len(sources) == 1`) is owned by B-CJ-single
+  (this PR); the multi-source case (`len(sources) >= 2`) stays on
+  the legacy `_lower_nested_cj_multi` / `_lower_root_cj_multi`
+  branches until B-CJ-multi lands.
+
+  B-CJ-multi extends this helper to drop the source-count guard
+  (the single `return True` for `mir.ColumnJoin`) — the multi-
+  source path then has its own `lower_mir_cj_multi_in_chain`
+  + the same `USE_DECLARATIVE` membership wires both shapes
+  through the new dispatch.
+
+  Per docs/phase_b_lowering_dispatcher.md §4 — the "type AND
+  structural shape" gate keeps the dispatch atomic so neither
+  `_lower_inner_chain` nor `lower_scan_pipeline` ends up with two
+  isinstance-cascades on the same op type.
+  '''
+  from srdatalog.ir.dialects.relation.sorted_array import USE_DECLARATIVE
+
+  if type(head) not in USE_DECLARATIVE:
+    return False
+  if isinstance(head, mir.ColumnJoin):
+    # B-CJ-single owns single-source; B-CJ-multi (next PR) owns multi.
+    return len(head.sources) == 1
+  return True
+
+
 def _lower_inner_chain(
   rest: list[mir.MirNode],
   ctx: LoweringCtx,
@@ -1078,9 +1127,17 @@ def _lower_inner_chain(
   # legacy `mir.InsertInto` head branch below remains the
   # safety-net implementation (entered when InsertInto is dropped
   # from `USE_DECLARATIVE`, e.g. during the byte-equivalence test).
-  from srdatalog.ir.dialects.relation.sorted_array import USE_DECLARATIVE
-
-  if type(head) in USE_DECLARATIVE:
+  #
+  # B-CJ-single (per docs/phase_b_lowering_dispatcher.md §4 row
+  # B-CJ-single): `mir.ColumnJoin` is in `USE_DECLARATIVE` but only
+  # the single-source case (`len(sources) == 1`) routes through the
+  # new path — multi-source ColumnJoin stays on the legacy
+  # `_lower_nested_cj_multi` branch below, owned by the next PR
+  # (B-CJ-multi). The `_should_use_declarative` helper encapsulates
+  # this "type AND structural shape" gate so the dispatch stays a
+  # single decision; B-CJ-multi extends the helper to drop the
+  # source-count guard once it lands.
+  if _should_use_declarative(head):
     if isinstance(head, mir.Filter):
       from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_filter import (
         lower_mir_filter_in_chain,
@@ -1099,6 +1156,15 @@ def _lower_inner_chain(
       )
 
       return lower_mir_insert_into_in_chain(head, tail, ctx)
+    if isinstance(head, mir.ColumnJoin):
+      # B-CJ-single: guard already enforced single-source by
+      # `_should_use_declarative`; the multi-source fall-through
+      # below stays the legacy path until B-CJ-multi.
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cj_single import (
+        lower_mir_cj_single_in_chain,
+      )
+
+      return lower_mir_cj_single_in_chain(head, tail, ctx)
     raise AssertionError(
       f'_lower_inner_chain: USE_DECLARATIVE contains {type(head).__name__!r} '
       f'but no chain-dispatch wiring exists for it. Add the '
@@ -1149,6 +1215,15 @@ def _lower_inner_chain(
     if isinstance(rest_op, Block):
       return Block(stmts=(bind_stmt, *rest_op.stmts))
     return Block(stmts=(bind_stmt, rest_op))
+
+  if isinstance(head, mir.ColumnJoin) and len(head.sources) == 1:
+    # B-CJ-single safety-net branch: same delegation pattern as the
+    # B-Filter / B-ConstantBind / B-InsertInto rows above. The new
+    # path (when `mir.ColumnJoin` is in `USE_DECLARATIVE`) routes
+    # through `lower_mir_cj_single_in_chain` which calls back into
+    # this helper, so both paths share the same emission and the
+    # byte-equivalence fixture can swap between them.
+    return _lower_nested_cj_single(head, tail, ctx)
 
   if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
     return _lower_nested_cj_multi(head, tail, ctx)
@@ -2272,6 +2347,177 @@ def _lower_nested_cj_multi(
   else:
     stmts.extend(alias_bind_stmts)
     stmts.append(intersect_iter_op)
+
+  return Block(stmts=tuple(stmts))
+
+
+# -----------------------------------------------------------------------------
+# Nested single-source ColumnJoin (B-CJ-single)
+# -----------------------------------------------------------------------------
+
+
+def _lower_nested_cj_single(
+  cj_op: mir.ColumnJoin,
+  rest: list[mir.MirNode],
+  ctx: LoweringCtx,
+) -> Op:
+  '''Lower a nested single-source ColumnJoin.
+
+  Mirrors the runtime `JoinExecutor::execute_single_source` semantics
+  in `runtime/.../instructions/instruction_column_join.h`: a sequential
+  per-source iteration that binds `cj_op.var_name` from one
+  ColumnSource, no intersection needed. Each thread takes a
+  lane-strided share of the source's degree:
+
+      auto <h> = <parent_handle or root>;
+      uint32_t <degree> = <h>.degree();
+      uint32_t <lane> = tile.thread_rank();
+      uint32_t <group_size> = tile.size();
+      for (uint32_t <idx> = <lane>; <idx> < <degree>; <idx> += <group_size>) {
+        auto <var_name> = <h>.get_value_at(<view>, <idx>);
+        auto <ch> = <h>.child_range(<idx>, <var_name>, tile, <view>);
+        <body>
+      }
+
+  Counter trajectory: body is rendered FIRST (its counter bumps
+  persist), then our outer scaffold names are allocated. This matches
+  `_lower_nested_cj_multi`'s ordering so the byte-equivalence test
+  fixture can swap between the legacy branch and the new path
+  without seeing counter drift.
+
+  Source handling per src.prefix_vars (same convention as
+  `_lower_nested_cj_multi`):
+    - non-empty: alias the parent handle (looked up by state key
+      registered by the surrounding CJ).
+    - empty (fresh): construct a fresh root via SaRoot. No alias.
+
+  Per `docs/phase_b_lowering_dispatcher.md` §4 row B-CJ-single
+  (difficulty `medium`): this helper is the single-source half of
+  the ColumnJoin migration. The multi-source half (`>=2` sources)
+  stays in `_lower_nested_cj_multi` and is migrated by B-CJ-multi
+  (the next PR).
+  '''
+  num_sources = len(cj_op.sources)
+  assert num_sources == 1
+  src = cj_op.sources[0]
+  assert isinstance(src, mir.ColumnSource)
+
+  inner_var_sanitized = _sanitize_var_name(cj_op.var_name)
+
+  # Step 1: pre-register the deterministic ch_<rel>_<src>_<var> name
+  # so any deeper nested CJ in body can find the narrowed child by
+  # state key. Same convention as `_lower_nested_cj_multi`.
+  ch_name = f'ch_{src.rel_name}_{src.handle_start}_{inner_var_sanitized}'
+  new_state_key = _state_key(
+    src.rel_name,
+    list(src.index),
+    [*src.prefix_vars, cj_op.var_name],
+    src.version,
+  )
+  ctx.handle_vars[new_state_key] = ch_name
+  ctx.bound_vars.append(cj_op.var_name)
+
+  # Step 2: render body before allocating our own counter-bumped
+  # names. Body's bumps persist (legacy semantics for nested
+  # contexts: no save/restore at this level — same as
+  # `_lower_nested_cj_multi`).
+  body_op = _lower_inner_chain(rest, ctx)
+
+  ctx.bound_vars.pop()
+  ctx.handle_vars.pop(new_state_key, None)
+
+  # Step 3: allocate our own scaffold names.
+  src_view = ctx.view_var_names.get(str(src.handle_start), '')
+  if not src_view:
+    raise ValueError(
+      f'_lower_nested_cj_single: no view var for source handle_idx {src.handle_start}'
+    )
+
+  alias_var = ctx.fresh(f'h_{src.rel_name}_{src.handle_start}')
+  lane_var = ctx.fresh('lane')
+  group_size_var = ctx.fresh('group_size')
+  degree_var = ctx.fresh('degree')
+  idx_var = ctx.fresh('idx0')
+
+  if src.prefix_vars:
+    # Aliased from a parent handle in the enclosing scope.
+    parent_state_key = _state_key(src.rel_name, list(src.index), src.prefix_vars, src.version)
+    parent_handle = ctx.handle_vars.get(parent_state_key, '')
+    if not parent_handle:
+      raise ValueError(
+        f'_lower_nested_cj_single: no parent handle for state key {parent_state_key!r}'
+      )
+    alias_bind: Op = Bind(name=alias_var, expr=VarRef(name=parent_handle))
+  else:
+    # Fresh source: brand-new root handle, no narrowing.
+    alias_bind = Bind(name=alias_var, expr=SaRoot(view_name=src_view))
+
+  stmts: list[Op] = []
+  if ctx.debug:
+    stmts.append(
+      Comment(
+        text=f'Nested ColumnJoin (single source): bind \'{cj_op.var_name}\' from {src.rel_name}'
+      )
+    )
+    src_debug = f'({src.rel_name} :handle {src.handle_start} :prefix ({" ".join(src.prefix_vars)}))'
+    stmts.append(Comment(text=f'MIR: (column-join :var {cj_op.var_name} :sources ({src_debug} ))'))
+
+  stmts.append(alias_bind)
+  stmts.append(IfContinueIfNot(cond=SaValid(handle_name=alias_var)))
+  stmts.append(
+    Bind(
+      name=lane_var,
+      expr=RawString(text=f'{ctx.tile_var}.thread_rank()'),
+      type_decl='uint32_t',
+    )
+  )
+  stmts.append(
+    Bind(
+      name=group_size_var,
+      expr=RawString(text=f'{ctx.tile_var}.size()'),
+      type_decl='uint32_t',
+    )
+  )
+  stmts.append(
+    Bind(
+      name=degree_var,
+      expr=SaDegree(handle_name=alias_var),
+      type_decl='uint32_t',
+    )
+  )
+
+  # Loop body: bind the value, register the child range, then run
+  # the recursive body. The child_bind matches the legacy multi-
+  # source name convention (`ch_<rel>_<src>_<var>`) so deeper
+  # CJs can look it up by state key.
+  val_bind = Bind(
+    name=inner_var_sanitized,
+    expr=SaGetValAt(
+      handle_name=alias_var,
+      view_name=src_view,
+      idx_var_name=idx_var,
+    ),
+  )
+  child_bind = Bind(
+    name=ch_name,
+    expr=SaChildRange(
+      handle_name=alias_var,
+      pos_expr=idx_var,
+      key_var=inner_var_sanitized,
+      view_name=src_view,
+    ),
+  )
+  loop_body = Block(stmts=(val_bind, child_bind, body_op))
+
+  stmts.append(
+    CartesianFlatLoop(
+      idx_var=idx_var,
+      bound_var=degree_var,
+      lane_var=lane_var,
+      group_size_var=group_size_var,
+      body=loop_body,
+    )
+  )
 
   return Block(stmts=tuple(stmts))
 

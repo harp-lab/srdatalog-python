@@ -50,6 +50,8 @@ The legacy `plugin_view_count` is the underlying source for
 
 from __future__ import annotations
 
+from typing import Any
+
 from srdatalog.ir.codegen.cuda.envelope import ViewSpec
 from srdatalog.ir.core import Dialect
 
@@ -89,7 +91,13 @@ def view_counts_for_specs(
   return [view_count(sp.version, rel_index_types.get(sp.rel_name, '')) for sp in view_specs]
 
 
-__all__ = ['DIALECT', 'D2lSegmentLoop', 'view_count', 'view_counts_for_specs']
+__all__ = [
+  'DIALECT',
+  'D2lSegmentLoop',
+  'register',
+  'view_count',
+  'view_counts_for_specs',
+]
 
 
 # Verifier scaffolding — D2L invariants (segment_depth coherence, etc.)
@@ -103,3 +111,62 @@ def _register_passes() -> None:
 
 
 _register_passes()
+
+
+# ---------------------------------------------------------------------------
+# Phase E plugin entry point
+# ---------------------------------------------------------------------------
+#
+# `register(compiler)` is the callable invoked by F4's plugin discovery
+# (`Compiler.with_default_plugins()`) AND by explicit user-driven
+# `compiler.register_plugin(...)` calls. Wired in `pyproject.toml` under
+# `[project.entry-points."srdatalog.plugins"]` as `d2l`.
+#
+# Coexistence with legacy direct-import: the module-level
+# `_register_passes()` call above still runs on first import, so the
+# dialect's `verifier` is populated regardless of whether anyone goes
+# through `register(compiler)`. The other side-effect of importing this
+# module — `from . import cuda as _cuda`, which registers the D2L
+# `IndexPlugin` with `codegen.cuda.plugin._PLUGIN_REGISTRY` — also runs
+# at import time and is naturally idempotent (Python's module cache
+# guarantees a single import per process). What `register(compiler)`
+# adds on top is the per-Compiler `register_dialect(DIALECT)` step that
+# F4's plugin loader needs to attribute ownership of the dialect to
+# this plugin and populate the running Compiler's registry.
+#
+# Re-running `register(compiler)` on the same Compiler is safe: F4's
+# `register_plugin` (see `core/dialect.py`) short-circuits on
+# already-loaded plugin names.
+
+
+def register(compiler: Any) -> None:
+  '''Plugin entry point — register the `relation.d2l` dialect on the
+  given Compiler.
+
+  Verifier was wired by `_register_passes()` and the CUDA `IndexPlugin`
+  registration ran via `from . import cuda` — both at module-import
+  time (one-shot side effects; Python's module cache makes them
+  naturally idempotent). This callable only performs the per-Compiler
+  step: `compiler.register_dialect(DIALECT)`.
+
+  Idempotent: F4's `Compiler.register_plugin` short-circuits
+  re-registration of the same plugin name.
+  '''
+  compiler.register_dialect(DIALECT)
+
+
+# Plugin metadata read by F4's topo-sort + conflict detection
+# (see `core/plugin.py` — `_plugin_attr` reads these).
+#
+# `plugin_name` — what F4 records as the loaded-plugin identifier.
+#   Matches the entry-point name `d2l` declared in `pyproject.toml`.
+# `provides` — the dialect name this plugin contributes.
+# `requires` — dialects that must be loaded first. Empty: although
+#   `sorted_array`'s `lower_execute_pipeline` declares
+#   `produces=('iir.cf', 'relation.sorted_array', 'relation.d2l', ...)`,
+#   the D2L dialect itself depends on nothing at registration time —
+#   the cross-dialect production ordering is enforced by the
+#   pass-driver's `consumes`/`produces` walk, not by plugin load order.
+register.plugin_name = 'd2l'  # type: ignore[attr-defined]
+register.provides = ('relation.d2l',)  # type: ignore[attr-defined]
+register.requires = ()  # type: ignore[attr-defined]

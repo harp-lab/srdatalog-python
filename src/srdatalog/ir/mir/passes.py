@@ -497,10 +497,61 @@ def apply_concurrent_write_marking(
 
 
 def apply_all_mir_passes(steps: list[tuple[mir.MirNode, bool]]) -> list[tuple[mir.MirNode, bool]]:
-  '''Run the ported MIR optimization passes in Nim order.'''
+  '''Run the ported MIR optimization passes in Nim order.
+
+  Phase C2 (per docs/phase_c_pragma_materialization.md §5): thread
+  `MirPragmaPass` in BEFORE the optimization passes that read the
+  legacy named bool fields on `ExecutePipeline` (clause-order /
+  prefix-source / concurrent-write all consult `dedup_hash` /
+  `work_stealing` / etc.). Today the typed pragma materialization
+  only INSERTS wrap ops; it does NOT clear the legacy bool fields
+  (the C2 dual-write contract preserves those for the
+  `compile_kernel_body`-driven legacy emitter). So the order is
+  flexible — but landing the pragma pass first matches the spec's
+  ordering target for when the bools eventually go away in A3.
+
+  We invoke `MirPragmaPass` per top-level step. The pass's
+  `Compiler` parameter is only used for diagnostics + handler
+  registry consultation; the registry is the module-global one
+  populated at import time, not a per-`Compiler` overlay (per the
+  current `core.pragma._PRAGMA_REGISTRY` design). We pass `None`
+  here because no `Compiler` instance is in scope at the
+  `apply_all_mir_passes` boundary — the pass's `apply` only forwards
+  the compiler to handler `PragmaCtx`s, and the C2 `DedupHash`
+  handler doesn't read it.
+  '''
+  steps = apply_mir_pragma_pass(steps)
   steps = insert_pre_reconstruct_rebuilds(steps)
   steps = apply_clause_order_reordering(steps)
   steps = apply_prefix_source_reordering(steps)
   steps = apply_balanced_scan_pass(steps)
   steps = apply_concurrent_write_marking(steps)
   return steps
+
+
+def apply_mir_pragma_pass(
+  steps: list[tuple[mir.MirNode, bool]],
+) -> list[tuple[mir.MirNode, bool]]:
+  '''Run `MirPragmaPass` over every top-level MIR step.
+
+  Materializes every typed `Pragma` instance on each
+  `ExecutePipeline` into a wrap op, then strips the instance from
+  the EP's `pragmas` tuple. After this pass, `ep.pragmas` is empty
+  for every EP in the program (discipline R5b, per
+  `docs/pragma_as_typed_object.md` §8).
+
+  Separated from `apply_all_mir_passes` so callers that want pragma
+  materialization without the other MIR optimizations can run it
+  standalone — useful for tests that exercise just the pragma
+  surface. The default chain
+  (`hir/__init__.py:apply_all_mir_passes`) invokes it transparently.
+
+  No-op behavior is the dominant case today: with C1's framework +
+  C2's `DedupHash` as the only registered pragma, EPs without
+  `DedupHash()` are returned by-identity, so this pass is free for
+  the existing fixture set.
+  '''
+  from srdatalog.ir.mir.pragma_pass import MirPragmaPass
+
+  pas = MirPragmaPass()
+  return [(pas.apply(node, None), is_rec) for node, is_rec in steps]

@@ -1613,6 +1613,12 @@ def _lower_nested_cart(
   # `dedup_table.try_insert(...)` test, so the body must run per-tuple
   # (Nim emits the full Cart loop + var binds + dedup test in count
   # phase, not the closed-form add_count).
+  #
+  # DEAD CODE NOTE (C2): the `not ctx.dedup_hash` clause is the
+  # counterpart of the dedup branch in `_lower_insert_into`. Both
+  # are superseded by the `DedupGate` lowering registered by
+  # `pragmas/dedup_hash.py`; both remain LIVE during the C2 dual-
+  # write transition (see `_lower_insert_into`'s docstring).
   cartesian_as_product = (
     ctx.is_counting
     and not ctx.dedup_hash
@@ -2111,6 +2117,20 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
   `atomic_write_pos` names are kernel parameters injected by the
   runner-side dedup_hash plumbing — the dialect treats them as
   free variables.
+
+  DEAD CODE NOTE (C2): the `if ctx.dedup_hash:` branches below
+  (search for `use_dedup`) are superseded by the `@lowering(
+  target=iir.cf, source=mir.DedupGate)` rule registered by
+  `pragmas/dedup_hash.py`. The new lowering delegates back into
+  this helper with `ctx.dedup_hash` forced True, so the branches
+  remain functionally LIVE during the C2 transition (the
+  `with_pragma(DedupHash())` DSL dual-writes both the bool field
+  AND the typed pragma; see `pragmas/dedup_hash.py:
+  materialize_dedup_hash`). The branches will be removable once
+  Phase A3 drops the `dedup_hash: bool` field on
+  `mir.ExecutePipeline` and Phase B migrates the host `InsertInto`
+  lowering out of this monolith — until then they are the
+  byte-equivalence anchor for the dual-write transition.
   '''
   out_var = ctx.output_var_overrides.get(node.rel_name, ctx.output_var)
   vars_list = list(node.vars)

@@ -478,6 +478,8 @@ def _plan_variant(v: HirRuleVariant) -> None:
     v.dedup_hash = plan.dedup_hash
     v.balanced_root = list(plan.balanced_root)
     v.balanced_sources = list(plan.balanced_sources)
+    # Phase C2: propagate typed Pragma instances.
+    v.pragmas = tuple(plan.pragmas)
 
   v.count = rule.count
   v.clause_order = clause_order

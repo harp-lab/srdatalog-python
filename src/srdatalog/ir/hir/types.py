@@ -102,6 +102,14 @@ class HirRuleVariant:
   block_group: bool = False
   dedup_hash: bool = False
   count: bool = False
+  # Phase C2: typed Pragma instances propagated from PlanEntry.
+  # `MirPragmaPass` consumes these after they reach
+  # `mir.ExecutePipeline.pragmas` via `wrap_in_execute_pipeline`.
+  # Kept as `tuple[object, ...]` (not `tuple[Pragma, ...]`) to avoid
+  # importing the `core.pragma` symbol at HIR layer — HirRuleVariant
+  # is a planning record, not an Op subclass, and we prefer minimal
+  # cross-layer imports here.
+  pragmas: tuple[object, ...] = ()
 
 
 @dataclass

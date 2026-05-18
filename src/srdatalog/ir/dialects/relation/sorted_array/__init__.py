@@ -18,6 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import srdatalog.ir.mir.types as _mir_for_use_declarative
 from srdatalog.ir.core import Dialect
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
   SaChildRange,
@@ -35,6 +36,30 @@ from srdatalog.ir.dialects.relation.sorted_array.ops import (
 from srdatalog.ir.dialects.relation.sorted_array.types import (
   SaHandle,
   SaView,
+)
+
+# ---------------------------------------------------------------------------
+# USE_DECLARATIVE — Phase B migration ratchet (Wave 2A)
+# ---------------------------------------------------------------------------
+#
+# Per docs/phase_b_lowering_dispatcher.md §5: MIR op types listed here
+# are dispatched via the new per-op `@lowering` rules (in
+# `lowerings/lower_mir_<op>.py`) rather than the legacy imperative
+# `if isinstance(head, mir.X):` branches in `_lower_inner_chain`. The
+# set is monotonically growing during Phase B — Wave 2A PRs add one
+# entry per migrated op type. Layer 3 cleanup deletes both the set
+# and the legacy branches once every MIR op is migrated.
+#
+# DISCIPLINE: removing an entry from this set requires owner
+# sign-off (see code_discipline.md D12). The
+# `test_use_declarative_is_monotonic` discipline test guards this
+# property at CI time once it lands.
+
+USE_DECLARATIVE: frozenset[type] = frozenset(
+  {
+    _mir_for_use_declarative.Filter,
+    _mir_for_use_declarative.ConstantBind,
+  }
 )
 
 DIALECT = Dialect(
@@ -57,6 +82,7 @@ DIALECT = Dialect(
 
 __all__ = [
   'DIALECT',
+  'USE_DECLARATIVE',
   'SaChildRange',
   'SaDegree',
   'SaGetVal',
@@ -164,6 +190,44 @@ def _register_passes() -> None:
   )
   def lower_mir_tiled_cartesian(op: Any, ctx: Any) -> Any:
     return lower_tiled_cartesian(op, ctx)
+
+  # Wave 2A / B-Filter (per docs/phase_b_lowering_dispatcher.md §4
+  # row B-Filter): `mir.Filter` migrates to a standalone `@lowering`
+  # registration in its own file under
+  # `lowerings/lower_mir_filter.py`. The registered stub asserts on
+  # direct invocation because the chain-aware variant
+  # (`lower_mir_filter_in_chain`) needs the trailing `tail` from
+  # `_lower_inner_chain` — same split rationale as
+  # `lower_tiled_cartesian` above. The `USE_DECLARATIVE` ratchet
+  # below routes chain dispatch through the new path while keeping
+  # this registration as the dialect-ownership contract.
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_filter import (
+    lower_mir_filter,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.Filter,
+    consumes=('mir',),
+    produces=('iir.cf',),
+  )
+  def _lower_mir_filter_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_filter(op, ctx)
+
+  # Wave 2A / B-ConstantBind (per docs/phase_b_lowering_dispatcher.md
+  # §4 row B-ConstantBind): identical shape to B-Filter above.
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_constant_bind import (
+    lower_mir_constant_bind,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.ConstantBind,
+    consumes=('mir',),
+    produces=('iir.cf',),
+  )
+  def _lower_mir_constant_bind_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_constant_bind(op, ctx)
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.

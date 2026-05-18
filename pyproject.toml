@@ -67,6 +67,7 @@ iir_cf = "srdatalog.ir.dialects.iir.cf:register"
 sorted_array = "srdatalog.ir.dialects.relation.sorted_array:register"
 parallel_data = "srdatalog.ir.dialects.parallel.data:register"
 parallel_atomic_ws = "srdatalog.ir.dialects.parallel.atomic_ws:register"
+parallel_block_group = "srdatalog.ir.dialects.parallel.block_group:register"
 
 [project.urls]
 Homepage = "https://github.com/anthropics/srdatalog-python"

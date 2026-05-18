@@ -2147,6 +2147,33 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
   further below is unrelated to the C4 migration — it's a separate
   legacy plumbing path (batched-Cartesian WS materialize) not
   driven by `ctx.ws_enabled` and not in C4 scope.
+
+  DEAD CODE NOTE (C6 - count): the `if ctx.is_counting:` branches
+  in this function (and elsewhere in this monolith) are superseded
+  by the `@lowering(target=iir.cf, source=mir.CountPhase)` rule
+  registered by `iir/cf/pragmas/count.py`. Per
+  `docs/phase_c_pragma_materialization.md` §4.3, `count` is the
+  legacy phase flag that becomes `iir.cf.Phase(C, body)` at the
+  IIR layer. The new lowering's wrap op is only inserted when
+  `ep.count is False` (the dual-write short-circuit in
+  `materialize_count`); when `ep.count is True` the legacy
+  `is_counting`-driven path here continues to emit, keeping the
+  count-phase byte-equivalence anchor intact. The branches will
+  be removable once Phase A3 drops the `count: bool` field on
+  `mir.ExecutePipeline` and Phase B migrates count-phase emission
+  out of this monolith — until then they are LIVE and
+  load-bearing for every runner-goldens kernel (every kernel has
+  a count phase).
+
+  DEAD CODE NOTE (C6 - fanout): the `ep.use_fan_out` consumer
+  paths live in `complete_runner.py` (out of scope for this PR
+  per the C6 task constraint), not in this monolith. The C6
+  `@pragma_handler(FanOut, on=ExecutePipeline)` short-circuits
+  when `ep.use_fan_out is True`, so the legacy runner path stays
+  the byte-equivalence anchor for fan-out rules. The `@lowering(
+  target=iir.cf, source=mir.FanOut)` rule in `pragmas/fanout.py`
+  is reachable only when only the typed pragma is set (the
+  post-A3 pure-typed state, or test fixtures).
   '''
   out_var = ctx.output_var_overrides.get(node.rel_name, ctx.output_var)
   vars_list = list(node.vars)

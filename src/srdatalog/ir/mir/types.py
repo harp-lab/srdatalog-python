@@ -288,6 +288,70 @@ class WSScope(Op):
   inner: InsertInto
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class CountPhase(Op):
+  '''MIR wrap op: count-phase scope around an `ExecutePipeline`'s
+  pipeline body.
+
+  Inserted by `srdatalog.ir.dialects.iir.cf.pragmas.count.
+  materialize_count` during `MirPragmaPass` whenever an
+  `ExecutePipeline` carries a `Count` pragma AND the legacy
+  `ep.count` bool is False (the dual-write short-circuit; see
+  the pragma module's docstring for the transition contract).
+
+  Per `docs/phase_c_pragma_materialization.md` §4.3, `count` is the
+  legacy phase flag that becomes `iir.cf.Phase(C, body)` at the IIR
+  layer. The MIR-level wrap op exists so `MirPragmaPass` has a
+  typed insertion target (per spec §2.1, every pragma materializes
+  to a wrap op); the lowering for `CountPhase` emits the
+  `iir.cf.Phase(mode='C', body=...)` form that the IIR layer
+  already understands.
+
+  Carries the original `inner` body op (the `ExecutePipeline`'s
+  pipeline contents, typically a Block or sequence) so the lowering
+  can recurse into it under the count-phase scope.
+
+  Note (C6 dual-write contract): in the legacy code path, count-phase
+  emission is driven by `is_counting` on `LoweringCtx` + `ep.count`
+  on `ExecutePipeline`; the legacy emitter never sees `CountPhase`.
+  The pragma handler short-circuits when `ep.count is True` so this
+  wrap op is only ever inserted in the post-A3 pure-typed state (or
+  test fixtures that exercise just the typed surface).
+  '''
+
+  inner: Op
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class FanOut(Op):
+  '''MIR wrap op: fan-out work-stealing gate around an `InsertInto`.
+
+  Inserted by `srdatalog.ir.dialects.relation.sorted_array.pragmas.
+  fanout.materialize_fanout` during `MirPragmaPass` whenever an
+  `ExecutePipeline` carries a `FanOut` pragma AND the legacy
+  `ep.use_fan_out` bool is False (the dual-write short-circuit;
+  see the pragma module's docstring for the transition contract).
+
+  Per `docs/phase_c_pragma_materialization.md` §4.3, `fanout` is the
+  legacy `use_fan_out` pragma that drives the runtime FanOutTaskQueue
+  scheduling path (see `runtime/.../jit_fanout_executor.h`). The MIR
+  wrap op gives `MirPragmaPass` a typed insertion target; the
+  lowering registered in the pragma module emits the IIR shape that
+  the legacy `if ep.use_fan_out:` runner branch consumes.
+
+  Phase C scope: like `DedupGate`, this gate wraps an `InsertInto`
+  at the tail of an `ExecutePipeline.pipeline`. The runner-level
+  scheduling is orthogonal and stays in `complete_runner.py` (per
+  the C6 task constraint that `complete_runner.py` is out of scope).
+  This wrap op is the MIR-side anchor for the typed pragma; A3
+  reorganizes the runner to consume it directly.
+  '''
+
+  inner: InsertInto
+
+
 # -----------------------------------------------------------------------------
 # Fixpoint maintenance ops (scalar — no children)
 # -----------------------------------------------------------------------------
@@ -498,6 +562,8 @@ MirNode = Union[
   InsertInto,
   DedupGate,
   WSScope,
+  CountPhase,
+  FanOut,
   RebuildIndex,
   ClearRelation,
   CheckSize,

@@ -21,7 +21,7 @@ import dataclasses
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Union
+from typing import Any, Union
 
 from srdatalog.ir.core.pragma import Pragma, UnregisteredPragmaError, get_pragma_registrations
 from srdatalog.ir.hir.provenance import USER_PROVENANCE, Provenance
@@ -496,13 +496,14 @@ class Rule:
       raise TypeError(f'Rule.with_pragma: expected a Pragma subclass instance, got {pragma!r}')
     _validate_pragma_registered(pragma)
     bool_kwargs = _legacy_bool_kwargs_for(pragma)
+    rule_bool_kwargs = _legacy_rule_bool_kwargs_for(pragma)
     if not self.plans:
       new_plan = PlanEntry(
         delta=-1,
         pragmas=(pragma,),
         **bool_kwargs,
       )
-      return dataclasses.replace(self, plans=(new_plan,))
+      return dataclasses.replace(self, plans=(new_plan,), **rule_bool_kwargs)
     new_plans = tuple(
       dataclasses.replace(
         pe,
@@ -511,7 +512,7 @@ class Rule:
       )
       for pe in self.plans
     )
-    return dataclasses.replace(self, plans=new_plans)
+    return dataclasses.replace(self, plans=new_plans, **rule_bool_kwargs)
 
 
 class Relation:
@@ -753,6 +754,31 @@ _BUILTIN_BOOL_SHADOW_PRAGMAS: tuple[tuple[str, str], ...] = (
     'srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing.WorkStealing',
     'work_stealing',
   ),
+  # C6: `FanOut` shadows `PlanEntry.fanout` -> `variant.fanout` ->
+  # `ep.use_fan_out`. Same dual-write contract as `DedupHash`:
+  # `with_pragma(FanOut())` sets both `fanout=True` on each plan
+  # AND attaches the typed pragma; `materialize_fanout` short-
+  # circuits when `ep.use_fan_out is True` so the legacy runner
+  # path (driven by `ep.use_fan_out`) keeps producing byte-equiv
+  # output until A3 drops the bool.
+  (
+    'srdatalog.ir.dialects.relation.sorted_array.pragmas.fanout.FanOut',
+    'fanout',
+  ),
+)
+
+
+# Built-in pragma classes that have a back-compat bool field on
+# `Rule` (not `PlanEntry`). The C6 `Count` pragma is the first
+# instance: `Rule.count: bool` -> `variant.count` -> `ep.count`.
+# `with_pragma(Count())` sets `Rule.count = True` AND attaches the
+# typed pragma to each plan's `pragmas` tuple. Same A3-drop story
+# as `_BUILTIN_BOOL_SHADOW_PRAGMAS`.
+_BUILTIN_RULE_BOOL_SHADOW_PRAGMAS: tuple[tuple[str, str], ...] = (
+  (
+    'srdatalog.ir.dialects.iir.cf.pragmas.count.Count',
+    'count',
+  ),
 )
 
 
@@ -767,6 +793,31 @@ def _legacy_bool_kwargs_for(pragma: Pragma) -> dict[str, bool]:
   cls = type(pragma)
   qualname = f'{cls.__module__}.{cls.__qualname__}'
   for known_qualname, bool_field in _BUILTIN_BOOL_SHADOW_PRAGMAS:
+    if qualname == known_qualname:
+      return {bool_field: True}
+  return {}
+
+
+def _legacy_rule_bool_kwargs_for(pragma: Pragma) -> dict[str, Any]:
+  '''Map a typed Pragma instance to the back-compat Rule-level bool
+  kwargs (versus PlanEntry-level kwargs returned by
+  `_legacy_bool_kwargs_for`).
+
+  Returns `{}` for pragmas that don't have a legacy Rule-level bool
+  field; the caller skips the per-rule update. Returns e.g.
+  `{"count": True}` for `Count()` so the dual-write semantics
+  described in `Rule.with_pragma` hold for Rule-level fields too.
+
+  Return type is `dict[str, Any]` (rather than `dict[str, bool]`) so
+  the result can be splatted into `dataclasses.replace(self, **...)`
+  without mypy complaining about narrow types not matching every
+  field's declared type; the helper's contract is "kwargs that map
+  to existing `Rule` field names", and the field-type check happens
+  via `replace` at call time.
+  '''
+  cls = type(pragma)
+  qualname = f'{cls.__module__}.{cls.__qualname__}'
+  for known_qualname, bool_field in _BUILTIN_RULE_BOOL_SHADOW_PRAGMAS:
     if qualname == known_qualname:
       return {bool_field: True}
   return {}

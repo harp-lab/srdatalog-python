@@ -101,6 +101,27 @@ def _register_passes() -> None:
   def lower_execute_pipeline(ep, ctx):
     return lower_scan_pipeline(ep.pipeline, ctx)
 
+  # C2 (per docs/phase_c_pragma_materialization.md §2.1): the
+  # `DedupHash` pragma's MIR wrap op `DedupGate` lowers via the rule
+  # registered here. Body lives in the pragma module so the wrap op,
+  # the @pragma_handler, and the @lowering for the wrap op are all
+  # co-located. Importing the module also runs the @pragma_handler
+  # registration as a side effect.
+  from typing import Any
+
+  from srdatalog.ir.dialects.relation.sorted_array.pragmas.dedup_hash import (
+    lower_dedup_gate,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.DedupGate,
+    consumes=('mir',),
+    produces=('iir.cf', 'relation.sorted_array'),
+  )
+  def lower_mir_dedup_gate(op: Any, ctx: Any) -> Any:
+    return lower_dedup_gate(op, ctx)
+
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.
   @verifier(DIALECT)

@@ -23,6 +23,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
 
+from srdatalog.ir.core.pragma import Pragma, UnregisteredPragmaError, get_pragma_registrations
 from srdatalog.ir.hir.provenance import USER_PROVENANCE, Provenance
 
 
@@ -344,6 +345,15 @@ class PlanEntry:
     - dedup_hash      -> GPU hash table for in-kernel existential dedup
   `balanced_root` / `balanced_sources` drive balanced partitioning for
   skewed joins (not yet lowered in Python).
+
+  `pragmas` carries typed `Pragma` instances (per
+  `docs/pragma_as_typed_object.md`) attached via
+  `Rule.with_pragma(PragmaCls(...))`. Phase C2 is the first migration
+  off the named bool fields: `DedupHash()` is dual-written (both the
+  typed pragma in `pragmas` AND the legacy `dedup_hash=True` bool)
+  so legacy consumers (`hir/plan.py`, `compile_kernel_body`) keep
+  working unchanged while `MirPragmaPass` consumes the typed pragma
+  via the registered `@pragma_handler`.
   '''
 
   delta: int = -1
@@ -355,6 +365,7 @@ class PlanEntry:
   dedup_hash: bool = False
   balanced_root: tuple[str, ...] = ()
   balanced_sources: tuple[str, ...] = ()
+  pragmas: tuple[object, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -445,6 +456,62 @@ class Rule:
     `inject_cpp: "..."` rule pragma.
     '''
     return dataclasses.replace(self, debug_code=code)
+
+  def with_pragma(self, pragma: Pragma) -> Rule:
+    '''Attach a typed `Pragma` instance to this rule.
+
+    Per `docs/pragma_as_typed_object.md` §6, this is the canonical
+    DSL surface for pragmas going forward — the equivalent
+    `with_plan(..., <flag>=True)` keyword arguments are deprecated
+    and will be removed in Phase A3.
+
+    The pragma is materialized by `MirPragmaPass` (per
+    `docs/phase_c_pragma_materialization.md` §3) into a wrap op
+    that the downstream lowering specializes. The class must have a
+    registered `@pragma_handler(PragmaCls, on=...)` somewhere
+    importable — otherwise `UnregisteredPragmaError` fires
+    immediately at the call site (with did-you-mean hints), per
+    `pragma_as_typed_object.md` §3.
+
+    Dual-write contract (Phase C2 transitional shape, removed in
+    A3): for built-in pragmas that still have a named bool field on
+    `ExecutePipeline` (e.g. `DedupHash` -> `dedup_hash: bool`), this
+    method ALSO sets the corresponding `PlanEntry` bool so the
+    legacy compile path (`compile_kernel_body` -> bool-driven
+    `LoweringCtx`) keeps working byte-equivalent to today. When
+    `MirPragmaPass` runs, it consumes the typed pragma and emits
+    the wrap op; the bool field becomes redundant and is dropped in
+    A3.
+
+    Implementation: if the rule has no plans, a default
+    `PlanEntry(delta=-1)` is appended carrying the pragma (matches
+    Nim's behavior of attaching pragmas to the base variant when no
+    user plan exists). If the rule has existing plans, the pragma
+    is appended to EVERY plan's `pragmas` tuple AND each plan's
+    matching bool field is set — symmetric with how `with_plan`
+    today applies a bool to one (delta-keyed) plan, but here the
+    intent of `with_pragma` is "this rule, every variant".
+    '''
+    if not isinstance(pragma, Pragma):
+      raise TypeError(f'Rule.with_pragma: expected a Pragma subclass instance, got {pragma!r}')
+    _validate_pragma_registered(pragma)
+    bool_kwargs = _legacy_bool_kwargs_for(pragma)
+    if not self.plans:
+      new_plan = PlanEntry(
+        delta=-1,
+        pragmas=(pragma,),
+        **bool_kwargs,
+      )
+      return dataclasses.replace(self, plans=(new_plan,))
+    new_plans = tuple(
+      dataclasses.replace(
+        pe,
+        pragmas=pe.pragmas + (pragma,),
+        **{k: True for k in bool_kwargs},
+      )
+      for pe in self.plans
+    )
+    return dataclasses.replace(self, plans=new_plans)
 
 
 class Relation:
@@ -641,6 +708,64 @@ class Program:
         ),
       }
     )
+
+
+def _validate_pragma_registered(pragma: Pragma) -> None:
+  '''Raise `UnregisteredPragmaError` if `pragma`'s type has no
+  `@pragma_handler` registration in the module-global registry.
+
+  Per `docs/pragma_as_typed_object.md` §3 / §6: the DSL is the
+  earliest place we can catch a missing handler. The check fires at
+  the user's `.with_pragma(...)` keystroke, listing the registered
+  handler class names so the user can spot a missing import.
+  '''
+  cls = type(pragma)
+  registry = get_pragma_registrations()
+  registered_classes = {reg.pragma_cls for reg in registry}
+  if cls in registered_classes:
+    return
+  known = sorted(c.__name__ for c in registered_classes)
+  raise UnregisteredPragmaError(
+    f'Rule.with_pragma({cls.__name__}()): no @pragma_handler registered '
+    f'for {cls.__name__}. Known handlers: {known}. Import the module '
+    f"that registers it (e.g. the pragma's dialect package) or add a "
+    f'`@pragma_handler({cls.__name__}, on=...)` to a loaded module.'
+  )
+
+
+# Built-in pragma classes that have a back-compat bool field on
+# `PlanEntry` / `HirRuleVariant` / `mir.ExecutePipeline`. The C2
+# migration adds the typed pragma without removing the bool; both
+# are written so the legacy lowering path (which reads the bool
+# field via `compile_kernel_body`) keeps working unchanged. Phase
+# A3 drops the bool field and this map.
+#
+# String values to avoid import-cycles: the pragma class is named
+# but resolved lazily inside `_legacy_bool_kwargs_for`. Each entry
+# maps the fully-qualified pragma class to the matching kwarg name
+# on `PlanEntry.__init__`.
+_BUILTIN_BOOL_SHADOW_PRAGMAS: tuple[tuple[str, str], ...] = (
+  (
+    'srdatalog.ir.dialects.relation.sorted_array.pragmas.dedup_hash.DedupHash',
+    'dedup_hash',
+  ),
+)
+
+
+def _legacy_bool_kwargs_for(pragma: Pragma) -> dict[str, bool]:
+  '''Map a typed Pragma instance to the back-compat bool kwargs.
+
+  Returns `{}` for pragmas that don't have a legacy bool field; the
+  caller drops them straight into the typed `pragmas` tuple. Returns
+  e.g. `{"dedup_hash": True}` for `DedupHash()` so the dual-write
+  semantics described in `Rule.with_pragma` hold.
+  '''
+  cls = type(pragma)
+  qualname = f'{cls.__module__}.{cls.__qualname__}'
+  for known_qualname, bool_field in _BUILTIN_BOOL_SHADOW_PRAGMAS:
+    if qualname == known_qualname:
+      return {bool_field: True}
+  return {}
 
 
 def _derive_relations(rules: list[Rule]) -> list[Relation]:

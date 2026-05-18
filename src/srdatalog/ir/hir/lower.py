@@ -599,10 +599,16 @@ def wrap_in_execute_pipeline(
   block_group: bool = False,
   count: bool = False,
   dedup_hash: bool = False,
+  pragmas: tuple[object, ...] = (),
 ) -> mir.ExecutePipeline:
   '''Wrap a pipeline body in an ExecutePipeline node, extracting source
   specs (flattened through ColumnJoin/CartesianJoin) and dest specs
   (InsertInto nodes).
+
+  Phase C2: accepts `pragmas` (typed `Pragma` instances) which flow
+  through into `mir.ExecutePipeline.pragmas` for `MirPragmaPass` to
+  consume. Default `()` preserves the legacy callers that only
+  supply the named bool fields.
   '''
   sources: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
   dests: list[mir.InsertInto] = []
@@ -621,6 +627,7 @@ def wrap_in_execute_pipeline(
     block_group=block_group,
     dedup_hash=dedup_hash,
     count=count,
+    pragmas=pragmas,  # type: ignore[arg-type]
   )
 
 
@@ -727,6 +734,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
                 block_group=variant.block_group,
                 count=variant.count,
                 dedup_hash=variant.dedup_hash,
+                pragmas=tuple(variant.pragmas),
               )
             )
         else:
@@ -741,6 +749,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
               block_group=variant.block_group,
               count=variant.count,
               dedup_hash=variant.dedup_hash,
+              pragmas=tuple(variant.pragmas),
             )
           )
 
@@ -846,6 +855,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
                 block_group=variant.block_group,
                 count=variant.count,
                 dedup_hash=variant.dedup_hash,
+                pragmas=tuple(variant.pragmas),
               )
             )
         else:
@@ -860,6 +870,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
               block_group=variant.block_group,
               count=variant.count,
               dedup_hash=variant.dedup_hash,
+              pragmas=tuple(variant.pragmas),
             )
           )
 

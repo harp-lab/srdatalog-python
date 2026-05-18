@@ -43,7 +43,7 @@ Mapping to Nim (unchanged):
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Union
+from typing import Any, Union, final
 
 from srdatalog.ir.core import Op
 from srdatalog.ir.hir.types import Version
@@ -213,6 +213,48 @@ class InsertInto(Op):
   version: Version
   vars: list[str]
   index: list[int]  # dedup index columns
+
+
+# -----------------------------------------------------------------------------
+# Pragma wrap ops (inserted by MirPragmaPass — Phase C)
+# -----------------------------------------------------------------------------
+#
+# Wrap ops materialize a typed `Pragma` instance into the MIR tree. Each
+# wrap op corresponds to one `Pragma` subclass; `MirPragmaPass` walks
+# the registered `@pragma_handler` callbacks and replaces the bare op
+# the pragma was attached to with the wrap-op-decorated form. The
+# wrap op's lowering then emits the codegen specialization that was
+# previously gated by an `if ctx.<pragma>:` branch in the imperative
+# lowerings.
+#
+# Per `docs/phase_c_pragma_materialization.md` §2.1 (worked example
+# for `dedup_hash` -> `DedupGate`) and `docs/pragma_as_typed_object.md`
+# §3 (the `@pragma_handler` contract that produces them).
+
+
+@final
+@dataclass(frozen=True, slots=True)
+class DedupGate(Op):
+  '''MIR wrap op: dedup-hash gate around an emission op.
+
+  Inserted by `srdatalog.ir.dialects.relation.sorted_array.pragmas.
+  dedup_hash.materialize_dedup_hash` during `MirPragmaPass` whenever
+  an `ExecutePipeline` carries a `DedupHash` pragma. Lowered by the
+  `@lowering(target=iir.cf, source=DedupGate)` rule registered in
+  the same module to the same IIR shape that the legacy
+  `ctx.dedup_hash` branch inside `_lower_insert_into` produces.
+
+  The wrap op carries the inner `InsertInto` so the lowering has
+  everything it needs (vars, rel_name, index) to emit the
+  `try_insert(thread_id, vars...) + if (_p) { write }` gate.
+
+  Phase C scope (per spec §2.1 + §4.3): the gate lives in MIR (not
+  IIR) because the materialized form is "wrap the InsertInto" — a
+  per-emission decoration, structurally an MIR-level concern that
+  the MIR -> IIR lowering then translates.
+  '''
+
+  inner: InsertInto
 
 
 # -----------------------------------------------------------------------------
@@ -423,6 +465,7 @@ MirNode = Union[
   ProbeJoin,
   GatherColumn,
   InsertInto,
+  DedupGate,
   RebuildIndex,
   ClearRelation,
   CheckSize,

@@ -1,0 +1,1238 @@
+---
+orphan: true
+---
+
+# Phase Decomposition Redesign — Unified Spec
+
+This is the architectural document that supersedes the piecemeal A3 +
+Layer 3 cleanup work. It frames every remaining migration PR against
+ONE load-bearing invariant — the ACID test in section 1 — and shows
+where today's compiler fails that invariant and what shape the work
+takes to satisfy it.
+
+Companion docs (plain refs; sphinx-myst breaks on local markdown
+links in some build modes — never use `[name](path.md)`):
+
+- Spec: docs/compiler_redesign.md — the spine; defines the three Pass
+  kinds, the LowerCtx contract, the pragma-as-partial-evaluation
+  model. This redesign is the next architectural layer above it.
+- Spec: docs/code_discipline.md — D-rules + R-rules + CI enforcement.
+  This redesign proposes D20 (additive-contract rule) in section 7.
+- Spec: docs/concept_glossary.md — IR / Dialect / Pass / Plugin
+  definitions; section 13 introduces the four topology checks; this
+  spec extends them to the per-target axis.
+- Spec: docs/phase_a_mir_onto_op.md — MIR-onto-Op (A1 + A2). Stays
+  merged unchanged.
+- Spec: docs/phase_b_lowering_dispatcher.md — per-MIR-op @lowering
+  (the kernel-body slice). Stays merged unchanged. Phase R below
+  extends the same pattern to the runner-shell slice.
+- Spec: docs/phase_c_pragma_materialization.md — typed pragmas. Stays
+  merged unchanged.
+- Spec: docs/phase_d_hir_passes.md — HIR ProgramPass. Stays merged
+  unchanged.
+- Spec: docs/phase_e_plugin_extensibility.md — entry-point discovery.
+  Extended in Phase T (see section 3.2): each dialect plugin must
+  split into a data contribution + per-target render contribution.
+- Spec: docs/phase_a3_remove_deprecated_bool_fields.md — A3 PRs.
+  **Superseded by this spec.** See section 8 for the disposition
+  rationale.
+- Spec: docs/phase_f5_declarative_pipeline.md — declarative pipeline
+  shims. The current `DEFAULT_KERNEL_PIPELINE` is the surface this
+  spec generalizes from "1 target hard-wired" to "N targets selected
+  by the Compiler at run time".
+
+## 1. The ACID test (load-bearing invariant)
+
+> **For ANY new addition — new algorithm, new pragma, new index type,
+> new aggregation, or new backend target (CPU/TBB, OpenMP, SYCL,
+> ROCm, MLIR, plain interpreter, WASM) — the addition must be purely
+> additive: zero edits to existing source files. The contribution is
+> a plugin: new typed ops + `@lowering` rules + `@register_render`
+> registrations + an entry-point declaration.**
+
+This is the single criterion the redesign must satisfy. Every other
+constraint (the three Pass kinds, the small LowerCtx, the four
+topology checks, the typed-pragma model) is in service of this one
+invariant. The compiler is correct iff every reasonable extension
+the user might want is a purely additive plugin.
+
+### 1.1 What the ACID test forbids
+
+After this redesign lands, any PR that needs to EDIT an existing
+source file to add a feature is a discipline violation. The PR must
+instead extend by REGISTRATION:
+
+- New algorithm → new typed MIR op + `@lowering(target=IIR_*, source=NewOp)`.
+- New pragma → new `Pragma` subclass + `@pragma_handler(NewPragma, on=mir.X)`.
+- New index type → new `Op` vocabulary in a new `relation.<name>` dialect +
+  per-target `@register_render(Op, target=T)` for each target the user wants.
+- New aggregation → same as new algorithm.
+- New backend target → new plugin package with `@register_render(Op, target='cpu_tbb')`
+  for every existing IIR op + a new scheduler op family for the RIR
+  (see section 3.1).
+
+CI mechanism: discipline rule D20 (proposed in section 7) blocks PRs
+that edit existing `src/srdatalog/ir/dialects/**` or
+`src/srdatalog/ir/codegen/**` files in service of a feature add.
+
+### 1.2 What the ACID test does NOT forbid
+
+The redesign-internal cleanup PRs DO edit existing files — that is
+the work of getting to the additive end state. D20 is enforced only
+on PRs landing AFTER this spec is approved AND the migration plan
+in section 6 is complete. Migration PRs themselves are exempt.
+
+It also does not forbid:
+
+- Bug fixes that touch one existing branch (e.g., a typo, an
+  off-by-one).
+- Performance optimizations that don't change the feature surface
+  (e.g., caching a registry lookup).
+- Discipline-rule amendments (per code_discipline.md §9).
+
+The criterion is "adding feature X edits no existing file". Not "no
+PR ever touches anything".
+
+## 2. Diagnosis — concrete violations (line-numbered)
+
+Today the redesign satisfies the ACID test for ONE slice of ONE
+target: per-MIR-op `@lowering` migrations for kernel-body lowering
+on CUDA (Phase B, Wave 2A). Outside that slice the compiler is
+imperative monoliths threading pragma state, typed ops with CUDA
+C++ shape baked into their fields, and pipeline scaffolding hard-
+wired to one target. Three sub-sections, each with file:line cites.
+
+### 2.1 Runner monolith (Phase R targets this)
+
+Three modules under `src/srdatalog/ir/codegen/cuda/` form an
+imperative monolith of branches keyed on pragma / phase / scheduler
+concerns. Total ~198 if-statements across the three files; the
+table below lists the ones that gate emission shape (i.e., the ones
+that would each need a parallel `if target == 'cpu_tbb'` branch
+under the current shape).
+
+`orchestrator.py` (895 LOC) — drives `step_N()` method bodies, fixpoint
+loops, parallel-group dispatch:
+
+| File:line | Branch key | Emits when true |
+|---|---|---|
+| orchestrator.py:79 | `isinstance(src_spec, (m.ColumnSource, m.Scan, m.Negation, m.Aggregate))` | source-info extraction |
+| orchestrator.py:108-114 | `isinstance(instr, m.ExecutePipeline)` + `dest.rel_name in count_only_rels` | count-only pipeline classification |
+| orchestrator.py:132/135/138 | `isinstance(instr, m.{ComputeDelta,ComputeDeltaIndex,MergeIndex})` | canonical-spec collection |
+| orchestrator.py:202 | `isinstance(op, m.ExecutePipeline)` | ParallelGroup dispatch |
+| orchestrator.py:288/389/428/439/448 | `isinstance(dest, m.InsertInto)` | dest-stream-map collection (5 sites in `_gen_execute_pipeline`) |
+| orchestrator.py:494-588 | 14-way `isinstance(instr, m.X)` chain in `gen_instruction_code` (one branch per maintenance op type: ExecutePipeline, ParallelGroup, ComputeDelta, ComputeDeltaIndex, MergeIndex, CheckSize, RebuildIndex, RebuildIndexFromIndex, CreateFlatView, ClearRelation, MergeRelation, InjectCppHook, PostStratumReconstructInternCols) | per-MIR-op CUDA C++ |
+| orchestrator.py:633/635/637 | `isinstance(instr, m.ExecutePipeline / m.ParallelGroup / m.ExecutePipeline)` | fixpoint-body dispatch |
+| orchestrator.py:705/812 | `isinstance(instr, m.ParallelGroup)` (twice) | sync-after-parallel decisions |
+| orchestrator.py:726 | `isinstance(instr, maint_kinds)` | post-maintenance sync |
+| orchestrator.py:768/781/792/847 | `isinstance(plan, m.{Block, ExecutePipeline, FixpointPlan, PostStratumReconstructInternCols})` | non-recursive block dispatch |
+
+`complete_runner.py` (1123 LOC) — emits the per-rule
+`JitRunner_<rule>` C++ struct + kernel definitions + phase methods +
+execute(). Side-effect import of `srdatalog.ir.dialects.relation.d2l`
+at line 37 (cross-tree coupling — the runner imports the data
+dialect just to trigger CUDA-plugin registration). Branches keyed
+on pragma/phase/scheduler concerns:
+
+| File:line | Branch key | Emits when true |
+|---|---|---|
+| complete_runner.py:99-126 | source-type isinstance fan-out (5 sites: `_src_schema`, `_src_version_cpp`, `_src_mir_version`, `_src_index`, `_root_is_scan`) | per-source-type C++ |
+| complete_runner.py:141 | `_root_is_scan` (Scan dispatch) | scan-rooted runner shape |
+| complete_runner.py:219 | `if node.dedup_hash:` (count-kernel) | dedup args + per-thread fast path |
+| complete_runner.py:286/312/335 | `if node.dedup_hash:` (materialize-kernel, 3 sites) | dedup-table struct + atomicAdd write path |
+| complete_runner.py:322/426 | `if tiled_cartesian_eligible:` (2 sites) | tiled-Cartesian materialize variant |
+| complete_runner.py:691 | `isinstance(src, m.Negation)` | `force_rebuild=true` view setup |
+| complete_runner.py:795 | `if node.block_group:` (setup phase) | BG histogram setup |
+| complete_runner.py:861/876/879/882 | `if node.dedup_hash:` (setup phase, 4 sites) | dedup table allocation + memset |
+| complete_runner.py:925-926 | `if node.work_stealing:` | `NotImplementedError("WS not yet ported")` |
+| complete_runner.py:937 | `is_fused_eligible = not is_count and not node.dedup_hash` | fused-kernel eligibility |
+| complete_runner.py:955-963 | 4-way conjunction (`not work_stealing and not block_group and not dedup_hash`) | tiled-Cartesian eligibility |
+| complete_runner.py:987-1017 | `if node.dedup_hash` / `not node.block_group and not node.dedup_hash` (fused dispatch gating) | dispatch into BG/dedup/baseline launch sequences |
+| complete_runner.py:1029-1108 | BG vs baseline dispatch via `is_block_group`, `is_dedup_hash` kwargs threaded into 6 phase-method emitters (`emit_launch_count`, `emit_launch_fused`, `emit_launch_materialize`, `emit_execute`, …) | per-pragma phase methods |
+
+`runner.py` (802 LOC) — phase-method templates + execute()
+dispatcher. Pure-template emitters parameterized by bools:
+
+| File:line | Branch key | Emits when true |
+|---|---|---|
+| runner.py:47-57 | `is_dedup_hash` (kwarg → branch) | dedup arg threading + fast-path shape |
+| runner.py:70 | `if is_block_group:` | BG launch variant |
+| runner.py:180 | `if ep.dedup_hash:` (launch_materialize) | dedup kernel args |
+| runner.py:204/240 | `if ep.block_group:` (launch_materialize + launch_fused) | BG histogram launch |
+| runner.py:373-374 | `is_block_group=False, is_dedup_hash=False` kwargs (emit_launch_params_struct) | per-pragma struct field generation |
+| runner.py:395-417 | `if is_block_group` / `if is_dedup_hash` (2 sites in struct emit) | per-pragma launch-param fields |
+| runner.py:494-617 | `is_count`, `is_block_group`, `is_dedup_hash` kwargs in `emit_execute` (4 branches) | per-pragma execute() dispatcher |
+| runner.py:654 | `if ep.block_group:` (emit_execute_fused) | BG fused dispatch |
+
+The `RunnerGenState` dataclass (`context.py:179-195`) carries five
+pragma/phase bools (`is_balanced`, `is_work_stealing`, `is_block_group`,
+`is_dedup_hash`, `is_count`) directly into every runner-emit hook —
+exactly the imperative-monolith pattern `compiler_redesign.md` §1
+diagnoses for the kernel-body lowering, applied at the runner-shell
+layer. Five bools × ~6 phase-method emitters = ~30 conditional sites.
+
+**Total imperative branches in the runner shell that key on
+pragma / phase / scheduler concerns: ~57** (the count cited in the
+brief — confirmed by the tables above; some isinstance sites
+collapse to one row, some bool sites span multiple emitters).
+
+#### 2.1.1 The `ep_has_X(...)` helper anti-pattern (parked A3 work)
+
+The parked A3-1/A3-2/A3-3 branches (`feat/a3-1-remove-dedup-hash-bool`,
+`feat/a3-2-remove-work-stealing-bool`, `feat/a3-3-remove-block-group-bool`)
+proposed introducing `ep_has_pragma(ep, PragmaCls) -> bool` helpers
+and routing each runner branch through them (per
+`phase_a3_remove_deprecated_bool_fields.md` §3.1, step 2). Concretely:
+
+```python
+# A3-1 proposed:
+if ep_has_pragma(ep, DedupHash):  # was: if ep.dedup_hash:
+  emit_dedup_table_struct(...)
+```
+
+This is the SAME imperative anti-pattern in different clothes. The
+branch key changed from `ep.dedup_hash` to `ep_has_pragma(ep, DedupHash)`,
+but every emit site still keys on a pragma to choose a code shape.
+The code shape (BG launch vs baseline launch, dedup arg threading
+vs none) is still hard-wired into the runner monolith. The pragma
+flag is still a branch trigger, not a partial-evaluation trigger.
+
+Phase R below dissolves both the bool reads AND the `ep_has_X(...)`
+reads by lowering the runner shell through a new RIR (Runner IR)
+with one typed `KernelLaunch(scheduler=BGScheduler(...))` op per
+pragma-induced shape. Each scheduler variant gets its own
+`@register_render`. The branch becomes an op-type dispatch — exactly
+the shape Phase B established for kernel bodies.
+
+### 2.2 Target leakage into IR (Phase T targets this)
+
+The IIR op vocabulary, the LowerCtx, and the index-plugin registry
+all leak target-specific shape into ostensibly target-agnostic IR
+layers. Three categories:
+
+#### 2.2.1 IIR ops with CUDA-specific names and field shapes
+
+`relation/sorted_array/ops.py:193-258` defines `SaTiledCartesian2D`
+with twenty fields encoding the exact CUDA C++ template (smem
+tile, ballot writes, lane var, warp_in_block index, kCartTileSize
+constant). The docstring at lines 196-232 IS the C++ text. The op
+is named for what it renders to, not for what it semantically does
+(a tiled Cartesian dispatch over two sources, which on CPU/TBB
+would render as nested for-loops with manual SIMD, on SYCL as
+nd_range parallel_for, etc.).
+
+`parallel/data/block_group.py:66-107` defines `BgRootCjMulti`
+("BG dispatch shape for root multi-source ColumnJoin"). The shape
+is the CUDA warp-cumulative-work-balance dispatch, encoded as
+field types: `BgSourceSpec` per-source descriptor (line 46) carries
+`view_var`, `handle_var`, `degree_var` — all C++ identifiers, all
+chosen by the CUDA renderer.
+
+Other IIR ops with CUDA shape baked in:
+
+| Op | File | What's CUDA-specific |
+|---|---|---|
+| `SaTiledCartesian2D` | sorted_array/ops.py:193 | smem tile layout, kCartTileSize, lane var, warp-in-block index |
+| `BgRootCjMulti` | parallel/data/block_group.py:66 | warp-cumulative dispatch, BgSourceSpec C++ identifier fields |
+| `BgSourceSpec` | parallel/data/block_group.py:46 | C++ identifier fields (view_var, handle_var) |
+| `SaPrefCoop` | sorted_array/ops.py:107 | cooperative warp-tile execution model |
+| `SaPrefSeq` | sorted_array/ops.py:124 | per-thread sequential execution model |
+| `SaChildRange` | sorted_array/ops.py:156 | warp-tile parameter `tile` in signature |
+| `GridStrideLoop` | iir/cf/ops.py:237 | CUDA grid-stride convention |
+| `LaneZeroGuard` | iir/cf/ops.py:282 | CUDA lane-zero predicate |
+| `TiledBallotBlock` | iir/cf/ops.py:341 | CUDA ballot intrinsic surface |
+
+Phase T renames each to a target-agnostic semantic name; the CUDA
+shape moves into the CUDA renderer's per-op handler. Section 3.2
+gives the rename table.
+
+#### 2.2.2 LowerCtx CUDA-render state
+
+The current `LoweringCtx` in
+`src/srdatalog/ir/dialects/relation/sorted_array/lowerings/__init__.py:92-155`
+has ~15 fields. The compiler_redesign.md §5 target is 5 fields,
+target-agnostic. Today's fields:
+
+| Field | Line | Target-agnostic or CUDA-render? |
+|---|---|---|
+| `view_var_names: dict[str, str]` | 102 | CUDA — string names of C++ view variables |
+| `is_counting: bool` | 103 | (pragma scratch; Phase A3-5 keeps as scratch) |
+| `output_var: str` | 105 | CUDA — name of C++ OutputContext variable |
+| `output_var_overrides: dict[str, str]` | 108 | CUDA — per-relation OutputContext name map |
+| `rel_index_types: dict[str, str]` | 112 | CUDA — per-relation C++ index template name |
+| `view_slot_bases: dict[str, int]` | 116 | CUDA — per-source positional slot offset |
+| `dedup_hash: bool` | 122 | (pragma scratch; pragma's own lowering should flip) |
+| `tiled_cartesian: bool` | 129 | (pragma scratch) |
+| `tiled_cartesian_valid_var: str` | 134 | CUDA — name of C++ ballot validity var |
+| `ws_enabled: bool` | 141 | (pragma scratch) |
+| `bg_enabled: bool` | 155 | (pragma scratch) |
+| `ws_cartesian_valid_var: str` | (~155+) | CUDA — name of C++ WS ballot validity var |
+| `ws_cartesian_bound_vars: list[str]` | (~155+) | CUDA — names of C++ WS-loop-bound vars |
+| `neg_pre_narrow: dict[int, NegPreNarrowInfo]` | (~155+) | CUDA — per-handle pre-narrow info threaded into C++ |
+| `dedup_hash_vars: list[str]` | (~155+) | CUDA — names of C++ vars feeding dedup hash key |
+
+The `view_var_names`, `output_var`, `output_var_overrides`,
+`view_slot_bases`, and `dedup_hash_vars` fields all carry CUDA
+identifier strings; they are render-state, not lowering-state. They
+belong in a target-private `CudaRenderCtx`, NOT in the generic
+`LowerCtx`. Phase T splits them out.
+
+Note: the legacy `CodeGenContext` in
+`src/srdatalog/ir/codegen/cuda/context.py:255-338` is the CUDA-emit-
+side equivalent of the same disease — 35+ fields, half of them
+pragma scratch (`bg_enabled`, `ws_enabled`, `dedup_hash_enabled`,
+`tiled_cartesian_enabled`, …), half of them CUDA identifier scratch.
+Phase T collapses both into `LowerCtx (5 fields, target-agnostic) +
+CudaRenderCtx (~15 fields, target-private)` — preserving the
+information but separating concerns.
+
+#### 2.2.3 CUDA-private helpers masquerading as IR-side scaffolding
+
+Two large files under `codegen/cuda/` are CUDA render-side helpers
+that the IIR ops call into:
+
+- `view_slots.py` (324 LOC) — deduplicates pipeline source views,
+  computes view-slot offsets, emits `auto view_X = views[i];`
+  blocks. Every line is CUDA C++ string composition.
+- `materialized.py` (531 LOC) — materialized binary-join emission
+  using Thrust primitives + three `__global__` CUDA kernels. Every
+  line is CUDA C++ / Thrust string composition.
+
+These belong under `codegen/cuda/` (where they already live) — but
+the IIR-layer lowerings call them as if they were target-agnostic
+helpers (e.g., `view_count` lookups from `relation.d2l.view_counts_for_specs`
+are consumed by `EmitViewDeclsShim` in `default_pipelines.py:241`).
+The right shape is: `view_counts` is a CUDA-render concern, not a
+lowering-time concern — only the renderer knows how many CUDA view
+slots a FULL D2L source occupies. Phase T moves the view-count
+inquiry into the renderer's setup pass.
+
+#### 2.2.4 Index plugins reaching into the CUDA-target's private registry
+
+`src/srdatalog/ir/dialects/relation/d2l/cuda.py:65` calls
+`register_index_plugin(two_level_plugin)`, where
+`register_index_plugin` and `_PLUGIN_REGISTRY` are defined in
+`src/srdatalog/ir/codegen/cuda/plugin.py:147-155`. The data dialect
+(`relation/d2l/`) reaches across the tree into the CUDA-target's
+private module-global registry.
+
+Two coupling failures:
+
+1. Adding a new render target (CPU/TBB) would require the D2L
+   dialect to ALSO register a new CPU plugin in a new
+   `codegen/cpu_tbb/plugin.py` registry — meaning the data dialect
+   knows about every target.
+2. The `register_index_plugin` call at module import time creates
+   a cross-tree, side-effecting dependency that
+   `complete_runner.py:37` makes explicit (a direct
+   `import srdatalog.ir.dialects.relation.d2l` for its side
+   effects).
+
+Phase T splits index-plugin registration: the data dialect ships
+the data semantics (the `D2lSegmentLoop` IIR op + its print form)
+target-agnostic; the per-target render template is shipped as a
+target-side render contribution: `@register_render(D2lSegmentLoop,
+target='cuda')` in `srdatalog/codegen/cuda/render/relation_d2l.py`,
+parallel `@register_render(...)` in `srdatalog_cpu_tbb/codegen/...`.
+
+### 2.3 Target monopolization (Phase B2 targets this)
+
+The pipeline is hard-wired to CUDA. The `target` parameter exists
+on one entry point (`compile_pipeline`), is validated against the
+literal `'cuda'`, and is dropped on the floor; the rest of the
+pipeline calls CUDA-only helpers directly.
+
+| File:line | Target-monopolization site | What it does |
+|---|---|---|
+| `src/srdatalog/ir/codegen/cuda/api.py:38` | `Target = Literal['cuda']` | One-target type alias |
+| `src/srdatalog/ir/codegen/cuda/api.py:41` | `compile_pipeline(ep, *, target: Target = 'cuda')` | Accepts target; rejects anything else |
+| `src/srdatalog/ir/codegen/cuda/api.py:48-49` | `if target != 'cuda': raise ValueError(...)` | The target check IS the entire target dispatch |
+| `src/srdatalog/ir/codegen/cuda/api.py:68` | `compile_runner(ep, ...)` | No `target` parameter at all |
+| `src/srdatalog/ir/codegen/cuda/api.py:98` | `compile_kernel_body(ep, *, is_counting, ...)` | No `target` parameter |
+| `src/srdatalog/ir/codegen/cuda/api.py:149-150` | `from srdatalog.ir.core.dialect import Compiler` + `from srdatalog.ir.default_pipelines import DEFAULT_KERNEL_PIPELINE` | Pipeline is a global singleton, not per-target |
+| `src/srdatalog/ir/default_pipelines.py:343-364` | `class CudaRenderShim(ProgramPass):` — name has `Cuda` baked in | Shim name encodes target |
+| `src/srdatalog/ir/default_pipelines.py:264-298` | `LowerScanPipelineShim` constructs `LoweringCtx(...)` directly | No target dispatch — single LoweringCtx assumed |
+| `src/srdatalog/ir/default_pipelines.py:301-340` | `VerifyRenderabilityShim` hardcodes `target='cuda'` (line 339) | Verifier is per-target but the target is a string literal |
+| `src/srdatalog/ir/default_pipelines.py:380-387` | `DEFAULT_KERNEL_PIPELINE = [AssignHandlesShim(), CollectViewSpecsShim(), EmitViewDeclsShim(), LowerScanPipelineShim(), VerifyRenderabilityShim(), CudaRenderShim()]` | Five of six shims are CUDA-specific |
+| `src/srdatalog/ir/pipeline.py:17-23` | `from srdatalog.ir.codegen.cuda.{batchfile,complete_runner,main_file,orchestrator} import …` | The whole-program pipeline imports CUDA modules directly |
+| `src/srdatalog/ir/pipeline.py:80` | `compile_program(program, project_name)` | No target parameter; CUDA hardcoded |
+| `src/srdatalog/ir/codegen/cuda/complete_runner.py:37` | `import srdatalog.ir.dialects.relation.d2l  # noqa: F401` | Side-effect import couples data dialect to CUDA target |
+| `src/srdatalog/ir/codegen/cuda/plugin.py:147` | `_PLUGIN_REGISTRY: dict[str, IndexPlugin] = {}` | Module-global, target-private — not per-Compiler |
+| `pyproject.toml:64-70` | `[project.entry-points."srdatalog.plugins"]` | One plugin group — no separation between data dialects and render targets |
+
+Concretely: even though `compile_kernel_body(ep, target='cuda')`
+has been refactored to call `Compiler().run(..., pipeline=DEFAULT_KERNEL_PIPELINE)`
+(api.py:152-164), the pipeline list itself contains
+`LowerScanPipelineShim` and `CudaRenderShim` as named subclasses;
+swapping a CUDA target for CPU/TBB requires constructing a different
+pipeline list — and the user has no API to do so. The Compiler
+doesn't choose the pipeline; the entry-point hardcodes it.
+
+`DEFAULT_KERNEL_PIPELINE` shim class names that encode CUDA:
+
+| Shim | Suggested target-parametric name |
+|---|---|
+| `CollectViewSpecsShim` | `CollectViewSpecsShim` (already neutral; behavior is CUDA-shaped though — view_specs are CUDA C++ slots) |
+| `EmitViewDeclsShim` | `EmitViewDeclsShim` (CUDA C++ string emission) |
+| `LowerScanPipelineShim` | `LowerKernelBodyShim` (drop CUDA-specific `LoweringCtx` construction; pass `target` through to construct a per-target LowerCtx) |
+| `CudaRenderShim` | `RenderShim` (target-parametric; resolves the per-op `@register_render(target=T)` at render time) |
+| `VerifyRenderabilityShim` | `VerifyRenderabilityShim` (already parametric in shape; just stop hardcoding `target='cuda'` at line 339) |
+
+Phase B2 makes the Compiler the target authority: `Compiler.run(prog,
+pipeline=DEFAULT, target='cuda')` chooses the target at run time;
+the render-stage shim consults the registered `@register_render(Op,
+target=T)` for the chosen T. Multi-target compilation
+(`targets=['cuda', 'cpu_tbb']`) emits one runner per target from the
+same IR.
+
+## 3. The three-axis fix
+
+The three violations in section 2 are independent on the surface but
+deeply interleaved in execution order. The fix is three named phases
+running in a specific sequence:
+
+- **Phase R** (Runner IR) — replaces the runner monolith
+  (section 2.1) with a typed RIR + per-RIR-op `@lowering` and
+  `@register_render`. Mirrors Phase B's shape, one IR layer up.
+- **Phase T** (Target abstraction) — splits LowerCtx (section 2.2.2),
+  renames CUDA-shaped IIR ops to target-agnostic semantic ops
+  (section 2.2.1), moves CUDA-private helpers under `codegen/cuda/`
+  (section 2.2.3), splits index plugins (section 2.2.4).
+- **Phase B2** (Target parametricity) — makes `Compiler.run(..., target=T)`
+  the authoritative target dispatch (section 2.3); the pipeline
+  becomes target-parametric; multi-target compilation enabled.
+
+Sequencing rationale: Phase T must precede Phase B2 (the per-target
+selection mechanism in Phase B2 needs the target-agnostic op
+vocabulary that Phase T produces). Phase R is independent of T and
+B2 at the IR-vocabulary level (RIR is a new layer; its ops are
+new), but Phase R's renders are per-target via the same mechanism
+B2 introduces, so the LAST PRs of Phase R land after Phase B2's
+target-parametricity is in place. The migration plan in section 6
+reconciles this.
+
+### 3.1 Phase R — Runner IR (RIR)
+
+A new IR layer between MIR and rendered text, dedicated to runner-
+shell concerns (the per-rule C++ struct + kernel launch sequencing
++ fixpoint loop scaffolding + step dispatch). RIR is target-agnostic;
+its renders are per-target.
+
+#### 3.1.1 RIR op vocabulary (initial proposal — refine in implementation)
+
+```python
+# srdatalog/ir/dialects/rir/ops.py
+
+@dataclass(frozen=True, slots=True)
+class RunnerStruct(Op):
+  '''Per-rule runner struct shape. Renders as `struct JitRunner_<rule>`
+  on CUDA; as `class TbbRunner_<rule>` on CPU/TBB; as `function <rule>_run`
+  on a WASM target.'''
+  rule_name: str
+  members: tuple[RunnerMember, ...]
+  ctor: RunnerCtor
+
+@dataclass(frozen=True, slots=True)
+class StepDispatch(Op):
+  '''Top-level step dispatch (one switch arm per step_N method).'''
+  steps: tuple[StepRef, ...]
+  switch_arms: tuple[SwitchArm, ...]
+
+@dataclass(frozen=True, slots=True)
+class FixpointLoop(Op):
+  '''Recursive-step fixpoint loop. Body is RIR; termination is RIR.'''
+  setup: tuple[Op, ...]
+  body: Block
+  termination: Op  # e.g. CheckEmptyDelta
+
+@dataclass(frozen=True, slots=True)
+class KernelDef(Op):
+  '''Definition of one kernel by name and phase (count / materialize /
+  fused). Body is IIR (the existing per-MIR-op lowering output).'''
+  name: str
+  phase: KernelPhase  # COUNT | MATERIALIZE | FUSED
+  body: Op  # IIR
+
+@dataclass(frozen=True, slots=True)
+class KernelLaunch(Op):
+  '''Launch a previously-defined kernel with a per-launch layout +
+  scheduling strategy. `scheduler` is a typed op (see below).'''
+  kernel: KernelRef
+  layout: LaunchLayout  # grid/block dims (CUDA) | thread count (TBB)
+  scheduler: Op  # one of: PlainScheduler, WSScheduler, FanOutScheduler, BGScheduler
+
+@dataclass(frozen=True, slots=True)
+class PlainScheduler(Op):
+  '''Baseline launch — one kernel call per phase per stream.'''
+  grid_dim: str
+  block_dim: str
+
+@dataclass(frozen=True, slots=True)
+class WSScheduler(Op):
+  '''Work-stealing launch — kernel-side task queue + steal loop.'''
+  task_queue: TaskQueueRef
+  steal_loop: SchedulerLoopShape
+
+@dataclass(frozen=True, slots=True)
+class FanOutScheduler(Op):
+  '''Fan-out launch — explore-then-emit kernel split (jit_fanout_executor).'''
+  queue: TaskQueueRef
+  dispatcher: SchedulerDispatcherShape
+
+@dataclass(frozen=True, slots=True)
+class BGScheduler(Op):
+  '''Block-group launch — per-warp work-balance histogram + dispatch.'''
+  per_warp_blocks: PerWarpDispatchShape
+  balance_setup: BalanceSetupShape
+
+@dataclass(frozen=True, slots=True)
+class DedupTable(Op):
+  '''Per-runner dedup-table allocation. Capacity is a known-at-compile-time
+  power of two; renders as a CUDA `DeviceArray<uint64_t>`.'''
+  struct_name: str
+  key_type: TypeRef
+  capacity: int
+```
+
+The shape is one op per pragma-induced runner shape. Today
+`complete_runner.py` keys 14+ branches off
+`ep.dedup_hash / ep.block_group / ep.work_stealing / is_counting`;
+after Phase R the same information is one op type per branch (a
+`KernelLaunch(scheduler=BGScheduler(...))` for block-group, a
+`KernelLaunch(scheduler=WSScheduler(...))` for work-stealing, …).
+The render dispatches per op type.
+
+#### 3.1.2 MIR → RIR lowerings
+
+One `@lowering(target=RIR, source=mir.X)` per MIR maintenance op,
+mirroring Phase B's shape:
+
+| MIR op | Phase R lowering | Produces (RIR) |
+|---|---|---|
+| `mir.FixpointPlan` | `lower_fixpoint_plan` | `FixpointLoop(...)` |
+| `mir.ParallelGroup` | `lower_parallel_group` | `Block(...)` of `KernelLaunch` |
+| `mir.ExecutePipeline` (no pragmas) | `lower_execute_pipeline_plain` | `KernelLaunch(scheduler=PlainScheduler(...))` |
+| `mir.WSScope` (post-pragma materialization) | `lower_ws_scope` | `KernelLaunch(scheduler=WSScheduler(...))` |
+| `mir.FanOut` | `lower_fan_out` | `KernelLaunch(scheduler=FanOutScheduler(...))` |
+| `mir.BlockGroupRoot` | `lower_block_group_root` | `KernelLaunch(scheduler=BGScheduler(...))` + `BgWorkBalanceSetup` |
+| `mir.DedupGate` | `lower_dedup_gate` (runner-side) | `DedupTable(...)` |
+| `mir.ComputeDelta` | `lower_compute_delta` | `MaintenanceCall(...)` |
+| `mir.RebuildIndex` | `lower_rebuild_index` | `MaintenanceCall(...)` |
+| (~14 maintenance ops total per orchestrator.py:494-588 dispatch chain) | one lowering each | one RIR op each |
+
+The kernel body — already produced by Phase B's `MirToIirLowering`
+— is wrapped inside a `KernelDef(body=<IIR>)` RIR op by the same
+pragma's RIR-lowering. Phase R does NOT touch kernel body lowering;
+that work is Phase B's, complete.
+
+#### 3.1.3 RIR → text renders
+
+One `@register_render(RIR-op, target='cuda')` per RIR op. Mirrors
+what Phase B did for IIR: every op type has a per-target render
+function; the render is the textual output.
+
+| RIR op | CUDA renderer | Output |
+|---|---|---|
+| `RunnerStruct` | `render_runner_struct_cuda` | `struct JitRunner_<rule> { ... };` |
+| `StepDispatch` | `render_step_dispatch_cuda` | `void step_N(...) { switch(...) { ... } }` |
+| `FixpointLoop` | `render_fixpoint_loop_cuda` | `for (uint32_t it = 0; ; ++it) { ... if (empty) break; }` |
+| `KernelDef` | `render_kernel_def_cuda` | `__global__ void kernel_count(...) { <body-text> }` |
+| `KernelLaunch + PlainScheduler` | `render_kernel_launch_plain_cuda` | `kernel_count<<<g, b, 0, stream>>>(...)` |
+| `KernelLaunch + WSScheduler` | `render_kernel_launch_ws_cuda` | WS task-queue setup + launch |
+| `KernelLaunch + FanOutScheduler` | `render_kernel_launch_fanout_cuda` | FanOut explore-then-emit dispatch |
+| `KernelLaunch + BGScheduler` | `render_kernel_launch_bg_cuda` | BG histogram + per-warp dispatch |
+| `DedupTable` | `render_dedup_table_cuda` | `DeviceArray<uint64_t> dedup_hash_arr; ...` |
+| `MaintenanceCall` (one per MIR maintenance op family) | `render_maintenance_call_cuda` | `db.<rel>.merge_delta(...)` etc. |
+
+#### 3.1.4 What Phase R deletes
+
+After all Phase R lowerings + renders land:
+
+- `src/srdatalog/ir/codegen/cuda/orchestrator.py` (895 LOC) — deleted.
+  Every site is replaced by a registered renderer.
+- `src/srdatalog/ir/codegen/cuda/complete_runner.py` (1123 LOC) —
+  deleted. The 14-branch pragma dispatcher is replaced by op-type
+  dispatch in the RIR renderer.
+- `src/srdatalog/ir/codegen/cuda/runner.py` (802 LOC) — deleted. The
+  template emitters become per-RIR-op render functions, refactored
+  to take an RIR op instead of pragma kwargs.
+
+Total LOC removed: ~2820. New code: ~2400 (estimate) split across
+~20 single-concern files under `src/srdatalog/ir/dialects/rir/`
+and `src/srdatalog/ir/codegen/cuda/render/rir/`.
+
+### 3.2 Phase T — Target abstraction
+
+Three sub-categories, each its own wave of PRs.
+
+#### 3.2.1 Split LoweringCtx from CudaRenderCtx
+
+Today `LoweringCtx` has ~15 fields (section 2.2.2). Target shape:
+
+```python
+# src/srdatalog/ir/core/lower_ctx.py — already pinned at 5 fields by F3
+@dataclass(frozen=True, slots=True)
+class LowerCtx:
+  compiler: Compiler
+  name_gen: NameGen
+  view_layout: ViewLayout
+  plugin_registry: PluginRegistry
+  target: str
+
+# src/srdatalog/ir/codegen/cuda/lower_ctx.py — NEW (target-private)
+@dataclass(frozen=True, slots=True)
+class CudaRenderCtx:
+  view_var_names: dict[str, str]
+  output_var: str
+  output_var_overrides: dict[str, str]
+  view_slot_bases: dict[str, int]
+  dedup_hash_vars: list[str]
+  tiled_cartesian_valid_var: str
+  ws_cartesian_valid_var: str
+  ws_cartesian_bound_vars: list[str]
+  neg_pre_narrow: dict[int, NegPreNarrowInfo]
+  # 9 fields — all CUDA identifier scratch
+```
+
+Pragma scratch flags (`is_counting`, `dedup_hash`, `tiled_cartesian`,
+`ws_enabled`, `bg_enabled`) move OFF both contexts — they were
+threaded from EP fields (Phase A3 territory) and are consumed only
+inside the pragma's own lowering. The pragma-lowering passes its
+scratch via lexical scope to its inner helpers; nothing else reads
+the flag.
+
+#### 3.2.2 Rename CUDA-shaped IIR ops to target-agnostic semantic names
+
+| Today (CUDA-shape name) | Target-agnostic name | Semantic meaning |
+|---|---|---|
+| `SaTiledCartesian2D` | `TiledCartesianDispatch` (in `relation.sorted_array`) | 2-source nested Cartesian with per-source-pair tile reuse |
+| `BgRootCjMulti` | `BlockGroupRootDispatch` (in `parallel.block_group`) | Root multi-source ColumnJoin under block-group scheduling |
+| `BgSourceSpec` | `BlockGroupSourceSpec` (rename only — already semantic) | Per-source descriptor for block-group dispatch |
+| `SaPrefCoop` | `SaPrefixCooperative` (in `relation.sorted_array`) | Cooperative warp-tile prefix lookup |
+| `SaPrefSeq` | `SaPrefixSequential` (in `relation.sorted_array`) | Per-thread sequential prefix lookup |
+| `SaChildRange` | `SaChildRange` (rename only — but drop `tile` from signature; pass via scope) | Range lookup on a sorted-array node |
+| `GridStrideLoop` | `ParallelStridedLoop` (in `iir.cf`) | Parallel loop with strided indexing |
+| `LaneZeroGuard` | `LaneFirstGuard` (in `iir.cf`) | Predicate guard for one lane per warp/wave/group |
+| `TiledBallotBlock` | `TiledValidBlock` (in `iir.cf`) | Tiled block emitting valid-mask writes |
+
+Per-rename PR shape:
+
+1. New op class (target-agnostic name) added alongside the old.
+2. Lowerings emit the new op; old op deprecated.
+3. Per-target render registers against the new op name.
+4. Old op class deleted in same PR (assuming no external plugin
+   depends on it).
+
+CPU/TBB render will produce nested for-loops with manual SIMD
+intrinsics. SYCL render will produce `nd_range` parallel_for with
+`sub_group` ballots. Each render owns its target's C++ template;
+the IIR op carries only the semantic shape.
+
+#### 3.2.3 Move CUDA-private helpers under `codegen/cuda/`
+
+`view_slots.py` (324 LOC) and `materialized.py` (531 LOC) already
+live under `src/srdatalog/ir/codegen/cuda/`. The fix is removing
+their cross-tree reach into ostensibly target-agnostic call sites:
+
+- `EmitViewDeclsShim` (default_pipelines.py:224-261) calls
+  `view_counts_for_specs` from `relation.d2l` — the count is a CUDA-
+  render concern (number of CUDA `views[]` slots a FULL D2L source
+  consumes). Move the call into a CUDA-render-side pass; the
+  `KernelCtx` carries only the dialect-level source spec.
+- `materialized.py` is already CUDA-only (uses Thrust). Move it
+  into `codegen/cuda/render/materialized.py` as a per-RIR-op
+  renderer (after Phase R lands `MaterializedRunnerShape` as an RIR
+  op).
+
+#### 3.2.4 Split index-plugin registration: data vs render
+
+Today (`d2l/cuda.py:65`):
+
+```python
+# d2l/cuda.py  -- data dialect reaches into target's private registry
+from srdatalog.ir.codegen.cuda.plugin import register_index_plugin
+register_index_plugin(two_level_plugin)
+```
+
+Target shape:
+
+```python
+# src/srdatalog/ir/dialects/relation/d2l/__init__.py  -- data dialect only
+DIALECT = Dialect(name='relation.d2l', ops=[D2lSegmentLoop, ...])
+
+# srdatalog/codegen/cuda/render/relation_d2l.py  -- per-target render
+@register_render(D2lSegmentLoop, target='cuda')
+def render_d2l_segment_loop_cuda(op, ctx): ...
+
+@register_render(D2lSegmentLoop, target='cuda')
+def render_d2l_view_setup_cuda(op, ctx):
+  '''Emits the FULL=2-slot view setup that the legacy plugin's
+  gen_host_view_setup did. CUDA-render-side; CPU/TBB will register
+  its own.'''
+  ...
+```
+
+External index plugins ship a data dialect package + a per-target
+render package; the user installs both. The CUDA target's
+`_PLUGIN_REGISTRY` becomes a `Compiler`-instance registry of
+`@register_render` entries; the side-effect import at
+`complete_runner.py:37` disappears.
+
+### 3.3 Phase B2 — Target parametricity
+
+#### 3.3.1 Target chosen at run time
+
+```python
+# src/srdatalog/__init__.py
+compiler = Compiler.with_default_plugins()
+
+# Existing surface (post-redesign):
+result = compiler.run(prog, pipeline=DEFAULT, target='cuda')
+
+# New surface — second-class target dispatch is gone:
+result = compiler.run(prog, pipeline=DEFAULT, target='cpu_tbb')  # plugin loaded; works
+result = compiler.run(prog, pipeline=DEFAULT, target='wasm')     # plugin not loaded; loud error
+```
+
+The Compiler resolves `target=T` against its registered
+`@register_render(Op, target=T)` table; if no renderer is registered
+for any op type that appears in the IIR/RIR tree post-fixpoint,
+`verify_renderability(target=T)` raises `UnrenderableOpError(op, T)`
+before any render runs. Per the four topology checks in
+`concept_glossary.md` §13.3, this is check #4 (renderability closure),
+parameterized over T.
+
+#### 3.3.2 Multi-target compilation
+
+```python
+result = compiler.run(prog, pipeline=DEFAULT, targets=['cuda', 'cpu_tbb'])
+# result.per_target = {'cuda': '<cuda C++ text>', 'cpu_tbb': '<cpu C++ text>'}
+```
+
+The Compiler runs the rendering pass once per target; the IR
+preceding the render pass is shared. Use cases:
+
+- A user wants both a GPU binary and a CPU fallback shipped in one
+  build.
+- A test fixture wants byte-equiv goldens for both targets from the
+  same source.
+- A benchmark wants the cross-target perf comparison from identical
+  IR.
+
+#### 3.3.3 Pipeline shims become target-parametric
+
+Per section 2.3, the shim class names encode CUDA. Phase B2 renames:
+
+| Old (CUDA-baked) | New (target-parametric) | Behavior change |
+|---|---|---|
+| `LowerScanPipelineShim` | `LowerKernelBodyShim` | Constructs a per-target `LowerCtx`; resolves per-target `@lowering` |
+| `CudaRenderShim` | `RenderShim` | Dispatches `@register_render(op, target=ctx.target)` per op |
+| `EmitViewDeclsShim` | (moved into CUDA-render-side pass per §3.2.3) | — |
+| `CollectViewSpecsShim` | (moved into CUDA-render-side pass per §3.2.3) | — |
+| `AssignHandlesShim` | `AssignHandlesShim` (target-agnostic — handle assignment is a property of the MIR pipeline) | unchanged |
+| `VerifyRenderabilityShim` | `VerifyRenderabilityShim` (already parametric; just stop hardcoding the literal) | reads target from KernelCtx |
+
+#### 3.3.4 Plugin discovery split: dialects vs targets
+
+Today the entry-point group is one group:
+`[project.entry-points."srdatalog.plugins"]`. Phase B2 splits:
+
+```toml
+# pyproject.toml — post-redesign
+[project.entry-points."srdatalog.dialects"]
+sorted_array   = "srdatalog.ir.dialects.relation.sorted_array:register"
+d2l            = "srdatalog.ir.dialects.relation.d2l:register"
+iir_cf         = "srdatalog.ir.dialects.iir.cf:register"
+parallel_data  = "srdatalog.ir.dialects.parallel.data:register"
+parallel_atomic_ws    = "srdatalog.ir.dialects.parallel.atomic_ws:register"
+parallel_block_group  = "srdatalog.ir.dialects.parallel.block_group:register"
+rir            = "srdatalog.ir.dialects.rir:register"
+
+[project.entry-points."srdatalog.targets"]
+cuda           = "srdatalog.codegen.cuda:register"
+# external packages add:
+# cpu_tbb     = "srdatalog_cpu_tbb:register"
+# sycl        = "srdatalog_sycl:register"
+```
+
+`Compiler.with_default_plugins()` walks both groups; `target=T`
+selects which targets' render contributions are used at render time.
+External packages declare one or both groups depending on whether
+they ship a data dialect, a render target, or both. The jaccard
+example (PR #68) would ship under `srdatalog.dialects` only (it's
+a data dialect; relies on existing CUDA target for render).
+
+#### 3.3.5 verify_renderability per-target
+
+R3 (`code_discipline.md`) requires every concrete IIR/RIR op has
+either `@register_render(target=cuda)` or a `@rewrite`. Phase B2
+makes this per-target: for each registered target T in the running
+Compiler, the closure check (`verify_renderability(target=T)`) runs
+once. A target that doesn't yet have renders for every op type
+fails at compiler-bootstrap time, NOT at the user's first
+`compiler.run(...)` call. (Bootstrap-time check, not run-time.)
+
+External plugins that add new ops without per-target renders are
+caught at install + first-import; the error names exactly which
+(op, target) pair is missing a render.
+
+## 4. Worked example: ship a CPU/TBB backend
+
+End-to-end: an external party wants the compiler to additionally
+emit CPU/TBB code for the same source rules. ZERO edits to
+`srdatalog/`.
+
+### 4.1 Before this redesign
+
+The user would need to edit ~7 files:
+
+1. `src/srdatalog/ir/codegen/cuda/api.py` — change the `Target`
+   alias from `Literal['cuda']` to `Literal['cuda', 'cpu_tbb']`.
+2. `src/srdatalog/ir/default_pipelines.py` — introduce a parallel
+   `CpuTbbRenderShim` next to `CudaRenderShim`.
+3. `src/srdatalog/ir/codegen/cuda/orchestrator.py` — add a parallel
+   `gen_step_body_tbb` (~900 LOC of duplicated branches).
+4. `src/srdatalog/ir/codegen/cuda/complete_runner.py` — add a
+   parallel `gen_complete_runner_tbb` (~1100 LOC of duplicated
+   branches).
+5. `src/srdatalog/ir/codegen/cuda/runner.py` — add a parallel set
+   of `emit_*_tbb` template emitters (~800 LOC).
+6. Per IIR op: a parallel `_render_tbb_*` function in a new
+   `codegen/cpu_tbb/` module — but with the current IIR ops carrying
+   CUDA-specific shape (e.g., `SaTiledCartesian2D` with smem fields),
+   the TBB render has to reverse-engineer the semantic intent from
+   the C++ template fields.
+7. `src/srdatalog/ir/codegen/cuda/plugin.py` — the index plugin
+   registry needs a per-target variant, AND every data dialect's
+   `cuda.py` registration module needs a parallel `cpu_tbb.py`.
+
+Plus the inherent risk: the per-target divergence is 7+ files, each
+with internal branching; the byte-equivalence harness covers only
+CUDA, so a TBB break is silent until a user runs the new target.
+
+### 4.2 After this redesign
+
+The user creates ONE plugin package, ships it to PyPI:
+
+```
+srdatalog_cpu_tbb/
+  pyproject.toml                            # entry-point declaration
+  src/srdatalog_cpu_tbb/
+    __init__.py                             # register(compiler)
+    scheduler_ops.py                        # CpuTbb{Plain,WS,FanOut,BG}Scheduler RIR ops
+    codegen/
+      render/
+        iir_cf.py                           # @register_render(target='cpu_tbb') per iir.cf op
+        iir_expr.py                         # @register_render(target='cpu_tbb') per iir.expr op
+        sorted_array.py                     # @register_render(target='cpu_tbb') per sorted_array op
+        d2l.py                              # @register_render(target='cpu_tbb') per d2l op
+        parallel_data.py                    # @register_render(target='cpu_tbb') per parallel.data op
+        parallel_block_group.py             # @register_render(target='cpu_tbb') per parallel.block_group op
+        parallel_atomic_ws.py               # @register_render(target='cpu_tbb') per parallel.atomic_ws op
+        rir.py                              # @register_render(target='cpu_tbb') per RIR op
+```
+
+`pyproject.toml`:
+
+```toml
+[project]
+name = "srdatalog-cpu-tbb"
+dependencies = ["srdatalog>=2.0"]
+
+[project.entry-points."srdatalog.targets"]
+cpu_tbb = "srdatalog_cpu_tbb:register"
+```
+
+`src/srdatalog_cpu_tbb/__init__.py`:
+
+```python
+def register(compiler):
+  from . import scheduler_ops  # noqa  -- @op registrations fire
+  from .codegen.render import (  # noqa  -- @register_render registrations fire
+    iir_cf, iir_expr, sorted_array, d2l,
+    parallel_data, parallel_block_group, parallel_atomic_ws, rir,
+  )
+```
+
+End-user code:
+
+```python
+from srdatalog import compile_runner
+
+result = compile_runner(prog, target='cpu_tbb')
+# Renders to TBB C++; the registered @register_render(...,
+# target='cpu_tbb') for every op type was contributed by the
+# srdatalog_cpu_tbb plugin. Zero edits to srdatalog/.
+```
+
+The Compiler bootstrap verifies: for every op type reachable in the
+post-fixpoint IIR + RIR tree, `@register_render(op, target='cpu_tbb')`
+is registered. If not, `UnrenderableOpError` names the missing
+(op_type, 'cpu_tbb') pair — the user knows exactly which render
+function to write.
+
+## 5. Worked example: ship a new algorithm (semi-ring aggregation)
+
+A new algorithm is a different shape from a new target. The user
+adds a new MIR op type, a new IIR op type, and renders for each
+registered target.
+
+```
+srdatalog_semiring/
+  pyproject.toml
+  src/srdatalog_semiring/
+    __init__.py                             # register(compiler)
+    mir_ops.py                              # SemiringAggregate (MIR op)
+    iir_ops.py                              # SrAggBody (IIR op)
+    lowerings.py                            # @lowering(target=IIR, source=SemiringAggregate)
+    codegen/
+      render/
+        cuda.py                             # @register_render(SrAggBody, target='cuda')
+        # cpu_tbb.py, sycl.py, ... if other targets are installed in the same env
+```
+
+`__init__.py`:
+
+```python
+def register(compiler):
+  from .mir_ops import SemiringAggregate  # noqa
+  from .iir_ops import SrAggBody          # noqa
+  from . import lowerings                  # noqa  -- @lowering fires
+  from .codegen.render import cuda         # noqa  -- @register_render(target='cuda') fires
+  # cpu_tbb / sycl renders register IFF the user installed those
+  # target plugins; the plugin gracefully degrades — UnrenderableOpError
+  # at run time names the missing pair.
+```
+
+End-user code:
+
+```python
+from srdatalog import Rule, Var, compile_runner
+
+x, y = Var('x'), Var('y')
+sum_rule = Rule(...).aggregate(SemiringAggregate(semiring='tropical'))
+result = compile_runner(Program(rules=[sum_rule]), target='cuda')
+```
+
+Zero edits to `srdatalog/`. The new algorithm flows through:
+
+1. DSL `aggregate(...)` attaches the typed op.
+2. HIR → MIR lowering emits the new `SemiringAggregate` MIR op
+   (the plugin registers it as the MIR op for `aggregate(...)`).
+3. `MirToIirLowering` finds `@lowering(target=IIR, source=SemiringAggregate)`
+   and lowers to `SrAggBody`.
+4. `verify_renderability(target='cuda')` finds the registered
+   `@register_render(SrAggBody, target='cuda')` and confirms the
+   tree closes.
+5. `CudaRenderPass` walks the tree; the new op type gets its
+   plugin-supplied renderer.
+
+## 6. Per-PR migration plan
+
+20-30 PRs across the three phases. The load-bearing part: per-PR
+sequencing + per-PR byte-equivalence gating. Each PR is exactly one
+concept; the byte-equivalence suite on CUDA stays green throughout
+(zero target migration in scope yet — CUDA is the regression
+anchor).
+
+### 6.1 Wave R1 — Phase R framework (3 PRs)
+
+| PR | Branch | Adds | Acceptance |
+|---|---|---|---|
+| **R1-1** | `feat/r1-1-rir-framework` | New `src/srdatalog/ir/dialects/rir/{ops,types,print,__init__}.py` defining the RIR op vocabulary from §3.1.1 (RunnerStruct, StepDispatch, FixpointLoop, KernelDef, KernelLaunch, PlainScheduler, WSScheduler, FanOutScheduler, BGScheduler, DedupTable, ~14 maintenance call ops). Each op `@dataclass(frozen=True, slots=True)`. Per-op `print()` form. Dialect registration via entry point. | All 535 byte-equivalence goldens green. RIR ops not yet emitted by any lowering; pure framework addition. Discipline tests: ops are frozen + final + slots (D13-style); dialect verifier no-op stub. |
+| **R1-2** | `feat/r1-2-rir-lowering-shim` | Add `MirToRirLowering(LoweringPass)` to `core/passes.py`-using dialect; declare `consumes=('mir_program',)` + `produces=('rir',)`. Add `LowerRunnerShim(ProgramPass)` wrapping the existing `gen_step_body` + `gen_complete_runner` as a transitional fallback. Insert into `DEFAULT_PROGRAM_PIPELINE` AFTER `MirProgramAssembly`. | RIR layer threads through; byte-equiv on CUDA preserved via fallback. |
+| **R1-3** | `feat/r1-3-verify-runner-completeness` | Add `verify_runner_completeness(rir_program, target=T)` framework check (parallel to `verify_renderability`). Add `VerifyRunnerCompletenessShim`. R3 extension: per-target check that every RIR op has a registered renderer for T. | Discipline test: `test_verify_runner_completeness_catches_missing_render`. Negative-path test confirms loud failure when an RIR op has no renderer. |
+
+### 6.2 Wave R2 — Phase R per-MIR-op lowerings (8 PRs)
+
+One PR per MIR maintenance op (or MIR-op family). Each adds the
+`@lowering(target=RIR, source=mir.X)` registration + introduces the
+relevant scheduler/op-type in the runner. The legacy `gen_step_body
+/ gen_complete_runner` fallback handles ops not yet migrated; the
+`USE_DECLARATIVE_RUNNER` set (parallel to Phase B's
+`USE_DECLARATIVE`) ratchets up monotonically.
+
+| PR | Branch | Migrates | Produces |
+|---|---|---|---|
+| **R2-1** | `feat/r2-1-fixpoint-plan` | `mir.FixpointPlan` | `FixpointLoop(...)` |
+| **R2-2** | `feat/r2-2-parallel-group` | `mir.ParallelGroup` | `Block(KernelLaunch...)` |
+| **R2-3** | `feat/r2-3-execute-pipeline-plain` | `mir.ExecutePipeline` (no pragmas) | `KernelLaunch(scheduler=PlainScheduler)` |
+| **R2-4** | `feat/r2-4-ws-scope-scheduler` | `mir.WSScope` → WS launch | `KernelLaunch(scheduler=WSScheduler)` |
+| **R2-5** | `feat/r2-5-fanout-scheduler` | `mir.FanOut` → fan-out launch | `KernelLaunch(scheduler=FanOutScheduler)` |
+| **R2-6** | `feat/r2-6-block-group-scheduler` | `mir.BlockGroupRoot` → BG launch | `KernelLaunch(scheduler=BGScheduler)` + `BgWorkBalanceSetup` |
+| **R2-7** | `feat/r2-7-dedup-table` | `mir.DedupGate` (runner half) | `DedupTable(...)` |
+| **R2-8** | `feat/r2-8-maintenance-ops` | Bulk: 14 maintenance ops (ComputeDelta, ComputeDeltaIndex, MergeIndex, CheckSize, RebuildIndex, RebuildIndexFromIndex, CreateFlatView, ClearRelation, MergeRelation, InjectCppHook, PostStratumReconstructInternCols, plus two from §2.1) | 14 `MaintenanceCall(...)` variants |
+
+Per-PR acceptance per Phase B's template (`phase_b_lowering_dispatcher.md`):
+new lowering file, single-line `USE_DECLARATIVE_RUNNER` addition,
+byte-equiv gate on the 535 CUDA goldens, +1 net registered RIR op.
+
+### 6.3 Wave R3 — Phase R RIR renders (8 PRs)
+
+One PR per RIR op (or op family). Adds the
+`@register_render(RIR-op, target='cuda')` for each. Once all renders
+land + the `USE_DECLARATIVE_RUNNER` set reaches 100% MIR-op
+coverage, the legacy fallback (`gen_step_body`, `gen_complete_runner`,
+`emit_runner_full`) is deleted in the same commit (D19 v2 ratchet
+discipline: completeness gate decrements the legacy-function-count
+cap atomically).
+
+| PR | Branch | Render |
+|---|---|---|
+| **R3-1** | `feat/r3-1-render-runner-struct` | RunnerStruct, RunnerMember, RunnerCtor |
+| **R3-2** | `feat/r3-2-render-step-dispatch` | StepDispatch, SwitchArm |
+| **R3-3** | `feat/r3-3-render-fixpoint-loop` | FixpointLoop |
+| **R3-4** | `feat/r3-4-render-kernel-def` | KernelDef (per phase) |
+| **R3-5** | `feat/r3-5-render-launch-plain` | KernelLaunch + PlainScheduler |
+| **R3-6** | `feat/r3-6-render-launch-ws-fanout` | KernelLaunch + WSScheduler / FanOutScheduler |
+| **R3-7** | `feat/r3-7-render-launch-bg` | KernelLaunch + BGScheduler + DedupTable |
+| **R3-8** | `feat/r3-8-render-maintenance` | All 14 MaintenanceCall variants + delete legacy `gen_step_body` / `gen_complete_runner` / `emit_runner_full` in the same commit. |
+
+After R3-8 lands: `orchestrator.py`, `complete_runner.py`, `runner.py`
+are deleted. `complete_runner.py:37` side-effect import of
+`relation.d2l` goes away (the render-side `@register_render`
+contributions fire on plugin load, not at runner import).
+
+### 6.4 Wave T1 — Phase T LowerCtx split (2 PRs)
+
+| PR | Branch | Change |
+|---|---|---|
+| **T1-1** | `feat/t1-1-extract-cuda-render-ctx` | Add `src/srdatalog/ir/codegen/cuda/lower_ctx.py` defining `CudaRenderCtx` (per §3.2.1, 9 fields). Migrate all 9 CUDA-specific fields off `LoweringCtx`. Adjust pragma-lowering sites that flip the scratch flags (they now flip on `CudaRenderCtx`, not `LowerCtx`). |
+| **T1-2** | `feat/t1-2-pin-lower-ctx-five-fields` | After T1-1, `LoweringCtx` has the 5 fields + pragma-scratch flags only. T1-2 finalizes the pragma-scratch flags as lowering-local kwargs (not ctx fields). Discipline test `test_lower_ctx_field_count_pinned_at_five` (D10) starts asserting strictly. |
+
+Phase A3-1/A3-2/A3-3 (parked branches) are dropped at the end of
+T1-2 — their bool removals are subsumed by the LowerCtx split + the
+typed pragma lowering already in place from Phase C.
+
+### 6.5 Wave T2 — Phase T IIR rename (5 PRs)
+
+| PR | Branch | Renames |
+|---|---|---|
+| **T2-1** | `feat/t2-1-rename-sa-tiled-cart` | `SaTiledCartesian2D` → `TiledCartesianDispatch` |
+| **T2-2** | `feat/t2-2-rename-bg-root-cj` | `BgRootCjMulti` → `BlockGroupRootDispatch`, `BgSourceSpec` → `BlockGroupSourceSpec` |
+| **T2-3** | `feat/t2-3-rename-sa-prefix` | `SaPrefCoop` → `SaPrefixCooperative`, `SaPrefSeq` → `SaPrefixSequential`, drop CUDA-tile params from `SaChildRange` signature |
+| **T2-4** | `feat/t2-4-rename-iir-cf-cuda-ops` | `GridStrideLoop` → `ParallelStridedLoop`, `LaneZeroGuard` → `LaneFirstGuard`, `TiledBallotBlock` → `TiledValidBlock` |
+| **T2-5** | `feat/t2-5-audit-and-drop-old-aliases` | Final audit: grep for residual CUDA-shaped op names across the dialect tree. Delete deprecation aliases. |
+
+Per-rename PR shape: add the new op next to the old; update
+lowerings to emit the new op; update CUDA renders to register
+against the new op; delete the old op in the same commit (no
+deprecation window — internal-only change).
+
+### 6.6 Wave T3 — Phase T index-plugin split (2 PRs)
+
+| PR | Branch | Change |
+|---|---|---|
+| **T3-1** | `feat/t3-1-split-sorted-array-render` | Split `relation/sorted_array/` such that the data dialect (ops, types, print, lowerings) is target-agnostic; CUDA renders move to `codegen/cuda/render/relation_sorted_array.py`. Migrate the `_PLUGIN_REGISTRY` for DSAI default into `compiler.targets['cuda'].render_registry`. |
+| **T3-2** | `feat/t3-2-split-d2l-render` | Same for `relation/d2l/`: the data dialect stays at `dialects/relation/d2l/`; CUDA-side render becomes `codegen/cuda/render/relation_d2l.py` with `@register_render(D2lSegmentLoop, target='cuda')`. Delete the side-effect `import srdatalog.ir.dialects.relation.d2l` at the runner level (already gone after R3-8). |
+
+After T3-2: the `_PLUGIN_REGISTRY` global in
+`codegen/cuda/plugin.py` is gone; replaced by per-Compiler render
+registries keyed on (op_type, target).
+
+### 6.7 Wave B2-1 — Target parametricity (3 PRs)
+
+| PR | Branch | Change |
+|---|---|---|
+| **B2-1-1** | `feat/b2-1-compiler-run-target-kwarg` | `Compiler.run(prog, pipeline=DEFAULT, target='cuda')` accepts target; threads it through `KernelCtx.target` field; `verify_renderability` reads target from ctx; `RenderShim` (renamed from `CudaRenderShim`) dispatches `@register_render(op, target=ctx.target)`. |
+| **B2-1-2** | `feat/b2-1-pipeline-shim-rename` | Shim rename per §3.3.3 table. `LowerScanPipelineShim` → `LowerKernelBodyShim`. `CudaRenderShim` → `RenderShim`. Update `DEFAULT_KERNEL_PIPELINE` list. |
+| **B2-1-3** | `feat/b2-1-plugin-group-split` | Split entry-point group from `srdatalog.plugins` into `srdatalog.dialects` + `srdatalog.targets`; update `pyproject.toml` (per §3.3.4); update `Compiler.with_default_plugins()` to walk both groups. Backward-compatibility shim: read the legacy group for one release cycle. |
+
+### 6.8 Wave B2-2 — Multi-target (2 PRs)
+
+| PR | Branch | Change |
+|---|---|---|
+| **B2-2-1** | `feat/b2-2-compiler-run-targets-kwarg` | `Compiler.run(prog, pipeline=DEFAULT, targets=['cuda', 'cpu_tbb'])` accepts a target list; render pass runs once per target; result is `MultiTargetResult(per_target={'cuda': ..., 'cpu_tbb': ...})`. |
+| **B2-2-2** | `feat/b2-2-per-target-verify-renderability` | `verify_renderability` runs once per registered target at compiler-bootstrap time, not at run time. Failure naming: `(op_type, target)`. |
+
+### 6.9 Cleanup (2 PRs)
+
+| PR | Branch | Change |
+|---|---|---|
+| **C-1** | `feat/c-1-delete-runner-monoliths` | Delete `orchestrator.py`, `complete_runner.py`, `runner.py` (already done in R3-8; this PR cleans up residual imports and any dead transitional helpers). Delete `ep_has_X(...)` helpers if any landed transitionally. Delete parked A3 branch content (do not merge those PRs). |
+| **C-2** | `feat/c-2-introduce-d20-discipline` | Add discipline rule D20 (additive-contract; §7 below). Add `tests/test_discipline_d20_additive_contract.py`. Initial state: ratchet-only (warning) for one release cycle, then hard-block. |
+
+### 6.10 Per-PR byte-equivalence anchor
+
+Every PR through R3-8 is byte-equivalence-gated on the CUDA target:
+the 535+ goldens (`tests/test_runner_byte_equivalence.py` 272 +
+`tests/test_byte_equivalence_jit.py` 253 + lowering goldens) must
+remain green. Wave R3-8 is the only PR that's allowed to delete
+golden divergence-tolerance handlers — the new RIR renders are
+specified to match the existing CUDA goldens byte-for-byte.
+
+Wave T1/T2/T3/B2 are similarly byte-gated; the rename + split is a
+no-op for the rendered CUDA C++ text.
+
+### 6.11 Total ledger
+
+- Wave R1: 3 PRs
+- Wave R2: 8 PRs
+- Wave R3: 8 PRs (R3-8 deletes the legacy runner)
+- Wave T1: 2 PRs
+- Wave T2: 5 PRs
+- Wave T3: 2 PRs
+- Wave B2-1: 3 PRs
+- Wave B2-2: 2 PRs
+- Cleanup: 2 PRs
+
+**Total: 35 PRs.** (Brief estimated 20-30; the per-MIR-op +
+per-RIR-op decomposition pushes it to 35. Could compress R3 into
+4 PRs if multiple renders land together, but per-op granularity
+preserves byte-equivalence per-PR — the recommended shape.)
+
+Recommended order: R1 → R2 (parallel up to 3 at a time) → T1 → T2
+(parallel up to 3) → T3 → B2-1 → R3 (parallel up to 3) → B2-2 →
+Cleanup. The dependency: T1 should precede R3-8 (RIR renderers
+write target-private state into the per-target render ctx), and
+B2-1 should precede the latter R3 PRs (per-target render dispatch
+is the mechanism R3 renders register against).
+
+## 7. Acceptance gates
+
+The redesign is complete iff:
+
+- [ ] **CUDA byte-equivalence preserved end-to-end.** All 535+
+  goldens green at every PR. No divergence-tolerance was added.
+- [ ] **Synthetic minimal CPU/TBB backend demonstrates the additive
+  contract.** Lands as a separate package
+  `examples/srdatalog_cpu_tbb_demo/` (mirroring the jaccard demo in
+  PR #68). Renders to mock sequential C++; no real perf. Pure
+  validation of the extension mechanism.
+- [ ] **`verify_renderability` runs per target.** At
+  `Compiler.with_default_plugins()` bootstrap, the check runs once
+  per registered target; any (op, target) gap is named loudly.
+- [ ] **D20 discipline rule blocks feature-edit PRs.** PRs that edit
+  existing files in `src/srdatalog/ir/dialects/` or
+  `src/srdatalog/ir/codegen/` to add a feature are blocked at CI.
+  Adding a feature requires a new plugin module.
+
+D20 proposed text (style-matched to `code_discipline.md` §2):
+
+| ID | Forbidden pattern | Why | Discipline test |
+|---|---|---|---|
+| **D20** | A PR adding a new feature (algorithm, pragma, index type, aggregation, target) edits existing source files under `src/srdatalog/ir/dialects/**.py` or `src/srdatalog/ir/codegen/**.py`. Edits to designated registry sets (`DEFAULT_PIPELINE`, plugin entry points, `__all__` re-exports) are allowed; new functions, new branches in existing functions, new fields on existing types are NOT. | The ACID test from `phase_decomposition_redesign.md` §1: every new feature is a purely additive plugin. Editing an existing file is the imperative-monolith failure mode the redesign reverses. | `test_discipline_d20_additive_contract.py` — for PRs labeled `feature:` (new functionality), parse the diff; assert that no `.py` file under `src/srdatalog/ir/dialects/` or `src/srdatalog/ir/codegen/` has lines added outside the designated registry-set markers. |
+
+D20 mechanics: enforced only on PRs labeled `feature:` (a separate
+GitHub label). Bug-fix PRs, refactor PRs, and discipline-amendment
+PRs are exempt. The label is set by the author; reviewers verify
+the label-vs-content match. (This is the same procedural-vs-
+mechanical split as the `code_discipline.md` §5 enforcement
+architecture.)
+
+## 8. Relationship to existing phases / parked work
+
+### 8.1 Stays merged unchanged
+
+- **Phase F1-F5** (foundation). The framework infrastructure
+  (Pass kinds, declarative pipeline, plugin discovery, small
+  LowerCtx) is correct as designed; only the dialect + codegen
+  layers need decomposition. Phase B2 extends F4/F5's pipeline-as-
+  data to per-target; the framework itself is unchanged.
+- **Phase A1-A2** (MIR onto Op). The frozen-Op work is target-
+  agnostic and correct; Phase T renames some IIR ops the MIR ops
+  feed into, but doesn't touch MIR.
+- **Phase B** (per-MIR-op `@lowering` for kernel-body). Stays
+  merged. Phase R extends the exact same pattern to the runner
+  layer; the migration is the same shape (per-MIR-op PR, with a
+  `USE_DECLARATIVE_RUNNER` ratchet).
+- **Phase C** (typed pragmas). Stays merged. The Pragma classes are
+  target-agnostic; Phase T may rename some IIR ops the pragmas
+  materialize to, but the pragma-handler topology is unchanged.
+- **Phase D** (HIR `ProgramPass`). Stays merged. The HIR planning
+  passes are pre-MIR and target-agnostic; no impact from Phase R/T/B2.
+
+### 8.2 Stays merged but extended
+
+- **Phase E** (built-ins as plugins). Stays merged. Phase T's
+  per-target render split (§3.2.4) means each dialect plugin now
+  splits into a data contribution + per-target render contribution.
+  Existing built-in dialects need a one-time refactor (Wave T3)
+  to match. **External plugins (PR #68 jaccard demo) are NOT
+  retroactively broken** — the existing single-`register(compiler)`
+  entry point continues to work; the split affects only how
+  built-ins are reorganized. External plugins that ALSO want to
+  ship to multiple targets opt into the per-target split.
+  (Open question: should Phase E be retroactively versioned to
+  e.g. "Phase E1" + "Phase E2" — the original Phase E + the
+  per-target split? Recommendation: yes, when the spec PR for
+  Wave T3 lands. See section 9.)
+
+### 8.3 Superseded
+
+- **Phase A3** (parked branches A3-1/A3-2/A3-3 + the open spec at
+  `phase_a3_remove_deprecated_bool_fields.md`). **SUPERSEDED.** The
+  bool-field removals + the `ep_has_X(...)` helpers they introduced
+  both disappear under Phase R. Don't merge the parked A3 branches;
+  they're net-negative work post-redesign (every line they add is
+  deleted by R3-8).
+  - A3-1/A3-2/A3-3 sitting on local branches (per `git branch -a`):
+    `feat/a3-1-remove-dedup-hash-bool`, `feat/a3-2-remove-work-stealing-bool`,
+    `feat/a3-3-remove-block-group-bool`. **Mark as
+    Closed-Won't-Merge on the PR tracker** once this spec is
+    approved.
+  - A3-4/A3-5/A3-6 (the harder ones — `use_fan_out`, `count`,
+    `tiled_cartesian`) NOT YET implemented. Their goals are
+    satisfied by Phase R: the bool reads disappear into typed RIR
+    op dispatch.
+  - The `MirTiledEligibilityPass` proposal in A3-6 §3.6 stays
+    valuable independently: it's a real MIR pre-pass that attaches
+    a `TiledCartesian` pragma to eligible EPs (target-agnostic).
+    Salvage as a separate PR under Wave T1 (rename to
+    `MirEligibilityPass` if eligibility for additional pragmas
+    accretes).
+
+### 8.4 Stays open + extended
+
+- **PR #68 jaccard demo** (`feat/e-d2l-as-plugin` ancestor —
+  external plugin proof of concept). Stays as the customizability
+  proof. Gets extended once Wave T3 lands: an updated jaccard
+  package ships the data dialect + a CUDA render module (the same
+  shape Phase T applies to built-in dialects). No urgency; the
+  current single-`register(compiler)` form continues to work.
+
+- **PR #72 dispatcher gap fix.** Stays merged. It's framework
+  infrastructure (closing the per-MIR-op dispatch gap for
+  `USE_DECLARATIVE`); correct independent of Phase R/T/B2. No
+  impact.
+
+### 8.5 Disposition summary table
+
+| Phase / PR | Status | Rationale |
+|---|---|---|
+| Phase F1-F5 | Stays merged | Foundation is correct |
+| Phase A1-A2 | Stays merged | MIR-onto-Op is target-agnostic |
+| Phase B (Wave 2A) | Stays merged | Per-MIR-op @lowering pattern extends to Phase R |
+| Phase C | Stays merged | Typed pragmas are target-agnostic |
+| Phase D | Stays merged | HIR ProgramPass is target-agnostic |
+| Phase E | Stays merged + extended | Per-target render split in Wave T3 |
+| Phase A3 (parked branches) | **DO NOT MERGE** | Superseded by Phase R |
+| Phase A3 (spec doc) | Mark superseded; do not delete | Historical record of the diagnosis |
+| PR #68 jaccard demo | Stays open + extended | Customizability proof; extends per Wave T3 |
+| PR #72 dispatcher gap | Stays merged | Framework infra; orthogonal |
+| Phase R / T / B2 (this spec) | Replaces parked A3 + Layer 3 | The unified plan |
+
+## 9. Sign-off
+
+This document represents an architectural commitment. Sign-off
+includes:
+
+- [ ] §1 ACID test is the load-bearing invariant for every future
+  feature PR.
+- [ ] §2 diagnosis (file:line tables) is accurate; reviewers spot-
+  check a sample.
+- [ ] §3 three-axis fix (R + T + B2) is the right decomposition;
+  no fourth axis missing.
+- [ ] §4 worked example (CPU/TBB backend) is achievable with the
+  proposed shape; one reviewer prototypes the package skeleton.
+- [ ] §5 worked example (semiring) is similarly achievable.
+- [ ] §6 per-PR partition: 35 PRs is the right granularity;
+  per-PR byte-equivalence gate is the right discipline.
+- [ ] §7 acceptance gates are sufficient (especially D20).
+- [ ] §8 phase disposition is correct; the parked A3 branches are
+  closed (not merged).
+- [ ] Open question from §8.2: Should Phase E be retroactively
+  versioned to E1+E2 to mark the per-target-render-split
+  amendment? Reviewer answers yes/no with one-paragraph rationale.
+
+Reviewer initials and date below.

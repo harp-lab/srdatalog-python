@@ -66,6 +66,7 @@ api/index
 
 phase_f5_declarative_pipeline
 phase_a3_remove_deprecated_bool_fields
+phase_decomposition_redesign
 ```
 
 ## Project status

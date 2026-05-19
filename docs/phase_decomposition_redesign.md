@@ -56,6 +56,19 @@ topology checks, the typed-pragma model) is in service of this one
 invariant. The compiler is correct iff every reasonable extension
 the user might want is a purely additive plugin.
 
+> **Sub-clause (Amendment 1).** Every operational semantic —
+> termination conditions, cross-stratum dependencies, delta-variant
+> ordering, multi-head emission, kernel fusion, pragma compatibility,
+> view-slot layout — must be expressed as **typed IR ops or typed
+> metadata**, not as string-tagged dispatch inside renderers.
+> Renderers may only dispatch on op TYPE, never on a string field of
+> an op. If a backend needs to know "is this a count phase or a
+> materialize phase?", that question is answered by which IR-op type
+> (e.g. `CountKernelDef` vs `MaterializeKernelDef`) is being
+> rendered — never by reading `op.phase == "count"`. See § 10 for
+> the full set of typed concerns this sub-clause covers and the
+> renderer-side discipline test D21 in § 7.
+
 ### 1.1 What the ACID test forbids
 
 After this redesign lands, any PR that needs to EDIT an existing
@@ -502,6 +515,296 @@ after Phase R the same information is one op type per branch (a
 `KernelLaunch(scheduler=WSScheduler(...))` for work-stealing, …).
 The render dispatches per op type.
 
+> **Amendment 1.** The vocabulary listed above is the structural
+> skeleton; § 3.1.1.1 expands it into the full ~30-op typed
+> vocabulary required by the § 1 sub-clause. In particular,
+> `MaintenanceCall` (one op with 11 string-tagged variants),
+> `FixpointLoop.termination: Op` (a black-box untyped slot),
+> `KernelDef.phase: KernelPhase` (a string-ish enum), and the
+> implicit-list-order semantics for steps / variants / multi-head
+> emission are replaced with one typed op per concern.
+
+#### 3.1.1.1 Amendment 1 — typed-vocabulary expansion
+
+Eight semantic gaps in the § 3.1.1 vocabulary above leave
+operational meaning either string-tagged (`MaintenanceCall.kind`,
+`KernelDef.phase`) or implicit (list ordering for steps, delta
+variants, multi-head emission; opaque `termination: Op` slot; render-
+time view-slot allocation). Amendment 1 fills them. The total RIR
+op count grows from ~10 to ~30; per-op work is mechanical.
+
+##### Gap 1 — `MaintenanceCall` decomposes into 11 typed ops
+
+The single `MaintenanceCall(kind: str, args)` op is replaced with
+one typed op per MIR maintenance op. Source-of-truth count: the 11
+`isinstance(instr, m.X)` branches in
+`src/srdatalog/ir/codegen/cuda/orchestrator.py` lines 506-588 (i.e.,
+the 14-branch chain cited in § 2.1 minus `ExecutePipeline` and
+`ParallelGroup`, which are kernel/group ops, not maintenance).
+
+| RIR op | Signature | MIR source op |
+|---|---|---|
+| `ComputeDeltaCall` | `(rel_name: str, index: IndexSpec)` | `mir.ComputeDelta` |
+| `ComputeDeltaIndexCall` | `(rel_name: str, canonical_index: IndexSpec)` | `mir.ComputeDeltaIndex` |
+| `MergeIndexCall` | `(rel_name: str, index: IndexSpec)` | `mir.MergeIndex` |
+| `MergeRelationCall` | `(rel_name: str)` | `mir.MergeRelation` |
+| `CheckSizeCall` | `(rel_name: str, version: VersionTag)` | `mir.CheckSize` |
+| `RebuildIndexCall` | `(rel_name: str, version: VersionTag, index: IndexSpec)` | `mir.RebuildIndex` |
+| `RebuildIndexFromIndexCall` | `(rel_name: str, source_index: IndexSpec, target_index: IndexSpec, version: VersionTag)` | `mir.RebuildIndexFromIndex` |
+| `CreateFlatViewCall` | `(rel_name: str, version: VersionTag, index: IndexSpec)` | `mir.CreateFlatView` |
+| `ClearRelationCall` | `(rel_name: str, version: VersionTag)` | `mir.ClearRelation` |
+| `InjectCppHookCall` | `(code: str, rule_name: str)` | `mir.InjectCppHook` |
+| `PostStratumReconstructInternColsCall` | `(rel_name: str, canonical_index: IndexSpec)` | `mir.PostStratumReconstructInternCols` |
+
+Each gets its own `@register_render(<Op>, target='cuda')`. Renders
+dispatch on op TYPE, never on a `kind: str` field. (No
+`MaintenanceCall` op survives the lowering.)
+
+Maintenance-op inventory finding: the spec's § 3.1.2 lowering table
+cites "~14 maintenance ops total per orchestrator.py:494-588
+dispatch chain". Direct grep of the chain yields **11** maintenance
+ops (the 14 figure includes `ExecutePipeline`, `ParallelGroup`, and
+one duplicate branch). The 11 typed ops above are the complete set.
+§ 3.1.2 is updated below to cite the corrected count.
+
+##### Gap 2 — Fixpoint termination is a typed union
+
+The current `FixpointLoop.termination: Op` slot is implicitly a
+CUDA-text-emitting op. Amendment 1 replaces it with a typed
+`TerminationCheck` union:
+
+```python
+# srdatalog/ir/dialects/rir/ops.py
+
+class TerminationCheck(Op):
+  '''Abstract base; concrete subclasses below.'''
+
+@dataclass(frozen=True, slots=True)
+class ConvergenceCheck(TerminationCheck):
+  '''Halt when all named deltas are empty.'''
+  deltas: tuple[str, ...]
+
+@dataclass(frozen=True, slots=True)
+class MaxIterationFuel(TerminationCheck):
+  '''Halt after N iterations regardless of fixpoint state.'''
+  limit: int
+
+@dataclass(frozen=True, slots=True)
+class EitherFirst(TerminationCheck):
+  '''Halt as soon as ANY contained check fires.'''
+  checks: tuple[TerminationCheck, ...]
+
+@dataclass(frozen=True, slots=True)
+class AndAll(TerminationCheck):
+  '''Halt only when ALL contained checks fire simultaneously.'''
+  checks: tuple[TerminationCheck, ...]
+```
+
+`FixpointLoop.termination` is retyped from `Op` to `TerminationCheck`.
+Each leaf check has its own `@register_render`; composers
+(`EitherFirst`, `AndAll`) recurse. Backends render the preferred
+shape (CUDA: a `do { ... } while (!converged);` with conjunction
+inlined; CPU/TBB: same scaffold, different sync primitive). The
+semantic is in the IR.
+
+##### Gap 3 — Cross-stratum dependencies become typed DAG edges
+
+The current `Program.steps: list[Step]` ordering is the dependency
+relation, implicitly. Amendment 1 promotes the relationship to
+typed metadata:
+
+```python
+@dataclass(frozen=True, slots=True)
+class Step(Op):
+  '''One stratum's step. id is scoped to the Program; deps name
+  prior steps whose results this step reads.'''
+  id: StepId  # int | str — scoped to the Program
+  body: Op    # FixpointLoop | KernelLaunch | Block
+  deps: tuple[StepId, ...] = ()
+
+StepId = int  # alias; str also acceptable for human-readable ids
+```
+
+`Program.steps` remains a `tuple[Step, ...]`; the list ordering is a
+DEFAULT topological order, but backends MAY honor `Step.deps` for
+speculative execution / cross-stratum pipelining. (CUDA today
+executes sequentially; CPU/TBB may parallelize disjoint subtrees.)
+
+##### Gap 4 — Delta-variant ordering is typed
+
+Semi-naive delta variants today emit in `FixpointLoop.body` list
+order. The ordering RELATIONSHIP isn't typed — a backend can't know
+"these variants may fuse" vs "these must run sequentially".
+Amendment 1:
+
+```python
+class VariantOrdering(Enum):
+  SEQUENTIAL  = 'sequential'   # order matters; emit in declaration order
+  INDEPENDENT = 'independent'  # any order; backend may permute
+  FUSABLE     = 'fusable'      # backend MAY fuse into one kernel
+
+@dataclass(frozen=True, slots=True)
+class DeltaVariantSet(Op):
+  '''A set of semi-naive delta-variant kernel definitions schedules
+  together. The unit a backend dispatches.'''
+  variants: tuple[KernelDef, ...]   # KernelDef = Count/Materialize/Fused (Gap 6)
+  ordering: VariantOrdering
+```
+
+`FixpointLoop.body` becomes a tuple of `DeltaVariantSet` (and other
+RIR ops). Each set carries its own ordering tag; the render
+contract is: SEQUENTIAL renders one launch per variant; INDEPENDENT
+permits stream-parallel launches; FUSABLE permits the backend's
+fusion pass.
+
+##### Gap 5 — Multi-head insertion is a typed op
+
+A multi-head rule today is a `KernelDef.body` containing N
+`InsertInto` ops; the emission ordering between heads is invisible.
+Amendment 1:
+
+```python
+class HeadOrdering(Enum):
+  SEQUENTIAL = 'sequential'   # emit heads in declaration order
+  CONCURRENT = 'concurrent'   # disjoint heads; backend may permute
+
+@dataclass(frozen=True, slots=True)
+class HeadSpec:
+  '''Per-head emission descriptor; not an Op (no render — it's a
+  data carrier referenced from MultiHeadInsert).'''
+  rel_name: str
+  vars: tuple[VarRef, ...]
+  dedup_table: DedupTableRef | None
+
+@dataclass(frozen=True, slots=True)
+class MultiHeadInsert(Op):
+  '''One IR op for the entire multi-head emission of a rule body.'''
+  heads: tuple[HeadSpec, ...]
+  ordering: HeadOrdering
+```
+
+CUDA render: emits one `OutputContext::emit(...)` per head in
+declared order for SEQUENTIAL, or in `__syncthreads()`-free
+interleaved form for CONCURRENT. CPU/TBB render: similar shape with
+TBB primitives. The choice is typed.
+
+##### Gap 6 — Kernel fusion is typed, not string-tagged
+
+The current `KernelDef(name, phase: str, body)` keys fusion off a
+`phase` enum (`"count"` / `"materialize"` / `"fused"`). Amendment 1
+splits into three distinct ops:
+
+```python
+@dataclass(frozen=True, slots=True)
+class CountKernelDef(Op):
+  '''Count-only phase kernel.'''
+  name: str
+  body: Op  # IIR
+
+@dataclass(frozen=True, slots=True)
+class MaterializeKernelDef(Op):
+  '''Materialize-only phase kernel.'''
+  name: str
+  body: Op  # IIR
+
+@dataclass(frozen=True, slots=True)
+class FusedKernelDef(Op):
+  '''Two-body fused kernel: count + materialize in one launch.'''
+  name: str
+  count_body: Op         # IIR
+  materialize_body: Op   # IIR
+```
+
+The legacy `KernelDef` and `KernelPhase` enum from § 3.1.1 are
+removed. Each new op has its own `@register_render`; renders
+dispatch on type, never on `op.phase == "count"`.
+
+##### Gap 7 — Pragma composability is typed metadata
+
+Pragma handlers today are unaware of each other; conflicting
+pragmas on the same EP (e.g., a work-stealing schedule plus a
+block-group schedule) surface as cryptic codegen errors. Amendment 1
+adds typed composability metadata to the `Pragma` class itself —
+this lives in `core/pragma.py`, NOT in RIR, but is referenced from
+RIR for explanation:
+
+```python
+# srdatalog/ir/core/pragma.py — extends the existing typed Pragma
+# (cf. Spec: docs/pragma_as_typed_object.md § 2 for the base class)
+
+@dataclass(frozen=True, slots=True)
+class ComposabilityMeta:
+  '''Declares this pragma's compatibility with other pragmas on the
+  same EP. Optional; default = composes with everything.'''
+  composes_with:     frozenset[type[Pragma]] = frozenset()
+  requires_before:   frozenset[type[Pragma]] = frozenset()
+  incompatible_with: frozenset[type[Pragma]] = frozenset()
+
+class Pragma:
+  # ... existing fields ...
+  composability: ComposabilityMeta = ComposabilityMeta()
+```
+
+Framework check at `MirPragmaPass.apply` time: for every pair of
+pragmas attached to the same EP, if either declares the other in
+`incompatible_with`, raise `IncompatiblePragmasError(p1, p2)` with
+the (rule, EP, pragma classes) named. `requires_before` enforces
+declared application order. This extends the typed-pragma model in
+Spec: docs/pragma_as_typed_object.md § 8 (discipline implications)
+with a typed-composability rule.
+
+##### Gap 8 — View-slot allocation is typed IR metadata
+
+`view_slots.py` (324 LOC, `src/srdatalog/ir/codegen/cuda/`) computes
+view-slot bindings at render time, CUDA-specifically. Amendment 1
+promotes the binding to RIR:
+
+```python
+@dataclass(frozen=True, slots=True)
+class ViewBinding:
+  '''Explicit IR-level binding from a source handle to a render-
+  target view slot. Targets that don't use slot indexing (CPU/TBB)
+  ignore view_slot and base_offset; CUDA renders consume both.
+  Carrier struct, not an Op (no render — it's referenced from kernel-
+  def metadata).'''
+  handle_idx: int
+  view_slot: int
+  base_offset: int
+```
+
+Each `CountKernelDef` / `MaterializeKernelDef` / `FusedKernelDef`
+gains a `view_bindings: tuple[ViewBinding, ...]` metadata field.
+The MIR→RIR lowering for `mir.ExecutePipeline` populates it (i.e.,
+the slot-allocation algorithm moves from CUDA-render-time to
+MIR→RIR-lowering-time, and the result is a typed IR field, not a
+mutable side-channel). CUDA renders read `view_bindings` directly;
+non-slot-using targets ignore it. The Phase T move of
+`view_slots.py` (per § 3.2.3) becomes simpler: only the slot-
+allocation algorithm moves to MIR→RIR; the per-binding render code
+moves to CUDA-render.
+
+##### Final RIR op count
+
+After Amendment 1, the typed RIR vocabulary grouped by concern:
+
+| Concern | Ops | Count |
+|---|---|---|
+| Structure | `RunnerStruct`, `StepDispatch`, `FixpointLoop`, `Step` | 4 |
+| Termination | `ConvergenceCheck`, `MaxIterationFuel`, `EitherFirst`, `AndAll` | 4 |
+| Scheduling | `KernelLaunch`, `PlainScheduler`, `WSScheduler`, `FanOutScheduler`, `BGScheduler` | 5 |
+| Kernel bodies | `CountKernelDef`, `MaterializeKernelDef`, `FusedKernelDef` | 3 |
+| Variant ordering | `DeltaVariantSet` (+ `VariantOrdering` enum) | 1 |
+| Multi-head | `MultiHeadInsert` (+ `HeadOrdering` enum, `HeadSpec` carrier) | 1 |
+| Dedup | `DedupTable` | 1 |
+| Maintenance | 11 typed calls (per Gap 1) | 11 |
+| **Total typed Ops** | | **30** |
+
+Carrier dataclasses (not Ops; no `@register_render`):
+`HeadSpec`, `ViewBinding`, `ComposabilityMeta`, `StepId` alias,
+`VariantOrdering` enum, `HeadOrdering` enum. These are referenced
+from Ops above but never rendered directly — they are read by the
+render that consumes the parent Op.
+
 #### 3.1.2 MIR → RIR lowerings
 
 One `@lowering(target=RIR, source=mir.X)` per MIR maintenance op,
@@ -516,9 +819,9 @@ mirroring Phase B's shape:
 | `mir.FanOut` | `lower_fan_out` | `KernelLaunch(scheduler=FanOutScheduler(...))` |
 | `mir.BlockGroupRoot` | `lower_block_group_root` | `KernelLaunch(scheduler=BGScheduler(...))` + `BgWorkBalanceSetup` |
 | `mir.DedupGate` | `lower_dedup_gate` (runner-side) | `DedupTable(...)` |
-| `mir.ComputeDelta` | `lower_compute_delta` | `MaintenanceCall(...)` |
-| `mir.RebuildIndex` | `lower_rebuild_index` | `MaintenanceCall(...)` |
-| (~14 maintenance ops total per orchestrator.py:494-588 dispatch chain) | one lowering each | one RIR op each |
+| `mir.ComputeDelta` | `lower_compute_delta` | `ComputeDeltaCall(...)` (per Amendment 1 Gap 1) |
+| `mir.RebuildIndex` | `lower_rebuild_index` | `RebuildIndexCall(...)` (per Amendment 1 Gap 1) |
+| (11 maintenance ops total per orchestrator.py:506-588 dispatch chain — see § 3.1.1.1 Gap 1 for the corrected count; Amendment 1 emits one typed RIR op per MIR op) | one lowering each | one typed RIR op each |
 
 The kernel body — already produced by Phase B's `MirToIirLowering`
 — is wrapped inside a `KernelDef(body=<IIR>)` RIR op by the same
@@ -536,13 +839,19 @@ function; the render is the textual output.
 | `RunnerStruct` | `render_runner_struct_cuda` | `struct JitRunner_<rule> { ... };` |
 | `StepDispatch` | `render_step_dispatch_cuda` | `void step_N(...) { switch(...) { ... } }` |
 | `FixpointLoop` | `render_fixpoint_loop_cuda` | `for (uint32_t it = 0; ; ++it) { ... if (empty) break; }` |
-| `KernelDef` | `render_kernel_def_cuda` | `__global__ void kernel_count(...) { <body-text> }` |
+| `CountKernelDef` (Amendment 1 Gap 6) | `render_count_kernel_def_cuda` | `__global__ void kernel_count(...) { <body-text> }` |
+| `MaterializeKernelDef` (Amendment 1 Gap 6) | `render_materialize_kernel_def_cuda` | `__global__ void kernel_materialize(...) { <body-text> }` |
+| `FusedKernelDef` (Amendment 1 Gap 6) | `render_fused_kernel_def_cuda` | `__global__ void kernel_fused(...) { <count_body>; <materialize_body>; }` |
 | `KernelLaunch + PlainScheduler` | `render_kernel_launch_plain_cuda` | `kernel_count<<<g, b, 0, stream>>>(...)` |
 | `KernelLaunch + WSScheduler` | `render_kernel_launch_ws_cuda` | WS task-queue setup + launch |
 | `KernelLaunch + FanOutScheduler` | `render_kernel_launch_fanout_cuda` | FanOut explore-then-emit dispatch |
 | `KernelLaunch + BGScheduler` | `render_kernel_launch_bg_cuda` | BG histogram + per-warp dispatch |
 | `DedupTable` | `render_dedup_table_cuda` | `DeviceArray<uint64_t> dedup_hash_arr; ...` |
-| `MaintenanceCall` (one per MIR maintenance op family) | `render_maintenance_call_cuda` | `db.<rel>.merge_delta(...)` etc. |
+| `ConvergenceCheck` / `MaxIterationFuel` / `EitherFirst` / `AndAll` (Amendment 1 Gap 2) | one render each | termination predicate inlined into `FixpointLoop` body |
+| `DeltaVariantSet` (Amendment 1 Gap 4) | `render_delta_variant_set_cuda` | sequential / parallel-stream / fused launch sequence per `ordering` |
+| `MultiHeadInsert` (Amendment 1 Gap 5) | `render_multi_head_insert_cuda` | sequential or interleaved per-head emit |
+| 11 typed maintenance ops (Amendment 1 Gap 1) | one `@register_render` each | `db.<rel>.merge_delta(...)` etc. — no string dispatch |
+| `Step` (Amendment 1 Gap 3) | `render_step_cuda` | one `step_N(...)` method; `deps` consulted for any cross-stratum sync |
 
 #### 3.1.4 What Phase R deletes
 
@@ -959,19 +1268,63 @@ regression anchor).
 
 ### 6.2 PR-2 — Phase R framework + MIR→RIR lowerings (Wave R1 + R2)
 
+> **Amendment 1 split.** The original PR-2 was scoped at "10 op
+> families" (~2500 LOC). Amendment 1's typed-vocabulary expansion
+> (§ 3.1.1.1) grows the lowering surface to ~30 typed Ops + 5 typed
+> carrier dataclasses, with proportional growth in `@lowering`
+> rules. Estimated combined size ~4500 LOC, which exceeds the
+> ~3500-LOC per-PR ceiling honored by Phase B's largest shipped PRs.
+> PR-2 is split into PR-2a (framework + structural / scheduling /
+> kernel-body lowerings) and PR-2b (the remaining lowerings:
+> maintenance × 11, termination union, variant ordering, multi-head,
+> view bindings). Both PRs land before PR-3 (RIR renders + monolith
+> deletion), strictly serial: PR-2a → PR-2b → PR-3. The "one
+> architectural concern per PR" principle is preserved — both halves
+> are MIR→RIR lowering, partitioned by op family for review-load
+> reasons only.
+
+#### 6.2a PR-2a — RIR framework + structural / scheduling / kernel-body lowerings
+
 | Change | Where |
 |---|---|
-| RIR op vocabulary (per § 3.1.1): `RunnerStruct`, `StepDispatch`, `FixpointLoop`, `KernelDef`, `KernelLaunch`, `PlainScheduler`/`WSScheduler`/`FanOutScheduler`/`BGScheduler`, `DedupTable`, 14 `MaintenanceCall` variants. Each `@dataclass(frozen=True, slots=True, final=True)`. Per-op `print()`. | NEW `src/srdatalog/ir/dialects/rir/{ops,types,print,__init__}.py` |
+| RIR framework: dialect skeleton, `Op` base, `print()` infrastructure, `MirToRirLowering(LoweringPass)` scaffold, `USE_DECLARATIVE_RUNNER` ratchet, `LowerRunnerShim`, `verify_runner_completeness(rir_program, target=T)` | NEW `src/srdatalog/ir/dialects/rir/{ops,types,print,__init__}.py` + `default_pipelines.py` + `core/verifier.py` |
 | Dialect registration via entry point (in the new `srdatalog.dialects` group from PR-1) | NEW `pyproject.toml` entry + `src/srdatalog/ir/dialects/rir/__init__.py` `register(compiler)` |
-| `MirToRirLowering(LoweringPass)` + per-MIR-op `@lowering(target=RIR, source=mir.X)` rules for: FixpointPlan, ParallelGroup, ExecutePipeline-plain, WSScope, FanOut, BlockGroupRoot, DedupGate, 14 maintenance ops | NEW `src/srdatalog/ir/dialects/rir/lowerings/*.py` (10 modules) |
-| `USE_DECLARATIVE_RUNNER: frozenset[type]` ratchet (parallel to Phase B's `USE_DECLARATIVE`) reaches 100% MIR-op coverage in THIS PR (no transitional intermediate state) | `src/srdatalog/ir/dialects/rir/__init__.py` |
-| `LowerRunnerShim(ProgramPass)` invokes `MirToRirLowering` and stores RIR program in `InitialProg.rir_program` | `default_pipelines.py` |
-| `verify_runner_completeness(rir_program, target=T)` (parallel to `verify_renderability`) | `core/verifier.py` |
-| Legacy runner pass (`gen_step_body` / `gen_complete_runner` / `emit_runner_full`) remains untouched in this PR — RIR layer flows through but doesn't yet render to C++ (R3 in PR-3 handles that) | unchanged |
+| Structure ops + lowerings: `RunnerStruct`, `StepDispatch`, `FixpointLoop`, `Step` (Amendment 1 Gap 3). `mir.Program` / `mir.FixpointPlan` → these. | NEW `src/srdatalog/ir/dialects/rir/ops_structure.py` + `lowerings/structure.py` |
+| Scheduling ops + lowerings: `KernelLaunch`, `PlainScheduler`, `WSScheduler`, `FanOutScheduler`, `BGScheduler`. `mir.ExecutePipeline-plain` / `mir.WSScope` / `mir.FanOut` / `mir.BlockGroupRoot` → these. | NEW `src/srdatalog/ir/dialects/rir/ops_scheduling.py` + `lowerings/scheduling.py` |
+| Kernel-body ops + lowerings: `CountKernelDef`, `MaterializeKernelDef`, `FusedKernelDef` (Amendment 1 Gap 6). Replaces the legacy `KernelDef(phase: KernelPhase)` proposal in § 3.1.1. | NEW `src/srdatalog/ir/dialects/rir/ops_kernel_def.py` + `lowerings/kernel_def.py` |
+| Dedup: `DedupTable`. `mir.DedupGate` → `DedupTable(...)`. | `ops_scheduling.py` + `lowerings/dedup.py` |
+| Legacy runner pass remains untouched in this PR — RIR layer flows through but partial-coverage (maintenance / termination / variant-set / multi-head ops still missing); `verify_runner_completeness` runs in WARN mode pending PR-2b. | unchanged |
 
-**Acceptance**: every MIR program lowers to a complete RIR program; `verify_runner_completeness` passes; 535 byte-equiv goldens green (legacy runner still emits the C++).
+**Acceptance**: structural / scheduling / kernel-body MIR→RIR
+lowerings pass at 100% coverage for the ops in scope; PR-2b
+completes the remaining lowerings; 535 byte-equiv goldens green
+(legacy runner still emits C++).
 
-**Why bundle**: R1 (framework) is meaningless without R2 (lowerings); the framework is just type declarations. The 10 lowering rules share boilerplate and are best ratcheted up to 100% in one shot — partial coverage means maintaining a fallback for each non-migrated op, which is wasted code that R3 then deletes.
+#### 6.2b PR-2b — Maintenance + termination + variant ordering + multi-head + view bindings
+
+| Change | Where |
+|---|---|
+| 11 typed maintenance ops + lowerings (Amendment 1 Gap 1): `ComputeDeltaCall`, `ComputeDeltaIndexCall`, `MergeIndexCall`, `MergeRelationCall`, `CheckSizeCall`, `RebuildIndexCall`, `RebuildIndexFromIndexCall`, `CreateFlatViewCall`, `ClearRelationCall`, `InjectCppHookCall`, `PostStratumReconstructInternColsCall`. One `@lowering` per MIR op. | NEW `src/srdatalog/ir/dialects/rir/ops_maintenance.py` + `lowerings/maintenance_*.py` (11 modules — one per op for D-discipline) |
+| Termination typed union (Amendment 1 Gap 2): `TerminationCheck` base + `ConvergenceCheck`, `MaxIterationFuel`, `EitherFirst`, `AndAll`. `FixpointLoop.termination` retyped from `Op` to `TerminationCheck`. | NEW `src/srdatalog/ir/dialects/rir/ops_termination.py` + `lowerings/termination.py` |
+| Variant ordering (Amendment 1 Gap 4): `DeltaVariantSet` + `VariantOrdering` enum. Lowering from MIR semi-naive variant lists. | NEW `src/srdatalog/ir/dialects/rir/ops_variants.py` + `lowerings/variants.py` |
+| Multi-head (Amendment 1 Gap 5): `MultiHeadInsert` + `HeadOrdering` enum + `HeadSpec` carrier. Lowering replaces N `InsertInto` ops with one `MultiHeadInsert(heads=(...))`. | NEW `src/srdatalog/ir/dialects/rir/ops_multi_head.py` + `lowerings/multi_head.py` |
+| View bindings (Amendment 1 Gap 8): `ViewBinding` carrier added to `Count/Materialize/FusedKernelDef.view_bindings` field. The MIR→RIR lowering for `mir.ExecutePipeline` populates it via the slot-allocation algorithm hoisted out of CUDA-render-time `view_slots.py`. | `ops_kernel_def.py` (field add) + `lowerings/kernel_def.py` (slot-alloc call) + `core/view_layout.py` (the hoisted algorithm) |
+| `USE_DECLARATIVE_RUNNER` reaches 100% MIR-op coverage in this PR. `verify_runner_completeness` flips from WARN to HARD. | `src/srdatalog/ir/dialects/rir/__init__.py` |
+
+**Acceptance**: every MIR program lowers to a complete RIR program
+with no `MaintenanceCall`-style string-tagged ops, no opaque
+`termination: Op` slots, no implicit variant / head ordering, no
+render-time view-slot allocation; `verify_runner_completeness`
+passes at HARD level; 535 byte-equiv goldens green (legacy runner
+still emits the C++).
+
+**Why bundle (2a + 2b)**: each half stands on its own architectural
+boundary (2a = structural skeleton; 2b = the typed-semantics filling
+that Amendment 1 added). Splitting further would fragment the
+lowering surface across too many PRs and re-introduce the per-op
+parallelism that the original 35-PR plan suffered from. Both halves
+are MIR→RIR work, gated by the same `verify_runner_completeness`;
+2b's HARD flip is contingent on 2a's framework being in place.
 
 ### 6.3 PR-3 — RIR renders + delete legacy runner (Wave R3 + Cleanup C-1)
 
@@ -1036,7 +1389,7 @@ regression anchor).
 
 ### 6.7 Per-PR byte-equivalence anchor
 
-Every PR through PR-3 (RIR renders + monolith deletion) is byte-equivalence-gated on the CUDA target: the 535+ goldens (`tests/test_runner_byte_equivalence.py` 272 + `tests/test_byte_equivalence_jit.py` 253 + lowering goldens) must remain green. PR-3 is the only PR allowed to delete golden divergence-tolerance handlers — the new RIR renders are specified to match the existing CUDA goldens byte-for-byte.
+Every PR through PR-3 (RIR renders + monolith deletion) is byte-equivalence-gated on the CUDA target: the 535+ goldens (`tests/test_runner_byte_equivalence.py` 272 + `tests/test_byte_equivalence_jit.py` 253 + lowering goldens) must remain green. PR-3 is the only PR allowed to delete golden divergence-tolerance handlers — the new RIR renders are specified to match the existing CUDA goldens byte-for-byte. PR-2a and PR-2b (post-Amendment 1) are pure-additive at the runtime emission layer (legacy runner still emits the C++; the new RIR layer flows through but is not yet rendered), so byte-equivalence is trivially preserved across both halves.
 
 PR-4 / PR-5 / PR-6 are similarly byte-gated; the rename + split is a no-op for the rendered CUDA C++ text. PR-6 introduces the cpu_tbb mock target (synthetic; minimal renderers; not byte-checked against any reference).
 
@@ -1045,15 +1398,20 @@ PR-4 / PR-5 / PR-6 are similarly byte-gated; the rename + split is a no-op for t
 | PR | Concern | Est. size |
 |---|---|---|
 | PR-1 | Foundation: LowerCtx split + target parametricity | ~1500 LOC |
-| PR-2 | RIR framework + MIR→RIR lowerings (all 10 op families) | ~2500 LOC |
-| PR-3 | RIR renders + delete legacy runner (3 files, 2820 LOC) | ~3500 LOC (mostly deletion) |
+| PR-2a | RIR framework + structural / scheduling / kernel-body lowerings (Amendment 1) | ~2400 LOC |
+| PR-2b | Maintenance + termination + variant ordering + multi-head + view bindings lowerings (Amendment 1) | ~2100 LOC |
+| PR-3 | RIR renders + delete legacy runner (3 files, 2820 LOC) | ~3800 LOC (mostly deletion; render-side ops grew with Amendment 1) |
 | PR-4 | IIR rename (5-8 op renames) | ~500 LOC (mechanical) |
 | PR-5 | Index-plugin data/render split + Phase E re-versioning | ~800 LOC |
-| PR-6 | Multi-target + D20 discipline | ~600 LOC |
+| PR-6 | Multi-target + D20 + D21 discipline | ~700 LOC (D21 ratchet added per Amendment 1) |
 
-**Total: 6 PRs.** (Previous draft: 35. The compression bundles by architectural concern — each PR is one architectural change, not one mechanical op. Per-PR work envelope is ~1500-3500 LOC of code + tests, which is comparable to the largest Phase B PRs that shipped successfully.)
+**Total: 7 PRs.** (Was 6 before Amendment 1; PR-2 split to 2a + 2b.
+Previous draft pre-spec: 35. The compression still holds — each PR
+is one architectural change, not one mechanical op. Per-PR work
+envelope is ~1500-3800 LOC of code + tests, comparable to the
+largest Phase B PRs that shipped successfully.)
 
-**Sequencing**: PR-1 → PR-2 → PR-3 → PR-4 → PR-5 → PR-6, strictly serial. PR-2 depends on PR-1's target param + CudaRenderCtx; PR-3 depends on PR-2's RIR ops existing; PR-4 depends on PR-3's renderer set being stable (no rename mid-monolith-deletion); PR-5 depends on PR-3's `_PLUGIN_REGISTRY` deletion path being live; PR-6 depends on PR-5's plugin split.
+**Sequencing**: PR-1 → PR-2a → PR-2b → PR-3 → PR-4 → PR-5 → PR-6, strictly serial. PR-2a depends on PR-1's target param + CudaRenderCtx; PR-2b depends on PR-2a's RIR framework being live; PR-3 depends on PR-2b's full RIR coverage; PR-4 depends on PR-3's renderer set being stable (no rename mid-monolith-deletion); PR-5 depends on PR-3's `_PLUGIN_REGISTRY` deletion path being live; PR-6 depends on PR-5's plugin split.
 
 **Parallelism is intentionally NOT used in this plan.** Phase B's per-op parallelism worked because each B-PR was file-disjoint. This redesign's PRs each touch broad swaths of the codebase (PR-1: every pragma lowering site; PR-3: every codegen module). Serializing them keeps merge conflicts to zero.
 
@@ -1089,6 +1447,22 @@ the label-vs-content match. (This is the same procedural-vs-
 mechanical split as the `code_discipline.md` §5 enforcement
 architecture.)
 
+### 7.1 D21 — no string-tagged dispatch in renderers (Amendment 1)
+
+The § 1 sub-clause introduced by Amendment 1 requires that
+renderers dispatch on op TYPE only, never on a string field of an
+op. D21 enforces this mechanically.
+
+| ID | Forbidden pattern | Why | Discipline test |
+|---|---|---|---|
+| **D21** | A `@register_render` function body matches on a STRING field of its op (e.g. `if op.kind == 'count':`, `match op.phase: case 'fused': ...`, `if op.scheduler_kind in {'ws', 'bg'}:`). String fields naming render targets, struct names, or relation names are NOT discipline-violating reads (they're identifier-shaped); branch-on-string is. | The § 1 Amendment 1 sub-clause: every operational semantic is typed. A string-tag dispatch in a renderer is the same imperative-monolith anti-pattern this redesign reverses, regressed inside the new typed shell. | `tests/test_discipline_d21_no_string_dispatch_in_renders.py` — AST scan of every module that imports `register_render`; for each decorated function body, walk for `if attr ==` / `match attr:` patterns where the matched expression resolves to a field whose declared type is `str` (or `KernelPhase` / similar enum-of-strings). Whitelist: ID-shaped string comparisons (target name, rule name) — reviewed exceptions noted in the test fixture. |
+
+D21 lands in PR-6 alongside D20 (same ratchet-then-block cadence:
+WARN for one release, then HARD). Initial discovery: scan the
+codebase as of PR-3 completion; the legacy renderer is gone, so the
+allowlist should be empty. Any new violation introduced by PR-4 /
+PR-5 / external plugins fails at CI.
+
 ## 8. Relationship to existing phases / parked work
 
 ### 8.1 Stays merged unchanged
@@ -1110,6 +1484,16 @@ architecture.)
   materialize to, but the pragma-handler topology is unchanged.
 - **Phase D** (HIR `ProgramPass`). Stays merged. The HIR planning
   passes are pre-MIR and target-agnostic; no impact from Phase R/T/B2.
+
+**Amendment 1 note (Phase E re-versioning).** The new
+`ComposabilityMeta` field on the `Pragma` class introduced by
+Amendment 1 Gap 7 is target-AGNOSTIC — it lives on the framework's
+`Pragma` base, NOT on any per-target render contribution. It does
+NOT introduce a new dimension that would require a third Phase E
+sub-version (E3); E1 + E2 (data + per-target render split) remains
+the right partition. The composability check fires inside
+`MirPragmaPass.apply` (pre-target-dispatch), so target-side plugins
+inherit it for free.
 
 ### 8.2 Stays merged but extended
 
@@ -1203,5 +1587,41 @@ includes:
 - [ ] Open question from §8.2: Should Phase E be retroactively
   versioned to E1+E2 to mark the per-target-render-split
   amendment? Reviewer answers yes/no with one-paragraph rationale.
+- [ ] **Amendment 1 (this revision) acknowledgment.** Reviewer
+  acknowledges that this is the FIRST of likely SEVERAL spec
+  refinements as PR-1's implementation surfaces additional
+  semantic gaps. The spec is a LIVING DOCUMENT during the redesign;
+  subsequent amendments are PR-shaped (one Amendment per amendment
+  PR, numbered sequentially, each adding a § 3.1.1.N expansion for
+  the new typed concerns it introduces) and reviewed under the
+  same gates as this one. Amendment 1 covers: 11 typed maintenance
+  ops; typed `TerminationCheck` union; typed `Step.deps` DAG
+  edges; typed `DeltaVariantSet` + `VariantOrdering`; typed
+  `MultiHeadInsert` + `HeadOrdering`; three typed kernel-def ops
+  replacing `KernelDef.phase: str`; typed `ComposabilityMeta` on
+  `Pragma`; typed `ViewBinding` IR carrier. Renderer-side
+  discipline D21 ratchets the sub-clause.
 
 Reviewer initials and date below.
+
+## 10. Amendment log
+
+Amendments are appended below as they are merged. Each amendment
+identifies the spec sections it touches and the typed concerns it
+introduces. The spec is consumed top-to-bottom; amendments may
+modify earlier sections in place, but the log here is the canonical
+record of WHEN and WHY a change landed.
+
+### Amendment 1 — typed RIR semantics
+
+| Field | Value |
+|---|---|
+| Date | 2026-05-15 |
+| Trigger | User review of merged PR #74 identified 8 semantic gaps where the proposed RIR vocabulary still expressed operational meaning as string-tagged dispatch or implicit list ordering, in violation of the § 1 ACID test. |
+| Sections touched | § 1 (sub-clause added); § 3.1.1 (new § 3.1.1.1 sub-section); § 3.1.2 (lowering table updated); § 3.1.3 (render table updated); § 6.2 (split to 6.2a + 6.2b); § 6.7 (byte-equiv note); § 6.8 (total grew 6 → 7 PRs); § 7 (D21 added as § 7.1); § 8.1 (re-versioning note); § 9 (living-document acknowledgment). |
+| Concerns typed | Maintenance ops (11 typed ops replacing one string-tagged `MaintenanceCall`); fixpoint termination (typed `TerminationCheck` union: `ConvergenceCheck`, `MaxIterationFuel`, `EitherFirst`, `AndAll`); cross-stratum deps (typed `Step.deps`); delta-variant ordering (typed `DeltaVariantSet` + `VariantOrdering`); multi-head emission (typed `MultiHeadInsert` + `HeadOrdering` + `HeadSpec`); kernel fusion (three typed kernel-def ops: `CountKernelDef`, `MaterializeKernelDef`, `FusedKernelDef`); pragma composability (typed `ComposabilityMeta` on `Pragma`); view-slot binding (typed `ViewBinding` carrier on kernel-def metadata). |
+| RIR op count | grew from ~10 to **30** typed Ops (+ 5 carrier dataclasses / enums). See § 3.1.1.1 final table. |
+| PR-2 split | YES — PR-2 split to PR-2a (framework + structural / scheduling / kernel-body) + PR-2b (maintenance + termination + variant ordering + multi-head + view bindings). Total ledger: 6 PRs → 7 PRs. |
+| Discipline added | D21 (no string-tagged dispatch in renderer bodies). Ratchets per the standard WARN-then-HARD cadence. |
+| Forward-compat | Each spec section retains its original heading; new sub-sections (§ 3.1.1.1, § 7.1, § 6.2a, § 6.2b, § 10) are additive. PR-1 scope (§ 6.1 + § 3.2 + § 3.3) is UNCHANGED — PR-1's foundation work is orthogonal to the RIR vocabulary expansion. |
+| Scope EXEMPT | PR-1 (in flight). Amendment 1 deliberately does not touch any text PR-1 depends on. |

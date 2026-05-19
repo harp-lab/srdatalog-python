@@ -101,6 +101,7 @@ def test_kernel_pipeline_names_unique_and_ordered():
     'collect_view_specs',
     'emit_view_decls',
     'lower_scan_pipeline',
+    'verify_renderability',
     'cuda_render',
   ]
   assert len(set(names)) == len(names)

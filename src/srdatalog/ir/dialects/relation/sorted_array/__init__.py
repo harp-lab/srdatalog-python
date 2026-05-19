@@ -61,15 +61,15 @@ USE_DECLARATIVE: frozenset[type] = frozenset(
     _mir_for_use_declarative.ConstantBind,
     _mir_for_use_declarative.InsertInto,
     _mir_for_use_declarative.Scan,
-    # B-CJ-single (per docs/phase_b_lowering_dispatcher.md §4 row
-    # B-CJ-single, difficulty `medium`): adds `mir.ColumnJoin` to
-    # the ratchet. NOTE: the new `@lowering`-dispatch path only
-    # owns the SINGLE-source case (`len(sources) == 1`); the
-    # multi-source case (`len(sources) >= 2`) stays on the legacy
-    # `_lower_nested_cj_multi` / `_lower_root_cj_multi` branches
-    # until B-CJ-multi lands. The `_should_use_declarative` helper
-    # in `lowerings/__init__.py` enforces the "type AND structural
-    # shape" gate; B-CJ-multi drops the source-count guard there.
+    # B-CJ-single + B-CJ-multi (per docs/phase_b_lowering_dispatcher.md
+    # §4 rows B-CJ-single + B-CJ-multi, orders 5 + 6): `mir.ColumnJoin`
+    # entry covers BOTH shapes after B-CJ-multi. The chain dispatcher
+    # in `lowerings/__init__.py:_lower_inner_chain` routes single-
+    # source via `lower_mir_cj_single_in_chain` and multi-source via
+    # `lower_mir_cj_multi_in_chain`; the root dispatcher in
+    # `lower_scan_pipeline` routes multi-source via
+    # `lower_mir_cj_multi_root` (root-position single-source is not
+    # a supported pipeline shape today).
     _mir_for_use_declarative.ColumnJoin,
     _mir_for_use_declarative.Negation,
     _mir_for_use_declarative.Aggregate,
@@ -320,21 +320,28 @@ def _register_passes() -> None:
   def _lower_mir_scan_registered(op: Any, ctx: Any) -> Any:
     return lower_mir_scan(op, ctx)
 
-  # Wave 2A / B-CJ-single (per docs/phase_b_lowering_dispatcher.md §4
-  # row B-CJ-single, difficulty `medium`): `mir.ColumnJoin` migrates
-  # to a standalone `@lowering` registration in its own file. This
-  # PR owns only the SINGLE-source case (`len(sources) == 1`); the
-  # multi-source case stays on the legacy `_lower_nested_cj_multi`
-  # / `_lower_root_cj_multi` branches in `lowerings/__init__.py`
-  # and is migrated by the next PR (B-CJ-multi).
+  # Wave 2A / B-CJ-single + B-CJ-multi (per docs/phase_b_lowering_dispatcher.md
+  # §4 rows B-CJ-single + B-CJ-multi, orders 5 + 6): `mir.ColumnJoin`
+  # gets ONE dialect-level `@lowering(target=iir.cf, source=mir.ColumnJoin)`
+  # registration that covers both source-count shapes for discipline
+  # ownership. The shape-aware dispatcher below picks the right per-op
+  # stub by `len(op.sources)`:
   #
-  # The `_should_use_declarative` helper in `lowerings/__init__.py`
-  # encodes the "type AND structural shape" gate so the chain
-  # dispatcher routes single-source through `lower_mir_cj_single_in_chain`
-  # and lets multi-source fall through to the legacy branch.
-  # Same split-with-stub pattern as B-Filter / B-Scan: the registered
-  # stub asserts on direct invocation, and the chain-aware variant
-  # is the real entry.
+  #   - `len(sources) == 1` (B-CJ-single, PR #59): `lower_mir_cj_single`
+  #   - `len(sources) >= 2` (B-CJ-multi, this PR): `lower_mir_cj_multi`
+  #
+  # Both stubs assert on direct registry invocation — the actual
+  # dispatch flows through `_lower_inner_chain` (mid-chain) and
+  # `lower_scan_pipeline` (root) in `lowerings/__init__.py`, which
+  # call the chain-aware variants (`lower_mir_cj_single_in_chain`,
+  # `lower_mir_cj_multi_in_chain`, `lower_mir_cj_multi_root`) with
+  # the surrounding pipeline `tail` / `rest` in scope. The
+  # `USE_DECLARATIVE` ratchet routes both shapes through the new
+  # path while this registration pins the dialect-ownership
+  # contract.
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cj_multi import (
+    lower_mir_cj_multi,
+  )
   from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cj_single import (
     lower_mir_cj_single,
   )
@@ -345,8 +352,15 @@ def _register_passes() -> None:
     consumes=('mir',),
     produces=('iir.cf',),
   )
-  def _lower_mir_cj_single_registered(op: Any, ctx: Any) -> Any:
-    return lower_mir_cj_single(op, ctx)
+  def _lower_mir_column_join_registered(op: Any, ctx: Any) -> Any:
+    # Shape-aware dispatch by source count. Both stubs assert (the
+    # real entries are the chain-aware variants in their respective
+    # `lower_mir_cj_*.py` modules) — this dispatcher exists so the
+    # single dialect-level `@lowering` registration produces a
+    # consistent error message regardless of which shape was passed.
+    if len(op.sources) == 1:
+      return lower_mir_cj_single(op, ctx)
+    return lower_mir_cj_multi(op, ctx)
 
   # Wave 2A / B-Negation (per docs/phase_b_lowering_dispatcher.md §4
   # row B-Negation, difficulty `hard`, order 9): `mir.Negation`

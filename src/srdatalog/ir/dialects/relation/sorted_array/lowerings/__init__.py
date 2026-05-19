@@ -344,13 +344,22 @@ def lower_scan_pipeline(
   # module import graph linear (the sibling per-op modules import
   # back from this file).
   #
-  # B-CJ-single: `mir.ColumnJoin` is in `USE_DECLARATIVE` but only
-  # the single-source case routes through the new path — and even
-  # then only mid-chain (see `_lower_inner_chain`). Root-position
-  # single-source CJ is not a fixture today (`_supported_pipeline`
-  # requires `len(sources) >= 2` for root CJ). `_should_use_declarative`
-  # encodes the gate so root-position multi-source CJ keeps falling
-  # through to `_lower_root_cj_multi` below.
+  # B-CJ-multi (per docs/phase_b_lowering_dispatcher.md §4 row
+  # B-CJ-multi, order 6, difficulty `hard`): root-position multi-
+  # source `mir.ColumnJoin` routes through `lower_mir_cj_multi_root`,
+  # which delegates to `_lower_root_cj_multi`. Single-source CJ is
+  # not a fixture at root today (`_supported_pipeline` requires
+  # `len(sources) >= 2` for root CJ); the shape split here mirrors
+  # the chain dispatcher's split in `_lower_inner_chain`.
+  #
+  # BlockGroup coexistence: the `BlockGroupRoot` unwrap above this
+  # block (entered BEFORE `_should_use_declarative` is consulted)
+  # handles the typed-pragma path; the legacy dual-write path
+  # (`ep.block_group=True` + bare `ColumnJoin` head) reaches this
+  # branch with `ctx.bg_enabled` already True, and the
+  # `_lower_root_cj_multi` helper's own first-statement guard
+  # (`if ctx.bg_enabled: return _lower_root_cj_bg(...)`) re-routes
+  # to the BG variant. Both BG paths remain byte-equivalent.
   if _should_use_declarative(head):
     if isinstance(head, mir.Scan):
       from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_scan import (
@@ -371,6 +380,12 @@ def lower_scan_pipeline(
       )
 
       return lower_mir_cart_root(head, rest, ctx)
+    if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cj_multi import (
+        lower_mir_cj_multi_root,
+      )
+
+      return lower_mir_cj_multi_root(head, rest, ctx)
     raise AssertionError(
       f'lower_scan_pipeline: USE_DECLARATIVE contains {type(head).__name__!r} '
       f'(and `_should_use_declarative` returned True) but no root-'
@@ -1076,32 +1091,32 @@ def _should_use_declarative(head: mir.MirNode) -> bool:
   '''Gate: does the head op route through the new per-op `@lowering`
   path (instead of the legacy `if isinstance` branches below)?
 
-  For most MIR op types this is just `type(head) in USE_DECLARATIVE`.
-  For `mir.ColumnJoin` it additionally checks the source count: the
-  single-source case (`len(sources) == 1`) is owned by B-CJ-single
-  (this PR); the multi-source case (`len(sources) >= 2`) stays on
-  the legacy `_lower_nested_cj_multi` / `_lower_root_cj_multi`
-  branches until B-CJ-multi lands.
+  For every MIR op type covered by Wave 2A this is just
+  `type(head) in USE_DECLARATIVE`. The helper exists as a single
+  decision point so neither `_lower_inner_chain` nor
+  `lower_scan_pipeline` ends up with two isinstance-cascades on the
+  same op type.
 
-  B-CJ-multi extends this helper to drop the source-count guard
-  (the single `return True` for `mir.ColumnJoin`) — the multi-
-  source path then has its own `lower_mir_cj_multi_in_chain`
-  + the same `USE_DECLARATIVE` membership wires both shapes
-  through the new dispatch.
+  Historical note (B-CJ-single, PR #59): this helper used to gate
+  `mir.ColumnJoin` on `len(sources) == 1` — the single-source case
+  routed through the new path while multi-source fell through to
+  the legacy `_lower_nested_cj_multi` / `_lower_root_cj_multi`
+  branches. B-CJ-multi (this PR) drops that guard: ALL ColumnJoin
+  variants route through the new per-op path. The chain-aware /
+  root-aware shape split lives in the per-op module
+  (`lower_mir_cj_single*` vs `lower_mir_cj_multi*`); the chain
+  dispatcher / root dispatcher pick the right entry from
+  `len(head.sources)`.
 
   Per docs/phase_b_lowering_dispatcher.md §4 — the "type AND
-  structural shape" gate keeps the dispatch atomic so neither
-  `_lower_inner_chain` nor `lower_scan_pipeline` ends up with two
-  isinstance-cascades on the same op type.
+  structural shape" gate keeps the dispatch atomic. Today the
+  structural shape is encoded in the per-op modules' own dispatch
+  (not here); the helper is kept as a stable extension point if
+  future B-PRs need a per-op gate again.
   '''
   from srdatalog.ir.dialects.relation.sorted_array import USE_DECLARATIVE
 
-  if type(head) not in USE_DECLARATIVE:
-    return False
-  if isinstance(head, mir.ColumnJoin):
-    # B-CJ-single owns single-source; B-CJ-multi (next PR) owns multi.
-    return len(head.sources) == 1
-  return True
+  return type(head) in USE_DECLARATIVE
 
 
 def _lower_inner_chain(
@@ -1170,14 +1185,24 @@ def _lower_inner_chain(
 
       return lower_mir_insert_into_in_chain(head, tail, ctx)
     if isinstance(head, mir.ColumnJoin):
-      # B-CJ-single: guard already enforced single-source by
-      # `_should_use_declarative`; the multi-source fall-through
-      # below stays the legacy path until B-CJ-multi.
-      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cj_single import (
-        lower_mir_cj_single_in_chain,
+      # B-CJ-single + B-CJ-multi: shape-aware dispatch by source count.
+      # `_should_use_declarative` no longer gates by source count for
+      # `mir.ColumnJoin` (it was a single `return True` from B-CJ-multi
+      # onward) — both single-source and multi-source CJ route through
+      # their respective per-op entry points here. The single dialect-
+      # level `@lowering(mir.ColumnJoin, ...)` registration covers
+      # both shapes for discipline ownership.
+      if len(head.sources) == 1:
+        from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cj_single import (
+          lower_mir_cj_single_in_chain,
+        )
+
+        return lower_mir_cj_single_in_chain(head, tail, ctx)
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cj_multi import (
+        lower_mir_cj_multi_in_chain,
       )
 
-      return lower_mir_cj_single_in_chain(head, tail, ctx)
+      return lower_mir_cj_multi_in_chain(head, tail, ctx)
     if isinstance(head, mir.Negation):
       from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_negation import (
         lower_mir_negation_in_chain,

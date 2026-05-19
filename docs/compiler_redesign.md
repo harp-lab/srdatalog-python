@@ -14,6 +14,8 @@ shape of the current compiler. The companion docs are:
   and required patterns, per-PR Definition of Done, CI enforcement.
 - [`phase_a_mir_onto_op.md`](phase_a_mir_onto_op.md) — MIR onto `Op`
   migration plan.
+- [`phase_a3_remove_deprecated_bool_fields.md`](phase_a3_remove_deprecated_bool_fields.md) —
+  remove deprecated bool fields on ExecutePipeline (Layer 3 prep).
 - [`phase_b_lowering_dispatcher.md`](phase_b_lowering_dispatcher.md) —
   per-MIR-op `@lowering` migration plan.
 - [`phase_c_pragma_materialization.md`](phase_c_pragma_materialization.md)

@@ -19,15 +19,15 @@ from srdatalog.ir.default_pipelines import (
   DEFAULT_PROGRAM_PIPELINE,
   AssignHandlesShim,
   CollectViewSpecsShim,
-  CudaRenderShim,
   EmitViewDeclsShim,
   HirPlanningShim,
   HirToMirShim,
   InitialProg,
   KernelCtx,
-  LowerScanPipelineShim,
+  LowerKernelBodyShim,
   MirOptShim,
   MirProgramAssembly,
+  RenderShim,
 )
 
 # -----------------------------------------------------------------------------
@@ -100,9 +100,9 @@ def test_kernel_pipeline_names_unique_and_ordered():
     'assign_handles',
     'collect_view_specs',
     'emit_view_decls',
-    'lower_scan_pipeline',
+    'lower_kernel_body',
     'verify_renderability',
-    'cuda_render',
+    'render',
   ]
   assert len(set(names)) == len(names)
 
@@ -217,22 +217,22 @@ def test_emit_view_decls_shim_populates_maps():
   assert all(k.isdigit() for k in out.name_map)
 
 
-def test_lower_scan_pipeline_shim_produces_iir():
+def test_lower_kernel_body_shim_produces_iir():
   state = _build_kernel_ctx()
   state = AssignHandlesShim().apply(state, None)
   state = CollectViewSpecsShim().apply(state, None)
   state = EmitViewDeclsShim().apply(state, None)
-  out = LowerScanPipelineShim().apply(state, None)
+  out = LowerKernelBodyShim().apply(state, None)
   assert out.iir is not None
 
 
-def test_cuda_render_shim_returns_string_body():
+def test_render_shim_returns_string_body():
   state = _build_kernel_ctx()
   state = AssignHandlesShim().apply(state, None)
   state = CollectViewSpecsShim().apply(state, None)
   state = EmitViewDeclsShim().apply(state, None)
-  state = LowerScanPipelineShim().apply(state, None)
-  out = CudaRenderShim().apply(state, None)
+  state = LowerKernelBodyShim().apply(state, None)
+  out = RenderShim().apply(state, None)
   assert isinstance(out.body_text, str)
   assert len(out.body_text) > 0
   # Should contain the view-decls preamble + emitted body.
@@ -449,8 +449,8 @@ if __name__ == '__main__':
   test_assign_handles_shim_runs_in_isolation()
   test_collect_view_specs_shim_runs_in_isolation()
   test_emit_view_decls_shim_populates_maps()
-  test_lower_scan_pipeline_shim_produces_iir()
-  test_cuda_render_shim_returns_string_body()
+  test_lower_kernel_body_shim_produces_iir()
+  test_render_shim_returns_string_body()
   test_default_program_pipeline_end_to_end()
   test_default_kernel_pipeline_end_to_end()
   test_kernel_pipeline_count_phase_runs()

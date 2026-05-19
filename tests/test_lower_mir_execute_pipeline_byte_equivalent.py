@@ -15,7 +15,7 @@ For ExecutePipeline the relevant surfaces are:
   - looking up the registered Lowering on the dialect and applying it
     yields the same IIR tree as the direct call,
   - `compile_kernel_body(ep, ...)` still works end-to-end (it routes
-    through `LowerScanPipelineShim` which still calls
+    through `LowerKernelBodyShim` which still calls
     `lower_scan_pipeline` directly today),
   - `compile_pipeline(ep)` produces byte-identical CUDA text.
   - EP carrying a `DedupHash` pragma still lowers through the
@@ -144,7 +144,7 @@ def _new_ctx(**kwargs: Any) -> LoweringCtx:
 
 
 def _real_ep_with_view_vars() -> tuple[mir.ExecutePipeline, dict[str, Any]]:
-  '''Run the kernel pipeline up to (but excluding) `LowerScanPipelineShim`
+  '''Run the kernel pipeline up to (but excluding) `LowerKernelBodyShim`
   to obtain a fully-prepared EP + view_var maps. Returns the pair so
   byte-equivalence tests on the real TC fixture can build a matching
   `LoweringCtx`.
@@ -192,7 +192,7 @@ def test_direct_invocation_matches_legacy_lower_scan_pipeline():
 def test_direct_invocation_on_real_tc_pipeline():
   '''Same byte-equivalence claim against an EP produced by the
   production HIR->MIR pipeline (richer shape than the hand-built
-  fixture). Uses the kernel-pipeline's pre-LowerScanPipelineShim
+  fixture). Uses the kernel-pipeline's pre-LowerKernelBodyShim
   state to populate `view_var_names` / `view_slot_bases` so the
   inner ops resolve their view vars correctly.'''
   ep_pre, ctx_kwargs = _real_ep_with_view_vars()
@@ -261,7 +261,7 @@ def test_registered_lowering_matches_legacy_on_real_ep():
 
 
 def test_compile_kernel_body_still_works_through_kernel_pipeline():
-  '''`compile_kernel_body(ep)` routes through `LowerScanPipelineShim`
+  '''`compile_kernel_body(ep)` routes through `LowerKernelBodyShim`
   (post-F5.3). The shim still calls `lower_scan_pipeline` directly
   today — the new registered `@lowering` gives the same lowering a
   discoverable entry point but does not change the shim's path.
@@ -323,7 +323,7 @@ def test_pragma_dedup_hash_still_lowers_through_registered_path():
   goes through the same `MirPragmaPass` consumer.'''
   ep_base = _simple_scan_ep()
   # Clone with dedup_hash=True; the field flows into LoweringCtx via
-  # LowerScanPipelineShim and affects InsertInto emit. We're just
+  # LowerKernelBodyShim and affects InsertInto emit. We're just
   # checking the EP wrap (`lower_mir_execute_pipeline`) doesn't choke
   # on it — the delegation pattern means anything that works in
   # `lower_scan_pipeline` works here.

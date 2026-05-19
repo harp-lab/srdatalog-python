@@ -163,7 +163,7 @@ def compile_kernel_body(
     pipeline=DEFAULT_KERNEL_PIPELINE,
   )
   body_text = state.body_text
-  assert body_text is not None, 'compile_kernel_body: CudaRenderShim left body_text unset'
+  assert body_text is not None, 'compile_kernel_body: RenderShim left body_text unset'
   return body_text
 
 

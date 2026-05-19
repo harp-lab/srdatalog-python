@@ -10,7 +10,7 @@ wrap the existing imperative entry points without changing behavior:
 
   DEFAULT_KERNEL_PIPELINE  — KernelCtx(ep, ...) -> body string
     AssignHandlesShim, CollectViewSpecsShim, EmitViewDeclsShim,
-    LowerScanPipelineShim, CudaRenderShim
+    LowerKernelBodyShim, RenderShim
 
 Each shim is a `ProgramPass` subclass mirroring one block of either
 `compile_to_mir` (src/srdatalog/ir/hir/__init__.py:96-124) or
@@ -261,14 +261,14 @@ class EmitViewDeclsShim(ProgramPass):
     )
 
 
-class LowerScanPipelineShim(ProgramPass):
+class LowerKernelBodyShim(ProgramPass):
   '''Wraps `lower_scan_pipeline` (sorted_array dialect). Builds a
   `LoweringCtx` from the populated state and runs the MIR -> IIR
   walk. Adds `iir` to state.'''
 
   def __init__(self) -> None:
     super().__init__(
-      name='lower_scan_pipeline',
+      name='lower_kernel_body',
       consumes=('view_decls',),
       produces=('iir',),
       fn=self._fn,
@@ -281,8 +281,8 @@ class LowerScanPipelineShim(ProgramPass):
       lower_scan_pipeline,
     )
 
-    assert state.name_map is not None, 'LowerScanPipelineShim: name_map not set'
-    assert state.base_map is not None, 'LowerScanPipelineShim: base_map not set'
+    assert state.name_map is not None, 'LowerKernelBodyShim: name_map not set'
+    assert state.base_map is not None, 'LowerKernelBodyShim: base_map not set'
     lower_ctx = LoweringCtx(
       view_var_names=state.name_map,
       is_counting=state.is_counting,
@@ -310,10 +310,10 @@ class VerifyRenderabilityShim(ProgramPass):
   would surface, and with a precise message pointing at the missing
   plugin contribution.
 
-  Today's IIR rewrite step is conceptual — `LowerScanPipelineShim`
+  Today's IIR rewrite step is conceptual — `LowerKernelBodyShim`
   produces the final IIR directly. So this shim runs AFTER
-  `LowerScanPipelineShim` (which produces the IIR) and BEFORE
-  `CudaRenderShim` (which consumes it). The shim is structurally a
+  `LowerKernelBodyShim` (which produces the IIR) and BEFORE
+  `RenderShim` (which consumes it). The shim is structurally a
   pass-through on `KernelCtx` — it neither inspects nor mutates the
   state beyond the closure check.
 
@@ -321,7 +321,7 @@ class VerifyRenderabilityShim(ProgramPass):
   introduce a new pseudo-dialect; it's a gate, not a transformation.
   Per the spec note in `code_discipline.md` R3, this is exactly the
   "pipeline-stage closure verification" that prevents silent
-  fall-through in `CudaRenderShim`.'''
+  fall-through in `RenderShim`.'''
 
   def __init__(self) -> None:
     super().__init__(
@@ -340,14 +340,14 @@ class VerifyRenderabilityShim(ProgramPass):
     return state
 
 
-class CudaRenderShim(ProgramPass):
+class RenderShim(ProgramPass):
   '''Wraps `srdatalog.ir.codegen.cuda.emit.emit` with an
   `EmitCtx(indent_level=4)`. Concatenates `view_decls` + emitted IIR
   into the final `body_text`.'''
 
   def __init__(self) -> None:
     super().__init__(
-      name='cuda_render',
+      name='render',
       consumes=('iir',),
       produces=('body_text',),
       fn=self._fn,
@@ -357,8 +357,8 @@ class CudaRenderShim(ProgramPass):
   def _fn(state: KernelCtx, _compiler: Any) -> KernelCtx:
     from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
 
-    assert state.iir is not None, 'CudaRenderShim: iir not set'
-    assert state.view_decls is not None, 'CudaRenderShim: view_decls not set'
+    assert state.iir is not None, 'RenderShim: iir not set'
+    assert state.view_decls is not None, 'RenderShim: view_decls not set'
     emit_ctx = EmitCtx(indent_level=4)
     body_text = state.view_decls + emit(state.iir, emit_ctx)
     return dataclasses.replace(state, body_text=body_text)
@@ -381,9 +381,9 @@ DEFAULT_KERNEL_PIPELINE: list[Pass] = [
   AssignHandlesShim(),
   CollectViewSpecsShim(),
   EmitViewDeclsShim(),
-  LowerScanPipelineShim(),
+  LowerKernelBodyShim(),
   VerifyRenderabilityShim(),
-  CudaRenderShim(),
+  RenderShim(),
 ]
 
 
@@ -392,14 +392,14 @@ __all__ = [
   'DEFAULT_PROGRAM_PIPELINE',
   'AssignHandlesShim',
   'CollectViewSpecsShim',
-  'CudaRenderShim',
   'EmitViewDeclsShim',
   'HirPlanningShim',
   'HirToMirShim',
   'InitialProg',
   'KernelCtx',
-  'LowerScanPipelineShim',
+  'LowerKernelBodyShim',
   'MirOptShim',
   'MirProgramAssembly',
+  'RenderShim',
   'VerifyRenderabilityShim',
 ]

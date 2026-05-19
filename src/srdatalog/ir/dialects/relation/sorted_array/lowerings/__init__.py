@@ -18,6 +18,7 @@ match what `gen_unique_name` would have produced in legacy.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import srdatalog.ir.mir.types as mir
@@ -176,25 +177,122 @@ class LoweringCtx:
 # -----------------------------------------------------------------------------
 
 
-def _trailing_inserts(rest: list[mir.MirNode]) -> list[mir.InsertInto]:
-  '''Return the trailing run of InsertIntos at the end of `rest`.
+def _lookup_terminal_wrap_lowering(
+  op_type: type,
+) -> Callable[[mir.MirNode, LoweringCtx], Op]:
+  '''Find the dialect's `@lowering` registered for `op_type`.
 
-  Multi-head rules emit several InsertIntos in sequence at the end
-  of the pipeline. The legacy emitter walks them all in order.
+  Returns the `apply` callable (signature `(op, ctx) -> Op`). Raises
+  `LookupError` if `op_type` is in `_TERMINAL_WRAP_OPS` but has no
+  registered lowering — a misconfiguration: registry registration
+  alone is not enough, callers must also `@lowering(..., op_type, ...)`
+  on the dialect for the actual emission.
   '''
-  out: list[mir.InsertInto] = []
+  from srdatalog.ir.dialects.relation.sorted_array import DIALECT
+
+  for low in DIALECT.lowerings:
+    if low.matches is op_type:
+      # `Lowering.apply` is typed `Callable[[Any, Any], Any]` on the
+      # framework side; narrow back to the dispatcher's contract
+      # here. The cast is safe because every entry in
+      # `_TERMINAL_WRAP_OPS` requires a paired `@lowering` that
+      # returns an `iir.cf.Op` for `(mir.MirNode, LoweringCtx)`.
+      apply_fn: Callable[[mir.MirNode, LoweringCtx], Op] = low.apply
+      return apply_fn
+  raise LookupError(
+    f'no @lowering registered on {DIALECT.name!r} for '
+    f'{op_type.__name__!r}. `register_terminal_wrap_op` was called for '
+    f'this op type, but the dispatcher needs an `@lowering(DIALECT, '
+    f'{op_type.__name__}, ...)` rule to emit it. Built-in wrap ops '
+    f'register both in `sorted_array/__init__.py:_register_passes`; '
+    f'external plugins must register both before any pipeline using '
+    f'the wrap op reaches lowering.'
+  )
+
+
+def _dispatch_terminal_wrap_run(rest: list[mir.MirNode], ctx: LoweringCtx) -> Op:
+  '''Emit each terminal wrap op in `rest` by dispatching to its
+  registered `@lowering`. The result is a `Block` concatenating the
+  per-op emissions, matching the legacy multi-head InsertInto run
+  shape.
+
+  Mixed runs (some `mir.InsertInto`, some wrap op) are supported —
+  bare InsertInto goes through `_lower_insert_into` exactly as the
+  pure-InsertInto path does; wrap ops dispatch through their
+  registered `@lowering`. The legacy multi-head emit pattern is one
+  bare InsertInto per output, so wrap-op materialize handlers
+  preserve that by emitting one wrap-op-per-InsertInto.
+  '''
+  from srdatalog.ir.dialects.relation.sorted_array import _TERMINAL_WRAP_OPS
+
+  stmts: list[Op] = []
   for op in rest:
     if isinstance(op, mir.InsertInto):
+      stmts.extend(_lower_insert_into(op, ctx))
+    elif type(op) in _TERMINAL_WRAP_OPS:
+      apply_fn = _lookup_terminal_wrap_lowering(type(op))
+      result = apply_fn(op, ctx)
+      # The wrap-op lowerings (lower_dedup_gate / lower_ws_scope /
+      # lower_fan_out / external plugin lowerings) return a single Op
+      # (typically a Block wrapping the emitted statements). Append it
+      # as one statement; the outer Block flattens via normal IIR
+      # rendering.
+      stmts.append(result)
+    else:
+      raise ValueError(
+        f'_dispatch_terminal_wrap_run: expected InsertInto or registered '
+        f'terminal wrap op, got {type(op).__name__!r}'
+      )
+  return Block(stmts=tuple(stmts))
+
+
+def _is_terminal_op(op: mir.MirNode) -> bool:
+  '''True iff `op` is `mir.InsertInto` OR a registered terminal
+  wrap op (InsertInto-like — DedupGate / WSScope / FanOut today,
+  plus anything registered by external plugins via
+  `register_terminal_wrap_op`).
+
+  Deferred import: `_TERMINAL_WRAP_OPS` lives on the dialect
+  package; importing it at module-load time would create a cycle
+  (the dialect package's `_register_passes` imports back from
+  this module).
+  '''
+  if isinstance(op, mir.InsertInto):
+    return True
+  from srdatalog.ir.dialects.relation.sorted_array import _TERMINAL_WRAP_OPS
+
+  return type(op) in _TERMINAL_WRAP_OPS
+
+
+def _trailing_inserts(rest: list[mir.MirNode]) -> list[mir.MirNode]:
+  '''Return the trailing run of terminal ops at the end of `rest`.
+
+  A "terminal op" is `mir.InsertInto` OR any MIR op type registered
+  via `register_terminal_wrap_op` (the built-in C-pragma wrap ops
+  DedupGate / WSScope / FanOut, plus anything an external plugin
+  registers from its `register(compiler)` callable). Multi-head
+  rules emit several InsertIntos in sequence at the end of the
+  pipeline; the legacy emitter walks them all in order.
+
+  Returns `list[mir.MirNode]` (not `list[mir.InsertInto]`) because
+  the registry admits non-InsertInto types — call sites that need
+  pure-InsertInto narrowing must do their own isinstance filter
+  (today, only `_lower_inner_chain`'s terminal-run emission cares,
+  and it consults `_lower_insert_into` which expects InsertInto).
+  '''
+  out: list[mir.MirNode] = []
+  for op in rest:
+    if _is_terminal_op(op):
       out.append(op)
     elif out:
-      # Non-InsertInto after InsertInto: the trailing run is just
-      # the contiguous tail. Stop here and let the caller decide.
+      # Non-terminal after terminal: the trailing run is just the
+      # contiguous tail. Stop here and let the caller decide.
       break
   return out
 
 
 def _middle_ops(rest: list[mir.MirNode]) -> list[mir.MirNode]:
-  '''Return `rest` with the trailing InsertIntos stripped off.'''
+  '''Return `rest` with the trailing terminal ops stripped off.'''
   trailing_count = len(_trailing_inserts(rest))
   return rest[: len(rest) - trailing_count] if trailing_count else list(rest)
 
@@ -202,23 +300,25 @@ def _middle_ops(rest: list[mir.MirNode]) -> list[mir.MirNode]:
 def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
   '''True iff the dialect can lower this pipeline shape today.
 
-  The pipeline must end in one or more InsertIntos (multi-head rules
-  emit several outputs from the same body). The middle ops between
-  the head op and the first InsertInto are constrained per the
-  milestone (Scan/CJ/Cart/Filter/ConstantBind/Negation).
+  The pipeline must end in one or more terminal ops (`mir.InsertInto`
+  or any registered terminal wrap op — see `_is_terminal_op`).
+  Multi-head rules emit several outputs from the same body. The
+  middle ops between the head op and the first terminal op are
+  constrained per the milestone (Scan/CJ/Cart/Filter/ConstantBind/
+  Negation).
   '''
   if len(ops) < 2:
     return False
-  # Find the start of the trailing InsertInto sequence.
+  # Find the start of the trailing terminal sequence.
   insert_start = None
   for i, op in enumerate(ops):
-    if isinstance(op, mir.InsertInto):
+    if _is_terminal_op(op):
       insert_start = i
       break
   if insert_start is None or insert_start == 0:
     return False
-  # All ops from insert_start onward must be InsertInto.
-  if not all(isinstance(op, mir.InsertInto) for op in ops[insert_start:]):
+  # All ops from insert_start onward must be terminal.
+  if not all(_is_terminal_op(op) for op in ops[insert_start:]):
     return False
   head = ops[0]
   middle = ops[1:insert_start]
@@ -1249,16 +1349,40 @@ def _lower_inner_chain(
         f'_lower_inner_chain: expected pure InsertInto tail at this '
         f'point, got {[type(o).__name__ for o in rest]}'
       )
+    # `_trailing_inserts` admits registered terminal wrap ops; narrow
+    # back to InsertInto for the legacy emit path. Mixed-tail (some
+    # InsertInto, some wrap op) is structurally legal under the
+    # registry but does not occur today — built-in pragma materialize
+    # handlers wrap every InsertInto uniformly. If a mixed tail
+    # appears, the wrap-op branch below handles it.
+    pure_inserts = [op for op in inserts if isinstance(op, mir.InsertInto)]
+    if len(pure_inserts) != len(inserts):
+      return _dispatch_terminal_wrap_run(inserts, ctx)
     # Tiled-Cartesian ballot variant: render the trailing InsertInto
     # run as a single TiledBallotBlock that owns the ballot setup +
     # per-output write at once. Replaces the legacy stateful
     # `tiled_cartesian_ballot_done` flag.
     if ctx.tiled_cartesian_valid_var:
-      return _lower_tiled_ballot_block(inserts, ctx)
+      return _lower_tiled_ballot_block(pure_inserts, ctx)
     stmts: list[Op] = []
-    for ins in inserts:
+    for ins in pure_inserts:
       stmts.extend(_lower_insert_into(ins, ctx))
     return Block(stmts=tuple(stmts))
+
+  # Terminal wrap op at head: dispatch through the registered
+  # `@lowering` on the dialect. This is the extension point for
+  # built-in C-pragma wrap ops (DedupGate / WSScope / FanOut) AND
+  # external plugin wrap ops (registered via
+  # `register_terminal_wrap_op` from a plugin's `register(compiler)`
+  # callable). Pre-A3 the built-ins reach this branch ONLY in the
+  # pure-typed-pragma test path (the dual-write bool short-circuit
+  # in `materialize_*` keeps them out of the production pipeline);
+  # post-A3 the built-ins lose the dual-write escape hatch and this
+  # is the SOLE dispatch path for every wrap-op-terminated EP.
+  from srdatalog.ir.dialects.relation.sorted_array import _TERMINAL_WRAP_OPS
+
+  if type(head) in _TERMINAL_WRAP_OPS:
+    return _dispatch_terminal_wrap_run(rest, ctx)
 
   if isinstance(head, mir.Filter):
     cond_expr = _filter_expr(head.code)
@@ -2229,12 +2353,15 @@ def _lower_nested_cart(
 def _cart_var_used(
   var_name: str,
   rest: list[mir.MirNode],
-  inserts: list[mir.InsertInto],
+  inserts: list[mir.MirNode],
 ) -> bool:
   '''Counting-phase optimization gate for Cartesian var-binds.
 
-  Multi-head: any of the trailing InsertIntos referencing `var_name`
-  counts as a usage.
+  Multi-head: any of the trailing terminal ops referencing `var_name`
+  counts as a usage. `inserts` is the result of `_trailing_inserts`
+  which now admits registered terminal wrap ops in addition to bare
+  `mir.InsertInto`; `_var_used_in_op` walks string fields uniformly,
+  so the widening is transparent.
   '''
   return any(_var_used_in_op(var_name, op) for op in (*rest, *inserts))
 

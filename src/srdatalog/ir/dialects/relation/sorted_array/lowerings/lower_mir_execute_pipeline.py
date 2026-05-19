@@ -41,17 +41,17 @@ verify `mir.ExecutePipeline` has exactly one registered lowering).
 
 Caller posture during the migration:
 
-  - `LowerScanPipelineShim` (in `srdatalog.ir.default_pipelines`)
+  - `LowerKernelBodyShim` (in `srdatalog.ir.default_pipelines`)
     still calls `lower_scan_pipeline(state.ep.pipeline, lower_ctx)`
     directly. That direct call is byte-equivalent to going through
     the registered `@lowering` (this module's entry is a 1-line
     delegate to the same function). The registry-driven dispatch
     path is a follow-up — see the TODO at
-    `LowerScanPipelineShim._fn` — that requires plumbing the
+    `LowerKernelBodyShim._fn` — that requires plumbing the
     Compiler reference through `KernelCtx` (F3's `LowerCtx`
     already carries one; `KernelCtx` does not yet).
   - `compile_pipeline(ep)` and `compile_kernel_body(ep, ...)` route
-    through `LowerScanPipelineShim` (post-F5.3) so they inherit the
+    through `LowerKernelBodyShim` (post-F5.3) so they inherit the
     same direct-call path. The new `@lowering` entry here is the
     discoverable canonical surface; direct callers and the shim are
     free to invoke it OR the underlying `lower_scan_pipeline`

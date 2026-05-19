@@ -13,7 +13,7 @@ Four shapes covered:
   4. Integration: `Compiler.run(KernelCtx, pipeline=DEFAULT_KERNEL_PIPELINE)`
      on a TC fixture passes (because every op renders); inserting a
      fake shim that produces an unrenderable op raises at the
-     `VerifyRenderabilityShim` step, BEFORE `CudaRenderShim` runs.
+     `VerifyRenderabilityShim` step, BEFORE `RenderShim` runs.
 '''
 
 from __future__ import annotations
@@ -117,7 +117,7 @@ def _real_iir_tree() -> object:
   prog_state = compiler.run(InitialProg(program=_tc_program()), pipeline=DEFAULT_PROGRAM_PIPELINE)
   assert prog_state.mir_program is not None
   ep = _first_ep(prog_state.mir_program)
-  # Run kernel pipeline up through LowerScanPipelineShim (inclusive)
+  # Run kernel pipeline up through LowerKernelBodyShim (inclusive)
   # — i.e. everything BEFORE the gate we're testing. This avoids
   # recursion (we're literally building the fixture the gate consumes).
   partial_pipeline = []
@@ -249,13 +249,13 @@ def test_rewrite_closes_an_otherwise_unrenderable_op():
 # -----------------------------------------------------------------------------
 
 
-def test_verify_renderability_shim_is_between_lower_scan_and_cuda_render():
-  '''Pipeline shape contract: the gate runs AFTER LowerScanPipelineShim
-  (which produces IIR) and BEFORE CudaRenderShim (which consumes it).'''
+def test_verify_renderability_shim_is_between_lower_kernel_body_and_render():
+  '''Pipeline shape contract: the gate runs AFTER LowerKernelBodyShim
+  (which produces IIR) and BEFORE RenderShim (which consumes it).'''
   names = [p.name for p in DEFAULT_KERNEL_PIPELINE]
-  i_lower = names.index('lower_scan_pipeline')
+  i_lower = names.index('lower_kernel_body')
   i_verify = names.index('verify_renderability')
-  i_render = names.index('cuda_render')
+  i_render = names.index('render')
   assert i_lower < i_verify < i_render
 
 
@@ -295,7 +295,7 @@ def test_kernel_pipeline_with_injected_unrenderable_op_raises_at_gate():
   '''Negative integration: insert a shim that REPLACES the IIR with a
   tree containing an unrenderable synthetic op. The pipeline must
   raise `UnrenderableOpError` at `VerifyRenderabilityShim` — BEFORE
-  `CudaRenderShim` runs (which would otherwise hit its own KeyError).
+  `RenderShim` runs (which would otherwise hit its own KeyError).
 
   The injected shim consumes 'iir' and produces 'iir' so the pipeline
   ordering check still passes; only the closure check fires.'''
@@ -322,12 +322,12 @@ def test_kernel_pipeline_with_injected_unrenderable_op_raises_at_gate():
   ep = _first_ep(prog_state.mir_program)
 
   # Build a pipeline that injects the unrenderable op AFTER
-  # LowerScanPipelineShim but BEFORE the gate. The gate must catch it.
+  # LowerKernelBodyShim but BEFORE the gate. The gate must catch it.
   inject = _InjectUnrenderable()
   patched: list = []
   for p in DEFAULT_KERNEL_PIPELINE:
     patched.append(p)
-    if p.name == 'lower_scan_pipeline':
+    if p.name == 'lower_kernel_body':
       patched.append(inject)
 
   with pytest.raises(UnrenderableOpError) as excinfo:
@@ -338,7 +338,7 @@ def test_kernel_pipeline_with_injected_unrenderable_op_raises_at_gate():
 
 def test_verify_renderability_shim_consumes_iir_produces_nothing():
   '''Pipeline-data contract: the gate consumes the iir dialect produced
-  by LowerScanPipelineShim. Because it doesn't introduce a new
+  by LowerKernelBodyShim. Because it doesn't introduce a new
   pseudo-dialect, `produces=()`.'''
   shim = VerifyRenderabilityShim()
   assert shim.consumes == ('iir',)
@@ -353,7 +353,7 @@ if __name__ == '__main__':
   test_verify_renderability_raises_on_nested_unrenderable_op()
   test_verify_renderability_raises_on_unknown_target()
   test_rewrite_closes_an_otherwise_unrenderable_op()
-  test_verify_renderability_shim_is_between_lower_scan_and_cuda_render()
+  test_verify_renderability_shim_is_between_lower_kernel_body_and_render()
   test_verify_renderability_shim_is_a_pass_through()
   test_default_kernel_pipeline_runs_end_to_end_with_gate()
   test_kernel_pipeline_with_injected_unrenderable_op_raises_at_gate()

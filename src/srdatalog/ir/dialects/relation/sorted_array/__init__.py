@@ -73,6 +73,18 @@ USE_DECLARATIVE: frozenset[type] = frozenset(
     _mir_for_use_declarative.ColumnJoin,
     _mir_for_use_declarative.Negation,
     _mir_for_use_declarative.Aggregate,
+    # B-Cart (per docs/phase_b_lowering_dispatcher.md §4 row B-Cart,
+    # difficulty `hard`, order 7): adds `mir.CartesianJoin` to the
+    # ratchet. The new `@lowering`-dispatch path owns BOTH the root
+    # position (dispatched from `lower_scan_pipeline`) and the mid-
+    # chain position (dispatched from `_lower_inner_chain`); the
+    # `_should_use_declarative` helper has no source-count / shape
+    # guard for Cart (unlike B-CJ-single, which gates on source
+    # count). The C5 `TiledCartesian` typed-pragma wrap op is a
+    # DIFFERENT MIR op type (`mir.TiledCartesian`) and continues to
+    # route through `lower_tiled_cartesian_in_chain` independently —
+    # see `lowerings/lower_mir_cart.py` for the coexistence rationale.
+    _mir_for_use_declarative.CartesianJoin,
   }
 )
 
@@ -391,6 +403,39 @@ def _register_passes() -> None:
   )
   def _lower_mir_aggregate_registered(op: Any, ctx: Any) -> Any:
     return lower_mir_aggregate(op, ctx)
+
+  # Wave 2A / B-Cart (per docs/phase_b_lowering_dispatcher.md §4 row
+  # B-Cart, difficulty `hard`, order 7): `mir.CartesianJoin` migrates
+  # to a standalone `@lowering` registration in its own file under
+  # `lowerings/lower_mir_cart.py`. The registered stub asserts on
+  # direct invocation because the position-aware variants
+  # (`lower_mir_cart_root` from `lower_scan_pipeline`,
+  # `lower_mir_cart_in_chain` from `_lower_inner_chain`) need the
+  # trailing pipeline / chain — same split-with-stub rationale as
+  # B-Scan / B-Negation. The `USE_DECLARATIVE` ratchet above routes
+  # BOTH the root and mid-chain dispatch through the new path while
+  # keeping this registration as the dialect-ownership contract.
+  #
+  # Coexistence with C5 (`mir.TiledCartesian` wrap op): the wrap op
+  # is a DIFFERENT MIR op type and has its own `@lowering`
+  # registration (above, `lower_mir_tiled_cartesian`). The C5
+  # dispatch in `_lower_inner_chain` matches `mir.TiledCartesian`
+  # by isinstance and never falls through to the bare
+  # `mir.CartesianJoin` branch — both branches coexist independently.
+  # See `lowerings/lower_mir_cart.py` module docstring for the full
+  # coexistence rationale + the C5 dual-write transition handling.
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cart import (
+    lower_mir_cart,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.CartesianJoin,
+    consumes=('mir',),
+    produces=('iir.cf',),
+  )
+  def _lower_mir_cart_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_cart(op, ctx)
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.

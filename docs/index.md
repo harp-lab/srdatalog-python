@@ -65,6 +65,7 @@ api/index
 :caption: Design notes (in-flight refactor)
 
 phase_f5_declarative_pipeline
+phase_a3_remove_deprecated_bool_fields
 ```
 
 ## Project status

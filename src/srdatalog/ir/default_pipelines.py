@@ -53,13 +53,20 @@ class InitialProg:
   Read by `HirPlanningShim` when computing HIR from scratch; ignored
   if `hir` is pre-populated by the caller. Added in F5.2 so the
   declarative pipeline can preserve the imperative entry point's
-  verbosity knob byte-equivalently.'''
+  verbosity knob byte-equivalently.
+
+  `target` carries the render target chosen by the caller. PR-1c
+  (Phase B2-1, foundation) adds the field so downstream pipeline
+  stages can read it; default ``'cuda'`` preserves all existing call
+  sites byte-equivalently. Actual per-target dispatch lands in Phase
+  B2-2. See docs/phase_decomposition_redesign.md §3.3.1.'''
 
   program: Program
   hir: HirProgram | None = None
   steps: list[tuple[mir.MirNode, bool]] | None = None
   mir_program: mir.Program | None = None
   verbose: bool = False
+  target: str = 'cuda'
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +74,14 @@ class KernelCtx:
   '''Kernel-pipeline through-state. Carries the original
   `compile_kernel_body` kwargs plus the progressively populated
   derived state (handle-assigned ep, view_specs, view_decls + var
-  maps, iir, body_text).'''
+  maps, iir, body_text).
+
+  `target` carries the render target chosen by the caller. PR-1c
+  (Phase B2-1, foundation) adds the field so kernel-pipeline shims
+  (notably `VerifyRenderabilityShim`) can read it; default ``'cuda'``
+  preserves all existing call sites byte-equivalently. Actual
+  per-target render dispatch lands in Phase B2-2. See
+  docs/phase_decomposition_redesign.md §3.3.1.'''
 
   ep: ExecutePipeline
   is_counting: bool
@@ -77,6 +91,7 @@ class KernelCtx:
   rel_index_types: dict[str, str] | None = None
   tiled_cartesian: bool = False
   bg_enabled: bool = False
+  target: str = 'cuda'
   # populated by shims:
   view_specs: tuple[ViewSpec, ...] | None = None
   view_decls: str | None = None
@@ -304,11 +319,11 @@ class VerifyRenderabilityShim(ProgramPass):
 
   Runs `verify_renderability` on the post-fixpoint IIR tree. For every
   op type reachable in the tree, asserts either a registered
-  `@register_render(op_type, target='cuda')` OR a `@rewrite` is
+  `@register_render(op_type, target=state.target)` OR a `@rewrite` is
   present. On failure, raises `UnrenderableOpError` naming the op
-  type + target — long before the CUDA renderer's own `KeyError`
-  would surface, and with a precise message pointing at the missing
-  plugin contribution.
+  type + target — long before the renderer's own `KeyError` would
+  surface, and with a precise message pointing at the missing plugin
+  contribution.
 
   Today's IIR rewrite step is conceptual — `LowerKernelBodyShim`
   produces the final IIR directly. So this shim runs AFTER
@@ -321,7 +336,12 @@ class VerifyRenderabilityShim(ProgramPass):
   introduce a new pseudo-dialect; it's a gate, not a transformation.
   Per the spec note in `code_discipline.md` R3, this is exactly the
   "pipeline-stage closure verification" that prevents silent
-  fall-through in `RenderShim`.'''
+  fall-through in `RenderShim`.
+
+  PR-1c (Phase B2-1, foundation) replaced the hardcoded
+  ``target='cuda'`` with ``state.target`` so the check follows the
+  caller-chosen render target. See
+  docs/phase_decomposition_redesign.md §2.3 and §3.3.1.'''
 
   def __init__(self) -> None:
     super().__init__(
@@ -336,7 +356,7 @@ class VerifyRenderabilityShim(ProgramPass):
     from srdatalog.ir.core.verifier import verify_renderability
 
     assert state.iir is not None, 'VerifyRenderabilityShim: iir not set'
-    verify_renderability(state.iir, target='cuda', compiler=compiler)
+    verify_renderability(state.iir, target=state.target, compiler=compiler)
     return state
 
 

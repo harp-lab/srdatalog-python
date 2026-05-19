@@ -117,6 +117,13 @@ class Compiler:
     # to the right plugin.
     self._active_plugin_context: str | None = None
     self._active_plugin_replaces: tuple[str, ...] = ()
+    # Active render target for the in-flight `Compiler.run(...)` call.
+    # Set on entry, restored on exit. Outside a `run` call this is the
+    # process-wide default. PR-1c (Phase B2-1, foundation) introduces
+    # this attr so downstream passes can read the target the caller
+    # chose; the actual per-target dispatch logic lands in Phase B2-2.
+    # See docs/phase_decomposition_redesign.md §3.3.1.
+    self.active_target: str = 'cuda'
 
   # -- dialect registration --------------------------------------------------
 
@@ -174,7 +181,7 @@ class Compiler:
     '''All registered dialects, in registration order.'''
     return list(self._dialects.values())
 
-  def run(self, prog: Any, *, pipeline: list[Any]) -> Any:
+  def run(self, prog: Any, *, pipeline: list[Any], target: str = 'cuda') -> Any:
     '''Drive a list of `Pass` instances over `prog`. Returns the
     (possibly transformed) prog.
 
@@ -183,6 +190,13 @@ class Compiler:
     Compiler OR produced by an earlier Pass in the list. Raises
     `PassOrderingError` on mismatch — at construction time, before
     any pass executes.
+
+    `target` selects the render target for the run; passes that need
+    it read `compiler.active_target` (set for the duration of the
+    call, restored on exit). Defaults to ``'cuda'`` so all existing
+    call sites are byte-equivalent. PR-1c (Phase B2-1, foundation)
+    introduces the kwarg; actual per-target dispatch lands in Phase
+    B2-2. See docs/phase_decomposition_redesign.md §3.3.1.
 
     Per `docs/compiler_redesign.md` §4 and the R4 research report:
     pipelines are data; ordering errors are caught up-front.
@@ -198,9 +212,14 @@ class Compiler:
           raise PassOrderingError(p.name, needed, i)
       available |= set(p.produces)
 
-    for p in pipeline:
-      prog = p.apply(prog, self)
-    return prog
+    prev_target = self.active_target
+    self.active_target = target
+    try:
+      for p in pipeline:
+        prog = p.apply(prog, self)
+      return prog
+    finally:
+      self.active_target = prev_target
 
   # -- plugin registration ---------------------------------------------------
 

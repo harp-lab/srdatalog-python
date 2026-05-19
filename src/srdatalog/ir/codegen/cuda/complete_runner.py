@@ -43,7 +43,6 @@ from srdatalog.ir.codegen.cuda.pipeline_utils import (
   has_tiled_cartesian_eligible,
 )
 from srdatalog.ir.codegen.cuda.plugin import plugin_gen_host_view_setup, plugin_view_count
-from srdatalog.ir.mir.passes import ep_has_work_stealing
 
 # Pure-template phase emitters now live in the dialect's runner module.
 # Local aliases preserve the legacy call sites until the rest of this
@@ -75,6 +74,7 @@ from srdatalog.ir.codegen.cuda.view_slots import (
   compute_total_view_count,
   source_spec_key,
 )
+from srdatalog.ir.mir.passes import ep_has_work_stealing
 
 # -----------------------------------------------------------------------------
 # Source spec extraction helpers (mirror Nim's inline lambdas)

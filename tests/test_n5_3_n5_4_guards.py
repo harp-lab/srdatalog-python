@@ -12,14 +12,18 @@
     here (`jitNegation` at jit_scan_negation.nim:142-187). Both
     ends broken; defer.
 
-  - **N5.3 (single-source nested ColumnJoin)** — guarded by
-    `_supported_pipeline`: the predicate requires `len(sources) >=
-    2` for nested CJs; single-source raises `ValueError("unsupported
-    pipeline shape ...")`. Nim emits seg-loop wrap for this shape
-    (jit_instructions.nim:42-143); real gap, defer until workload.
+  - **N5.3 (single-source nested ColumnJoin)** — landed in
+    B-CJ-single (per `docs/phase_b_lowering_dispatcher.md` §4 row
+    B-CJ-single). The legacy guard (`_supported_pipeline`
+    rejecting `len(sources) == 1`) was flipped: single-source CJ
+    now compiles via `_lower_nested_cj_single` in the legacy
+    branch and `lower_mir_cj_single_in_chain` in the new path.
+    The test below pins the shape compiles end-to-end; the
+    rendered text is covered by
+    `tests/test_lower_mir_cj_single_byte_equivalent.py`.
 
-When N5.3 / N5.4 (Negation) land, replace the corresponding guards
-with byte-equivalence tests against checked-in goldens.
+When N5.4 (Negation) lands, replace its corresponding guard with
+a byte-equivalence test against checked-in goldens.
 '''
 
 from __future__ import annotations
@@ -155,12 +159,18 @@ def test_n5_4_negation_d2l_full_raises():
 # -----------------------------------------------------------------------------
 
 
-def test_n5_3_single_source_nested_cj_raises():
-  '''A pipeline whose nested CJ has `len(sources) == 1` is rejected
-  by `_supported_pipeline` with a clear ValueError naming the shape.
+def test_n5_3_single_source_nested_cj_compiles():
+  '''A pipeline whose nested CJ has `len(sources) == 1` now compiles
+  cleanly via the B-CJ-single migration (see
+  `docs/phase_b_lowering_dispatcher.md` §4 row B-CJ-single).
 
-  When N5.3 lands, this test should flip — the pipeline will compile
-  and a byte-equivalence test will replace this guard.
+  Before B-CJ-single this shape was rejected by `_supported_pipeline`
+  with a `ValueError("unsupported pipeline shape ...")` — that
+  legacy guard has been flipped: `_supported_pipeline` now accepts
+  single-source ColumnJoin in middle slots under both Scan-rooted
+  and CJ-multi-rooted pipelines, and `_lower_inner_chain` dispatches
+  it through the new `lower_mir_cj_single_in_chain` path (gated by
+  `_should_use_declarative`).
   '''
   src_a = m.ColumnSource(
     rel_name='A',
@@ -181,11 +191,14 @@ def test_n5_3_single_source_nested_cj_raises():
     sources=[src_a, src_b],
     handle_start=0,
   )
+  # Single-source nested CJ over a fresh source `C` (no prefix
+  # narrowing — `prefix_vars=[]` means a brand-new SaRoot handle,
+  # not an alias on a parent handle from the enclosing scope).
   src_c = m.ColumnSource(
     rel_name='C',
     version=Version.FULL,
-    index=[0, 1],
-    prefix_vars=['y'],
+    index=[0],
+    prefix_vars=[],
     handle_start=2,
   )
   nested_cj = m.ColumnJoin(
@@ -205,5 +218,10 @@ def test_n5_3_single_source_nested_cj_raises():
     dest_specs=[insert],
     rule_name='CjSingle',
   )
-  with pytest.raises(ValueError, match=r'unsupported pipeline shape'):
-    compile_pipeline(ep)
+  # No exception: the pipeline compiles end-to-end via the new
+  # single-source CJ path. The byte-equivalence harness +
+  # `tests/test_lower_mir_cj_single_byte_equivalent.py` cover the
+  # rendered text.
+  out = compile_pipeline(ep)
+  assert isinstance(out, str)
+  assert out  # non-empty

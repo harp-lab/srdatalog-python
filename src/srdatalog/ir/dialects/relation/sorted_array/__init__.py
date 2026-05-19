@@ -61,6 +61,16 @@ USE_DECLARATIVE: frozenset[type] = frozenset(
     _mir_for_use_declarative.ConstantBind,
     _mir_for_use_declarative.InsertInto,
     _mir_for_use_declarative.Scan,
+    # B-CJ-single (per docs/phase_b_lowering_dispatcher.md §4 row
+    # B-CJ-single, difficulty `medium`): adds `mir.ColumnJoin` to
+    # the ratchet. NOTE: the new `@lowering`-dispatch path only
+    # owns the SINGLE-source case (`len(sources) == 1`); the
+    # multi-source case (`len(sources) >= 2`) stays on the legacy
+    # `_lower_nested_cj_multi` / `_lower_root_cj_multi` branches
+    # until B-CJ-multi lands. The `_should_use_declarative` helper
+    # in `lowerings/__init__.py` enforces the "type AND structural
+    # shape" gate; B-CJ-multi drops the source-count guard there.
+    _mir_for_use_declarative.ColumnJoin,
   }
 )
 
@@ -277,6 +287,34 @@ def _register_passes() -> None:
   )
   def _lower_mir_scan_registered(op: Any, ctx: Any) -> Any:
     return lower_mir_scan(op, ctx)
+
+  # Wave 2A / B-CJ-single (per docs/phase_b_lowering_dispatcher.md §4
+  # row B-CJ-single, difficulty `medium`): `mir.ColumnJoin` migrates
+  # to a standalone `@lowering` registration in its own file. This
+  # PR owns only the SINGLE-source case (`len(sources) == 1`); the
+  # multi-source case stays on the legacy `_lower_nested_cj_multi`
+  # / `_lower_root_cj_multi` branches in `lowerings/__init__.py`
+  # and is migrated by the next PR (B-CJ-multi).
+  #
+  # The `_should_use_declarative` helper in `lowerings/__init__.py`
+  # encodes the "type AND structural shape" gate so the chain
+  # dispatcher routes single-source through `lower_mir_cj_single_in_chain`
+  # and lets multi-source fall through to the legacy branch.
+  # Same split-with-stub pattern as B-Filter / B-Scan: the registered
+  # stub asserts on direct invocation, and the chain-aware variant
+  # is the real entry.
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cj_single import (
+    lower_mir_cj_single,
+  )
+
+  @lowering(
+    DIALECT,
+    mir.ColumnJoin,
+    consumes=('mir',),
+    produces=('iir.cf',),
+  )
+  def _lower_mir_cj_single_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_cj_single(op, ctx)
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.

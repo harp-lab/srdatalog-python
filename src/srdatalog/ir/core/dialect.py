@@ -13,9 +13,13 @@ locked design in `docs/phase_zero_prerequisites.md` §3.5):
 
   - `Compiler()` is empty. No auto-discovery.
   - `Compiler.with_default_plugins()` walks the
-    `srdatalog.plugins` entry-point group, topo-sorts by each
-    plugin's provides/requires attributes, and registers each in
-    order.
+    `srdatalog.dialects` + `srdatalog.targets` entry-point groups
+    plus the legacy `srdatalog.plugins` group (one-shot
+    `DeprecationWarning` per process when the legacy group has
+    entries; see PR-1a, `docs/phase_decomposition_redesign.md`
+    §3.3.4). Topo-sorts by each plugin's provides/requires
+    attributes and registers each in order. De-dupes by plugin name
+    across groups.
   - `Compiler.register_plugin(plugin)` accepts a plugin name, a
     register callable, or an `EntryPoint`. Idempotent.
   - Conflict detection: a dialect of the same name registered by a
@@ -27,12 +31,15 @@ See `docs/ir_lowering_semantics.md`, section 19.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 from srdatalog.ir.core.plugin import (
+  DIALECT_ENTRY_POINT_GROUP,
   ENTRY_POINT_GROUP,
+  TARGET_ENTRY_POINT_GROUP,
   PluginConflictError,
   PluginInfo,
   PluginLoadError,
@@ -40,6 +47,14 @@ from srdatalog.ir.core.plugin import (
   _info_for,
   _topo_sort_plugins,
 )
+
+# One-shot DeprecationWarning emission marker. PR-1a's spec
+# (`docs/phase_decomposition_redesign.md` §3.3.4) requires the legacy
+# `srdatalog.plugins` group to keep working for one release while
+# emitting `DeprecationWarning` exactly once per process when it
+# contains entries (so a noisy install with two legacy plugins still
+# only warns once, not twice).
+_LEGACY_GROUP_WARNED = False
 
 
 @dataclass
@@ -252,11 +267,20 @@ class Compiler:
         `register.plugin_name` if set, else `register.__name__`.
     '''
     if isinstance(plugin, str):
-      # Look up by entry-point name in the default group.
-      for ep in _discover_entry_points():
-        if ep.name == plugin:
-          return ep.name, ep.load()
-      raise LookupError(f'no plugin named {plugin!r} in entry-point group {ENTRY_POINT_GROUP!r}')
+      # Look up by entry-point name. PR-1a (§3.3.4) splits the legacy
+      # `srdatalog.plugins` group into `srdatalog.dialects` +
+      # `srdatalog.targets`; consult both new groups first, then the
+      # legacy group, mirroring the search order of
+      # `with_default_plugins()`.
+      for g in (DIALECT_ENTRY_POINT_GROUP, TARGET_ENTRY_POINT_GROUP, ENTRY_POINT_GROUP):
+        for ep in _discover_entry_points(g):
+          if ep.name == plugin:
+            return ep.name, ep.load()
+      raise LookupError(
+        f'no plugin named {plugin!r} in entry-point groups '
+        f'{DIALECT_ENTRY_POINT_GROUP!r}, {TARGET_ENTRY_POINT_GROUP!r}, '
+        f'or {ENTRY_POINT_GROUP!r}'
+      )
 
     if hasattr(plugin, 'name') and hasattr(plugin, 'load'):
       # EntryPoint-shaped (importlib.metadata.EntryPoint or a test fake).
@@ -276,30 +300,70 @@ class Compiler:
   # -- discovery factory -----------------------------------------------------
 
   @classmethod
-  def with_default_plugins(cls, *, group: str = ENTRY_POINT_GROUP) -> Compiler:
+  def with_default_plugins(cls, *, group: str | None = None) -> Compiler:
     '''Construct a `Compiler` and auto-discover all entry-point plugins.
 
-    Walks `importlib.metadata.entry_points(group=group)`,
-    topo-sorts by each plugin's `provides` / `requires` attributes
-    on the `register` callable (defaulting to `()` when absent),
-    then calls `register_plugin` on each in order.
+    Production form (`group=None`): walks all three entry-point
+    groups in order — `srdatalog.dialects` (primary),
+    `srdatalog.targets` (currently empty; populated when a target
+    plugin ships), then the legacy `srdatalog.plugins` group. If the
+    legacy group contains entries, a one-shot `DeprecationWarning`
+    fires per process (see PR-1a, `docs/phase_decomposition_redesign.md`
+    §3.3.4). De-dupes by plugin name across groups: a plugin that
+    appears in both the legacy group and one of the new groups is
+    loaded once, from the first new group it appears in.
 
-    The `group` keyword exists for test isolation — production code
-    uses the default. See
-    `docs/phase_e_plugin_extensibility.md` §2.
+    Test-isolation form (`group=<str>`): walks only the named group.
+    Used by `tests/test_core_plugin.py` to install synthetic plugins
+    under a sandbox group.
     '''
     compiler = cls()
 
-    # Discover, then resolve each EP to (name, register_fn) once so
-    # we can both topo-sort and register without double-loading.
-    eps = _discover_entry_points(group)
+    groups: list[str]
+    if group is None:
+      groups = [
+        DIALECT_ENTRY_POINT_GROUP,
+        TARGET_ENTRY_POINT_GROUP,
+        ENTRY_POINT_GROUP,
+      ]
+    else:
+      groups = [group]
+
+    # Discover across all groups, de-duping by plugin name. The first
+    # group that yields a given name wins — so a plugin redundantly
+    # listed in both the legacy group and a new group is loaded once.
     resolved: dict[str, tuple[Any, Callable[[Any], None]]] = {}
     infos: list[PluginInfo] = []
-    for ep in eps:
-      register_fn = ep.load()
-      info = _info_for(ep.name, register_fn)
-      resolved[ep.name] = (ep, register_fn)
-      infos.append(info)
+    legacy_eps: list[Any] = []
+    for g in groups:
+      eps = _discover_entry_points(g)
+      if g == ENTRY_POINT_GROUP and group is None:
+        legacy_eps = list(eps)
+      for ep in eps:
+        if ep.name in resolved:
+          # Already discovered under an earlier (new) group; skip.
+          continue
+        register_fn = ep.load()
+        info = _info_for(ep.name, register_fn)
+        resolved[ep.name] = (ep, register_fn)
+        infos.append(info)
+
+    # Emit the legacy-group DeprecationWarning at most once per
+    # process when the legacy group has entries. Suppressed under
+    # the test-isolation form — those tests install fake plugins
+    # under custom groups and shouldn't trigger the legacy warning.
+    if group is None and legacy_eps:
+      global _LEGACY_GROUP_WARNED
+      if not _LEGACY_GROUP_WARNED:
+        _LEGACY_GROUP_WARNED = True
+        warnings.warn(
+          f'entry-point group {ENTRY_POINT_GROUP!r} is deprecated; '
+          f'move plugin registrations to {DIALECT_ENTRY_POINT_GROUP!r} '
+          f'(data dialects) or {TARGET_ENTRY_POINT_GROUP!r} (render '
+          f'targets). See docs/phase_decomposition_redesign.md §3.3.4.',
+          DeprecationWarning,
+          stacklevel=2,
+        )
 
     order = _topo_sort_plugins(infos)
 

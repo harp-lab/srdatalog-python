@@ -53,21 +53,35 @@ docs = [
 srdatalog = "srdatalog.cli:main"
 
 # ---------------------------------------------------------------------------
-# Plugin entry points (srdatalog.plugins)
+# Plugin entry points
 #
-# Phase E validation: built-in dialects ship as discoverable plugins via
-# the same `srdatalog.plugins` entry-point group used by external
-# packages. `Compiler.with_default_plugins()` walks this group at
-# bootstrap. Spec: docs/phase_e_plugin_extensibility.md §2, §5.
+# PR-1a (docs/phase_decomposition_redesign.md §3.3.4) splits the legacy
+# `srdatalog.plugins` group into two semantic groups:
+#
+#   - `srdatalog.dialects` — data-dialect / pragma / IIR contributions
+#     (where every built-in lives from PR-1a onward).
+#   - `srdatalog.targets`  — render-target contributions (CUDA / TBB /
+#     SYCL / ...). Empty in PR-1a; populated when the CUDA target
+#     ships as a plugin in a later PR.
+#
+# The legacy `srdatalog.plugins` group is kept for one release as a
+# back-compat shim so external packages (e.g. the jaccard demo) that
+# still declare entries under the old group continue to load — with a
+# one-shot DeprecationWarning per process at
+# `Compiler.with_default_plugins()` time. Built-ins no longer use it.
 # ---------------------------------------------------------------------------
 
-[project.entry-points."srdatalog.plugins"]
+[project.entry-points."srdatalog.dialects"]
 d2l = "srdatalog.ir.dialects.relation.d2l:register"
 iir_cf = "srdatalog.ir.dialects.iir.cf:register"
 sorted_array = "srdatalog.ir.dialects.relation.sorted_array:register"
 parallel_data = "srdatalog.ir.dialects.parallel.data:register"
 parallel_atomic_ws = "srdatalog.ir.dialects.parallel.atomic_ws:register"
 parallel_block_group = "srdatalog.ir.dialects.parallel.block_group:register"
+
+[project.entry-points."srdatalog.targets"]
+# (none yet — populated in a later PR when the CUDA target ships as a
+# plugin per docs/phase_decomposition_redesign.md §3.3.4)
 
 [project.urls]
 Homepage = "https://github.com/anthropics/srdatalog-python"

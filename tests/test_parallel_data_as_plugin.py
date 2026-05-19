@@ -14,7 +14,7 @@ emitted by `relation.sorted_array`'s lowerings.
 Three things asserted:
 
   1. `Compiler.with_default_plugins()` discovers `parallel.data`
-     through the `srdatalog.plugins` entry-point group and registers
+     through the `srdatalog.dialects` entry-point group and registers
      its dialect on the resulting Compiler.
   2. Calling `compiler.register_plugin(register)` twice is a no-op the
      second time (F4 idempotency, exercised against the real register
@@ -36,7 +36,7 @@ import srdatalog.ir.mir.types as mir
 from srdatalog.dsl import Program, Relation, Var
 from srdatalog.ir.codegen.cuda.api import compile_kernel_body
 from srdatalog.ir.core import Compiler
-from srdatalog.ir.core.plugin import ENTRY_POINT_GROUP
+from srdatalog.ir.core.plugin import DIALECT_ENTRY_POINT_GROUP
 from srdatalog.ir.default_pipelines import (
   DEFAULT_PROGRAM_PIPELINE,
   InitialProg,
@@ -111,7 +111,7 @@ def _build_first_ep_via(compiler: Compiler) -> mir.ExecutePipeline:
 
 
 def test_parallel_data_is_discovered_by_with_default_plugins() -> None:
-  '''`Compiler.with_default_plugins()` walks the `srdatalog.plugins`
+  '''`Compiler.with_default_plugins()` walks the `srdatalog.dialects`
   entry-point group; the `parallel_data` entry point shipped in this
   repo's `pyproject.toml` is loaded and registers the `parallel.data`
   dialect.
@@ -124,7 +124,7 @@ def test_parallel_data_is_discovered_by_with_default_plugins() -> None:
   compiler = Compiler.with_default_plugins()
 
   # The plugin name comes from the entry-point name in pyproject.toml
-  # (`[project.entry-points."srdatalog.plugins"] parallel_data = "..."`)
+  # (`[project.entry-points."srdatalog.dialects"] parallel_data = "..."`)
   # — F4's `_resolve_plugin` records that name in `_plugins_loaded`.
   assert 'parallel_data' in compiler._plugins_loaded, (
     f'expected parallel_data in loaded plugins; got {list(compiler._plugins_loaded)!r}. '
@@ -144,11 +144,13 @@ def test_parallel_data_is_discovered_by_with_default_plugins() -> None:
 
 
 def test_entry_point_group_name_matches_f4() -> None:
-  '''The entry-point group name in `pyproject.toml` is exactly the
-  one F4's plugin discovery walks. Locked at `srdatalog.plugins` per
-  the spec (`docs/phase_e_plugin_extensibility.md` §2).
+  '''The entry-point group name for built-in data dialects is exactly
+  the one F4's plugin discovery walks. Locked at `srdatalog.dialects`
+  per PR-1a (`docs/phase_decomposition_redesign.md` §3.3.4); the
+  legacy `srdatalog.plugins` group remains as a back-compat shim and
+  is covered separately by `tests/test_plugin_group_split.py`.
   '''
-  assert ENTRY_POINT_GROUP == 'srdatalog.plugins'
+  assert DIALECT_ENTRY_POINT_GROUP == 'srdatalog.dialects'
 
 
 # -----------------------------------------------------------------------------

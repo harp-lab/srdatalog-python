@@ -6,7 +6,12 @@ in `docs/phase_zero_prerequisites.md` §3.5.
 Plugins extend the compiler with new dialects, pragmas, targets, and
 the like. Each plugin is a callable `register(compiler)` that mutates
 the compiler's registries. Plugins are discovered via Python entry
-points (group `srdatalog.plugins`) OR registered explicitly.
+points OR registered explicitly.
+
+Entry-point groups (PR-1a, `docs/phase_decomposition_redesign.md`
+§3.3.4): `srdatalog.dialects` for data-dialect / pragma / IIR
+contributions, `srdatalog.targets` for render targets, and the legacy
+`srdatalog.plugins` kept for one release as a back-compat shim.
 
 Per the locked design (see `docs/phase_zero_prerequisites.md` §3.5):
 
@@ -49,9 +54,25 @@ from typing import Any
 # module (one-way dependency: dialect.py -> plugin.py).
 
 
-# Public entry-point group name. Listed in plugin packages'
-# `pyproject.toml` under `[project.entry-points."srdatalog.plugins"]`.
-ENTRY_POINT_GROUP = 'srdatalog.plugins'
+# Public entry-point group names.
+#
+# PR-1a (`docs/phase_decomposition_redesign.md` §3.3.4) splits the
+# single legacy `srdatalog.plugins` group into two semantic groups:
+#
+#   - `srdatalog.dialects` — data-dialect / pragma / IIR contributions
+#     (every built-in lives here from PR-1a onward).
+#   - `srdatalog.targets` — render-target contributions (CUDA / TBB /
+#     SYCL / ...). Empty in PR-1a; populated in a later PR when the
+#     CUDA target ships as a plugin.
+#
+# The legacy `srdatalog.plugins` group is kept for one release as a
+# back-compat shim so external packages (e.g. the jaccard demo) that
+# still declare entries under the old group continue to load — with a
+# one-shot `DeprecationWarning` per process at
+# `Compiler.with_default_plugins()` time.
+DIALECT_ENTRY_POINT_GROUP = 'srdatalog.dialects'
+TARGET_ENTRY_POINT_GROUP = 'srdatalog.targets'
+ENTRY_POINT_GROUP = 'srdatalog.plugins'  # LEGACY — kept for back-compat
 
 
 # -----------------------------------------------------------------------------
@@ -218,9 +239,11 @@ def _topo_sort_plugins(infos: Iterable[PluginInfo]) -> list[str]:
 
 
 __all__ = [
+  'DIALECT_ENTRY_POINT_GROUP',
   'ENTRY_POINT_GROUP',
   'PluginConflictError',
   'PluginCycleError',
   'PluginInfo',
   'PluginLoadError',
+  'TARGET_ENTRY_POINT_GROUP',
 ]

@@ -389,26 +389,45 @@ def test_register_fn_raising_propagates_as_plugin_load_error() -> None:
 
 
 # -----------------------------------------------------------------------------
-# 10. Default group is `srdatalog.plugins`; override accepted
+# 10. Group constants + default-walk includes the new + legacy groups
 # -----------------------------------------------------------------------------
 
 
-def test_default_group_is_srdatalog_plugins() -> None:
-  '''The constant the loader uses is `srdatalog.plugins`, matching
-  the spec in `docs/phase_e_plugin_extensibility.md` §2.'''
+def test_legacy_group_constant_is_srdatalog_plugins() -> None:
+  '''The legacy back-compat constant remains `srdatalog.plugins`. PR-1a
+  (`docs/phase_decomposition_redesign.md` §3.3.4) keeps this group as
+  a one-release back-compat shim alongside the new
+  `srdatalog.dialects` + `srdatalog.targets` groups.'''
   assert plugin_mod.ENTRY_POINT_GROUP == 'srdatalog.plugins'
 
 
-def test_with_default_plugins_default_group_uses_srdatalog_plugins(
+def test_new_group_constants_are_dialects_and_targets() -> None:
+  '''PR-1a introduces `srdatalog.dialects` (primary, where every
+  built-in lives from PR-1a onward) and `srdatalog.targets` (empty in
+  PR-1a; populated by a later PR when the CUDA target ships as a
+  plugin).'''
+  assert plugin_mod.DIALECT_ENTRY_POINT_GROUP == 'srdatalog.dialects'
+  assert plugin_mod.TARGET_ENTRY_POINT_GROUP == 'srdatalog.targets'
+
+
+def test_with_default_plugins_default_walk_includes_legacy_group(
   monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-  '''Calling `with_default_plugins()` with no `group=` argument
-  walks the `srdatalog.plugins` group.'''
+  '''Calling `with_default_plugins()` with no `group=` argument walks
+  the new `srdatalog.dialects` + `srdatalog.targets` groups AND the
+  legacy `srdatalog.plugins` group. A plugin declared in the legacy
+  group is still loaded — with a one-shot DeprecationWarning the
+  dedicated test in `test_plugin_group_split.py` covers separately
+  (suppressed here via `simplefilter`).'''
+  import warnings as _warnings
+
   reg = _make_register(dialects=('default_group_dialect',))
   ep = FakeEntryPoint('default_plug', reg)
   _install_entry_points(monkeypatch, {plugin_mod.ENTRY_POINT_GROUP: [ep]})
 
-  c = Compiler.with_default_plugins()
+  with _warnings.catch_warnings():
+    _warnings.simplefilter('ignore', DeprecationWarning)
+    c = Compiler.with_default_plugins()
   assert c.get_dialect('default_group_dialect').name == 'default_group_dialect'
 
 

@@ -29,6 +29,12 @@ shape of the current compiler. The companion docs are:
   declarative pipeline shim (last Foundation piece): reduces
   `compile_to_mir` + `compile_kernel_body` to `Compiler.run(prog,
   pipeline=DEFAULT_PIPELINE)`.
+- [`phase_decomposition_redesign.md`](phase_decomposition_redesign.md) —
+  unified Phase R/T/B2 spec: supersedes the piecemeal Phase A3 +
+  Layer 3 cleanup work; frames every remaining migration PR against
+  ONE load-bearing invariant (the ACID test — zero edits to existing
+  source files for any new algorithm / pragma / index type /
+  aggregation / backend target). The next layer above this doc.
 
 ## 1. The diagnosis
 

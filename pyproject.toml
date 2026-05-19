@@ -53,21 +53,46 @@ docs = [
 srdatalog = "srdatalog.cli:main"
 
 # ---------------------------------------------------------------------------
-# Plugin entry points (srdatalog.plugins)
+# Plugin entry points (PR-1 split — per docs/phase_decomposition_redesign.md
+# § 3.3.4)
 #
-# Phase E validation: built-in dialects ship as discoverable plugins via
-# the same `srdatalog.plugins` entry-point group used by external
-# packages. `Compiler.with_default_plugins()` walks this group at
-# bootstrap. Spec: docs/phase_e_plugin_extensibility.md §2, §5.
+# Two production groups + a legacy back-compat group:
+#
+#   `srdatalog.dialects` — data-side dialect contributions (target-
+#       agnostic IR: ops, pragmas, lowerings). Walked by
+#       `Compiler.with_default_plugins()`.
+#   `srdatalog.targets`  — render-side target contributions (per-target
+#       `@register_render(op, target=T)` registrations). Walked by
+#       `Compiler.with_default_plugins()`. Empty today — built-in CUDA
+#       target stays loaded via the `sorted_array` dialect's
+#       `_register_passes` until subsequent PRs separate render
+#       registrations into a `srdatalog.codegen.cuda:register` entry.
+#   `srdatalog.plugins`  — LEGACY group. Walked for one release cycle
+#       with a `DeprecationWarning`. External plugins that haven't
+#       migrated continue to work.
+#
+# Spec: docs/phase_e_plugin_extensibility.md §2 + docs/phase_decomposition
+# _redesign.md § 3.3.4.
 # ---------------------------------------------------------------------------
 
-[project.entry-points."srdatalog.plugins"]
+[project.entry-points."srdatalog.dialects"]
 d2l = "srdatalog.ir.dialects.relation.d2l:register"
 iir_cf = "srdatalog.ir.dialects.iir.cf:register"
 sorted_array = "srdatalog.ir.dialects.relation.sorted_array:register"
 parallel_data = "srdatalog.ir.dialects.parallel.data:register"
 parallel_atomic_ws = "srdatalog.ir.dialects.parallel.atomic_ws:register"
 parallel_block_group = "srdatalog.ir.dialects.parallel.block_group:register"
+
+[project.entry-points."srdatalog.targets"]
+# (no entries yet — this group exists so external CPU/TBB / SYCL /
+# WASM targets can register. PR-2+ wires the built-in CUDA target
+# under a `srdatalog.codegen.cuda:register` entry.)
+
+# LEGACY group — kept for back-compat for one release cycle per the
+# § 3.3.4 transition contract. External plugins (e.g. the jaccard
+# demo) discoverable here keep working; loading emits a
+# `DeprecationWarning` exactly once per process.
+[project.entry-points."srdatalog.plugins"]
 
 [project.urls]
 Homepage = "https://github.com/anthropics/srdatalog-python"

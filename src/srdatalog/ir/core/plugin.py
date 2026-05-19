@@ -1,19 +1,29 @@
 '''Plugin discovery + registration infrastructure.
 
 Spec: `docs/phase_e_plugin_extensibility.md`. Locked design decisions
-in `docs/phase_zero_prerequisites.md` §3.5.
+in `docs/phase_zero_prerequisites.md` §3.5. PR-1 (per
+`docs/phase_decomposition_redesign.md` § 3.3.4) split the legacy
+single entry-point group into two:
+
+  - `srdatalog.dialects` — data-side dialect contributions
+    (target-agnostic IR: ops, pragmas, lowerings).
+  - `srdatalog.targets`  — render-side target contributions
+    (per-target `@register_render(op, target=T)` registrations).
+
+The legacy `srdatalog.plugins` group remains discoverable for one
+release cycle (with a `DeprecationWarning`) so external plugin
+packages have a deterministic migration path.
 
 Plugins extend the compiler with new dialects, pragmas, targets, and
 the like. Each plugin is a callable `register(compiler)` that mutates
 the compiler's registries. Plugins are discovered via Python entry
-points (group `srdatalog.plugins`) OR registered explicitly.
+points (any of the three groups above) OR registered explicitly.
 
 Per the locked design (see `docs/phase_zero_prerequisites.md` §3.5):
 
   - `Compiler()` is empty by default — no auto-discovery.
   - `Compiler.with_default_plugins()` is the opt-in factory that walks
-    `importlib.metadata.entry_points(group=...)` and loads every
-    entry point.
+    every registered entry-point group and loads every entry point.
   - Plugins declare their `provides` / `requires` / `replaces`
     metadata as function attributes on the `register` callable. The
     loader Kahn-topo-sorts by these attributes so a plugin that
@@ -38,6 +48,7 @@ the other way: `core/dialect.py` imports from this module).
 from __future__ import annotations
 
 import importlib.metadata
+import warnings
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
@@ -49,9 +60,15 @@ from typing import Any
 # module (one-way dependency: dialect.py -> plugin.py).
 
 
-# Public entry-point group name. Listed in plugin packages'
-# `pyproject.toml` under `[project.entry-points."srdatalog.plugins"]`.
-ENTRY_POINT_GROUP = 'srdatalog.plugins'
+# Public entry-point groups. PR-1 (per
+# `docs/phase_decomposition_redesign.md` § 3.3.4) split the legacy
+# single group into a data-dialects group + a render-targets group;
+# both are walked by `Compiler.with_default_plugins`. The legacy
+# group remains walked (with `DeprecationWarning`) for one release
+# cycle for back-compat with external plugins.
+DIALECT_ENTRY_POINT_GROUP = 'srdatalog.dialects'
+TARGET_ENTRY_POINT_GROUP = 'srdatalog.targets'
+ENTRY_POINT_GROUP = 'srdatalog.plugins'  # legacy — kept for one release cycle
 
 
 # -----------------------------------------------------------------------------
@@ -126,8 +143,65 @@ def _discover_entry_points(group: str = ENTRY_POINT_GROUP) -> list[Any]:
   Returns a list (not the underlying `EntryPoints` selectable view)
   so callers can sort / iterate without worrying about the
   importlib-metadata API churn between Python versions.
+
+  When `group` is the legacy `srdatalog.plugins` and any entry
+  points are present in it, emit a `DeprecationWarning` exactly
+  once per process (per § 3.3.4 transition contract). The legacy
+  group is still walked; the warning gives external plugin
+  authors time to migrate to the split groups.
   '''
-  return list(importlib.metadata.entry_points(group=group))
+  eps = list(importlib.metadata.entry_points(group=group))
+  if group == ENTRY_POINT_GROUP and eps:
+    _warn_legacy_group_once()
+  return eps
+
+
+_LEGACY_GROUP_WARNED = False
+
+
+def _warn_legacy_group_once() -> None:
+  '''Emit a single `DeprecationWarning` per process for the legacy
+  `srdatalog.plugins` entry-point group.
+  '''
+  global _LEGACY_GROUP_WARNED
+  if _LEGACY_GROUP_WARNED:
+    return
+  _LEGACY_GROUP_WARNED = True
+  warnings.warn(
+    f'Entry-point group {ENTRY_POINT_GROUP!r} is deprecated. Per '
+    f'`docs/phase_decomposition_redesign.md` § 3.3.4, data dialects '
+    f'should declare under {DIALECT_ENTRY_POINT_GROUP!r} and render '
+    f'targets under {TARGET_ENTRY_POINT_GROUP!r}. The legacy group '
+    f'will be removed one release after PR-1 lands.',
+    DeprecationWarning,
+    stacklevel=3,
+  )
+
+
+def _discover_all_groups() -> list[Any]:
+  '''Walk every plugin entry-point group (legacy + new) and return
+  a deduplicated list of `EntryPoint`-shaped objects.
+
+  Per PR-1 (per `docs/phase_decomposition_redesign.md` § 3.3.4):
+  built-in dialects ship under `srdatalog.dialects`; built-in
+  render targets ship under `srdatalog.targets`; external packages
+  that haven't migrated yet ship under `srdatalog.plugins` (the
+  legacy group), which the loader still walks for back-compat with
+  a `DeprecationWarning`.
+
+  Dedup key: `(group_name, entry_point_name)`. The same plugin
+  appearing in both the legacy and a new group loads only once
+  (the new group is preferred — first listed in the walk order).
+  '''
+  seen_names: set[str] = set()
+  out: list[Any] = []
+  for group in (DIALECT_ENTRY_POINT_GROUP, TARGET_ENTRY_POINT_GROUP, ENTRY_POINT_GROUP):
+    for ep in _discover_entry_points(group):
+      if ep.name in seen_names:
+        continue
+      seen_names.add(ep.name)
+      out.append(ep)
+  return out
 
 
 def _plugin_attr(register_fn: Callable[..., Any], name: str) -> tuple[str, ...]:
@@ -218,9 +292,11 @@ def _topo_sort_plugins(infos: Iterable[PluginInfo]) -> list[str]:
 
 
 __all__ = [
+  'DIALECT_ENTRY_POINT_GROUP',
   'ENTRY_POINT_GROUP',
   'PluginConflictError',
   'PluginCycleError',
   'PluginInfo',
   'PluginLoadError',
+  'TARGET_ENTRY_POINT_GROUP',
 ]

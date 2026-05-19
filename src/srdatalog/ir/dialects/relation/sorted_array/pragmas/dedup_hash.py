@@ -159,23 +159,20 @@ def lower_dedup_gate(op: DedupGate, ctx: Any) -> Op:
   '''Emit the IIR for `DedupGate(inner=InsertInto)`.
 
   Returns a `Block` wrapping the inner `InsertInto`'s emission
-  rendered under `ctx.dedup_hash=True`. The legacy
+  rendered with `is_dedup_gate=True`. The legacy
   `_lower_insert_into` (in the dialect's `lowerings.py` monolith)
   already produces the full `try_insert + if (_p) { write }` gate
-  when its `ctx.dedup_hash` is set; we reuse it verbatim so the
+  when its `is_dedup_gate` kwarg is set; we reuse it verbatim so the
   new lowering and the legacy path emit byte-identical text for
   the same `InsertInto`.
 
-  The save/restore pattern around `ctx.dedup_hash` is defensive:
-  if a future call site invokes this lowering from a partial-ctx
-  scope where `dedup_hash` is False (e.g. a refactored
-  `compile_kernel_body` that no longer pre-sets the field), the
-  flag still flips on for the duration of the gate.
-
-  `LoweringCtx` is a non-frozen dataclass (it carries `name_counter`
-  + per-pass mutable state), so attribute assignment is the
-  supported mutation surface — no `object.__setattr__` shim needed
-  and the D18 ratchet does not apply.
+  PR-1 refactor (per `docs/phase_decomposition_redesign.md` §
+  3.2.1): this helper used to flip `ctx.dedup_hash = True` for the
+  duration of the call and rely on `_lower_insert_into` reading
+  the ctx field. PR-1 moved the dispatch signal to a function-local
+  kwarg so the wrap-op lowering no longer mutates ctx state —
+  cleaner contract for the post-redesign world where `LoweringCtx`
+  is target-private scratch, not a pragma scratch pad.
   '''
   # Deferred import: the monolith module imports nothing from this
   # subpackage at top level, but co-located ops + pragmas + lowerings
@@ -186,12 +183,7 @@ def lower_dedup_gate(op: DedupGate, ctx: Any) -> Op:
     _lower_insert_into,
   )
 
-  prev = getattr(ctx, 'dedup_hash', False)
-  try:
-    ctx.dedup_hash = True
-    stmts = _lower_insert_into(op.inner, ctx)
-  finally:
-    ctx.dedup_hash = prev
+  stmts = _lower_insert_into(op.inner, ctx, is_dedup_gate=True)
   return Block(stmts=tuple(stmts))
 
 

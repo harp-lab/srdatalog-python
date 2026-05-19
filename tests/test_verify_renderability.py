@@ -250,12 +250,17 @@ def test_rewrite_closes_an_otherwise_unrenderable_op():
 
 
 def test_verify_renderability_shim_is_between_lower_scan_and_cuda_render():
-  '''Pipeline shape contract: the gate runs AFTER LowerScanPipelineShim
-  (which produces IIR) and BEFORE CudaRenderShim (which consumes it).'''
+  '''Pipeline shape contract: the gate runs AFTER LowerKernelBodyShim
+  (which produces IIR) and BEFORE RenderShim (which consumes it).
+
+  PR-1 rename (per `docs/phase_decomposition_redesign.md` § 3.3.3):
+  `lower_scan_pipeline` -> `lower_kernel_body`; `cuda_render` ->
+  `render`.
+  '''
   names = [p.name for p in DEFAULT_KERNEL_PIPELINE]
-  i_lower = names.index('lower_scan_pipeline')
+  i_lower = names.index('lower_kernel_body')
   i_verify = names.index('verify_renderability')
-  i_render = names.index('cuda_render')
+  i_render = names.index('render')
   assert i_lower < i_verify < i_render
 
 
@@ -322,12 +327,12 @@ def test_kernel_pipeline_with_injected_unrenderable_op_raises_at_gate():
   ep = _first_ep(prog_state.mir_program)
 
   # Build a pipeline that injects the unrenderable op AFTER
-  # LowerScanPipelineShim but BEFORE the gate. The gate must catch it.
+  # LowerKernelBodyShim but BEFORE the gate. The gate must catch it.
   inject = _InjectUnrenderable()
   patched: list = []
   for p in DEFAULT_KERNEL_PIPELINE:
     patched.append(p)
-    if p.name == 'lower_scan_pipeline':
+    if p.name == 'lower_kernel_body':
       patched.append(inject)
 
   with pytest.raises(UnrenderableOpError) as excinfo:

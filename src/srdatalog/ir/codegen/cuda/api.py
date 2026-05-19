@@ -105,6 +105,7 @@ def compile_kernel_body(
   rel_index_types: dict[str, str] | None = None,
   tiled_cartesian: bool = False,
   bg_enabled: bool = False,
+  target: str = 'cuda',
 ) -> str:
   '''Emit the operator() body for one kernel — view_decls followed by
   the dialect-emitted kernel logic. Caller is responsible for the
@@ -159,8 +160,10 @@ def compile_kernel_body(
       rel_index_types=rel_index_types,
       tiled_cartesian=tiled_cartesian,
       bg_enabled=bg_enabled,
+      target=target,
     ),
     pipeline=DEFAULT_KERNEL_PIPELINE,
+    target=target,
   )
   body_text = state.body_text
   assert body_text is not None, 'compile_kernel_body: CudaRenderShim left body_text unset'

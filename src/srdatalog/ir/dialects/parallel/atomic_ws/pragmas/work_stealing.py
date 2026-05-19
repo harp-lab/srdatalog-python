@@ -151,24 +151,19 @@ def lower_ws_scope(op: WSScope, ctx: Any) -> Op:
   '''Emit the IIR for `WSScope(inner=InsertInto)`.
 
   Returns a `Block` wrapping the inner `InsertInto`'s emission
-  rendered under `ctx.ws_enabled=True`. The legacy
-  `_lower_insert_into` (in the sorted_array dialect's `lowerings.py`
-  monolith) already produces the WS-flavoured emit (count-phase
-  `<out>++` instead of `<out>.emit_direct()`) when its
-  `ctx.ws_enabled` is set; we reuse it verbatim so the new lowering
-  and the legacy path emit byte-identical text for the same
-  `InsertInto`.
+  rendered with `is_ws_scope=True`. The legacy `_lower_insert_into`
+  (in the sorted_array dialect's `lowerings.py` monolith) already
+  produces the WS-flavoured emit (count-phase `<out>++` instead of
+  `<out>.emit_direct()`) when its `is_ws_scope` kwarg is set; we
+  reuse it verbatim so the new lowering and the legacy path emit
+  byte-identical text for the same `InsertInto`.
 
-  The save/restore pattern around `ctx.ws_enabled` is defensive:
-  if a future call site invokes this lowering from a partial-ctx
-  scope where `ws_enabled` is False (e.g. a refactored
-  `compile_kernel_body` that no longer pre-sets the field), the
-  flag still flips on for the duration of the gate.
-
-  `LoweringCtx` is a non-frozen dataclass (it carries
-  `name_counter` + per-pass mutable state), so attribute assignment
-  is the supported mutation surface — no `object.__setattr__` shim
-  needed and the D18 ratchet does not apply.
+  PR-1 refactor (per `docs/phase_decomposition_redesign.md` §
+  3.2.1): this helper used to flip `ctx.ws_enabled = True` for the
+  duration of the call. PR-1 moved the dispatch signal to a
+  function-local kwarg so the wrap-op lowering no longer mutates
+  ctx state — cleaner contract for the post-redesign world where
+  `LoweringCtx` is target-private scratch, not a pragma scratch pad.
 
   Implementation parallels `lower_dedup_gate` (C2 template) at
   `srdatalog.ir.dialects.relation.sorted_array.pragmas.dedup_hash.
@@ -183,12 +178,7 @@ def lower_ws_scope(op: WSScope, ctx: Any) -> Op:
     _lower_insert_into,
   )
 
-  prev = getattr(ctx, 'ws_enabled', False)
-  try:
-    ctx.ws_enabled = True
-    stmts = _lower_insert_into(op.inner, ctx)
-  finally:
-    ctx.ws_enabled = prev
+  stmts = _lower_insert_into(op.inner, ctx, is_ws_scope=True)
   return Block(stmts=tuple(stmts))
 
 

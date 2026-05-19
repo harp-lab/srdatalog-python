@@ -20,8 +20,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 import srdatalog.ir.mir.types as mir
+from srdatalog.ir.codegen.cuda.lower_ctx import CudaRenderCtx
 from srdatalog.ir.core import Op
 from srdatalog.ir.dialects.iir.cf import (
   AddCount,
@@ -89,83 +91,197 @@ class NegPreNarrowInfo:
   rel_name: str
 
 
-@dataclass
 class LoweringCtx:
   '''Mutable state during MIR -> IIR walk.
 
-  Mirrors the legacy `CodeGenContext` for the fields that matter to
-  the dialect's emission decisions today. Other legacy fields
-  (tiled_cartesian state, ws state, etc.) aren't needed yet —
-  milestones add them as they cover those paths.
+  PR-1 refactor (per `docs/phase_decomposition_redesign.md` § 3.2.1):
+  the CUDA-render-specific identifier fields (view variable names,
+  output variable name, neg-pre-narrow info, …) live on a target-
+  private `CudaRenderCtx` (in
+  `srdatalog.ir.codegen.cuda.lower_ctx`). This class threads that
+  context via the `render_ctx` slot and exposes the legacy flat
+  field names as forwarding properties so the existing helpers
+  remain byte-equivalent during the migration.
+
+  Legacy callers that constructed `LoweringCtx(view_var_names=...,
+  output_var=...)` continue to work — the constructor coerces those
+  flat kwargs into a freshly built `render_ctx`. New callers can
+  pass `render_ctx=CudaRenderCtx(...)` directly.
+
+  Non-CUDA-render fields (`name_counter`, `inside_cartesian`,
+  `bound_vars`, `tile_var`, `handle_vars`, `cartesian_bound_vars`,
+  `is_counting`) remain on this object — they're lowering-walk
+  scope state, not target-specific identifier scratch.
+
+  Pragma scratch flags (`dedup_hash`, `tiled_cartesian`,
+  `ws_enabled`, `bg_enabled`) became lowering-local kwargs in PR-1
+  (per spec § 3.2.1): each wrap-op's lowering helper now takes
+  `is_dedup_gate=True` / `is_ws_scope=True` / etc. instead of
+  flipping a ctx field. The fields remain on this object for
+  back-compat (legacy `_lower_*` helpers still consult them via
+  attribute access) but are no longer set by the pragma lowerings —
+  the kwarg is the canonical surface.
   '''
 
-  name_counter: int = 0
-  view_var_names: dict[str, str] = field(default_factory=dict)
-  is_counting: bool = False
-  inside_cartesian: bool = False
-  output_var: str = 'output'
-  tile_var: str = 'tile'
-  debug: bool = True
-  output_var_overrides: dict[str, str] = field(default_factory=dict)
-  bound_vars: list[str] = field(default_factory=list)
-  # rel_name -> custom index type code (e.g. 'Device2LevelIndex').
-  # Empty string / missing entry = plain DSAI single-segment.
-  rel_index_types: dict[str, str] = field(default_factory=dict)
-  # handle_idx (str) -> base slot in views[]. Populated by
-  # `compile_kernel_body` from `emit_view_declarations` so D2L
-  # segment-loop emission can reference the right HEAD/FULL pair.
-  view_slot_bases: dict[str, int] = field(default_factory=dict)
-  # When True, InsertInto emit wraps the output write in a
-  # `{ bool _p = dedup_table.try_insert(thread_id, ...); if (_p) {
-  # ... } }` gate, and the materialize-phase write goes through
-  # `atomicAdd(atomic_write_pos, 1u)` + `out_data_0[...]` instead of
-  # `output.emit_direct(...)`. Threaded from `ep.dedup_hash`.
-  dedup_hash: bool = False
-  # When True, eligible 2-source / 1-var-per-source nested Cartesians
-  # in materialize phase emit the `if (total > 32) { tiled smem path }
-  # else { fallback path }` dispatch. Bodies inside both branches use
-  # the `tiled_cartesian_valid_var` ballot-write variant of InsertInto.
-  # Threaded from `_dialect_safe_kernel`'s `tiled_cartesian_eligible`
-  # gate via `compile_kernel_body`.
-  tiled_cartesian: bool = False
-  # Empty (default) — InsertInto emits the standard
-  # `output.emit_direct(...)` write. Non-empty — emits the tiled-
-  # Cartesian ballot-write variant guarded by this var. Set by
-  # `_lower_nested_cart` when rendering the tiled-mode body.
-  tiled_cartesian_valid_var: str = ''
-  # Work-stealing flag (mirrors legacy `ctx.ws_enabled`). In count
-  # phase, InsertInto emits `<output_var>++` instead of
-  # `<output_var>.emit_direct()` — the WS count uses a per-thread
-  # local counter that the runner aggregates. The legacy emitter has
-  # only this kernel-functor-level WS support; the runner-side WS
-  # scaffolding (WCOJTask queue) was never finished.
-  ws_enabled: bool = False
-  # Work-stealing batched-Cartesian valid var. When set, Filter /
-  # Negation fold their guard into `<v> = <v> && (<cond>);` and
-  # InsertInto materialize emits `<output_var>.emit_warp_coalesced(
-  # tile, <v>, <args>)` — a cooperative warp write instead of a
-  # lane-zero-guarded emit_direct. Mirrors legacy
-  # `ctx.ws_cartesian_valid_var`.
-  ws_cartesian_valid_var: str = ''
-  # Block-group flag (mirrors legacy `ctx.bg_enabled`). When True,
-  # the root multi-source ColumnJoin emits via `BgRootCjMulti`
-  # (block-group work-balanced partition + binary-search key loop)
-  # instead of the standard grid-stride root_unique_values loop.
-  # Cleared when descending into the body (the BG root's narrowed
-  # handle already restricts work to this warp's slice).
-  bg_enabled: bool = False
-  # State-key -> handle var name. Lets nested CJ find the parent
-  # handle to alias by the same (rel, cols, prefix_vars, ver) key
-  # that the outer CJ used to register it.
-  handle_vars: dict[str, str] = field(default_factory=dict)
-  # Cartesian-bound var names. Used to decide which Negation prefix
-  # vars are pre-Cartesian (= bound by an outer scope) vs in-Cartesian
-  # (= bound by the current Cart and per-thread).
-  cartesian_bound_vars: list[str] = field(default_factory=list)
-  # handle_idx -> NegPreNarrowInfo. Populated by `_lower_nested_cart`
-  # before its body renders so that the body's Negation handler can
-  # pick up the pre-allocated handle.
-  neg_pre_narrow: dict[int, NegPreNarrowInfo] = field(default_factory=dict)
+  # Intentionally not using __slots__: legacy test fixtures pre-set
+  # transient lowering-local attributes like `rest_for_bg_root` via
+  # `setattr(ctx, ...)`. Pin-discipline (D10) lives in the test that
+  # asserts the explicit attribute set; slotting would lock out the
+  # test-fixture surface without changing production correctness.
+
+  def __init__(
+    self,
+    *,
+    render_ctx: CudaRenderCtx | None = None,
+    # Generic lowering-walk scope state:
+    name_counter: int = 0,
+    is_counting: bool = False,
+    inside_cartesian: bool = False,
+    tile_var: str = 'tile',
+    bound_vars: list[str] | None = None,
+    handle_vars: dict[str, str] | None = None,
+    cartesian_bound_vars: list[str] | None = None,
+    # Pragma scratch flags (legacy; kwargs preferred — see class docstring):
+    dedup_hash: bool = False,
+    tiled_cartesian: bool = False,
+    ws_enabled: bool = False,
+    bg_enabled: bool = False,
+    # CUDA-render fields (back-compat — preferred form is to pass a
+    # constructed `render_ctx`). When `render_ctx` is None we coerce
+    # these flat kwargs into a freshly built CudaRenderCtx.
+    view_var_names: dict[str, str] | None = None,
+    output_var: str = 'output',
+    output_var_overrides: dict[str, str] | None = None,
+    view_slot_bases: dict[str, int] | None = None,
+    rel_index_types: dict[str, str] | None = None,
+    tiled_cartesian_valid_var: str = '',
+    ws_cartesian_valid_var: str = '',
+    ws_cartesian_bound_vars: list[str] | None = None,
+    neg_pre_narrow: dict[int, Any] | None = None,
+    dedup_hash_vars: list[str] | None = None,
+    debug: bool = True,
+  ) -> None:
+    if render_ctx is None:
+      render_ctx = CudaRenderCtx(
+        view_var_names=view_var_names if view_var_names is not None else {},
+        output_var=output_var,
+        output_var_overrides=output_var_overrides if output_var_overrides is not None else {},
+        view_slot_bases=view_slot_bases if view_slot_bases is not None else {},
+        rel_index_types=rel_index_types if rel_index_types is not None else {},
+        tiled_cartesian_valid_var=tiled_cartesian_valid_var,
+        ws_cartesian_valid_var=ws_cartesian_valid_var,
+        ws_cartesian_bound_vars=ws_cartesian_bound_vars
+        if ws_cartesian_bound_vars is not None
+        else [],
+        neg_pre_narrow=neg_pre_narrow if neg_pre_narrow is not None else {},
+        dedup_hash_vars=dedup_hash_vars if dedup_hash_vars is not None else [],
+        debug=debug,
+      )
+    self.render_ctx = render_ctx
+    self.name_counter = name_counter
+    self.is_counting = is_counting
+    self.inside_cartesian = inside_cartesian
+    self.tile_var = tile_var
+    self.bound_vars = bound_vars if bound_vars is not None else []
+    self.handle_vars = handle_vars if handle_vars is not None else {}
+    self.cartesian_bound_vars = cartesian_bound_vars if cartesian_bound_vars is not None else []
+    self.dedup_hash = dedup_hash
+    self.tiled_cartesian = tiled_cartesian
+    self.ws_enabled = ws_enabled
+    self.bg_enabled = bg_enabled
+
+  # -- forwarding properties for the CUDA-render fields ---------------------
+  # Legacy reads like `ctx.view_var_names` continue to work; they delegate
+  # to the underlying `render_ctx`. New code should prefer the explicit
+  # `ctx.render_ctx.<field>` form (per spec § 3.2.1).
+
+  @property
+  def view_var_names(self) -> dict[str, str]:
+    return self.render_ctx.view_var_names
+
+  @view_var_names.setter
+  def view_var_names(self, value: dict[str, str]) -> None:
+    self.render_ctx.view_var_names = value
+
+  @property
+  def output_var(self) -> str:
+    return self.render_ctx.output_var
+
+  @output_var.setter
+  def output_var(self, value: str) -> None:
+    self.render_ctx.output_var = value
+
+  @property
+  def output_var_overrides(self) -> dict[str, str]:
+    return self.render_ctx.output_var_overrides
+
+  @output_var_overrides.setter
+  def output_var_overrides(self, value: dict[str, str]) -> None:
+    self.render_ctx.output_var_overrides = value
+
+  @property
+  def view_slot_bases(self) -> dict[str, int]:
+    return self.render_ctx.view_slot_bases
+
+  @view_slot_bases.setter
+  def view_slot_bases(self, value: dict[str, int]) -> None:
+    self.render_ctx.view_slot_bases = value
+
+  @property
+  def rel_index_types(self) -> dict[str, str]:
+    return self.render_ctx.rel_index_types
+
+  @rel_index_types.setter
+  def rel_index_types(self, value: dict[str, str]) -> None:
+    self.render_ctx.rel_index_types = value
+
+  @property
+  def tiled_cartesian_valid_var(self) -> str:
+    return self.render_ctx.tiled_cartesian_valid_var
+
+  @tiled_cartesian_valid_var.setter
+  def tiled_cartesian_valid_var(self, value: str) -> None:
+    self.render_ctx.tiled_cartesian_valid_var = value
+
+  @property
+  def ws_cartesian_valid_var(self) -> str:
+    return self.render_ctx.ws_cartesian_valid_var
+
+  @ws_cartesian_valid_var.setter
+  def ws_cartesian_valid_var(self, value: str) -> None:
+    self.render_ctx.ws_cartesian_valid_var = value
+
+  @property
+  def ws_cartesian_bound_vars(self) -> list[str]:
+    return self.render_ctx.ws_cartesian_bound_vars
+
+  @ws_cartesian_bound_vars.setter
+  def ws_cartesian_bound_vars(self, value: list[str]) -> None:
+    self.render_ctx.ws_cartesian_bound_vars = value
+
+  @property
+  def neg_pre_narrow(self) -> dict[int, NegPreNarrowInfo]:
+    return self.render_ctx.neg_pre_narrow
+
+  @neg_pre_narrow.setter
+  def neg_pre_narrow(self, value: dict[int, NegPreNarrowInfo]) -> None:
+    self.render_ctx.neg_pre_narrow = value
+
+  @property
+  def dedup_hash_vars(self) -> list[str]:
+    return self.render_ctx.dedup_hash_vars
+
+  @dedup_hash_vars.setter
+  def dedup_hash_vars(self, value: list[str]) -> None:
+    self.render_ctx.dedup_hash_vars = value
+
+  @property
+  def debug(self) -> bool:
+    return self.render_ctx.debug
+
+  @debug.setter
+  def debug(self, value: bool) -> None:
+    self.render_ctx.debug = value
 
   def fresh(self, prefix: str) -> str:
     self.name_counter += 1
@@ -393,12 +509,19 @@ def lower_scan_pipeline(
 
   C3 (per docs/phase_c_pragma_materialization.md §4.1): when the
   head op is a `BlockGroupRoot` wrap (inserted by the `BlockGroup`
-  pragma handler at MirPragmaPass time), unwrap it and re-dispatch
-  through `_lower_root_cj_bg` with `ctx.bg_enabled=True` for the
-  duration. The unwrap happens here (not in the wrap op's
-  registered `@lowering`) because the wrap op only carries the
-  root; the trailing `rest = ops[1:]` lives on the enclosing
-  pipeline and is naturally accessible at this dispatch site.
+  pragma handler at MirPragmaPass time), unwrap it and dispatch
+  directly to `_lower_root_cj_bg`. The unwrap happens here (not in
+  the wrap op's registered `@lowering`) because the wrap op only
+  carries the root; the trailing `rest = ops[1:]` lives on the
+  enclosing pipeline and is naturally accessible at this dispatch
+  site.
+
+  PR-1 refactor (per `docs/phase_decomposition_redesign.md` §
+  3.2.1): this branch used to flip `ctx.bg_enabled = True` around
+  the `_lower_root_cj_bg` call. PR-1 removed the flip — calling
+  `_lower_root_cj_bg` directly is already the BG dispatch; the flag
+  was only consulted by `_lower_root_cj_multi` to re-route to BG on
+  the legacy `ep.block_group: bool` path.
 
   A3-2: trailing `WSScope(InsertInto)` wrap ops (inserted by
   `materialize_work_stealing`) are unwrapped in place + the
@@ -434,12 +557,7 @@ def lower_scan_pipeline(
         f'lower_scan_pipeline: unsupported pipeline shape '
         f'{[type(o).__name__ for o in [inner, *rest]]} under BlockGroupRoot'
       )
-    prev_bg = ctx.bg_enabled
-    try:
-      ctx.bg_enabled = True
-      return _lower_root_cj_bg(inner, rest, ctx)
-    finally:
-      ctx.bg_enabled = prev_bg
+    return _lower_root_cj_bg(inner, rest, ctx)
 
   if not _supported_pipeline(ops):
     raise ValueError(
@@ -2736,10 +2854,27 @@ def _lower_nested_cj_single(
   return Block(stmts=tuple(stmts))
 
 
-def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
+def _lower_insert_into(
+  node: mir.InsertInto,
+  ctx: LoweringCtx,
+  *,
+  is_dedup_gate: bool = False,
+  is_ws_scope: bool = False,
+) -> list[Op]:
   '''Lower an InsertInto under the M1-M3 narrow-flag assumptions.
 
-  When `ctx.dedup_hash` is set, the entire emit is wrapped in a
+  Per `docs/phase_decomposition_redesign.md` § 3.2.1 (PR-1), the
+  pragma-scratch dispatch signals (`dedup_hash`, `ws_enabled`) are
+  passed as function-local kwargs, NOT as ctx field flips. The
+  legacy `ctx.dedup_hash` / `ctx.ws_enabled` fields remain readable
+  (the legacy `ep.<flag>: bool` dual-write path still sets them via
+  `LowerKernelBodyShim`), and the new wrap-op `@lowering` rules call
+  this helper with the explicit kwarg instead — both produce the
+  same emission. The kwarg form is canonical; the ctx-field form is
+  legacy.
+
+  When the dedup-hash gate is active (either `is_dedup_gate=True`
+  or legacy `ctx.dedup_hash`), the entire emit is wrapped in a
     `{ bool _p = dedup_table.try_insert(thread_id, v0, ...);
        if (_p) { <write> } }`
   gate. In materialize phase the write goes through
@@ -2820,7 +2955,12 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
     return stmts
 
   sanitized_list = [_sanitize_var_name(v) for v in vars_list]
-  use_dedup = ctx.dedup_hash and bool(vars_list)
+  # PR-1: dedup / WS dispatch responds to either the function-local
+  # kwarg (the wrap-op `@lowering` path) or the legacy ctx field (the
+  # `ep.<flag>: bool` dual-write path). Both produce identical IIR.
+  dedup_active = is_dedup_gate or ctx.dedup_hash
+  ws_active = is_ws_scope or ctx.ws_enabled
+  use_dedup = dedup_active and bool(vars_list)
 
   if use_dedup:
     args_str = ', '.join(sanitized_list)
@@ -2828,7 +2968,7 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
     stmts.append(RawString(text='  if (_p) {'))
 
   if ctx.is_counting:
-    if ctx.ws_enabled:
+    if ws_active:
       # WS count: per-thread `local_count` (uint32_t) — `<out>++`
       # instead of `<out>.emit_direct()`. Lane-0 guard outside Cart.
       body: Op = RawString(text=f'{out_var}++;')

@@ -10,7 +10,7 @@ wrap the existing imperative entry points without changing behavior:
 
   DEFAULT_KERNEL_PIPELINE  — KernelCtx(ep, ...) -> body string
     AssignHandlesShim, CollectViewSpecsShim, EmitViewDeclsShim,
-    LowerScanPipelineShim, CudaRenderShim
+    LowerKernelBodyShim, VerifyRenderabilityShim, RenderShim
 
 Each shim is a `ProgramPass` subclass mirroring one block of either
 `compile_to_mir` (src/srdatalog/ir/hir/__init__.py:96-124) or
@@ -53,13 +53,19 @@ class InitialProg:
   Read by `HirPlanningShim` when computing HIR from scratch; ignored
   if `hir` is pre-populated by the caller. Added in F5.2 so the
   declarative pipeline can preserve the imperative entry point's
-  verbosity knob byte-equivalently.'''
+  verbosity knob byte-equivalently.
+
+  `target` carries the active render target (PR-1 — per
+  `docs/phase_decomposition_redesign.md` § 3.3.1); defaulted to
+  'cuda' for back-compat with the single-target wiring.
+  '''
 
   program: Program
   hir: HirProgram | None = None
   steps: list[tuple[mir.MirNode, bool]] | None = None
   mir_program: mir.Program | None = None
   verbose: bool = False
+  target: str = 'cuda'
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,7 +73,14 @@ class KernelCtx:
   '''Kernel-pipeline through-state. Carries the original
   `compile_kernel_body` kwargs plus the progressively populated
   derived state (handle-assigned ep, view_specs, view_decls + var
-  maps, iir, body_text).'''
+  maps, iir, body_text).
+
+  `target` carries the active render target (PR-1 — per
+  `docs/phase_decomposition_redesign.md` § 3.3.1); read by
+  `RenderShim` to dispatch the per-op
+  `@register_render(op, target=T)` resolution. Defaulted to 'cuda'
+  for back-compat with the single-target wiring.
+  '''
 
   ep: ExecutePipeline
   is_counting: bool
@@ -77,6 +90,7 @@ class KernelCtx:
   rel_index_types: dict[str, str] | None = None
   tiled_cartesian: bool = False
   bg_enabled: bool = False
+  target: str = 'cuda'
   # populated by shims:
   view_specs: tuple[ViewSpec, ...] | None = None
   view_decls: str | None = None
@@ -261,14 +275,23 @@ class EmitViewDeclsShim(ProgramPass):
     )
 
 
-class LowerScanPipelineShim(ProgramPass):
+class LowerKernelBodyShim(ProgramPass):
   '''Wraps `lower_scan_pipeline` (sorted_array dialect). Builds a
   `LoweringCtx` from the populated state and runs the MIR -> IIR
-  walk. Adds `iir` to state.'''
+  walk. Adds `iir` to state.
+
+  PR-1 rename (per `docs/phase_decomposition_redesign.md` § 3.3.3):
+  was `LowerScanPipelineShim`. The class name no longer hardcodes
+  the CUDA-side `lower_scan_pipeline` helper — the shim's contract
+  is "lower kernel body MIR -> IIR for the active target". The body
+  still routes through the sorted_array dialect's
+  `lower_scan_pipeline` today (only CUDA target wired); future
+  per-target lowering selection will dispatch on `state.target`.
+  '''
 
   def __init__(self) -> None:
     super().__init__(
-      name='lower_scan_pipeline',
+      name='lower_kernel_body',
       consumes=('view_decls',),
       produces=('iir',),
       fn=self._fn,
@@ -281,8 +304,8 @@ class LowerScanPipelineShim(ProgramPass):
       lower_scan_pipeline,
     )
 
-    assert state.name_map is not None, 'LowerScanPipelineShim: name_map not set'
-    assert state.base_map is not None, 'LowerScanPipelineShim: base_map not set'
+    assert state.name_map is not None, 'LowerKernelBodyShim: name_map not set'
+    assert state.base_map is not None, 'LowerKernelBodyShim: base_map not set'
     lower_ctx = LoweringCtx(
       view_var_names=state.name_map,
       is_counting=state.is_counting,
@@ -296,6 +319,13 @@ class LowerScanPipelineShim(ProgramPass):
     )
     iir = lower_scan_pipeline(list(state.ep.pipeline), lower_ctx)
     return dataclasses.replace(state, iir=iir)
+
+
+# Back-compat alias for the pre-PR-1 name. External callers that
+# pinned `LowerScanPipelineShim` continue to import + construct the
+# same shim. Slated for removal once the broader codebase fully
+# migrates to `LowerKernelBodyShim`.
+LowerScanPipelineShim = LowerKernelBodyShim
 
 
 class VerifyRenderabilityShim(ProgramPass):
@@ -336,18 +366,31 @@ class VerifyRenderabilityShim(ProgramPass):
     from srdatalog.ir.core.verifier import verify_renderability
 
     assert state.iir is not None, 'VerifyRenderabilityShim: iir not set'
-    verify_renderability(state.iir, target='cuda', compiler=compiler)
+    verify_renderability(state.iir, target=state.target, compiler=compiler)
     return state
 
 
-class CudaRenderShim(ProgramPass):
-  '''Wraps `srdatalog.ir.codegen.cuda.emit.emit` with an
-  `EmitCtx(indent_level=4)`. Concatenates `view_decls` + emitted IIR
-  into the final `body_text`.'''
+class RenderShim(ProgramPass):
+  '''Target-parametric IIR render shim. Reads `state.target` and
+  dispatches to that target's render registry.
+
+  PR-1 rename (per `docs/phase_decomposition_redesign.md` § 3.3.3):
+  was `CudaRenderShim`. The class name no longer hardcodes CUDA —
+  the shim resolves `state.target` and selects the registered
+  per-target renderer. Today only the CUDA renderer is wired in
+  (`srdatalog.ir.codegen.cuda.emit.emit`); future targets (CPU/TBB,
+  SYCL, …) add their own render entry alongside.
+
+  When `state.target != 'cuda'` we currently raise `ValueError` —
+  no other target has render contributions registered yet. The
+  R3 closure check (`VerifyRenderabilityShim`) runs BEFORE this
+  shim with the same `state.target`, so the failure message there
+  fires first when the user requests an unsupported target.
+  '''
 
   def __init__(self) -> None:
     super().__init__(
-      name='cuda_render',
+      name='render',
       consumes=('iir',),
       produces=('body_text',),
       fn=self._fn,
@@ -355,13 +398,28 @@ class CudaRenderShim(ProgramPass):
 
   @staticmethod
   def _fn(state: KernelCtx, _compiler: Any) -> KernelCtx:
-    from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
+    assert state.iir is not None, 'RenderShim: iir not set'
+    assert state.view_decls is not None, 'RenderShim: view_decls not set'
+    if state.target == 'cuda':
+      from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
 
-    assert state.iir is not None, 'CudaRenderShim: iir not set'
-    assert state.view_decls is not None, 'CudaRenderShim: view_decls not set'
-    emit_ctx = EmitCtx(indent_level=4)
-    body_text = state.view_decls + emit(state.iir, emit_ctx)
-    return dataclasses.replace(state, body_text=body_text)
+      emit_ctx = EmitCtx(indent_level=4)
+      body_text = state.view_decls + emit(state.iir, emit_ctx)
+      return dataclasses.replace(state, body_text=body_text)
+    raise ValueError(
+      f'RenderShim: no renderer registered for target {state.target!r}. '
+      f'Today only target="cuda" is wired in; per `docs/'
+      f'phase_decomposition_redesign.md` § 3.3.4 external plugins '
+      f'register additional targets via the `srdatalog.targets` '
+      f'entry-point group.'
+    )
+
+
+# Back-compat alias for the pre-PR-1 name. External callers that
+# pinned `CudaRenderShim` continue to import + construct the same
+# shim. Slated for removal once the broader codebase fully migrates
+# to `RenderShim`.
+CudaRenderShim = RenderShim
 
 
 # -----------------------------------------------------------------------------
@@ -381,9 +439,9 @@ DEFAULT_KERNEL_PIPELINE: list[Pass] = [
   AssignHandlesShim(),
   CollectViewSpecsShim(),
   EmitViewDeclsShim(),
-  LowerScanPipelineShim(),
+  LowerKernelBodyShim(),
   VerifyRenderabilityShim(),
-  CudaRenderShim(),
+  RenderShim(),
 ]
 
 
@@ -392,14 +450,16 @@ __all__ = [
   'DEFAULT_PROGRAM_PIPELINE',
   'AssignHandlesShim',
   'CollectViewSpecsShim',
-  'CudaRenderShim',
+  'CudaRenderShim',  # legacy alias for `RenderShim`
   'EmitViewDeclsShim',
   'HirPlanningShim',
   'HirToMirShim',
   'InitialProg',
   'KernelCtx',
-  'LowerScanPipelineShim',
+  'LowerKernelBodyShim',
+  'LowerScanPipelineShim',  # legacy alias for `LowerKernelBodyShim`
   'MirOptShim',
   'MirProgramAssembly',
+  'RenderShim',
   'VerifyRenderabilityShim',
 ]

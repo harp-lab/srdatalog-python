@@ -95,14 +95,18 @@ def test_program_pipeline_names_unique_and_ordered():
 
 
 def test_kernel_pipeline_names_unique_and_ordered():
+  # PR-1 rename (per `docs/phase_decomposition_redesign.md` § 3.3.3):
+  # `lower_scan_pipeline` -> `lower_kernel_body`; `cuda_render` ->
+  # `render`. The shim names track the new target-parametric class
+  # names (`LowerKernelBodyShim` + `RenderShim`).
   names = [p.name for p in DEFAULT_KERNEL_PIPELINE]
   assert names == [
     'assign_handles',
     'collect_view_specs',
     'emit_view_decls',
-    'lower_scan_pipeline',
+    'lower_kernel_body',
     'verify_renderability',
-    'cuda_render',
+    'render',
   ]
   assert len(set(names)) == len(names)
 

@@ -216,21 +216,25 @@ def lower_tiled_cartesian_in_chain(
   Called from `lowerings._lower_inner_chain` when a `TiledCartesian`
   wrap op appears as a chain head — that site has both `head` and
   `tail` in scope, which the legacy `_lower_nested_cart_tiled`
-  helper needs to render the inner body. We flip
-  `ctx.tiled_cartesian` True for the duration so the helper takes
-  the tiled path; the inner chain rendering also picks up
-  `ctx.tiled_cartesian_valid_var` via the helper's own save/restore.
+  helper needs to render the inner body. The helper takes the
+  tiled path directly (it IS the tiled variant); the inner chain
+  rendering picks up `ctx.tiled_cartesian_valid_var` via the
+  helper's own save/restore.
 
   Byte-equivalence by construction: the legacy
-  `if ctx.tiled_cartesian:` -> `_lower_nested_cart_tiled` dispatch
+  `if _tiled_cart_eligible:` -> `_lower_nested_cart_tiled` dispatch
   inside `_lower_nested_cart` and this wrap-op dispatch call the
   SAME helper with the SAME args, so the produced IIR is identical
   for the same input `(cart_op, rest)`.
 
-  `LoweringCtx` is a non-frozen dataclass (it carries `name_counter`
-  + per-pass mutable state), so attribute assignment is the
-  supported mutation surface — no `object.__setattr__` shim needed
-  and the D18 ratchet does not apply.
+  PR-1 refactor (per `docs/phase_decomposition_redesign.md` §
+  3.2.1): this helper used to flip `ctx.tiled_cartesian = True` for
+  the duration of the `_lower_nested_cart_tiled` call. PR-1 removed
+  the flip because `_lower_nested_cart_tiled` IS the tiled variant
+  — it doesn't need a ctx flag to dispatch to itself. The flag was
+  only consulted by `_tiled_cart_eligible` (called from
+  `_lower_nested_cart`) on the legacy `ep.tiled_cartesian: bool`
+  path; the wrap-op path bypasses `_lower_nested_cart` entirely.
   '''
   # Deferred import: the monolith module imports nothing from this
   # subpackage at top level, but co-located ops + pragmas + lowerings
@@ -241,12 +245,7 @@ def lower_tiled_cartesian_in_chain(
     _lower_nested_cart_tiled,
   )
 
-  prev = getattr(ctx, 'tiled_cartesian', False)
-  try:
-    ctx.tiled_cartesian = True
-    return _lower_nested_cart_tiled(op.inner, list(tail), ctx)
-  finally:
-    ctx.tiled_cartesian = prev
+  return _lower_nested_cart_tiled(op.inner, list(tail), ctx)
 
 
 def lower_tiled_cartesian(op: TiledCartesianOp, ctx: Any) -> Op:

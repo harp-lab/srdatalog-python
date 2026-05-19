@@ -36,6 +36,7 @@ from srdatalog.ir.core.plugin import (
   PluginConflictError,
   PluginInfo,
   PluginLoadError,
+  _discover_all_groups,
   _discover_entry_points,
   _info_for,
   _topo_sort_plugins,
@@ -159,7 +160,13 @@ class Compiler:
     '''All registered dialects, in registration order.'''
     return list(self._dialects.values())
 
-  def run(self, prog: Any, *, pipeline: list[Any]) -> Any:
+  def run(
+    self,
+    prog: Any,
+    *,
+    pipeline: list[Any],
+    target: str = 'cuda',
+  ) -> Any:
     '''Drive a list of `Pass` instances over `prog`. Returns the
     (possibly transformed) prog.
 
@@ -171,9 +178,19 @@ class Compiler:
 
     Per `docs/compiler_redesign.md` §4 and the R4 research report:
     pipelines are data; ordering errors are caught up-front.
+
+    PR-1 (per `docs/phase_decomposition_redesign.md` § 3.3.1): the
+    `target` kwarg threads the active render target into the per-
+    pass through-state when the state carries a `target` field
+    (e.g. `KernelCtx`). This lets `RenderShim` dispatch the per-op
+    `@register_render(target=T)` resolution without hardcoding the
+    target. Default preserves the current single-target ('cuda')
+    behavior.
     '''
     # Local import to avoid a circular at module-load time
     # (passes.py imports Compiler from this module).
+    import dataclasses
+
     from srdatalog.ir.core.passes import PassOrderingError
 
     available: set[str] = {d.name for d in self.dialects}
@@ -182,6 +199,16 @@ class Compiler:
         if needed not in available:
           raise PassOrderingError(p.name, needed, i)
       available |= set(p.produces)
+
+    # If the through-state dataclass exposes a `target` field, thread
+    # the active target into it. This keeps the per-pass shims target-
+    # parametric: each shim reads `state.target` to drive per-target
+    # dispatch (e.g. RenderShim's @register_render lookup).
+    if dataclasses.is_dataclass(prog) and not isinstance(prog, type):
+      if any(f.name == 'target' for f in dataclasses.fields(prog)):
+        current = getattr(prog, 'target', None)
+        if current != target:
+          prog = dataclasses.replace(prog, target=target)
 
     for p in pipeline:
       prog = p.apply(prog, self)
@@ -252,11 +279,16 @@ class Compiler:
         `register.plugin_name` if set, else `register.__name__`.
     '''
     if isinstance(plugin, str):
-      # Look up by entry-point name in the default group.
-      for ep in _discover_entry_points():
+      # Look up by entry-point name across every registered group
+      # (dialects + targets + legacy). PR-1 (per § 3.3.4) split the
+      # legacy group; the resolver follows.
+      for ep in _discover_all_groups():
         if ep.name == plugin:
           return ep.name, ep.load()
-      raise LookupError(f'no plugin named {plugin!r} in entry-point group {ENTRY_POINT_GROUP!r}')
+      raise LookupError(
+        f'no plugin named {plugin!r} across entry-point groups '
+        f"('srdatalog.dialects', 'srdatalog.targets', {ENTRY_POINT_GROUP!r})"
+      )
 
     if hasattr(plugin, 'name') and hasattr(plugin, 'load'):
       # EntryPoint-shaped (importlib.metadata.EntryPoint or a test fake).
@@ -276,23 +308,35 @@ class Compiler:
   # -- discovery factory -----------------------------------------------------
 
   @classmethod
-  def with_default_plugins(cls, *, group: str = ENTRY_POINT_GROUP) -> Compiler:
+  def with_default_plugins(cls, *, group: str | None = None) -> Compiler:
     '''Construct a `Compiler` and auto-discover all entry-point plugins.
 
-    Walks `importlib.metadata.entry_points(group=group)`,
-    topo-sorts by each plugin's `provides` / `requires` attributes
+    Walks the production entry-point groups (per PR-1, per
+    `docs/phase_decomposition_redesign.md` § 3.3.4):
+
+      - `srdatalog.dialects` — data-side dialect contributions.
+      - `srdatalog.targets`  — render-side target contributions.
+      - `srdatalog.plugins`  — legacy group (kept for back-compat
+        for one release cycle; emits `DeprecationWarning` when
+        non-empty).
+
+    Topo-sorts by each plugin's `provides` / `requires` attributes
     on the `register` callable (defaulting to `()` when absent),
     then calls `register_plugin` on each in order.
 
     The `group` keyword exists for test isolation — production code
-    uses the default. See
-    `docs/phase_e_plugin_extensibility.md` §2.
+    uses the default (walks all groups). Passing a specific group
+    name walks only that group; passing `None` (the default) walks
+    every registered group.
+
+    See `docs/phase_e_plugin_extensibility.md` §2 and
+    `docs/phase_decomposition_redesign.md` § 3.3.4.
     '''
     compiler = cls()
 
     # Discover, then resolve each EP to (name, register_fn) once so
     # we can both topo-sort and register without double-loading.
-    eps = _discover_entry_points(group)
+    eps = _discover_entry_points(group) if group is not None else _discover_all_groups()
     resolved: dict[str, tuple[Any, Callable[[Any], None]]] = {}
     infos: list[PluginInfo] = []
     for ep in eps:

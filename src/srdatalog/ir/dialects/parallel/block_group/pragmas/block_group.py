@@ -182,8 +182,7 @@ def lower_block_group_root(op: Any, ctx: Any) -> Op:
 
   Returns the same `Block` that the legacy `ctx.bg_enabled` branch
   inside `_lower_root_cj_multi` would have produced for the wrapped
-  root ColumnJoin, by re-entering `_lower_root_cj_bg` with
-  `ctx.bg_enabled` flipped True for the duration of the call. The
+  root ColumnJoin, by calling `_lower_root_cj_bg` directly. The
   inner op carries the original root ColumnJoin; the post-root
   `rest` is NOT carried on the wrap op — the caller
   (`lower_scan_pipeline`) is responsible for slicing it off the
@@ -193,25 +192,22 @@ def lower_block_group_root(op: Any, ctx: Any) -> Op:
 
     1. `lower_scan_pipeline` (sorted_array dialect): detects a
        `BlockGroupRoot` head, slices `rest = pipeline[1:]`, and
-       calls this with `ctx.rest_for_bg_root` pre-set so we can
-       reach the lowering helper. Today the dispatch lives directly
-       in `lower_scan_pipeline` (it constructs the same call inline
-       to `_lower_root_cj_bg`); this function exists as the
-       `@lowering`-registered entry so registry-completeness
-       discipline checks pass.
+       calls `_lower_root_cj_bg` directly (this function exists as
+       the `@lowering`-registered entry so registry-completeness
+       discipline checks pass).
 
     2. Tests that invoke this function directly: pass the wrap op
        and a ctx whose `rest_for_bg_root` attribute carries the
        trailing pipeline ops (typically a single `InsertInto`).
 
-  The save/restore pattern around `ctx.bg_enabled` is defensive: if
-  a future call site invokes this lowering from a partial-ctx scope
-  where `bg_enabled` is False, the flag still flips on for the
-  duration.
-
-  `LoweringCtx` is a non-frozen dataclass, so attribute assignment
-  is the supported mutation surface — no `object.__setattr__` shim
-  needed and the D18 ratchet does not apply.
+  PR-1 refactor (per `docs/phase_decomposition_redesign.md` §
+  3.2.1): this helper used to flip `ctx.bg_enabled = True` for the
+  duration of the `_lower_root_cj_bg` call. PR-1 removed the flip
+  because `_lower_root_cj_bg` IS the BG function — it doesn't need
+  a ctx flag to dispatch to itself. The flag was only ever
+  consulted by `_lower_root_cj_multi` to RE-ROUTE to the BG variant
+  on the legacy `ep.block_group: bool` path; the wrap-op path
+  bypasses that re-route entirely, so no flag flip is needed.
   '''
   # Deferred import: the sorted_array monolith imports nothing from
   # this subpackage at top level, but co-located ops + pragmas +
@@ -226,12 +222,7 @@ def lower_block_group_root(op: Any, ctx: Any) -> Op:
   if rest is None:
     rest = []
 
-  prev = getattr(ctx, 'bg_enabled', False)
-  try:
-    ctx.bg_enabled = True
-    return _lower_root_cj_bg(op.inner, list(rest), ctx)
-  finally:
-    ctx.bg_enabled = prev
+  return _lower_root_cj_bg(op.inner, list(rest), ctx)
 
 
 __all__ = [

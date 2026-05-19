@@ -98,7 +98,6 @@ class HirRuleVariant:
   balanced_sources: list[str] = field(default_factory=list)
   # Codegen hints (pragma-driven)
   fanout: bool = False
-  work_stealing: bool = False
   block_group: bool = False
   dedup_hash: bool = False
   count: bool = False

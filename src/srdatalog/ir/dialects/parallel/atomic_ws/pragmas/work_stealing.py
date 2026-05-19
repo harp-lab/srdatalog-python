@@ -1,13 +1,15 @@
 '''Pragma: `work_stealing` — atomic work-stealing kernel-functor emit.
 
-Trigger: `Rule(...).with_pragma(WorkStealing())` (preferred typed
-   form) or the legacy `with_plan(..., work_stealing=True)` keyword
-   (back-compat, slated for removal in A3).
+Trigger: `Rule(...).with_pragma(WorkStealing())` (the sole typed
+   form post-A3-2; the legacy `with_plan(..., work_stealing=True)`
+   keyword and the `mir.ExecutePipeline.work_stealing: bool` field
+   have been deleted).
 
 Materialization (this module): wrap each `mir.InsertInto` at the
    tail of an `ExecutePipeline.pipeline` with `mir.WSScope(inner=
    ...)` during `MirPragmaPass`, then strip the `WorkStealing`
-   instance from the EP's `pragmas` tuple.
+   instance from the EP's `pragmas` tuple. Unconditional after A3-2
+   — there is no dual-write bool-shadow to short-circuit on.
 
 Lowering (this module): a `@lowering(target=iir.cf, source=mir.
    WSScope)` rule (registered via the parent dialect's
@@ -23,18 +25,20 @@ Lowering (this module): a `@lowering(target=iir.cf, source=mir.
    The lowering body delegates to the legacy `_lower_insert_into`
    with `ctx.ws_enabled` flipped True for the duration of the call,
    so the emission is literally the same code path the legacy
-   bool-field flow produces (byte-equivalence by construction).
+   bool-field flow produced (byte-equivalence by construction).
 
 C4 scope (per `docs/phase_c_pragma_materialization.md` §5, PR row
 C4 + §4.2 sub-dialect description): only the kernel-functor-level
 WS emit variants migrate. The runner-level WS scaffolding (WCOJTask
-queue, steal-loop emission, etc.) stays on the legacy
-`ExecutePipeline.work_stealing: bool` field path; A3 drops the bool
-and the wrap op becomes the sole driver.
+queue, steal-loop emission, etc.) was historically gated by the
+deleted `ExecutePipeline.work_stealing: bool` field — A3-2 retires
+that field; future runner-side scheduling integration is a
+separate work item that consumes the typed pragma directly.
 
 Spec: `docs/phase_c_pragma_materialization.md` §4.2, §5 (C4 PR
 row), §5.1 (per-PR acceptance gate); `docs/pragma_as_typed_object.
-md` §2 (Pragma base class), §3 (`@pragma_handler` decorator).
+md` §2 (Pragma base class), §3 (`@pragma_handler` decorator);
+`docs/phase_a3_remove_deprecated_bool_fields.md` §3.2 (A3-2 cut).
 '''
 
 from __future__ import annotations
@@ -99,7 +103,7 @@ def materialize_work_stealing(
   op: Any,  # ExecutePipeline at runtime — typed as Any to match the registry's
   # Callable[[Any, Pragma, PragmaCtx], Any] signature (see
   # core/pragma.py:PragmaRegistration). Body re-narrows via the typed
-  # `op.pragmas` / `op.work_stealing` accesses below.
+  # `op.pragmas` access below.
   pragma: Any,  # WorkStealing at runtime; same Any reason.
   ctx: Any,  # PragmaCtx, unused for this no-config pragma.
 ) -> Any:
@@ -108,32 +112,19 @@ def materialize_work_stealing(
 
   Returns a new `ExecutePipeline` with:
     - `pipeline` rewritten so every `InsertInto` is replaced by
-      `WSScope(inner=that_insert)` — **except** in the C4
-      dual-write transition state (see below),
+      `WSScope(inner=that_insert)`,
     - `pragmas` filtered to drop the consumed `WorkStealing`
       instance (per the `MirPragmaPass` post-flight invariant; see
       `docs/pragma_as_typed_object.md` §3).
 
-  C4 dual-write transition: the DSL `Rule.with_pragma(WorkStealing
-  ())` sets BOTH the typed pragma AND the legacy `work_stealing:
-  bool` field on the resulting `ExecutePipeline`, so the legacy
-  emitter (`compile_kernel_body` -> `_lower_insert_into`'s
-  `if ctx.ws_enabled:` branch, plus the runner-side WS scaffolding
-  in `codegen/cuda/batchfile.py` / `orchestrator.py`) keeps
-  producing byte-equivalent output without seeing the new `WSScope`
-  wrap op (which the monolith doesn't know how to traverse). When
-  `ep.work_stealing` is True we therefore SKIP the wrap step:
-  stripping the pragma is enough to satisfy `MirPragmaPass`'s
-  post-flight invariant, and the bool field continues to drive
-  emission via the legacy path.
-
-  When `ep.work_stealing` is False (the post-A3 pure-typed state,
-  or test fixtures that exercise only the typed surface), the
-  handler produces the wrap op and the registered
-  `@lowering(target=iir.cf, source=WSScope)` rule lowers it. The
-  resulting IIR is byte-equivalent to the WS branch of
-  `_lower_insert_into` by construction (the lowering delegates to
-  that helper with `ctx.ws_enabled` flipped True for the call).
+  Unconditional after A3-2: the legacy `ExecutePipeline.
+  work_stealing: bool` field has been retired (per
+  `docs/phase_a3_remove_deprecated_bool_fields.md` §3.2), so the
+  pragma is the sole emission driver. The registered `@lowering(
+  target=iir.cf, source=WSScope)` rule delegates back to
+  `_lower_insert_into` with `ctx.ws_enabled` flipped True for the
+  call, so the resulting IIR is byte-equivalent to the WS branch
+  of the legacy lowering by construction.
 
   Idempotency: the EP carries at most one `WorkStealing` (the DSL
   constructs at most one per `with_pragma(WorkStealing())` call;
@@ -147,10 +138,6 @@ def materialize_work_stealing(
   trailing `InsertInto` run is exactly the leaf position.
   '''
   new_pragmas = tuple(p for p in op.pragmas if not isinstance(p, WorkStealing))
-  # Dual-write transition: skip the wrap if the legacy bool is set
-  # (the legacy lowering will handle emission). See docstring above.
-  if op.work_stealing:
-    return dataclasses.replace(op, pragmas=new_pragmas)
   new_pipeline = _wrap_inserts_in_ws_scope(list(op.pipeline))
   return dataclasses.replace(op, pipeline=new_pipeline, pragmas=new_pragmas)
 

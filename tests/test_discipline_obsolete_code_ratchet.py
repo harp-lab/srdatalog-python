@@ -55,13 +55,15 @@ _MONOLITH = (
 # new marker; CI requires you to bump the cap explicitly + mention it
 # in the PR description.
 #
-# Snapshot taken post-C6 + B-Filter/ConstantBind/Scan/InsertInto merged:
-#   sorted_array/lowerings/__init__.py    8
+# Snapshot taken post-C6 + B-Filter/ConstantBind/Scan/InsertInto merged,
+# decremented by A3-2 (one C4 marker retired alongside the
+# `ExecutePipeline.work_stealing` field deletion):
+#   sorted_array/lowerings/__init__.py    7
 #   core/passes.py (one informational use) 0  (excluded — framework infra)
 #                                        ----
-#                                  total  8
+#                                  total  7
 
-_MAX_DEAD_CODE_MARKERS = 8
+_MAX_DEAD_CODE_MARKERS = 7
 
 
 def _count_dead_code_markers() -> int:

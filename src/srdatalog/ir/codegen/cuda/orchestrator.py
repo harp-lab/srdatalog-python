@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import srdatalog.ir.mir.types as m
 from srdatalog.ir.hir.types import Version
+from srdatalog.ir.mir.passes import ep_has_work_stealing
 
 # -----------------------------------------------------------------------------
 # C++ type expression generators
@@ -173,7 +174,7 @@ def _gen_execute_pipeline(
 
   has_fused = (
     not instr.dedup_hash
-    and not instr.work_stealing
+    and not ep_has_work_stealing(instr)
     and not instr.block_group
     and len(instr.dest_specs) == 1
   )
@@ -243,7 +244,10 @@ def _gen_parallel_group(
   i2 = indent + "  "
 
   all_fused_eligible = all(
-    not op.dedup_hash and not op.work_stealing and not op.block_group and len(op.dest_specs) == 1
+    not op.dedup_hash
+    and not ep_has_work_stealing(op)
+    and not op.block_group
+    and len(op.dest_specs) == 1
     for op in exec_ops
   )
 
@@ -277,7 +281,7 @@ def _gen_parallel_group(
   single_dest_indices: list[int] = []
   multi_head_indices: list[int] = []
   for idx, op in enumerate(exec_ops):
-    if len(op.dest_specs) == 1 and not op.work_stealing and not op.dedup_hash:
+    if len(op.dest_specs) == 1 and not ep_has_work_stealing(op) and not op.dedup_hash:
       single_dest_indices.append(idx)
     else:
       multi_head_indices.append(idx)
@@ -406,7 +410,7 @@ def _gen_parallel_group(
     multi_in_dest: list[int] = []
     for rule_idx in rule_indices:
       op = exec_ops[rule_idx]
-      if len(op.dest_specs) == 1 and not op.work_stealing and not op.dedup_hash:
+      if len(op.dest_specs) == 1 and not ep_has_work_stealing(op) and not op.dedup_hash:
         single_in_dest.append(rule_idx)
       else:
         multi_in_dest.append(rule_idx)

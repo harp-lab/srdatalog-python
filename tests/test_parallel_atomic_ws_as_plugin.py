@@ -70,10 +70,9 @@ def _tc_program_with_ws() -> Program:
   '''Tiny TC-style program — same shape as
   `tests/test_parallel_data_as_plugin.py::_tc_program`, but with the
   recursive `TCRec` rule carrying `with_pragma(WorkStealing())` so
-  the resulting `ExecutePipeline` carries the WS dual-write signal
-  (typed `WorkStealing` instance on each plan's `pragmas` tuple AND
-  the legacy `PlanEntry.work_stealing=True` shadow field; see
-  `dsl._BUILTIN_BOOL_SHADOW_PRAGMAS`).
+  the resulting `ExecutePipeline` carries the WS typed pragma.
+  Post-A3-2 the legacy `PlanEntry.work_stealing` shadow bool is
+  gone — the typed pragma is the sole signal.
 
   Why the explicit `.with_plan(delta=0)`: the planner's variant-
   level propagation (`_plan_variant` in `ir/hir/plan.py`) keys on
@@ -128,16 +127,17 @@ def _find_execute_pipelines(node: object) -> list[mir.ExecutePipeline]:
 
 
 def _ws_ep(mir_prog: mir.Program) -> mir.ExecutePipeline:
-  '''Return the first `ExecutePipeline` whose `work_stealing` bool is
-  True (i.e. the WS-tagged rule). The DSL's `.with_pragma(
-  WorkStealing())` dual-writes this bool, so picking by it is robust
-  to MIR pass reorderings (e.g. if `MirPragmaPass` consumed the
-  typed pragma already, the bool is still the unambiguous marker
-  during the dual-write window).
+  '''Return the first `ExecutePipeline` carrying the WS signal — i.e.
+  either a still-unconsumed `WorkStealing` typed pragma in
+  `ep.pragmas`, or (post-MirPragmaPass) a `WSScope` wrap op in
+  `ep.pipeline`. Robust to MIR pass reorderings around the pragma
+  pass. Post-A3-2 the legacy `ep.work_stealing` bool is gone.
   '''
+  from srdatalog.ir.mir.passes import ep_has_work_stealing
+
   for step, _is_rec in mir_prog.steps:
     for ep in _find_execute_pipelines(step):
-      if ep.work_stealing:
+      if ep_has_work_stealing(ep):
         return ep
   raise AssertionError('no work-stealing ExecutePipeline in mir_prog')
 
@@ -254,14 +254,14 @@ def test_compile_kernel_body_byte_equivalent_across_plugin_paths_with_ws() -> No
   output.
 
   The fixture program `_tc_program_with_ws` tags `TCRec` with
-  `Rule.with_pragma(WorkStealing())`, so the dual-write contract
+  `Rule.with_pragma(WorkStealing())`, so the typed-pragma path
   (`docs/phase_c_pragma_materialization.md` §4.2) fires on each path:
 
-    - `MirPragmaPass` strips the typed pragma instance off the EP
-      (per `materialize_work_stealing`'s bool-shadow short-circuit)
-      but leaves the `pipeline` shape untouched; the legacy
-      `work_stealing=True` PlanEntry bool drives the WS-count emit
-      inside `_lower_insert_into`.
+    - `MirPragmaPass` consumes the typed pragma and replaces each
+      trailing `InsertInto` with a `WSScope` wrap; the registered
+      `@lowering(target=iir.cf, source=WSScope)` rule emits the
+      WS-count IIR shape (delegating back to `_lower_insert_into`
+      with `ctx.ws_enabled=True`).
     - The plugin-discovered Compiler and the explicit-register
       Compiler both see the same MIR + run the same kernel-pipeline,
       so the rendered CUDA must match byte-for-byte.
@@ -281,9 +281,13 @@ def test_compile_kernel_body_byte_equivalent_across_plugin_paths_with_ws() -> No
   compiler_explicit.register_plugin(register_atomic_ws)
   ep_explicit = _build_ws_ep_via(compiler_explicit)
 
-  # Sanity: both EPs are the WS-tagged one (the fixture's TCRec).
-  assert ep_via_plugin.work_stealing is True
-  assert ep_explicit.work_stealing is True
+  # Sanity: both EPs are the WS-tagged one (the fixture's TCRec) —
+  # post-A3-2 they carry a `WSScope` wrap op (the typed pragma was
+  # already consumed by `MirPragmaPass` during program-level run).
+  from srdatalog.ir.mir.passes import ep_has_work_stealing
+
+  assert ep_has_work_stealing(ep_via_plugin)
+  assert ep_has_work_stealing(ep_explicit)
 
   # Materialize phase.
   text_a = compile_kernel_body(ep_via_plugin, is_counting=False)

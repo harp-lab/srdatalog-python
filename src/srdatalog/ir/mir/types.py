@@ -13,10 +13,11 @@ types are now:
 
 ExecutePipeline gains a `pragmas: tuple[tuple[str, Any], ...]` field
 (open key/value list — typed as tuple from the start since it's a
-new field). The existing named bool fields (`dedup_hash`,
-`work_stealing`, `block_group`, `use_fan_out`, `count`,
-`concurrent_write`) stay for back-compat through Phase A; Phase A3
-removes them and the Phase C `MirPragmaPass` consumes only `pragmas`.
+new field). The remaining named bool fields (`dedup_hash`,
+`block_group`, `use_fan_out`, `count`, `concurrent_write`) stay for
+back-compat through Phase A; Phase A3 removes them and the Phase C
+`MirPragmaPass` consumes only `pragmas`. (A3-2 retired
+`work_stealing` — `WorkStealing()` is the sole driver now.)
 
 Mapping to Nim (unchanged):
   moColumnSource         -> ColumnSource
@@ -274,10 +275,11 @@ class WSScope(Op):
   The wrap op carries the inner `InsertInto` so the lowering has
   everything it needs to emit the WS-count increment / pass-through
   the materialize-phase write. The runner-level WS scaffolding
-  (WCOJTask queue + steal loop) is out of C4 scope per
-  `docs/phase_c_pragma_materialization.md` §5 (PR row C4); this op
-  covers only the kernel-functor-level WS emit variant that the
-  legacy `ws_enabled` flag drives in `_lower_insert_into`.
+  (WCOJTask queue + steal loop) was historically gated by the
+  deprecated `ExecutePipeline.work_stealing: bool` field that A3-2
+  retired (per `docs/phase_a3_remove_deprecated_bool_fields.md`
+  §3.2); this op covers only the kernel-functor-level WS emit
+  variant.
 
   Per spec §4.2, this op lives in the new `parallel.atomic_ws`
   sub-dialect's lowering surface; the type itself lives here in
@@ -508,7 +510,6 @@ class ExecutePipeline(Op):
   clause_order: list[int] = field(default_factory=list)
   pragmas: tuple[tuple[str, Any], ...] = ()  # Phase A: open key/value list
   use_fan_out: bool = False  # back-compat: removed in A3
-  work_stealing: bool = False
   block_group: bool = False
   dedup_hash: bool = False
   tiled_cartesian: bool = False  # C5 dual-write field; removed in A3

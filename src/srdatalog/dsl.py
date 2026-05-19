@@ -340,9 +340,11 @@ class PlanEntry:
 
   The pragma flags flow through to HirRuleVariant so codegen sees them:
     - fanout          -> fan-out work-stealing for Cartesian products
-    - work_stealing   -> mid-level work-stealing (task queue + steal loop)
     - block_group     -> block-group work partitioning
     - dedup_hash      -> GPU hash table for in-kernel existential dedup
+  Mid-level work-stealing is no longer a `with_plan(...)` keyword:
+  it migrated to `Rule.with_pragma(WorkStealing())` in C4 and the
+  shadow bool field was retired in A3-2.
   `balanced_root` / `balanced_sources` drive balanced partitioning for
   skewed joins (not yet lowered in Python).
 
@@ -360,7 +362,6 @@ class PlanEntry:
   var_order: tuple[str, ...] = ()
   clause_order: tuple[int, ...] = ()
   fanout: bool = False
-  work_stealing: bool = False
   block_group: bool = False
   dedup_hash: bool = False
   balanced_root: tuple[str, ...] = ()
@@ -414,7 +415,6 @@ class Rule:
     var_order: tuple[str, ...] | list[str] | None = None,
     clause_order: tuple[int, ...] | list[int] | None = None,
     fanout: bool = False,
-    work_stealing: bool = False,
     block_group: bool = False,
     dedup_hash: bool = False,
     balanced_root: tuple[str, ...] | list[str] | None = None,
@@ -422,13 +422,15 @@ class Rule:
   ) -> Rule:
     '''Append a single PlanEntry. Can be called multiple times to add
     entries for different deltas (or use .with_plans(entries) to replace).
+
+    Note: the legacy `work_stealing=True` keyword was retired in
+    A3-2 — use `.with_pragma(WorkStealing())` instead.
     '''
     entry = PlanEntry(
       delta=delta,
       var_order=tuple(var_order) if var_order is not None else (),
       clause_order=tuple(clause_order) if clause_order is not None else (),
       fanout=fanout,
-      work_stealing=work_stealing,
       block_group=block_group,
       dedup_hash=dedup_hash,
       balanced_root=tuple(balanced_root) if balanced_root is not None else (),
@@ -750,10 +752,10 @@ _BUILTIN_BOOL_SHADOW_PRAGMAS: tuple[tuple[str, str], ...] = (
     'srdatalog.ir.dialects.relation.sorted_array.pragmas.dedup_hash.DedupHash',
     'dedup_hash',
   ),
-  (
-    'srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing.WorkStealing',
-    'work_stealing',
-  ),
+  # A3-2: `WorkStealing` shadow entry removed alongside the
+  # `PlanEntry.work_stealing` / `mir.ExecutePipeline.work_stealing`
+  # field deletion. The typed pragma is now the sole driver; see
+  # `docs/phase_a3_remove_deprecated_bool_fields.md` §3.2.
   # C6: `FanOut` shadows `PlanEntry.fanout` -> `variant.fanout` ->
   # `ep.use_fan_out`. Same dual-write contract as `DedupHash`:
   # `with_pragma(FanOut())` sets both `fanout=True` on each plan

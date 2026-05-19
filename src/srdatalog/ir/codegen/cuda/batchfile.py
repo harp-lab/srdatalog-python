@@ -30,6 +30,7 @@ from srdatalog.ir.codegen.cuda.helpers import (
 )
 from srdatalog.ir.codegen.cuda.schema import SchemaDefinition
 from srdatalog.ir.hir.types import Version
+from srdatalog.ir.mir.passes import ep_has_work_stealing
 
 # -----------------------------------------------------------------------------
 # Prelude
@@ -360,7 +361,7 @@ struct JitRunner_{pipeline.rule_name} {{
       ctx.output_name = output_var
   full += generate_pipeline(mutable_pipeline, ctx)
 
-  if pipeline.work_stealing:
+  if ep_has_work_stealing(pipeline):
     full += "    // TODO: Implement work-stealing logic (jit_kernel.nim 1084-1589)\n"
 
   # -- LaunchParams struct --
@@ -386,7 +387,7 @@ struct JitRunner_{pipeline.rule_name} {{
       uint64_t work_per_warp = 0;'''
   for i, _ in enumerate(pipeline.dest_specs):
     full += f"\n    uint32_t old_size_{i} = 0;"
-  if pipeline.work_stealing:
+  if ep_has_work_stealing(pipeline):
     full += ""  # jitWSLaunchParamsFields() TODO
   full += "\n  };\n\n"
 

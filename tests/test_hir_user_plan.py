@@ -106,7 +106,9 @@ def test_plan_pragma_flags_propagate_to_variant():
   v = hir.strata[0].base_variants[0]
   assert v.block_group is True
   assert v.fanout is True
-  assert v.work_stealing is False  # default
+  # `v.work_stealing` removed by A3-2 — `WorkStealing()` pragma is
+  # the sole driver now; this variant has no WS pragma attached.
+  assert not any(type(p).__name__ == 'WorkStealing' for p in v.pragmas)
   assert v.dedup_hash is False  # default
 
 

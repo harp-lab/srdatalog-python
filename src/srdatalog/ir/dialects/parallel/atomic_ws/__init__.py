@@ -17,9 +17,13 @@ fold per-thread counts and re-batch writes.
 
 C4 scope (per spec §5, PR row C4): only the kernel-functor-level
 WS emit variants migrate to typed pragma + wrap op. The runner-side
-scaffolding (WCOJTask queue construction, steal-loop emission) stays
-on the legacy `ExecutePipeline.work_stealing: bool` path; A3 will
-drop the bool field and the C4 lowering will become the sole driver.
+scaffolding (WCOJTask queue construction, steal-loop emission) was
+historically gated by the deprecated `ExecutePipeline.work_stealing:
+bool` field; A3-2 retired that field, leaving the C4 lowering as
+the sole driver for the kernel-functor-level emit. Runner-side
+WS scaffolding integration is a separate follow-up that consumes
+the typed `WorkStealing` pragma (or its post-pass `WSScope` wrap
+op) directly.
 
 Ops currently registered: none — the only WS-specific op today is
 the MIR wrap op `mir.WSScope`, which lives next to `DedupGate` in

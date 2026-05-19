@@ -232,9 +232,15 @@ def test_generate_runner_balanced_scan_emits_histogram_kernel():
 def test_generate_runner_work_stealing_marker():
   import dataclasses
 
+  from srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing import (
+    WorkStealing,
+  )
+
   ep = _andersen_base_pipeline()
-  # MIR is frozen post-Phase-A; replace rather than mutate.
-  ep = dataclasses.replace(ep, work_stealing=True)
+  # A3-2: WS presence is detected by `ep_has_work_stealing`, which
+  # sees either the typed `WorkStealing` pragma (pre-pass) or a
+  # `WSScope` wrap (post-pass). Construct the pre-pass form here.
+  ep = dataclasses.replace(ep, pragmas=(WorkStealing(),))
   full, _ = generate_runner(ep, "Andersen")
   assert "TODO: Implement work-stealing logic" in full
 

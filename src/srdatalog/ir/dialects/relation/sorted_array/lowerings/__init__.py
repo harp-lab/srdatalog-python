@@ -399,7 +399,24 @@ def lower_scan_pipeline(
   registered `@lowering`) because the wrap op only carries the
   root; the trailing `rest = ops[1:]` lives on the enclosing
   pipeline and is naturally accessible at this dispatch site.
+
+  A3-2: trailing `WSScope(InsertInto)` wrap ops (inserted by
+  `materialize_work_stealing`) are unwrapped in place + the
+  enclosing call is wrapped in a `ctx.ws_enabled=True` save/restore.
+  Mirrors the legacy bool-driven path: the same `_lower_insert_into`
+  body fires with `ctx.ws_enabled` set, byte-equivalent by
+  construction.
   '''
+  has_ws_scope = any(isinstance(o, mir.WSScope) for o in ops)
+  if has_ws_scope:
+    unwrapped: list[mir.MirNode] = [o.inner if isinstance(o, mir.WSScope) else o for o in ops]
+    prev_ws = ctx.ws_enabled
+    try:
+      ctx.ws_enabled = True
+      return lower_scan_pipeline(unwrapped, ctx)
+    finally:
+      ctx.ws_enabled = prev_ws
+
   head = ops[0] if ops else None
   if isinstance(head, mir.BlockGroupRoot):
     inner = head.inner
@@ -2747,21 +2764,17 @@ def _lower_insert_into(node: mir.InsertInto, ctx: LoweringCtx) -> list[Op]:
   lowering out of this monolith — until then they are the
   byte-equivalence anchor for the dual-write transition.
 
-  DEAD CODE NOTE (C4): the `if ctx.ws_enabled:` branch below
-  (count-phase WS, search for `ws_enabled`) is superseded by the
+  Post-A3-2: the `if ctx.ws_enabled:` branch below (count-phase WS,
+  search for `ws_enabled`) is reached only via the
   `@lowering(target=iir.cf, source=mir.WSScope)` rule registered by
-  `srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing`.
-  Same dual-write contract as C2: the new lowering delegates back
-  into this helper with `ctx.ws_enabled` forced True, so the branch
-  remains functionally LIVE during the C4 transition (the
-  `with_pragma(WorkStealing())` DSL dual-writes both the bool field
-  AND the typed pragma; see `pragmas/work_stealing.py:
-  materialize_work_stealing`). The branch will be removable once
-  Phase A3 drops the `work_stealing: bool` field on
-  `mir.ExecutePipeline`. The `ws_cartesian_valid_var` branch
-  further below is unrelated to the C4 migration — it's a separate
-  legacy plumbing path (batched-Cartesian WS materialize) not
-  driven by `ctx.ws_enabled` and not in C4 scope.
+  `srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing`,
+  which delegates back into this helper with `ctx.ws_enabled`
+  forced True. The deprecated `ExecutePipeline.work_stealing: bool`
+  shadow field that previously dual-drove this branch has been
+  retired (per `docs/phase_a3_remove_deprecated_bool_fields.md`
+  §3.2). The `ws_cartesian_valid_var` branch further below is
+  unrelated — it's a separate legacy plumbing path (batched-
+  Cartesian WS materialize) not driven by `ctx.ws_enabled`.
 
   DEAD CODE NOTE (C6 - count): the `if ctx.is_counting:` branches
   in this function (and elsewhere in this monolith) are superseded

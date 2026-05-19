@@ -296,7 +296,9 @@ def test_runner_gen_state_defaults():
   assert r.db_type_name == ""
   assert r.dest_arities == []
   assert r.is_balanced is False
-  assert r.is_work_stealing is False
+  # `r.is_work_stealing` removed by A3-2 alongside
+  # `ExecutePipeline.work_stealing`.
+  assert r.is_block_group is False
 
 
 if __name__ == "__main__":

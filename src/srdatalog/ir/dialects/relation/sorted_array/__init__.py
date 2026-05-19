@@ -133,7 +133,25 @@ __all__ = [
 def _register_passes() -> None:
   import srdatalog.ir.mir.types as mir
   from srdatalog.ir.core.passes import lowering, verifier
-  from srdatalog.ir.dialects.relation.sorted_array.lowerings import lower_scan_pipeline
+
+  # Wave 2A / B-ExecutePipeline (per docs/phase_b_lowering_dispatcher.md
+  # §4 row B-ExecutePipeline, order 10, difficulty `medium`):
+  # `mir.ExecutePipeline` is the TOP-level structural wrap of every
+  # kernel body. Unlike the chain-aware ops (Filter / ConstantBind /
+  # Scan / Negation / Aggregate) which need the trailing `tail` from
+  # the chain dispatcher and split into a stub + an `_in_chain`
+  # variant, EP is self-contained: its `.pipeline` field carries the
+  # full op sequence. The canonical entry in `lower_mir_execute_pipeline.py`
+  # is therefore directly invocable — no chain-aware split.
+  #
+  # The registered entry below is a 1-line delegate; the body lives in
+  # the sibling module. NOT added to USE_DECLARATIVE (EP sits OUTSIDE
+  # `_lower_inner_chain` / `lower_scan_pipeline` — that set governs
+  # chain / root dispatch inside the kernel body, not the top-level
+  # wrap that opens it).
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_execute_pipeline import (
+    lower_mir_execute_pipeline,
+  )
 
   @lowering(
     DIALECT,
@@ -141,8 +159,8 @@ def _register_passes() -> None:
     consumes=('mir',),
     produces=('iir.cf', 'relation.sorted_array', 'relation.d2l', 'parallel.data'),
   )
-  def lower_execute_pipeline(ep, ctx):
-    return lower_scan_pipeline(ep.pipeline, ctx)
+  def _lower_mir_execute_pipeline_registered(op: Any, ctx: Any) -> Any:
+    return lower_mir_execute_pipeline(op, ctx)
 
   # C2 (per docs/phase_c_pragma_materialization.md §2.1): the
   # `DedupHash` pragma's MIR wrap op `DedupGate` lowers via the rule

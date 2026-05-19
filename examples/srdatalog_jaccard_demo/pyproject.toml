@@ -1,0 +1,48 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "srdatalog-jaccard-demo"
+version = "0.1.0"
+description = "External-plugin demo: Jaccard-similarity pragma for srdatalog."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "SRDatalog Contributors" },
+]
+keywords = ["srdatalog", "plugin", "datalog", "jaccard"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Topic :: Software Development :: Compilers",
+]
+# Intentionally NO srdatalog dep declared — the demo is exercised against
+# the in-tree editable install of the main package via the worktree's
+# PYTHONPATH=src. A real PyPI release would pin `srdatalog>=0.2`.
+dependencies = []
+
+# ---------------------------------------------------------------------------
+# Phase E plugin discovery — the entire point of this package.
+#
+# Installing this wheel (`pip install srdatalog-jaccard-demo`) registers
+# the `jaccard` entry under the `srdatalog.plugins` group. The next
+# `Compiler.with_default_plugins()` call walks that group, loads
+# `srdatalog_jaccard:register`, and gets the new dialect + Pragma +
+# lowering without anyone editing the main srdatalog package.
+#
+# Spec: docs/phase_e_plugin_extensibility.md §2 (entry-point discovery).
+# ---------------------------------------------------------------------------
+
+[project.entry-points."srdatalog.plugins"]
+jaccard = "srdatalog_jaccard:register"
+
+[project.urls]
+Homepage = "https://github.com/anthropics/srdatalog-python"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/srdatalog_jaccard"]

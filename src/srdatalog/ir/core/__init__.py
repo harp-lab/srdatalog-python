@@ -59,6 +59,9 @@ from srdatalog.ir.core.passes import (
   program_pass,
 )
 from srdatalog.ir.core.plugin import (
+  DIALECT_ENTRY_POINT_GROUP,
+  ENTRY_POINT_GROUP,
+  TARGET_ENTRY_POINT_GROUP,
   PluginConflictError,
   PluginCycleError,
   PluginInfo,
@@ -109,6 +112,9 @@ def assert_never(value: object) -> NoReturn:
 
 
 __all__ = [
+  'DIALECT_ENTRY_POINT_GROUP',
+  'ENTRY_POINT_GROUP',
+  'TARGET_ENTRY_POINT_GROUP',
   'AmbiguousLowering',
   'Compiler',
   'Dialect',

@@ -39,6 +39,8 @@ Spec: `docs/phase_c_pragma_materialization.md` §4.1, §5 (C3 PR row),
 
 from __future__ import annotations
 
+from typing import Any
+
 from srdatalog.ir.core import Dialect
 
 DIALECT = Dialect(
@@ -57,8 +59,6 @@ def _register_passes() -> None:
   matches the C2 sorted_array template (`relation/sorted_array/
   __init__.py:_register_passes`).
   '''
-  from typing import Any
-
   import srdatalog.ir.mir.types as mir
   from srdatalog.ir.core.passes import lowering, verifier
   from srdatalog.ir.dialects.parallel.block_group.pragmas.block_group import (
@@ -86,4 +86,68 @@ def _register_passes() -> None:
 _register_passes()
 
 
-__all__ = ['DIALECT']
+__all__ = ['DIALECT', 'register']
+
+
+# ---------------------------------------------------------------------------
+# Phase E plugin entry point
+# ---------------------------------------------------------------------------
+#
+# `register(compiler)` is the callable invoked by F4's plugin discovery
+# (`Compiler.with_default_plugins()`) AND by explicit user-driven
+# `compiler.register_plugin(...)` calls. Wired in `pyproject.toml` under
+# `[project.entry-points."srdatalog.plugins"]` as `parallel_block_group`.
+#
+# Coexistence with legacy direct-import: the module-level
+# `_register_passes()` call above still runs on first import, so the
+# `@lowering(target=iir.cf, source=mir.BlockGroupRoot)` rule AND the
+# `@pragma_handler(BlockGroup, on=mir.ExecutePipeline)` registration
+# (the latter fired indirectly by importing
+# `pragmas.block_group` for `lower_block_group_root`) are populated
+# regardless of whether anyone goes through `register(compiler)`.
+# Python's module cache makes `_register_passes()` itself naturally
+# idempotent (decorators only fire on first import). What
+# `register(compiler)` adds on top is the per-Compiler
+# `register_dialect(DIALECT)` step that F4's plugin loader needs to
+# attribute ownership of the dialect to this plugin and populate the
+# running Compiler's registry.
+#
+# Re-running `register(compiler)` on the same Compiler is safe: F4's
+# `register_plugin` (see `core/plugin.py`) short-circuits on
+# already-loaded plugin names.
+
+
+def register(compiler: Any) -> None:
+  '''Plugin entry point — register the `parallel.block_group` dialect
+  on the given Compiler.
+
+  Pragma-handler + BlockGroupRoot lowering wiring were performed by
+  `_register_passes()` at module-import time (a one-shot side effect;
+  Python's module cache makes it naturally idempotent). This callable
+  only performs the per-Compiler step:
+  `compiler.register_dialect(DIALECT)`.
+
+  Idempotent: F4's `Compiler.register_plugin` short-circuits
+  re-registration of the same plugin name.
+  '''
+  compiler.register_dialect(DIALECT)
+
+
+# Plugin metadata read by F4's topo-sort + conflict detection
+# (see `core/plugin.py` — `_plugin_attr` reads these).
+#
+# `plugin_name` — what F4 records as the loaded-plugin identifier.
+#   Matches the entry-point name `parallel_block_group` declared in
+#   `pyproject.toml`. Snake_case to mirror `parallel_data`.
+# `provides` — the dialect name this plugin contributes. Matches
+#   `DIALECT.name` (`parallel.block_group`).
+# `requires` — dialects that must be loaded first. Empty: the
+#   `@lowering(target=iir.cf, source=mir.BlockGroupRoot)` rule
+#   registered by `_register_passes` references `iir.cf` and the
+#   sorted_array helpers only by string/import — neither needs a
+#   pre-loaded Compiler entry. The cross-dialect ordering is enforced
+#   per-pass via `consumes`/`produces` on the lowering, not at
+#   plugin load time, matching the `parallel_data` precedent.
+register.plugin_name = 'parallel_block_group'  # type: ignore[attr-defined]
+register.provides = ('parallel.block_group',)  # type: ignore[attr-defined]
+register.requires = ()  # type: ignore[attr-defined]

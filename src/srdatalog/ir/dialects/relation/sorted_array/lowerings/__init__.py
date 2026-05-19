@@ -358,6 +358,19 @@ def lower_scan_pipeline(
       )
 
       return lower_mir_scan_in_chain(head, rest, ctx)
+    if isinstance(head, mir.CartesianJoin):
+      # B-Cart root entry: `_should_use_declarative` returns True for
+      # all `mir.CartesianJoin` instances (no source-count guard,
+      # unlike B-CJ-single). The C5 `mir.TiledCartesian` wrap op
+      # only wraps NESTED Cartesians (`_wrap_eligible_carts` slices
+      # `pipeline[1:]`), so root position never sees a wrap — only
+      # bare `mir.CartesianJoin`. See `lowerings/lower_mir_cart.py`
+      # module docstring for the full coexistence rationale.
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cart import (
+        lower_mir_cart_root,
+      )
+
+      return lower_mir_cart_root(head, rest, ctx)
     raise AssertionError(
       f'lower_scan_pipeline: USE_DECLARATIVE contains {type(head).__name__!r} '
       f'(and `_should_use_declarative` returned True) but no root-'
@@ -1177,6 +1190,26 @@ def _lower_inner_chain(
       )
 
       return lower_mir_aggregate_in_chain(head, tail, ctx)
+    if isinstance(head, mir.CartesianJoin):
+      # B-Cart mid-chain entry: `_should_use_declarative` returns
+      # True for all `mir.CartesianJoin` instances. The C5
+      # `mir.TiledCartesian` wrap op is a DIFFERENT MIR op type and
+      # never reaches this branch (handled by the
+      # `isinstance(head, mir.TiledCartesian)` branch below the
+      # USE_DECLARATIVE block — `TiledCartesian` is NOT in the set
+      # so it falls through to the legacy dispatch).
+      #
+      # The delegated `_lower_nested_cart` still performs its own
+      # `_tiled_cart_eligible(...)` check and forwards to
+      # `_lower_nested_cart_tiled` when the legacy `ctx.tiled_cartesian`
+      # bool path is active — preserving the C5 dual-write transition.
+      # See `lowerings/lower_mir_cart.py` module docstring for the
+      # coexistence rationale.
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_cart import (
+        lower_mir_cart_in_chain,
+      )
+
+      return lower_mir_cart_in_chain(head, tail, ctx)
     raise AssertionError(
       f'_lower_inner_chain: USE_DECLARATIVE contains {type(head).__name__!r} '
       f'but no chain-dispatch wiring exists for it. Add the '

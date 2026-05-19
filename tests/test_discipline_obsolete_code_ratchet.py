@@ -7,8 +7,9 @@ old paths working while new ones are being built. Examples:
     (added by C2-C6 + Phase B as each new typed-Pragma / @lowering
     supersedes a branch but the branch can't be deleted until ALL
     consumers migrate).
-  - The legacy `lowerings/__init__.py` monolith itself — 2606 LOC
-    today; Phase B per-op migrations are supposed to shrink it.
+  - The legacy `_lower_<op>` helper functions in `lowerings/__init__.py`
+    — 12 today; Phase B per-op migrations supersede them via
+    `@lowering`-registered modules, and Layer 3 cleanup deletes them.
   - `_BUILTIN_BOOL_SHADOW_PRAGMAS` dual-write registries in `dsl.py`
     (A3 removes them).
   - Deprecated bool fields on `mir.ExecutePipeline` (A3 removes).
@@ -20,7 +21,7 @@ D18 already ratchets one specific transitional pattern
 "ratchet down, never silently grow" discipline to the OTHER
 transitional patterns the redesign has accumulated.
 
-The tests below are intentionally CHEAP — they're text scans + LOC
+The tests below are intentionally CHEAP — they're text scans + regex
 counts. They cost ~5ms in CI. The point is to make accidental
 drift visible at PR time, not to do semantic analysis.
 
@@ -29,10 +30,14 @@ Per `docs/code_discipline.md` D19.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SRC_ROOT = _REPO_ROOT / 'src' / 'srdatalog'
+_MONOLITH = (
+  _SRC_ROOT / 'ir' / 'dialects' / 'relation' / 'sorted_array' / 'lowerings' / '__init__.py'
+)
 
 
 # -----------------------------------------------------------------------------
@@ -87,38 +92,42 @@ def test_dead_code_markers_pinned_exact() -> None:
 
 
 # -----------------------------------------------------------------------------
-# (b) Legacy monolith LOC ratchet
+# (b) Legacy `_lower_*` helper function count ratchet
 # -----------------------------------------------------------------------------
 #
-# `src/srdatalog/ir/dialects/relation/sorted_array/lowerings/__init__.py`
-# is the 2500+-LOC imperative `lower_scan_pipeline` monolith Phase B
-# is migrating per-op into the `lowerings/lower_mir_<op>.py` files.
-# Each B-* migration that deletes a legacy `_lower_<op>` helper SHOULD
-# decrement this cap.
+# The legacy `lowerings/__init__.py` monolith hosts a set of imperative
+# `_lower_<op>` helpers that the per-op `@lowering`-registered modules
+# in `lowerings/lower_mir_<op>.py` are progressively superseding.
 #
-# Today (post-#49 #52 #54 + CJ-single in flight) the monolith is
-# ~2606 LOC. Phase B can grow it slightly when adding new dispatch
-# blocks (e.g. USE_DECLARATIVE dispatch wiring); cap should be bumped
-# in that case and shrunk in the same PR that deletes the legacy
-# helper. Net trend is down.
+# Helper count is the real Phase B progress signal:
+#   - B-* PRs DO NOT touch this count — they add dispatch wiring
+#     (USE_DECLARATIVE entries, ~10 LOC per op) while the legacy helper
+#     remains callable for non-migrated paths. New per-op lowering code
+#     lives in `lowerings/lower_mir_<op>.py`, NOT in new helpers here.
+#   - Layer 3 cleanup PRs STRICTLY DECREASE this count by deleting
+#     superseded helpers once `USE_DECLARATIVE` makes them unreachable.
+#
+# A LOC ratchet on the same file was noisy because every B-PR bumped it
+# (~10 LOC of dispatch wiring) BEFORE any helper deletion in Layer 3.
+# The helper count is invariant under B-PR wiring and monotonically
+# decreasing under Layer 3 cleanup — the right ratchet for D19.b.
 
-_MAX_MONOLITH_LOC = 3000  # post B-CJ-single + B-Negation: ~2858; headroom for B-Aggregate/Cart/CJ-multi/ExecutePipeline dispatch wiring (each adds ~6-10 LOC); Layer 3 cleanup later drops this back below 500
-_MONOLITH = (
-  _SRC_ROOT / 'ir' / 'dialects' / 'relation' / 'sorted_array' / 'lowerings' / '__init__.py'
-)
+_MAX_LEGACY_LOWER_HELPERS = 12  # post B-Aggregate / B-Negation / B-CJ-single (#59 #61 #62)
 
 
-def test_lowerings_monolith_loc_ratchet() -> None:
-  '''The legacy `lowerings/__init__.py` monolith MUST NOT grow
-  unboundedly. Each B-* PR that deletes a `_lower_<op>` helper should
-  decrement the cap in the same commit. Phase B "done" = cap reaches
-  the import + scaffold floor (~200 LOC estimated).
+def test_legacy_helper_function_count_strict_ratchet() -> None:
+  '''Strict monotonic decrease — Layer 3 cleanup PRs delete legacy
+  `_lower_<op>` helpers; B-PRs do NOT add new ones (they put new
+  code in `lowerings/lower_mir_<op>.py` files). Increases fail CI.
   '''
-  actual = len(_MONOLITH.read_text().splitlines())
-  assert actual <= _MAX_MONOLITH_LOC, (
-    f'Legacy monolith grew to {actual} LOC (cap {_MAX_MONOLITH_LOC}). '
-    f'Either bump the cap in the same commit (and motivate in the PR), '
-    f'or shrink the monolith back below {_MAX_MONOLITH_LOC}.'
+  monolith = _MONOLITH.read_text()
+  count = len(re.findall(r'^def _lower\w*', monolith, re.M))
+  assert count <= _MAX_LEGACY_LOWER_HELPERS, (
+    f'Legacy `_lower_*` helper count grew to {count}; cap is '
+    f'{_MAX_LEGACY_LOWER_HELPERS}. Per D19 v2, the count is strictly '
+    f'monotonically decreasing — B-PRs go in `lowerings/lower_mir_<op>.py` '
+    f'files, NOT new helpers in the monolith. Layer 3 cleanup PRs '
+    f'decrement this cap as they delete superseded helpers.'
   )
 
 

@@ -385,8 +385,39 @@ def _ep_is_single_dest_concat_eligible(ep: mir.ExecutePipeline) -> bool:
   '''Same predicate `_gen_parallel_group` uses to filter `single_in_dest`:
   exactly one dest, no work-stealing, no dedup-hash. Mirrors the
   upstream Nim orchestrator decision so byte-equivalence holds.
+
+  A3-2: the `ep.work_stealing` bool is gone; work-stealing presence
+  is now signalled by the typed `WorkStealing` pragma. Detect by
+  checking for the `WSScope` wrap op in the EP's pipeline (the
+  post-MirPragmaPass form) or for an unconsumed `WorkStealing`
+  instance in `ep.pragmas` (the pre-pass form, when this predicate
+  fires from `apply_concurrent_write_marking` running before the
+  pragma pass).
   '''
-  return len(ep.dest_specs) == 1 and not ep.work_stealing and not ep.dedup_hash
+  return len(ep.dest_specs) == 1 and not ep_has_work_stealing(ep) and not ep.dedup_hash
+
+
+def ep_has_work_stealing(ep: mir.ExecutePipeline) -> bool:
+  '''True iff `ep` carries `WorkStealing` either as a still-unconsumed
+  typed pragma or as a `WSScope` wrap already materialized into
+  `ep.pipeline`. Added by A3-2 to replace the deprecated
+  `ep.work_stealing: bool` read across orchestrator / complete_runner
+  / mir-pass call sites.
+  '''
+  # Late import to avoid pulling the parallel sub-dialect during
+  # base MIR-pass import (`mir/passes.py` is imported early in the
+  # default pipeline; `parallel.atomic_ws` is a plugin).
+  from srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing import (
+    WorkStealing,
+  )
+
+  for p in ep.pragmas:
+    if isinstance(p, WorkStealing):
+      return True
+  for child in ep.pipeline:
+    if isinstance(child, mir.WSScope):
+      return True
+  return False
 
 
 def _mark_concurrent_writes_in_parallel_group(

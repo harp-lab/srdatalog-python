@@ -7,6 +7,9 @@ Do not edit manually — regenerate via:
 from __future__ import annotations
 
 from srdatalog.dsl import SPLIT, Filter, Program, Relation, Var
+from srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing import (
+  WorkStealing,
+)
 
 # ----- Relations ----------------------------------------------
 
@@ -396,7 +399,8 @@ def build_poloniusdb_program() -> Program:
         )
       )
       .named('subset_trans')
-      .with_plan(delta=0, work_stealing=True),
+      .with_plan(delta=0)
+      .with_pragma(WorkStealing()),
       (
         subset(origin1, origin2, point2)
         <= subset(origin1, origin2, point1)

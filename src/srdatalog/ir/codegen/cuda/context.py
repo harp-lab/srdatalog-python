@@ -189,7 +189,6 @@ class RunnerGenState:
   dest_arities: list[int] = field(default_factory=list)
   total_view_count: int = 0
   is_balanced: bool = False
-  is_work_stealing: bool = False
   is_block_group: bool = False
   is_dedup_hash: bool = False
   is_count: bool = False

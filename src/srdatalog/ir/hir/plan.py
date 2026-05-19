@@ -466,14 +466,13 @@ def _plan_variant(v: HirRuleVariant) -> None:
     var_order = compute_var_order_from_clauses(rule, clause_order, analysis.join_vars, delta_idx=d)
 
   # Propagate pragma flags whenever a plan is attached — the pragma
-  # branch above is gated on `plan.var_order`, but pragmas like
-  # `work_stealing: true` frequently appear on plan entries that have
-  # no custom var_order (e.g. Polonius subset_trans). Using the flags
-  # regardless of var_order matches Nim's planJoins which copies the
-  # pragma set unconditionally.
+  # branch above is gated on `plan.var_order`, but pragmas (e.g. the
+  # typed `WorkStealing` instance) frequently appear on plan entries
+  # that have no custom var_order (e.g. Polonius subset_trans). Using
+  # the flags regardless of var_order matches Nim's planJoins which
+  # copies the pragma set unconditionally.
   if plan is not None:
     v.fanout = plan.fanout
-    v.work_stealing = plan.work_stealing
     v.block_group = plan.block_group
     v.dedup_hash = plan.dedup_hash
     v.balanced_root = list(plan.balanced_root)

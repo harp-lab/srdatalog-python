@@ -90,14 +90,14 @@ def _scan_insert_ep(
   *,
   arity: int = 2,
   rule_name: str = 'WSy',
-  work_stealing: bool = False,
   pragmas: tuple[Pragma, ...] = (),
 ) -> m.ExecutePipeline:
-  '''Build a minimal `Scan -> InsertInto` EP shape, optionally
-  carrying a typed `WorkStealing` pragma instead of (or in addition
-  to) the legacy bool field. Mirrors the C2 `_scan_insert_ep`
-  fixture in `tests/test_pragma_dedup_hash_end_to_end.py` so the two
-  per-pragma tests share their structural assumptions.
+  '''Build a minimal `Scan -> InsertInto` EP shape carrying a typed
+  `WorkStealing` pragma (post-A3-2: the legacy bool shadow field
+  was retired; this fixture exercises only the typed surface).
+  Mirrors the C2 `_scan_insert_ep` fixture in
+  `tests/test_pragma_dedup_hash_end_to_end.py` so the two per-pragma
+  tests share their structural assumptions.
   '''
   vars_ = [f'v{i}' for i in range(arity)]
   cols = list(range(arity))
@@ -119,7 +119,6 @@ def _scan_insert_ep(
     source_specs=[scan],
     dest_specs=[insert],
     rule_name=rule_name,
-    work_stealing=work_stealing,
     pragmas=pragmas,  # type: ignore[arg-type]
   )
 
@@ -141,21 +140,20 @@ def _empty_rule() -> Rule:
 
 def test_with_pragma_attaches_typed_pragma_to_default_plan():
   '''Calling `.with_pragma(WorkStealing())` on a rule with no plans
-  appends a default `PlanEntry(delta=-1)` carrying the pragma AND
-  the matching legacy bool field (the C4 dual-write contract).'''
+  appends a default `PlanEntry(delta=-1)` carrying the typed pragma.
+  Post-A3-2: the legacy `PlanEntry.work_stealing` shadow bool has
+  been retired, so the pragma is the sole signal.'''
   rule = _empty_rule().with_pragma(WorkStealing())
   assert len(rule.plans) == 1
   plan = rule.plans[0]
   assert plan.delta == -1
-  assert plan.work_stealing is True
   assert len(plan.pragmas) == 1
   assert isinstance(plan.pragmas[0], WorkStealing)
 
 
 def test_with_pragma_appends_to_existing_plans():
   '''When the rule already has plans, `.with_pragma(WorkStealing())`
-  appends the pragma to EVERY plan's `pragmas` tuple AND sets each
-  plan's `work_stealing=True` (per-variant dual-write). Matches the
+  appends the pragma to EVERY plan's `pragmas` tuple. Matches the
   per-rule semantic intent of `with_pragma`.'''
   rule = (
     _empty_rule()
@@ -165,14 +163,13 @@ def test_with_pragma_appends_to_existing_plans():
   )
   assert len(rule.plans) == 2
   for plan in rule.plans:
-    assert plan.work_stealing is True
     assert any(isinstance(p, WorkStealing) for p in plan.pragmas)
 
 
 def test_with_pragma_does_not_set_unrelated_bool_fields():
-  '''The C4 dual-write must touch ONLY the `work_stealing` bool, not
-  `dedup_hash` / `block_group` / `fanout`. Guards against typos in
-  `_BUILTIN_BOOL_SHADOW_PRAGMAS`.'''
+  '''Guards against typos in `_BUILTIN_BOOL_SHADOW_PRAGMAS`: setting
+  `WorkStealing` must not toggle the dual-write bools of OTHER
+  pragmas that still have a legacy shadow field.'''
   rule = _empty_rule().with_pragma(WorkStealing())
   plan = rule.plans[0]
   assert plan.dedup_hash is False
@@ -213,15 +210,13 @@ def test_with_pragma_rejects_unregistered_pragma():
 # -----------------------------------------------------------------------------
 
 
-def test_pragma_pass_inserts_ws_scope_when_bool_is_false(mir_compiler):
-  '''Pure typed path (bool=False, only pragma set): MirPragmaPass
-  wraps every `InsertInto` in `pipeline` with `WSScope`.
-
-  This is the post-A3 target state. Today only synthesized EPs
-  reach it — the DSL `.with_pragma(WorkStealing())` dual-writes the
-  bool field as well, hitting the dual-write skip branch below.
+def test_pragma_pass_inserts_ws_scope_when_pragma_set(mir_compiler):
+  '''Typed path: MirPragmaPass wraps every `InsertInto` in
+  `pipeline` with `WSScope` whenever the EP carries a `WorkStealing`
+  pragma. Post-A3-2 this is the ONLY path — the legacy bool shadow
+  field is gone.
   '''
-  ep = _scan_insert_ep(work_stealing=False, pragmas=(WorkStealing(),))
+  ep = _scan_insert_ep(pragmas=(WorkStealing(),))
   out = MirPragmaPass().apply(ep, mir_compiler)
   # Pragma instance consumed.
   assert out.pragmas == ()
@@ -230,31 +225,6 @@ def test_pragma_pass_inserts_ws_scope_when_bool_is_false(mir_compiler):
   assert isinstance(out.pipeline[0], m.Scan)
   assert isinstance(out.pipeline[1], m.WSScope)
   assert isinstance(out.pipeline[1].inner, m.InsertInto)
-  # Legacy bool was NOT toggled; the wrap op is the sole signal.
-  assert out.work_stealing is False
-
-
-def test_pragma_pass_skips_wrap_in_dual_write_mode(mir_compiler):
-  '''Dual-write transition (bool=True AND pragma set, the C4 DSL
-  shape): MirPragmaPass strips the pragma but leaves `pipeline`
-  untouched. The legacy `compile_kernel_body` -> `_lower_insert_into`
-  bool-driven path produces the WS-count emit when ctx.ws_enabled
-  is set; the wrap op never appears so the monolith doesn't need to
-  know about WSScope.
-
-  This is the load-bearing test for the dual-write contract: the
-  C4 PR must not break the byte-equivalence harness, and that
-  requires the bool-field path to remain the sole emission driver
-  until A3 drops the bool.
-  '''
-  ep = _scan_insert_ep(work_stealing=True, pragmas=(WorkStealing(),))
-  out = MirPragmaPass().apply(ep, mir_compiler)
-  # Pragma still consumed.
-  assert out.pragmas == ()
-  # No WSScope inserted.
-  assert all(not isinstance(child, m.WSScope) for child in out.pipeline)
-  # Bool preserved for the legacy emitter.
-  assert out.work_stealing is True
 
 
 def test_pragma_pass_via_apply_all_mir_passes_is_noop_for_empty_pragmas(
@@ -263,7 +233,7 @@ def test_pragma_pass_via_apply_all_mir_passes_is_noop_for_empty_pragmas(
   '''Sanity: the integration of `MirPragmaPass` into
   `apply_all_mir_passes` does not change MIR shape for EPs that
   carry no typed pragmas — the dominant case today.'''
-  ep = _scan_insert_ep(work_stealing=False, pragmas=())
+  ep = _scan_insert_ep(pragmas=())
   steps_in = [(ep, False)]
   steps_out = apply_all_mir_passes(steps_in)
   # Same number of steps, same EP identity-or-equal at the top.
@@ -300,7 +270,6 @@ def test_pragma_pass_only_wraps_inserts_not_other_ops(mir_compiler):
     source_specs=[scan],
     dest_specs=[insert],
     rule_name='WSWithFilter',
-    work_stealing=False,
     pragmas=(WorkStealing(),),  # type: ignore[arg-type]
   )
   out = MirPragmaPass().apply(ep, mir_compiler)
@@ -331,7 +300,7 @@ def test_ws_scope_lowering_emits_count_increment(mir_compiler):
   from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
   from srdatalog.ir.dialects.relation.sorted_array.lowerings import LoweringCtx
 
-  typed_ep = _scan_insert_ep(arity=2, work_stealing=False, pragmas=(WorkStealing(),))
+  typed_ep = _scan_insert_ep(arity=2, pragmas=(WorkStealing(),))
   materialized = MirPragmaPass().apply(typed_ep, mir_compiler)
   scope = materialized.pipeline[1]
   assert isinstance(scope, m.WSScope)
@@ -458,12 +427,11 @@ def test_atomic_ws_dialect_name_pinned():
 # -----------------------------------------------------------------------------
 
 
-def test_plan_entry_work_stealing_default_false():
-  '''Pin the legacy `PlanEntry.work_stealing` default. Tests that
-  depend on the dual-write contract assume this default flips to
-  True only when `.with_pragma(WorkStealing())` is called.'''
+def test_plan_entry_pragmas_default_empty():
+  '''Pin the `PlanEntry.pragmas` default. Post-A3-2 the legacy
+  `PlanEntry.work_stealing` shadow bool is gone — the typed
+  `WorkStealing()` pragma in `pragmas` is the sole signal.'''
   pe = PlanEntry()
-  assert pe.work_stealing is False
   assert pe.pragmas == ()
 
 
@@ -472,10 +440,9 @@ def test_plan_entry_replace_with_work_stealing_pragma_round_trip():
   preserves the rest of the entry. Symmetric with how
   `Rule.with_pragma` builds new plans.'''
   pe = PlanEntry(delta=0, var_order=('a', 'b'))
-  pe2 = dataclasses.replace(pe, pragmas=(WorkStealing(),), work_stealing=True)
+  pe2 = dataclasses.replace(pe, pragmas=(WorkStealing(),))
   assert pe2.delta == 0
   assert pe2.var_order == ('a', 'b')
-  assert pe2.work_stealing is True
   assert isinstance(pe2.pragmas[0], WorkStealing)
 
 
@@ -492,7 +459,7 @@ def test_apply_mir_pragma_pass_handles_work_stealing(mir_compiler):
   path's bool-skip behavior is covered by
   `test_pragma_pass_skips_wrap_in_dual_write_mode`.
   '''
-  ep = _scan_insert_ep(work_stealing=False, pragmas=(WorkStealing(),))
+  ep = _scan_insert_ep(pragmas=(WorkStealing(),))
   steps = [(ep, False)]
   out_steps = apply_mir_pragma_pass(steps)
   ep_out = out_steps[0][0]
@@ -508,7 +475,7 @@ def test_apply_mir_pragma_pass_is_idempotent_for_empty_pragmas():
   (`test_pragmas_empty_after_materialization`) applied through the
   chain entry, pinned for the C4 pragma class.
   '''
-  ep = _scan_insert_ep(work_stealing=False, pragmas=())
+  ep = _scan_insert_ep(pragmas=())
   steps = [(ep, False)]
   once = apply_mir_pragma_pass(steps)
   twice = apply_mir_pragma_pass(once)
@@ -559,11 +526,11 @@ def test_work_stealing_coexists_with_dedup_hash_on_same_ep(mir_compiler):
   c.register_dialect(WS_DIALECT)
 
   ep = _scan_insert_ep(
-    work_stealing=False,
     pragmas=(WorkStealing(), DedupHash()),
   )
-  # Force the dedup_hash bool off too so both pragmas hit their
-  # wrap-emitting (non-dual-write) branch.
+  # Force the dedup_hash bool off so the DedupHash handler hits its
+  # wrap-emitting (non-dual-write) branch. (WorkStealing's
+  # corresponding bool shadow was removed in A3-2.)
   ep = dataclasses.replace(ep, dedup_hash=False)
   out = MirPragmaPass().apply(ep, c)
   # Both pragmas consumed.

@@ -3,6 +3,9 @@
 from integration_helpers import diff_hir, diff_mir
 
 from srdatalog.dsl import Filter, Program, Relation, Var
+from srdatalog.ir.dialects.parallel.atomic_ws.pragmas.work_stealing import (
+  WorkStealing,
+)
 
 
 def build_lsqb_q6_nosj() -> Program:
@@ -31,8 +34,8 @@ def build_lsqb_q6_nosj() -> Program:
       .named("TwoHopPath")
       .with_plan(
         var_order=["p1", "p2", "p3", "t"],
-        work_stealing=True,
-      ),
+      )
+      .with_pragma(WorkStealing()),
     ],
   )
 

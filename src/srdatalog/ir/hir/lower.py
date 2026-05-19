@@ -599,7 +599,6 @@ def wrap_in_execute_pipeline(
   clause_order: list[int],
   rule_name: str,
   use_fan_out: bool = False,
-  work_stealing: bool = False,
   block_group: bool = False,
   count: bool = False,
   dedup_hash: bool = False,
@@ -613,6 +612,9 @@ def wrap_in_execute_pipeline(
   through into `mir.ExecutePipeline.pragmas` for `MirPragmaPass` to
   consume. Default `()` preserves the legacy callers that only
   supply the named bool fields.
+
+  A3-2: the `work_stealing` kwarg / field was removed; the typed
+  `WorkStealing` pragma in `pragmas` is now the sole driver.
   '''
   sources: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
   dests: list[mir.InsertInto] = []
@@ -627,7 +629,6 @@ def wrap_in_execute_pipeline(
     rule_name=rule_name,
     clause_order=list(clause_order),
     use_fan_out=use_fan_out,
-    work_stealing=work_stealing,
     block_group=block_group,
     dedup_hash=dedup_hash,
     count=count,
@@ -734,7 +735,6 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
                 variant.clause_order,
                 nvtx,
                 use_fan_out=variant.fanout,
-                work_stealing=variant.work_stealing,
                 block_group=variant.block_group,
                 count=variant.count,
                 dedup_hash=variant.dedup_hash,
@@ -749,7 +749,6 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
               variant.clause_order,
               nvtx,
               use_fan_out=variant.fanout,
-              work_stealing=variant.work_stealing,
               block_group=variant.block_group,
               count=variant.count,
               dedup_hash=variant.dedup_hash,
@@ -855,7 +854,6 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
                 variant.clause_order,
                 nvtx,
                 use_fan_out=variant.fanout,
-                work_stealing=variant.work_stealing,
                 block_group=variant.block_group,
                 count=variant.count,
                 dedup_hash=variant.dedup_hash,
@@ -870,7 +868,6 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
               variant.clause_order,
               nvtx,
               use_fan_out=variant.fanout,
-              work_stealing=variant.work_stealing,
               block_group=variant.block_group,
               count=variant.count,
               dedup_hash=variant.dedup_hash,

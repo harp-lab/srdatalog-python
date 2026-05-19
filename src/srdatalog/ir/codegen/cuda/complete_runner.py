@@ -43,6 +43,7 @@ from srdatalog.ir.codegen.cuda.pipeline_utils import (
   has_tiled_cartesian_eligible,
 )
 from srdatalog.ir.codegen.cuda.plugin import plugin_gen_host_view_setup, plugin_view_count
+from srdatalog.ir.mir.passes import ep_has_work_stealing
 
 # Pure-template phase emitters now live in the dialect's runner module.
 # Local aliases preserve the legacy call sites until the rest of this
@@ -922,7 +923,7 @@ def gen_complete_runner(
     )
 
   # Feature-flag guards: not covered in Phase 2 baseline port.
-  if node.work_stealing:
+  if ep_has_work_stealing(node):
     raise NotImplementedError("gen_complete_runner: work_stealing not yet ported")
   if has_balanced_scan(node.pipeline):
     raise NotImplementedError("gen_complete_runner: balanced-scan runner not yet ported")
@@ -958,7 +959,7 @@ def gen_complete_runner(
   # can't interleave safely with concurrent kernels into the same region.
   tiled_cartesian_eligible = (
     has_tiled_cartesian_eligible(mutable_pipe)
-    and not node.work_stealing
+    and not ep_has_work_stealing(node)
     and not node.block_group
     and not node.dedup_hash
     and not is_count

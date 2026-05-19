@@ -276,6 +276,16 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
       + ")"
     )
 
+  # A3-2: WSScope wraps an InsertInto post-MirPragmaPass. The
+  # legacy bool-driven path printed the bare InsertInto; preserve
+  # that golden surface by unwrapping the gate when printing (the
+  # WS-vs-non-WS distinction lives in the pragma topology, not in
+  # the printed s-expression). Symmetric with the dedup_hash /
+  # block_group / fanout wrap ops that A3-1 / A3-3 / etc. will
+  # need to handle the same way.
+  if isinstance(node, m.WSScope):
+    return print_mir_sexpr(node.inner, indent)
+
   # --- Fixpoint maintenance ---
 
   if isinstance(node, m.RebuildIndex):

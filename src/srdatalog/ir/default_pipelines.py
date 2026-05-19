@@ -298,6 +298,48 @@ class LowerScanPipelineShim(ProgramPass):
     return dataclasses.replace(state, iir=iir)
 
 
+class VerifyRenderabilityShim(ProgramPass):
+  '''R3 closure check (topology check #4 per
+  docs/concept_glossary.md section 13.3).
+
+  Runs `verify_renderability` on the post-fixpoint IIR tree. For every
+  op type reachable in the tree, asserts either a registered
+  `@register_render(op_type, target='cuda')` OR a `@rewrite` is
+  present. On failure, raises `UnrenderableOpError` naming the op
+  type + target — long before the CUDA renderer's own `KeyError`
+  would surface, and with a precise message pointing at the missing
+  plugin contribution.
+
+  Today's IIR rewrite step is conceptual — `LowerScanPipelineShim`
+  produces the final IIR directly. So this shim runs AFTER
+  `LowerScanPipelineShim` (which produces the IIR) and BEFORE
+  `CudaRenderShim` (which consumes it). The shim is structurally a
+  pass-through on `KernelCtx` — it neither inspects nor mutates the
+  state beyond the closure check.
+
+  `consumes=('iir',)` + `produces=()` because the check doesn't
+  introduce a new pseudo-dialect; it's a gate, not a transformation.
+  Per the spec note in `code_discipline.md` R3, this is exactly the
+  "pipeline-stage closure verification" that prevents silent
+  fall-through in `CudaRenderShim`.'''
+
+  def __init__(self) -> None:
+    super().__init__(
+      name='verify_renderability',
+      consumes=('iir',),
+      produces=(),
+      fn=self._fn,
+    )
+
+  @staticmethod
+  def _fn(state: KernelCtx, compiler: Any) -> KernelCtx:
+    from srdatalog.ir.core.verifier import verify_renderability
+
+    assert state.iir is not None, 'VerifyRenderabilityShim: iir not set'
+    verify_renderability(state.iir, target='cuda', compiler=compiler)
+    return state
+
+
 class CudaRenderShim(ProgramPass):
   '''Wraps `srdatalog.ir.codegen.cuda.emit.emit` with an
   `EmitCtx(indent_level=4)`. Concatenates `view_decls` + emitted IIR
@@ -340,6 +382,7 @@ DEFAULT_KERNEL_PIPELINE: list[Pass] = [
   CollectViewSpecsShim(),
   EmitViewDeclsShim(),
   LowerScanPipelineShim(),
+  VerifyRenderabilityShim(),
   CudaRenderShim(),
 ]
 
@@ -358,4 +401,5 @@ __all__ = [
   'LowerScanPipelineShim',
   'MirOptShim',
   'MirProgramAssembly',
+  'VerifyRenderabilityShim',
 ]

@@ -90,7 +90,11 @@ from srdatalog.ir.core.strategy import (
   top_down,
   try_,
 )
-from srdatalog.ir.core.verifier import VerificationError
+from srdatalog.ir.core.verifier import (
+  UnrenderableOpError,
+  VerificationError,
+  verify_renderability,
+)
 
 
 def assert_never(value: object) -> NoReturn:
@@ -134,6 +138,7 @@ __all__ = [
   'Type',
   'UnconsumedPragmaError',
   'UnregisteredPragmaError',
+  'UnrenderableOpError',
   'VerificationError',
   'ViewLayout',
   'all_',
@@ -152,4 +157,5 @@ __all__ = [
   'some',
   'top_down',
   'try_',
+  'verify_renderability',
 ]

@@ -123,7 +123,76 @@ __all__ = [
   'SaValid',
   'SaView',
   'register',
+  'register_terminal_wrap_op',
 ]
+
+
+# ---------------------------------------------------------------------------
+# Terminal-wrap-op registry (dispatcher extensibility for external plugins)
+# ---------------------------------------------------------------------------
+#
+# The sorted_array chain dispatcher (`_lower_inner_chain`,
+# `_supported_pipeline`, `_trailing_inserts` in `lowerings/__init__.py`)
+# historically matched only `mir.InsertInto` as the terminal op in an
+# `ExecutePipeline.pipeline`. The built-in C-pragma wrap ops
+# (`DedupGate` / `WSScope` / `mir.FanOut`) dodged this by routing
+# emission through the dual-write bool path on `ExecutePipeline`:
+# `materialize_*` short-circuits on `ep.<flag>=True`, leaving the
+# legacy bool-driven `_lower_insert_into` branch to emit. External
+# plugins (e.g. PR #68's jaccard demo) have no equivalent escape
+# hatch — they cannot add a back-compat bool field to
+# `mir.ExecutePipeline`, so their terminal wrap ops are rejected by
+# `_supported_pipeline`.
+#
+# The registry below opens an ALTERNATE path: any MIR op type
+# registered here is treated as "InsertInto-like terminal wrap op"
+# by `_trailing_inserts` / `_supported_pipeline`, so it may appear
+# at the tail of a pipeline. The built-in wrap ops are pre-populated
+# at module-load time so byte-equivalence holds when their dual-write
+# bool flips off (Phase A3); external plugins call
+# `register_terminal_wrap_op(<their op type>)` from their
+# `register(compiler)` callable.
+#
+# Approach is "option 1" from PR #68's contract-gap discussion — the
+# mechanical fix. A future PR may switch the dispatcher to consult
+# the `@lowering` registry directly (option 2) and treat any op with
+# a registered `iir.cf` lowering as terminal; that is a bigger
+# refactor and out of scope here.
+
+_TERMINAL_WRAP_OPS: set[type] = set()
+
+
+def register_terminal_wrap_op(op_type: type) -> None:
+  '''Register a MIR op type as a terminal (InsertInto-like) wrap op
+  for the sorted_array dispatcher.
+
+  Called by built-in pragma modules at module-load time AND by
+  external plugins from their `register(compiler)` callable. Once
+  registered, the op type may appear at the tail of an
+  `ExecutePipeline.pipeline` and `_supported_pipeline` /
+  `_trailing_inserts` will accept it in the same slot as
+  `mir.InsertInto`.
+
+  Idempotent: re-registering the same op type is a no-op (set
+  semantics). Registration order is irrelevant — the dispatcher
+  consults the set by `type(op) in _TERMINAL_WRAP_OPS`.
+  '''
+  _TERMINAL_WRAP_OPS.add(op_type)
+
+
+def _register_builtin_terminal_wrap_ops() -> None:
+  '''Pre-populate `_TERMINAL_WRAP_OPS` with the built-in C-pragma
+  wrap ops. Deferred import to keep the module import graph linear
+  (mir.types is the canonical home for these op types).
+  '''
+  import srdatalog.ir.mir.types as mir
+
+  register_terminal_wrap_op(mir.DedupGate)
+  register_terminal_wrap_op(mir.WSScope)
+  register_terminal_wrap_op(mir.FanOut)
+
+
+_register_builtin_terminal_wrap_ops()
 
 
 # ---------------------------------------------------------------------------

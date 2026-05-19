@@ -419,10 +419,18 @@ def test_should_use_declarative_single_source_cj_returns_true():
   assert _should_use_declarative(cj) is True
 
 
-def test_should_use_declarative_multi_source_cj_returns_false():
-  '''The shape-gate rejects multi-source ColumnJoin — the legacy
-  `_lower_nested_cj_multi` branch retains ownership until
-  B-CJ-multi lands.'''
+def test_should_use_declarative_multi_source_cj_returns_true_after_b_cj_multi():
+  '''B-CJ-multi dropped the source-count guard in `_should_use_declarative`.
+  Multi-source ColumnJoin now routes through the new path
+  (`lower_mir_cj_multi_in_chain` mid-chain, `lower_mir_cj_multi_root`
+  at root) instead of falling through to the legacy
+  `_lower_nested_cj_multi` / `_lower_root_cj_multi` branches.
+
+  Historical note: pre-B-CJ-multi this returned False — the helper
+  encoded a `len(sources) == 1` gate so only single-source CJ used
+  the new path. The new entries delegate to the same legacy helpers,
+  so the rendered IIR remains byte-equivalent.
+  '''
   src_a = mir.ColumnSource(
     rel_name='A', version=Version.FULL, index=[0, 1], prefix_vars=[], handle_start=0
   )
@@ -430,7 +438,7 @@ def test_should_use_declarative_multi_source_cj_returns_false():
     rel_name='B', version=Version.FULL, index=[0, 1], prefix_vars=[], handle_start=1
   )
   multi_cj = mir.ColumnJoin(var_name='y', sources=[src_a, src_b])
-  assert _should_use_declarative(multi_cj) is False
+  assert _should_use_declarative(multi_cj) is True
 
 
 def test_should_use_declarative_filter_returns_true():
@@ -469,13 +477,18 @@ def test_use_declarative_contains_column_join():
 # -----------------------------------------------------------------------------
 
 
-def test_multi_source_cj_still_uses_legacy_branch():
-  '''Regression guard: with `mir.ColumnJoin` in `USE_DECLARATIVE`,
-  the dispatch helper must still route multi-source CJ through the
-  legacy branch. The smoke test is the end-to-end pipeline
-  `_lower_inner_chain` call — if the new path were
-  incorrectly hit, the multi-source CJ would route to
-  `lower_mir_cj_single_in_chain` and fail the source-count guard.
+def test_multi_source_cj_still_emits_intersect_handles():
+  '''Regression guard: with `mir.ColumnJoin` in `USE_DECLARATIVE` AND
+  B-CJ-multi's `lower_mir_cj_multi_in_chain` wiring, multi-source CJ
+  still emits the `intersect_handles + iter` scaffold by delegating
+  to `_lower_nested_cj_multi`. The rendered text is byte-equivalent
+  to the legacy path.
+
+  Pre-B-CJ-multi: this test exercised the "multi-source falls
+  through to the legacy branch" contract. Post-B-CJ-multi: multi-
+  source CJ routes through `lower_mir_cj_multi_in_chain`, which
+  delegates to `_lower_nested_cj_multi` — same emission, new
+  dispatch surface.
   '''
   src_a = mir.ColumnSource(
     rel_name='A', version=Version.FULL, index=[0, 1], prefix_vars=[], handle_start=0
@@ -487,8 +500,8 @@ def test_multi_source_cj_still_uses_legacy_branch():
   ins = _insert_into(('y',))
 
   ctx = _new_ctx()
-  # No exception: dispatch goes through `_lower_nested_cj_multi`,
-  # which is the legacy path (B-CJ-multi territory).
+  # No exception: dispatch goes through `_lower_nested_cj_multi`
+  # (now via `lower_mir_cj_multi_in_chain`, post-B-CJ-multi).
   out = _lower_inner_chain([multi_cj, ins], ctx)
   rendered = _render(out)
   # The multi-source CJ emits an intersect_handles + iter scaffold —

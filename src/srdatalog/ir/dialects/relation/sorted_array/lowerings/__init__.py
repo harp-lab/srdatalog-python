@@ -1165,6 +1165,12 @@ def _lower_inner_chain(
       )
 
       return lower_mir_cj_single_in_chain(head, tail, ctx)
+    if isinstance(head, mir.Negation):
+      from srdatalog.ir.dialects.relation.sorted_array.lowerings.lower_mir_negation import (
+        lower_mir_negation_in_chain,
+      )
+
+      return lower_mir_negation_in_chain(head, tail, ctx)
     raise AssertionError(
       f'_lower_inner_chain: USE_DECLARATIVE contains {type(head).__name__!r} '
       f'but no chain-dispatch wiring exists for it. Add the '

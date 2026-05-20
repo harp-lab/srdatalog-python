@@ -69,6 +69,29 @@ the user might want is a purely additive plugin.
 > the full set of typed concerns this sub-clause covers and the
 > renderer-side discipline test D21 in § 7.
 
+> **Sub-clause (Amendment 2 — no-context principle).** Information
+> flows between passes ONLY through the IR. No pass-to-pass
+> through-state contexts (`LoweringCtx`, `KernelCtx`, `InitialProg`,
+> `CudaRenderCtx`, or any successor with named-field schema). Three
+> kinds of data, three disjoint mechanisms:
+>
+> 1. **Cross-pass data** (produced by pass A, consumed by pass B):
+>    must be a typed IR op. If pass B reads it from a `ctx.field`,
+>    that field is a missed IR op — the IR pass A produced is
+>    incomplete. Adding new cross-pass data = new IR op, never new
+>    ctx field.
+> 2. **Intra-pass scratch** (fresh-name counters, lexically-scoped
+>    variables threaded into one render's nested emit): function-
+>    local state on the stack frame. Never a `ctx` parameter.
+> 3. **Services** (`compiler`, `name_gen`, `plugin_registry`):
+>    immutable, injected at the start of a pass. May travel in a
+>    `Services` handle whose schema is service registrations, NOT
+>    feature-by-feature accumulated fields. Adding a service = new
+>    typed registration, not a new attribute.
+>
+> Codified as discipline rule D22 (see § 7). The shape-fix for
+> Phase T is § 3.2.1 (rewritten by Amendment 2).
+
 ### 1.1 What the ACID test forbids
 
 After this redesign lands, any PR that needs to EDIT an existing
@@ -874,41 +897,124 @@ and `src/srdatalog/ir/codegen/cuda/render/rir/`.
 
 Three sub-categories, each its own wave of PRs.
 
-#### 3.2.1 Split LoweringCtx from CudaRenderCtx
+#### 3.2.1 Dissolve LoweringCtx (no-context principle)
 
-Today `LoweringCtx` has ~15 fields (section 2.2.2). Target shape:
+> **Rewritten by Amendment 2.** The original § 3.2.1 proposed
+> splitting `LoweringCtx` into `LoweringCtx` (planning) + a new
+> `CudaRenderCtx` (CUDA-private). PR-1d (#81) shipped that split
+> and was reverted (#82) because the new `CudaRenderCtx` was the
+> same anti-pattern reskinned — a fixed-schema attribute carrier
+> where adding a new CUDA render feature still requires editing
+> `lower_ctx.py` to add a field. Per § 1 sub-clause (Amendment 2),
+> through-state contexts dissolve. This section now describes the
+> dissolution shape, not a split shape.
 
-```python
-# src/srdatalog/ir/core/lower_ctx.py — already pinned at 5 fields by F3
-@dataclass(frozen=True, slots=True)
-class LowerCtx:
-  compiler: Compiler
-  name_gen: NameGen
-  view_layout: ViewLayout
-  plugin_registry: PluginRegistry
-  target: str
+Today `LoweringCtx` (`src/srdatalog/ir/dialects/relation/sorted_array/
+lowerings/__init__.py:93`) has ~15 fields. The dissolution sorts every
+field into one of three buckets, per the § 1 sub-clause.
 
-# src/srdatalog/ir/codegen/cuda/lower_ctx.py — NEW (target-private)
-@dataclass(frozen=True, slots=True)
-class CudaRenderCtx:
-  view_var_names: dict[str, str]
-  output_var: str
-  output_var_overrides: dict[str, str]
-  view_slot_bases: dict[str, int]
-  dedup_hash_vars: list[str]
-  tiled_cartesian_valid_var: str
-  ws_cartesian_valid_var: str
-  ws_cartesian_bound_vars: list[str]
-  neg_pre_narrow: dict[int, NegPreNarrowInfo]
-  # 9 fields — all CUDA identifier scratch
-```
+##### Bucket 1: cross-pass data → IR op
 
-Pragma scratch flags (`is_counting`, `dedup_hash`, `tiled_cartesian`,
-`ws_enabled`, `bg_enabled`) move OFF both contexts — they were
-threaded from EP fields (Phase A3 territory) and are consumed only
-inside the pragma's own lowering. The pragma-lowering passes its
-scratch via lexical scope to its inner helpers; nothing else reads
-the flag.
+Fields here are produced by an earlier pass and consumed by a later
+one. They become typed IR ops (or typed metadata on existing ops).
+
+| Field | Producer (today) | Consumer (today) | Replacement |
+|---|---|---|---|
+| `view_var_names` | `EmitViewDeclsShim` (kernel-pipeline pass) | every IIR render | `ViewBinding(handle_idx, var_name)` metadata on `KernelDef` (already typed per Amendment 1 Gap 7); render reads `op.view_bindings[handle_idx].var_name` |
+| `view_slot_bases` | `EmitViewDeclsShim` | D2L segment-loop render | same as above — `ViewBinding.slot_base` |
+| `output_var` + `output_var_overrides` | kernel-pipeline driver | `InsertInto` render | `KernelDef.output_binding: OutputBinding` (NEW carrier) |
+| `rel_index_types` | `compile_kernel_body` caller | D2L / sorted-array renders | `KernelDef.rel_index_bindings: dict[str, IndexBinding]` (NEW carrier per Phase T-3 / index-plugin split, § 3.2.4) |
+
+No `ctx.<field>` reads anywhere. Each render takes the op as its only
+data input; the op carries the typed binding metadata it needs.
+
+##### Bucket 2: intra-pass scratch → function-local
+
+Fields here exist for the duration of ONE render call (often one nested
+emit). They become local variables in the render function, not ctx
+fields.
+
+| Field | Why it's local-only | Replacement |
+|---|---|---|
+| `tiled_cartesian_valid_var` | Set by `_lower_nested_cart` immediately before emitting the body; read only by the body's `InsertInto`. Never crosses a render-call boundary. | Pass as explicit kwarg from `render_tiled_cartesian_dispatch` to the inner `InsertInto` emitter — a named parameter, not a ctx mutation. |
+| `ws_cartesian_valid_var` | Same shape — set right before a WS Cartesian body emits. | Same — explicit kwarg. |
+| `cartesian_bound_vars` | Stack of vars bound by the current Cartesian; popped on exit. Pure lexical scope. | A local list passed down the render call chain, or returned as part of a `RenderResult` if needed. |
+| `neg_pre_narrow` | Populated by `_lower_nested_cart` right before its body so the Negation handler can read the pre-allocated handle. Lifetime = one nested-Cart body. | Explicit kwarg from `render_nested_cart` to `render_negation`. |
+| `bound_vars`, `handle_vars` | Same shape — render-call-local lookup tables. | Local dicts on the render call chain. |
+| `name_counter` (+ `fresh(prefix)` method) | Fresh-name source. | Lives on the `NameGen` service (already in `LowerCtx`); render takes `NameGen` as a service injection. |
+| `debug`, `tile_var` | Per-render configuration. | Constructor / kwarg to the render function. |
+
+No ctx parameter required. The renderer's signature is `(op, services,
+**kwargs) → emitted_text` where `kwargs` carries the lexical-scope
+bindings the caller is threading.
+
+##### Bucket 3: pragma scratch flags → DELETE outright
+
+`is_counting`, `dedup_hash`, `tiled_cartesian`, `ws_enabled`,
+`bg_enabled` were threaded from `ExecutePipeline` bool fields (the A3
+series removed the EP fields; the helpers `ep_has_X(...)` and these
+ctx flags are vestigial reskins per the spec § 2.1 anti-pattern note).
+Each lives ONLY inside its own pragma's lowering call. After
+dissolution they become explicit kwargs from the pragma-lowering to
+its inner emitter — but they also disappear from any place that ISN'T
+the pragma's own lowering chain. Other lowerings stop reading them.
+
+##### Bucket 4: services → `Services` handle (immutable)
+
+| Field | Today | Replacement |
+|---|---|---|
+| `compiler` (currently on `LowerCtx`) | Field on `LowerCtx` | Stays a service; passed via `Services` |
+| `name_gen` (currently on `LowerCtx`) | Field on `LowerCtx` | Same |
+| `plugin_registry` (currently on `LowerCtx`) | Field on `LowerCtx` | Same |
+| `view_layout` (currently on `LowerCtx`) | Field on `LowerCtx` | NOT a service — it is data. Becomes IR op output (see Bucket 1; `ViewBinding` carrier on `KernelDef`). |
+| `target` (currently on `LowerCtx`) | String field | Stays a per-`Compiler.run` constant; threaded as kwarg, NOT mutated through-state. |
+
+The `Services` handle has only registered services; adding a new
+service = new typed `@register_service(MyService)`, never a new field
+on a context class.
+
+##### Final shape
+
+After Amendment 2 lands its PR series, the codebase has:
+
+- **Zero through-state contexts.** `LoweringCtx`, `KernelCtx`,
+  `InitialProg`, `CudaRenderCtx` (if reintroduced — it won't be) are
+  all gone.
+- **Renderer signatures** look like `def render_<op>(op, services,
+  **scope) → emitted_text`. `op` carries all cross-pass data via
+  typed bindings; `services` is the injected immutable handle;
+  `**scope` is whatever lexical state the parent render is threading
+  into this child render.
+- **Pipeline shims** (Compiler.run's pass list) communicate solely
+  by transforming IR. `EmitViewDeclsShim` produces a `KernelDef`
+  with populated `view_bindings`; the next pass reads the bindings
+  off the op. There is no intermediate dataclass carrying the bindings
+  as a side channel.
+
+##### Migration shape (Phase T-1 redesigned)
+
+The Phase T-1 work now spans roughly three to four PRs (final count
+set by the audit + re-plan; see § 6 amendment):
+
+- **PR T1-α** Introduce typed binding carriers (`ViewBinding`,
+  `OutputBinding`, `IndexBinding`) on `KernelDef`. Populate them in
+  the producing pass; provide back-compat readers on the legacy ctx
+  fields so call sites can migrate one at a time.
+- **PR T1-β** Migrate all renderer call sites that read `ctx.view_var_names`,
+  `ctx.view_slot_bases`, `ctx.output_var*`, `ctx.rel_index_types`
+  to read from the op's typed bindings. Once a bucket-1 field has zero
+  callers, delete it from `LoweringCtx`.
+- **PR T1-γ** Convert bucket-2 fields to explicit kwargs / function-
+  local state. One field per PR or a small batch; delete each field
+  from `LoweringCtx` as call sites migrate.
+- **PR T1-δ** Delete `LoweringCtx` entirely. Delete `KernelCtx` and
+  `InitialProg` (their fields are either now on the IR or moved to
+  the `Services` handle). The pipeline shims communicate solely via
+  the IR.
+
+Discipline ratchet **D22** (introduced this amendment): the count of
+named fields across all `*Ctx` dataclasses is strictly monotonically
+decreasing PR-over-PR. New PRs that add a ctx field fail CI. See § 7.
 
 #### 3.2.2 Rename CUDA-shaped IIR ops to target-agnostic semantic names
 
@@ -1625,3 +1731,16 @@ record of WHEN and WHY a change landed.
 | Discipline added | D21 (no string-tagged dispatch in renderer bodies). Ratchets per the standard WARN-then-HARD cadence. |
 | Forward-compat | Each spec section retains its original heading; new sub-sections (§ 3.1.1.1, § 7.1, § 6.2a, § 6.2b, § 10) are additive. PR-1 scope (§ 6.1 + § 3.2 + § 3.3) is UNCHANGED — PR-1's foundation work is orthogonal to the RIR vocabulary expansion. |
 | Scope EXEMPT | PR-1 (in flight). Amendment 1 deliberately does not touch any text PR-1 depends on. |
+
+### Amendment 2 — no-context principle
+
+| Field | Value |
+|---|---|
+| Date | 2026-05-19 |
+| Trigger | User review of merged PR-1d (#81) identified that the proposed `CudaRenderCtx` (10 named fields) was itself the same fixed-schema-attribute-carrier anti-pattern that the redesign is supposed to eliminate. Adding any new CUDA render feature (a new tile mode, gate, or ballot variant) would still require editing `lower_ctx.py` to add a field — a clear § 1 ACID-test violation. PR-1d reverted via #82. |
+| Sections touched | § 1 (sub-clause added — three-bucket discipline); § 3.2.1 (REWRITTEN — was "Split LoweringCtx from CudaRenderCtx", now "Dissolve LoweringCtx (no-context principle)"); § 6 PR plan (PR-1d / PR-1e replanned as PR T1-α / β / γ / δ — final count TBD post-audit); § 7 (D22 added — strict monotonic decrease of ctx-field count); § 10 (this entry). |
+| Principle | Information flows between passes ONLY through the IR. Three disjoint mechanisms: (1) cross-pass data → typed IR op (never a ctx field); (2) intra-pass scratch → function-local / explicit kwarg (never a ctx mutation); (3) services → immutable injected `Services` handle (never a feature-by-feature accumulated attribute set). |
+| Carriers dissolved | `LoweringCtx`, `KernelCtx`, `InitialProg`, `CudaRenderCtx` (if reintroduced — it won't be). All four disappear by end of Phase T-1. |
+| Discipline added | D22 (no through-state contexts; ctx-field count strictly monotonically decreasing). Ratchets per the standard WARN-then-HARD cadence. |
+| Forward-compat | PR-1a, PR-1b already merged and unaffected. PR-1c (target threading via carrier dataclass fields) is now technically a discipline violation under D22 — the `target` field on `InitialProg` / `KernelCtx` is a small bucket-1 leak that the Phase T-1 dissolution work will sweep up. Not reverted; the dissolution PRs will move `target` to the `Services` handle (it's per-`Compiler.run` metadata, not per-feature data). |
+| Scope NOT exempt | Unlike Amendment 1, Amendment 2 directly invalidates a merged PR's design. The audit (in flight) is sweeping for any other fixed-schema carriers that should be added to the dissolution list. Per-PR replan of the Phase T-1 work happens after the audit lands. |

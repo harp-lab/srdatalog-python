@@ -1016,6 +1016,256 @@ Discipline ratchet **D22** (introduced this amendment): the count of
 named fields across all `*Ctx` dataclasses is strictly monotonically
 decreasing PR-over-PR. New PRs that add a ctx field fail CI. See § 7.
 
+#### 3.2.1.1 Amendment 3 — full carrier dissolution scope
+
+Amendment 2 named the principle. The post-revert audit revealed
+the dissolution scope is significantly broader than `LoweringCtx`
+alone. **The entire `src/srdatalog/ir/codegen/cuda/context.py` file
+(543 LOC) dissolves under the no-context principle.** This
+sub-section enumerates the scope so the dissolution PR series has
+a complete target.
+
+##### Carriers that dissolve entirely
+
+| Carrier | Location | Fields | Disposition |
+|---|---|---|---|
+| `LoweringCtx` | `dialects/relation/sorted_array/lowerings/__init__.py:93` | ~17 fields | Dissolves — § 3.2.1 four-bucket plan |
+| `CodeGenContext` | `codegen/cuda/context.py:254` | ~38 fields | Dissolves — see field-by-field bucket assignment below |
+| `RunnerGenState` | `codegen/cuda/context.py:179` | 14 fields incl. 4 typed bools (`is_balanced`, `is_block_group`, `is_dedup_hash`, `is_count`) | Dissolves — bools become op-type dispatch (`BalancedScanKernelDef` vs `BlockGroupKernelDef` etc., per Amendment 1 Gap 6) |
+| `CodeGenHooks` | `codegen/cuda/context.py:203` | 10 named `Callable \| None` slots | Dissolves — the "hooks" abstraction IS the anti-pattern. Replaced by `@register_render(NewOp, target=T)` — the new op type IS the extension point |
+| `KernelCtx` | `default_pipelines.py:66` | 12 fields incl. 2 bools (`tiled_cartesian`, `bg_enabled`) | Dissolves — strip flags, let pragma materialization put a typed wrap op in `ep.pipeline` |
+| `InitialProg` | `default_pipelines.py:48` | 5 fields | Dissolves — each pass's output IS the IR; no carrier needed |
+
+##### `CodeGenContext` field-by-field bucket assignment
+
+- **Bucket 1 (cross-pass data → typed attribute on IR op):**
+  `bound_vars`, `handle_vars`, `view_vars`, `output_vars`,
+  `rel_index_types`, `view_slot_offsets`. All become typed attributes
+  attached to `KernelDef` via the typed-attribute-dict (§ 3.2.1.2 Risk 2).
+- **Bucket 2 (intra-pass scratch → function-local / explicit kwarg):**
+  `balanced_idx1/2`, `tiled_cartesian_valid_var`,
+  `tiled_cartesian_ballot_done`, `bg_warp_begin_var`, `bg_warp_end_var`,
+  `bg_cumulative_var`, `bg_done_var`, `ws_queue_var`,
+  `ws_range_board_var`, `ws_live_handles`, `ws_cartesian_valid_var`,
+  `ws_cartesian_bound_vars`, `neg_pre_narrow`, `cartesian_bound_vars`.
+  Lifetime = ONE render call (§ 3.2.1.2 Risk 3 boundary).
+- **Bucket 3 (pragma scratch flags → DELETE via Phase P):**
+  `is_counting`, `dedup_hash_enabled`, `dedup_hash_vars`, `bg_enabled`,
+  `ws_enabled`, `ws_has_cartesian`, `ws_level`, `tiled_cartesian_enabled`,
+  `bg_histogram_mode`, `is_fan_out_explore`, `cartesian_as_product`,
+  `scalar_mode`, `is_leaf_level`, `inside_cartesian`. All disappear
+  when the owning pragma migrates to the plugin contract (§ 3.2.1.3).
+- **Bucket 4 (services → typed-key Services dict):** `name_counter` (→
+  `services.get(NameGen).fresh()`), `indent` (→ render-local
+  `StringBuilder.indent_context()`), `debug` / `is_jit_mode` (→
+  per-`Compiler` config), `output_var_name` (→ Bucket 1 attribute),
+  `tile_var` / `parent_tile_var` (→ Bucket 2), `group_size` (→
+  Bucket 1).
+
+##### `CodeGenHooks` dissolution rationale
+
+The 10 hook slots map 1:1 to existing pragma/feature dialects. Each
+is an extension point baked into the framework. The ACID test
+requires that adding a new pragma/feature does NOT edit this
+framework file — so each hook slot is itself a § 1 violation.
+
+After Phase P (§ 3.2.1.3) migrates each pragma to the plugin
+contract, each `ctx.hooks.<hook_name>(...)` callsite becomes a
+`@register_render(MatchingOpType, target=T)` dispatch on a typed op
+the pragma plugin contributes. `default_hooks()` + `CodeGenHooks`
+deleted when the last hook slot's owner has migrated.
+
+##### Helper functions that take `ctx` (~30)
+
+Located in `context.py:350-543`. Each mechanically replaced:
+`ind` / `inc_indent` / `dec_indent` → render-local `StringBuilder`;
+`gen_unique_name` → `services.get(NameGen).fresh()`;
+`with_bound_var` / `is_var_bound` → local scope passed explicitly;
+`get_rel_index_type` / `get_view_slot_base` → read from `op.attributes`;
+`gen_handle_var_name` → `services.get(NameGen).fresh(...)`.
+All pure-string template wrappers (`gen_view_access`, `gen_index_spec_key`,
+`gen_handle_state_key`, `gen_root_handle*`, `gen_degree`, `gen_valid`,
+`gen_get_value*`, `gen_child*`, `gen_iterators`, `gen_chained_prefix_calls*`)
+take primitives and move to `codegen/cuda/templates.py` with no `ctx`
+parameter.
+
+##### What survives from `context.py`
+
+`NegPreNarrowInfo` (typed scratch dataclass; passed as kwarg) and the
+pure-string template wrappers (the `plugin_gen_*` thunks). Both move
+to `codegen/cuda/templates.py`. `context.py` itself is deleted in
+the final dissolution PR.
+
+##### Other anti-pattern sites folded in
+
+Seven additional sites identified by the audit:
+
+| Site | Anti-pattern | Disposition |
+|---|---|---|
+| Surviving `mir.ExecutePipeline` bools (`count`, `concurrent_write`, `use_fan_out`, `dedup_hash`, `block_group`, `tiled_cartesian`) | Bool-field gate on typed op | Disappears when each owning pragma migrates to Phase P |
+| `ep_has_work_stealing(...)` helper (survives A3-2) | Helper anti-pattern (§ 2.1.1) | Delete with WorkStealing migration to Phase P |
+| `print_iir.py:78-94` — 4-way `isinstance(op, X_OPS)` ladder | Hardcoded dialect enumeration in framework code | Each dialect self-registers via `@register_print(dialect_id)`; framework reads registry. Phase P prerequisite. |
+| `render/__init__.py:120-138` — `_eager_register_all()` hardcodes dialect imports | Hardcoded dialect enumeration in framework code | Plugin entry-point discovery. Phase P prerequisite. |
+| `pipeline.py:35-38` — `_INDEX_HEADER` hardcodes index plugin names | Hardcoded enumeration | Index plugin contributes `cpp_headers`; look up dynamically. § 3.2.4 work. |
+| `_TERMINAL_WRAP_OPS` in `sorted_array/__init__.py` | Hardcoded enumeration of 3 specific wrap-op types | Disappears when those pragmas migrate to Phase P |
+| `core/verifier.py:121` — `if target != 'cuda': return set()` in framework `core/` | String-tagged dispatch + D6 violation | Per-`Compiler` codegen registry. Phase B2-2 work. |
+
+#### 3.2.1.2 Self-audit — does the proposed solution actually solve the issue?
+
+Before writing the dissolution PRs, the proposed solution was
+self-audited for the same anti-pattern at the next architectural
+floor up. Five risks identified + their fixes. **These fixes are
+prerequisites for the dissolution work — without them, the
+dissolution rebuilds the same anti-pattern one layer up.**
+
+| Risk | Threat | Fix |
+|---|---|---|
+| 1. `Services` becomes a named-field carrier | `services.name_gen`, `services.compiler`, ... — each new service edits the `Services` class. Same fixed-schema anti-pattern. | `Services` is a typed-key dict: `services.get[T](T) → T`. Adding a service = new type, no edit. |
+| 2. IR op classes grow per-feature with named binding fields | `KernelDef.view_bindings`, `KernelDef.output_binding`, `KernelDef.rel_index_bindings`, ... — each feature edits `KernelDef`. Bool-field anti-pattern at the IR layer. | MLIR-style typed attribute dict on every Op: `op.attributes[ViewBinding]`. Pragma plugins register their own attribute types; Op classes don't grow. |
+| 3. Bucket-2 `**scope` kwargs become stack-allocated context | If three nested renders all forward the same kwarg, you've reinvented context on the call stack. | Sharpen the bucket boundary: single-render scope only = Bucket 2. Multi-render scope IS cross-pass data → Bucket 1. If you find yourself threading the same kwarg through 3 frames, you've discovered a missed IR attribute. |
+| 4. `@register_X` decorators are module-global mutable state | `_PRAGMA_REGISTRY`, `_PLUGIN_REGISTRY`, render registry, lowering registry — all module-global. Decorator wraps mutable state. | Per-`Compiler` registries. Decorators are sugar that stages into a thread-local "current compiler" set during `compiler.register_pragma_plugin(...)`. Multiple Compiler instances never share registries. |
+| 5. Op classes themselves carry fixed schemas | `@dataclass class KernelDef` with named fields IS a fixed-schema attribute carrier at the IR layer. | Ops are typed shells declaring only name + region structure + verification. Per-feature data lives in `op.attributes`. (Risk 2 fix generalized.) |
+
+All five fixes are themselves the MLIR/LLVM/Cascades shape — see § 11.
+
+#### 3.2.1.3 The pragma plugin contract — Phase P (load-bearing)
+
+> **The deepest finding of this amendment.** Today's pragma surface
+> (`@pragma_handler(MyPragma, on=mir.X)`) is a constrained
+> *materialization-handler* primitive, not a plugin. A pragma cannot
+> contribute its own IR ops, cannot run as a general program pass,
+> cannot bundle its own lowerings + renders, and cannot declare
+> dependencies. The four built-in pragmas (BlockGroup, WorkStealing,
+> DedupHash, FanOut) work today only by leaking knowledge into the
+> framework. **Without a real pragma plugin contract, every other
+> phase of this redesign is shuffling code without changing the
+> extensibility surface.**
+>
+> Phase P (pragma plugin contract) is therefore the highest-priority
+> work in the redesign, ahead of Phase R / T / B2. The dissolution
+> work in § 3.2.1 + § 3.2.1.1 becomes a CONSEQUENCE of pragmas
+> migrating to the plugin contract — each pragma migration deletes
+> its corresponding framework leakage in the same commit.
+
+##### What today's `@pragma_handler` CANNOT do
+
+1. **Contribute its own IR ops** — the handler can only return an
+   existing op type; new IR ops require `Dialect(name=..., ops=[...])`
+   at dialect-construction time, NOT by a pragma.
+2. **Run as a general program pass** — `MirPragmaPass` is a SPECIFIC
+   framework-owned pass that only iterates `op.pragmas` and only
+   for ops where `on=ExecutePipeline` (per `pragma_pass.py:167`).
+3. **Bring its own lowerings + renders** — `@lowering` and
+   `@register_render` are decoupled from `@pragma_handler`. Three
+   separate module-global registries; no pragma association.
+4. **Express dependencies** — `PragmaCtx` carries only `compiler`.
+   No way to declare "I need NameGen + ViewLayout"; no way to
+   declare "I produce `DedupGate` ops; downstream passes that
+   consume them should run after me."
+5. **Bundle as one plugin** — a pragma is split across N files
+   registered against N module-globals (`_PRAGMA_REGISTRY`,
+   `_PLUGIN_REGISTRY`, render registry, lowering registry,
+   `Dialect.ops=[...]`). No `PragmaPlugin` object that names "this
+   pragma owns these ops + passes + lowerings + renders."
+
+##### Target shape — `PragmaPlugin`
+
+ONE atomic registration that bundles ALL of:
+
+```python
+@final
+@dataclass(frozen=True, slots=True)
+class BlockGroupPlugin(PragmaPlugin):
+  pragma_cls:        type[Pragma]              = BlockGroupPragma
+  new_ops:           tuple[type[Op], ...]      = (BgRoot, BgScope, BgScheduler)
+  new_attributes:    tuple[type[Attribute], ...] = (BgPlacementAttr,)
+  passes:            tuple[Pass, ...]          = (MaterializeBlockGroup(),)
+  lowerings:         tuple[Lowering, ...]      = (LowerBgRoot(), LowerBgScope(), LowerBgScheduler())
+  renders:           dict[str, tuple[Render, ...]] = field(default_factory=lambda: {
+    'cuda': (RenderBgRootCuda(), RenderBgScopeCuda(), RenderBgSchedulerCuda()),
+  })
+  requires_services: tuple[type, ...]          = (NameGen, ViewLayout)
+  produces_ops:      tuple[type[Op], ...]      = (BgRoot, BgScope, BgScheduler)
+  consumes_ops:      tuple[type[Op], ...]      = (mir.ExecutePipeline,)
+  preserves:         tuple[type, ...]          = (semi_naive_safety, pragma_compat)
+
+def register(compiler: Compiler) -> None:
+  compiler.register_pragma_plugin(BlockGroupPlugin())
+```
+
+`compiler.register_pragma_plugin(...)` unpacks the plugin's
+declarations into the per-Compiler registries (ops, attributes,
+passes, lowerings, renders, services) in one atomic transaction. If
+any registration conflicts (op-name collision, pass dependency
+cycle, render double-registration), the whole call fails atomically.
+
+##### What the framework knows about pragmas after Phase P
+
+**Nothing pragma-specific.** The framework owns:
+
+1. The `Pragma` base class + `PragmaPlugin` schema (typed shells).
+2. `Compiler.register_pragma_plugin(plugin)` (one-line API).
+3. Per-Compiler registries (typed dicts per § 3.2.1.2 Risk 4 fix).
+4. The pass scheduler (LLVM-style topo-sort on
+   produces/consumes/preserves; no hardcoded order).
+5. The verifier hooks.
+
+Every line of framework code that mentions a specific pragma name
+(`bg_enabled`, `ws_enabled`, `dedup_hash`, `is_fan_out_explore`,
+`_BUILTIN_BOOL_SHADOW_PRAGMAS`, `_TERMINAL_WRAP_OPS`, the 10
+`CodeGenHooks` slots, the surviving `ep.dedup_hash` / `ep.block_group`
+/ `ep.count` bool fields) is a § 1 violation and is deleted by the
+corresponding pragma's migration to the plugin contract.
+
+##### Per-pragma migration PR shape (parallel)
+
+One PR per pragma, run in parallel:
+
+1. Write the `PragmaPlugin` subclass with the pragma's new ops,
+   passes, lowerings, renders.
+2. Switch registration from legacy `@pragma_handler` to
+   `compiler.register_pragma_plugin(MyPlugin)`.
+3. Delete every framework leakage site for this pragma in the same
+   commit (bool field on EP, `CodeGenHooks` slot, `CodeGenContext`
+   flags, `LoweringCtx` fields, `ep_has_X` helper).
+4. Byte-equivalence gate: 535+ goldens green.
+
+`LoweringCtx`, `CodeGenContext`, `CodeGenHooks`, `RunnerGenState`
+shrink ATOMICALLY with each migration. After the fourth pragma
+migrates, `CodeGenHooks` has zero slots (delete the class),
+`CodeGenContext` has only target-agnostic scratch (Phase T-1 buckets
+dispose), `_TERMINAL_WRAP_OPS` is empty (delete the set).
+
+##### Why Phase P is load-bearing
+
+Until Phase P lands:
+
+- **Phase R** (RIR work) would design new typed runner ops without a
+  plugin contract for them. The new RIR ops would re-leak into the
+  framework the same way today's pragma ops do.
+- **Phase T** (LoweringCtx dissolution) can delete fields, but the
+  underlying need for those fields (pragma-specific scratch) doesn't
+  go away until pragmas own their own scratch via the plugin contract.
+- **Phase B2** (target parametricity) adds multi-target dispatch,
+  but a non-CUDA target still cannot ship as a plugin if pragmas
+  themselves cannot ship as plugins.
+
+After Phase P lands, Phases R / T / B2 all become *consequences* of
+the plugin contract being correct, rather than independent
+restructuring efforts.
+
+##### Re-prioritization
+
+The PR plan in § 6 is amended (see § 6.0) to add a **PR-P series**
+ahead of PR-2. PR-1a/b (already merged) are retained — they ship
+plumbing the plugin contract needs (per-Compiler dialect/target
+entry-point discovery). PR-1c (target threading) is retained but
+the `target` kwarg moves to the typed `Services` dict in Phase P
+(it's per-`Compiler.run` metadata, not per-feature data). PR-1d
+remains reverted. The Phase T-1 dissolution PRs from Amendment 2
+(T1-α/β/γ/δ) are RECLASSIFIED: each is now authored as part of the
+corresponding pragma's migration PR, not as standalone work.
+
 #### 3.2.2 Rename CUDA-shaped IIR ops to target-agnostic semantic names
 
 | Today (CUDA-shape name) | Target-agnostic name | Semantic meaning |
@@ -1354,6 +1604,113 @@ regression anchor).
 > infrastructure across PRs and made rebases noisy. Bundling by architectural
 > concern keeps the PR count manageable while the byte-equivalence harness
 > remains the per-PR safety net.**
+
+### 6.0 PR-P series — Pragma plugin contract (Phase P, Amendment 3)
+
+> **Highest-priority phase, ahead of everything else in § 6.** Per
+> § 3.2.1.3, without this series every other phase shuffles code
+> without changing the extensibility surface. The series consists of
+> five PRs: one foundation + four per-pragma migrations that can run
+> in parallel.
+
+#### 6.0.0 PR-P0 — Framework primitives (serial, blocks all P1-P4)
+
+| Change | Where |
+|---|---|
+| `PragmaPlugin` schema (typed dataclass: `pragma_cls`, `new_ops`, `new_attributes`, `passes`, `lowerings`, `renders`, `requires_services`, `produces_ops`, `consumes_ops`, `preserves`) | NEW `src/srdatalog/ir/core/pragma_plugin.py` |
+| `Compiler.register_pragma_plugin(plugin)` — atomic unpack into per-Compiler registries; conflict detection | `src/srdatalog/ir/core/dialect.py` (extends `Compiler`) |
+| Per-Compiler registries: `compiler.ops` / `attributes` / `passes` / `lowerings` / `renders` / `services` — typed dicts (§ 3.2.1.2 Risk 4 fix) | `src/srdatalog/ir/core/dialect.py` |
+| `Services` typed-key dict: `services.get[T](T) → T` (§ 3.2.1.2 Risk 1 fix) | NEW `src/srdatalog/ir/core/services.py` |
+| `Op.attributes: AttributeDict` typed attribute container (§ 3.2.1.2 Risks 2 + 5 fix) | `src/srdatalog/ir/core/op.py` (extends `Op` base) |
+| `Pass` base + `produces`/`consumes`/`preserves` declaration; LLVM-style topo-sort scheduler | `src/srdatalog/ir/core/passes.py` |
+| Decorator sugar — `@register_render`, `@lowering`, `@pragma_handler` stage into thread-local "current compiler" set during `register_pragma_plugin(...)` (Risk 4 fix); module-globals deprecated with WARN | `src/srdatalog/ir/core/decorators.py` |
+| Legacy `@pragma_handler` continues to work as an explicit single-handler PragmaPlugin sugar form during the per-pragma migrations | back-compat shim in `pragma.py` |
+
+**Acceptance**: byte-equiv 535+ goldens green. Existing pragmas
+continue to work via the back-compat shim. New `PragmaPlugin` API
+documented with one demo plugin (jaccard? — pending #68 cleanup per
+§ 10.3 audit note).
+
+**Why bundle (not split)**: every primitive listed depends on the
+others structurally. Splitting would require introducing temporary
+back-compat scaffolding that gets immediately deleted. Estimate
+~2500 LOC + tests.
+
+#### 6.0.1 PR-P1 / P2 / P3 / P4 — Per-pragma migrations (parallel after P0)
+
+Four PRs, one per built-in pragma, all parallel (file-disjoint):
+
+| PR | Pragma | Touches |
+|---|---|---|
+| PR-P1 | BlockGroup | `dialects/parallel/block_group/` + delete `ep.block_group` bool + delete `bg_*` fields in `CodeGenContext`/`LoweringCtx` + delete BG `CodeGenHooks` slots + delete `ep_has_block_group_root` helper |
+| PR-P2 | WorkStealing | `dialects/parallel/atomic_ws/` + delete `ep.work_stealing` (already done? confirm) + `ep_has_work_stealing(...)` helper (survives A3-2) + `ws_*` fields in contexts + WS `CodeGenHooks` slots |
+| PR-P3 | DedupHash | dialect TBD + `ep.dedup_hash` bool + `dedup_hash_*` fields + dedup `CodeGenHooks` slots + `ep_has_dedup_gate` helper |
+| PR-P4 | FanOut | dialect TBD + `ep.use_fan_out` bool + `is_fan_out_explore` field + FanOut `CodeGenHooks` slots |
+
+Per-PR shape:
+
+1. Write `<Pragma>Plugin(PragmaPlugin)` with the pragma's new ops,
+   passes, lowerings, renders.
+2. Switch registration: legacy `@pragma_handler` → `compiler.register_pragma_plugin(MyPlugin)`.
+3. **Same commit**: delete every framework leakage site for this
+   pragma. The framework grep for the pragma's name returns ZERO
+   matches after this PR lands.
+4. Byte-equiv 535+ goldens green.
+
+**Why parallel**: each pragma's migration is file-disjoint from the
+others. Each PR touches its own dialect package + the leakage sites
+unique to its pragma. Merge conflicts limited to shared dissolution
+targets (`CodeGenContext`, `LoweringCtx`) which use atomic-decrement-
+field semantics (each PR deletes its own fields, the PR list shrinks
+both contexts in parallel without conflict).
+
+**Acceptance**: after all 4 land, `CodeGenHooks` has zero slots
+(delete the class), `_TERMINAL_WRAP_OPS` is empty (delete the set),
+`mir.ExecutePipeline` has zero pragma-named bool fields. Byte-equiv
+535+ green.
+
+#### 6.0.2 PR-P5 — Context cleanup (consequence)
+
+After PR-P0 + PR-P1/2/3/4 land:
+
+| Change | Where |
+|---|---|
+| Delete `CodeGenHooks` class | `codegen/cuda/context.py` |
+| Delete `RunnerGenState` class (replaced by typed IR metadata) | same |
+| Reduce `CodeGenContext` to bucket-2 + bucket-4 surface (target-agnostic intra-pass scratch + service handles) | same |
+| Reduce `LoweringCtx` similarly | `dialects/relation/sorted_array/lowerings/__init__.py` |
+| Move `NegPreNarrowInfo` + pure-string template wrappers (the `plugin_gen_*` thunks) to `codegen/cuda/templates.py` | NEW file |
+| Delete `_TERMINAL_WRAP_OPS` set | `dialects/relation/sorted_array/__init__.py` |
+| Delete `_PRAGMA_REGISTRY` / `_PLUGIN_REGISTRY` module-globals (registries are now per-Compiler) | `core/pragma.py` + `codegen/cuda/plugin.py` |
+| Delete the back-compat shim for legacy `@pragma_handler` (every pragma is now a PragmaPlugin) | `core/pragma.py` |
+
+**Acceptance**: byte-equiv 535+ green. `context.py` (the remnant)
+is renamed to reflect its shrunk role, OR deleted entirely with the
+remaining helpers absorbed into `templates.py`. `LoweringCtx` is
+reduced to its target-agnostic core (or also deleted; depends on
+how many call sites remain).
+
+#### 6.0.3 PR-P series total
+
+| PR | Concern | Est. size | Sequence |
+|---|---|---|---|
+| PR-P0 | Framework primitives (PragmaPlugin schema, per-Compiler registries, typed Services, Op.attributes, Pass.produces/consumes, decorator sugar) | ~2500 LOC | first, serial |
+| PR-P1 | BlockGroup migration | ~1500 LOC | parallel with P2/P3/P4 |
+| PR-P2 | WorkStealing migration | ~1500 LOC | parallel |
+| PR-P3 | DedupHash migration | ~1000 LOC | parallel |
+| PR-P4 | FanOut migration | ~1000 LOC | parallel |
+| PR-P5 | Context cleanup (consequence) | ~800 LOC (mostly deletion) | last, serial |
+
+**Total: 6 PRs, ~8300 LOC**, with PR-P1/P2/P3/P4 in parallel.
+
+After PR-P series lands, the existing PR-2/3/4/5/6 plan from § 6.1
+onwards re-applies with reduced scope — most of the dissolution
+work the original plan called for is already done as Phase P
+consequences. PR-2/3 (RIR) now adds runner ops as additional
+PragmaPlugins (the runner is essentially a meta-pragma); PR-4
+(IIR rename) is unchanged; PR-5 (index plugin split) is reduced
+to the `pipeline.py:_INDEX_HEADER` dynamic lookup; PR-6 (multi-
+target + D20) is unchanged.
 
 ### 6.1 PR-1 — Foundation: LowerCtx split + target parametricity (Wave T1 + B2-1)
 
@@ -1744,3 +2101,161 @@ record of WHEN and WHY a change landed.
 | Discipline added | D22 (no through-state contexts; ctx-field count strictly monotonically decreasing). Ratchets per the standard WARN-then-HARD cadence. |
 | Forward-compat | PR-1a, PR-1b already merged and unaffected. PR-1c (target threading via carrier dataclass fields) is now technically a discipline violation under D22 — the `target` field on `InitialProg` / `KernelCtx` is a small bucket-1 leak that the Phase T-1 dissolution work will sweep up. Not reverted; the dissolution PRs will move `target` to the `Services` handle (it's per-`Compiler.run` metadata, not per-feature data). |
 | Scope NOT exempt | Unlike Amendment 1, Amendment 2 directly invalidates a merged PR's design. The audit (in flight) is sweeping for any other fixed-schema carriers that should be added to the dissolution list. Per-PR replan of the Phase T-1 work happens after the audit lands. |
+
+### Amendment 3 — full carrier dissolution + pragma plugin contract + architectural precedent
+
+| Field | Value |
+|---|---|
+| Date | 2026-05-19 |
+| Trigger (1) | User asked "see if entire `context.py` is unnecessary under correct design?" — analysis confirmed the entire `src/srdatalog/ir/codegen/cuda/context.py` (543 LOC) dissolves. |
+| Trigger (2) | User noted "this declarative + context data managing sounds like some familiar things in database or some other dev" — the pattern is exactly relational query compilation (Volcano/Cascades/Calcite/DuckDB), MLIR dialects, LLVM analyses, FRP UI. 40 years of validation. |
+| Trigger (3) | User asked "also please review if your planned solution actually solve the issue, not introduce just new tangled non-declarative and global state" — self-audit identified 5 risks where the proposed solution would have rebuilt the anti-pattern one layer up. |
+| Trigger (4) | **The load-bearing finding.** User asked "we have pragma which is actually meta programming will effect compiler, they should be no hardcode, but some pass facility allow the pragma with these package like compiler plugin actually works" + "is current pragma contain a written pass, an customized IR, and a rewrite all doable as a pragma?" — answer: NO. Today's `@pragma_handler` is a constrained materialization-handler, NOT a plugin. A pragma cannot contribute IR ops, run as a general pass, bundle lowerings + renders, or declare dependencies. Without a real pragma plugin contract, every other phase shuffles code without changing the extensibility surface. |
+| Trigger (5) | User: "what is next stage and the work can be parallel working on?... without it none of work is correct, just moving code make increasing code loc?... where we are just increasing useless entropy?" — this re-prioritizes the entire PR plan. |
+| Sections touched | § 3.2.1.1 (NEW — full carrier dissolution scope); § 3.2.1.2 (NEW — self-audit: 5 risks + their fixes — typed-key Services dict, MLIR-style attribute dict on ops, sharpened bucket-2 boundary, per-Compiler registries, ops as typed shells); § 3.2.1.3 (NEW — the pragma plugin contract: `PragmaPlugin` schema, `register_pragma_plugin()` API, what the framework knows about pragmas after Phase P = nothing pragma-specific); § 6.0 (NEW — PR-P series: PR-P0 framework primitives serial; PR-P1/2/3/4 per-pragma migrations parallel; PR-P5 context cleanup as consequence; 6 PRs total ~8300 LOC); § 11 (NEW — architectural precedent across 4 domains); § 10.3 (this entry). |
+| Entropy retrospective | PR-1a/b (entry-point split + shim renames) ship plumbing the plugin contract needs; legitimately load-bearing. PR-1c (target threading via carrier dataclass fields) is small-scope plumbing but creates a bucket-1 leak that Phase P sweeps up. PR-1d (CudaRenderCtx) was pure entropy — moving fields between two equally-anti-pattern carriers; reverted in #82. The original PR-2/3/4 plan (RIR work) is NOT entropy but is BLOCKED by Phase P — running it first would design RIR ops around the wrong plugin contract and require a second rewrite. **Net assessment: ~10% of the PR work to date was entropy (PR-1d), ~30% was useful-but-out-of-order (B-series, A3-series — useful as inputs to Phase P), ~60% was load-bearing (PR-1a/b foundation, C-pragma typed-class series, the kernel-body declarative lowerings).** |
+| Highest-priority work | Phase P (§ 3.2.1.3 + § 6.0). All other phases become consequences. |
+| Carriers added to dissolution scope | `CodeGenContext` (38 fields), `CodeGenHooks` (10 callable slots), `RunnerGenState` (14 fields), plus 30+ ctx-taking helper functions in `context.py`. All of `context.py` (543 LOC) deleted by PR-P5. |
+| Other anti-pattern sites folded in | 7 additional sites identified by audit: surviving `mir.ExecutePipeline` bool fields, `ep_has_work_stealing` survivor, `print_iir.py` isinstance ladder, `render/__init__.py` hardcoded dialect imports, `pipeline.py` `_INDEX_HEADER` map, `_TERMINAL_WRAP_OPS` enumeration, `core/verifier.py` string-tagged dispatch + D6 violation. Most dissolve when their owning pragma migrates to Phase P. |
+| Precedent recognized | Relational query compilation (Volcano 1993 → Cascades → Calcite → DuckDB 2024); MLIR (dialects + typed Op attributes + conversion patterns, no `ConversionContext`); LLVM (analyses via `getAnalysis<T>()`, not ctx fields); FRP UI (React/Solid — components are data, hooks are lexical, "Context Providers" carry services not feature accumulators). § 11 spells out the mapping per domain. |
+| PR #68 jaccard demo audit note | Concurrent audit of PR #68 found PASS-WITH-CAVEATS: zero edits to existing files (ACID-test letter satisfied), but the demo internally uses `ctx.dedup_hash` bool-field flip and imports private `_lower_insert_into` — the same bool-on-typed-op anti-pattern the redesign is retiring. Demo cannot yet be cited as proof of the additive contract; four follow-ups: (1) public re-export of the lowering helper, (2) drop the `dedup_hash` flip, (3) close the `_lower_inner_chain` registry gap, (4) replace `compiler._plugins_loaded` private access. Phase P cleans up the framework side; the demo updates separately. |
+| Discipline added | Amendment 3 reaffirms Amendment 2's D22 (ctx-field count monotonic decrease) and adds, implicitly, D23 (no pragma name in framework code — every framework reference to a specific pragma class or pragma-named field is a § 1 violation, blocked once Phase P lands). |
+| Forward-compat | All amendments compose. Amendment 1 = typed semantics. Amendment 2 = no through-state contexts. Amendment 3 = full dissolution scope + Phase P pragma plugin contract + architectural precedent. PR-1a/b retained; PR-1c retained but `target` moves to `Services` in Phase P; PR-1d reverted. |
+
+## 11. Architectural precedent (Amendment 3)
+
+The "everything is IR data; passes communicate only via IR; services
+are injected, not accumulated" shape we are converging on is not a
+new invention. It has 40 years of validation in four adjacent fields.
+This section names the precedent so future contributors and reviewers
+can pattern-match against existing literature rather than re-deriving.
+
+### 11.1 Relational query compilation
+
+The closest analogue. A SQL query is data (an AST). A logical plan is
+IR. A physical plan is IR. The emitted operator tree (or compiled
+machine code, for compiled query engines) is the final text. Every
+stage transforms IR; no mutable "context" carries information across
+stages. Precedents:
+
+- **Volcano** (Graefe, 1993) introduced the iterator-based execution
+  model and the optimizer-generator framework. Optimizer rules are
+  declarative pattern→pattern transformations. The "context" of an
+  expression is its pattern + its cost annotation, attached to the
+  expression itself — not an external state object.
+- **Cascades** (Graefe, 1995) refined Volcano with the "Memo"
+  structure: every logical expression and its equivalent physical
+  alternatives live in groups indexed by logical equivalence. Cost
+  estimates, properties, and bound plans are attached to the
+  group/expression — IR-as-data carrying its own metadata. The
+  framework is the optimizer; the rules are the plugins.
+- **Apache Calcite** (Hyde et al., 2010s) made Cascades-style
+  optimization pluggable. New SQL dialects, new optimization rules,
+  new physical conventions, new cost models all register via
+  `@RelOpt*` annotations. The framework knows nothing about specific
+  dialects; the registries are the source of truth.
+- **DuckDB** (Raasveldt & Mühleisen, 2020s) takes the same shape to
+  a vectorized engine: expressions are typed IR nodes, optimization
+  passes consume + produce IR, the executor walks the final IR. No
+  global context carries dialect-specific state.
+
+**Mapping to srdatalog:** MIR is our logical plan; IIR + RIR are our
+physical plans; the rendered C++ is our compiled output. `@lowering`
+rules are Cascades-style transformations. `@register_render` is our
+emission-side plugin point. The Memo group has no analogue here
+because we don't do cost-based optimization — but the IR-attached
+metadata shape is the same.
+
+### 11.2 MLIR
+
+The most direct architectural sibling. MLIR (Lattner et al., 2019,
+LLVM project) is the modern reference for IR-centric compilation:
+
+- **Dialects** are plugins. A dialect ships its `Op`s, their
+  attributes, type system, and verification rules. The framework
+  knows nothing about specific dialects.
+- **Op attributes** carry all per-op metadata. No "context" carries
+  per-op state across passes. If pass B needs information that pass A
+  computed, that information is an attribute on the op.
+- **Conversion patterns** are typed: `@register_conversion_pattern(
+  SourceOp, TargetOp)`. The framework's `DialectConversion` driver
+  consults the registry. There is no `ConversionContext` carrying
+  feature flags.
+- **Pass managers** are services. They schedule passes; they do not
+  accumulate state on behalf of features.
+- Adding a new dialect or a new conversion pattern is purely
+  additive — the canonical example is the affine + linalg + vector +
+  llvm dialect stack, every dialect added without editing the
+  framework.
+
+**Mapping to srdatalog:** MIR/IIR/RIR are our dialects. `Pragma` ops
+are our op attributes (typed, post Amendment 1). `@lowering` and
+`@register_render` are our conversion patterns. The `Compiler` is
+our pass manager. The Phase R/T/B2 work brings srdatalog into
+structural alignment with MLIR's plugin contract.
+
+### 11.3 LLVM (legacy pass manager + analyses)
+
+The classical compiler architecture for IR + pull-based analyses:
+
+- **Passes** declare their dependencies on **Analyses**. The
+  `PassManager` resolves and caches analysis results.
+- An Analysis is pulled, never pushed: a pass that needs the
+  dominator tree calls `getAnalysis<DominatorTreeAnalysis>()`. The
+  result is typed, cached, and invalidated explicitly when its
+  inputs change. There is no `ctx.dominator_tree` field.
+- New analyses are additive: a plugin declares a new Analysis class
+  with a public ID; passes opt in by name.
+
+**Mapping to srdatalog:** the four `topology_*` checks
+(`semi_naive_safety`, `pragma_compat`, etc.) are analyses today, but
+they execute imperatively at pipeline construction time. Phase R
+makes them pull-based via the verifier infrastructure
+(`verify_renderability`, `verify_runner_completeness`). Future work
+generalizes to a typed Analysis registry, mirroring LLVM's shape.
+
+### 11.4 Functional reactive UI (React, Solid, Elm)
+
+The shape is not compiler-specific. The same pattern in UI:
+
+- **Components are data** (JSX trees, virtual DOM nodes).
+- **State is lexical** — `useState`, `useReducer`, signals — never
+  a global context attribute.
+- **"Context Providers"** carry services (theme, router, auth,
+  i18n) — not feature accumulators. A new feature does NOT add a
+  field to the theme context; it adds its own provider.
+
+**Mapping to srdatalog:** the no-context principle here is the
+direct analogue of React's "props down, events up" + Context-for-
+services discipline. Rendering a `KernelDef` op is rendering a
+component; the op's typed bindings are its props; the `Services`
+handle is the Context Provider for `name_gen` / `compiler` /
+`plugin_registry`.
+
+### 11.5 Pattern summary
+
+| Domain | Data | Pipeline | Per-op metadata | Services |
+|---|---|---|---|---|
+| Relational compilation | SQL → logical → physical plan | Optimizer rules | Memo group annotations | Catalog |
+| MLIR | dialect ops | Conversion patterns | Op attributes | PassManager |
+| LLVM | IR | Passes | (none — IR + Analyses) | PassManager + AnalysisManager |
+| FRP UI | JSX | Render tree | Component props | Context Providers |
+| **srdatalog (target)** | MIR/IIR/RIR ops | `@lowering` / `@register_render` | Typed `Pragma` + `ViewBinding` etc. | `Services` handle |
+
+The shape is consistent across all five rows: **data carries its own
+typed metadata; transformations are declarative pattern→pattern;
+services are injected, not accumulated.** When this redesign feels
+like reinventing something, that something is one of these four
+established models — and the design choices have known names. Reach
+for the literature when in doubt.
+
+### 11.6 What this does NOT mean
+
+This precedent does NOT claim srdatalog should adopt MLIR's exact
+API surface or recompile to MLIR IR (it could, in a future phase —
+spec § 8.6 already sketches that as out-of-scope-but-aligned). It
+claims only that the SHAPE we are converging on is well-trodden,
+and naming the precedent helps reviewers + future contributors
+avoid re-deriving design choices from first principles. The four
+references above are the recommended background reading for anyone
+shipping a non-trivial Phase R / T / B2 PR.

@@ -42,6 +42,7 @@ from __future__ import annotations
 
 from typing import NoReturn
 
+from srdatalog.ir.core.attribute import Attribute, AttributeDict
 from srdatalog.ir.core.dialect import Compiler, Dialect
 from srdatalog.ir.core.lower_ctx import LowerCtx, NameGen, ViewLayout
 from srdatalog.ir.core.ops import Op, Type
@@ -51,12 +52,14 @@ from srdatalog.ir.core.passes import (
   LoweringMissingError,
   LoweringPass,
   Pass,
+  PassCycleError,
   PassDriver,
   PassOrderingError,
   ProgramPass,
   Rewrite,
   RewritePass,
   program_pass,
+  topo_sort_passes,
 )
 from srdatalog.ir.core.plugin import (
   DIALECT_ENTRY_POINT_GROUP,
@@ -68,6 +71,7 @@ from srdatalog.ir.core.plugin import (
   PluginLoadError,
 )
 from srdatalog.ir.core.pragma import (
+  MaterializePragmaPass,
   Pragma,
   PragmaConfigError,
   PragmaCtx,
@@ -78,7 +82,22 @@ from srdatalog.ir.core.pragma import (
   has_pragma,
   pragma_handler,
 )
+from srdatalog.ir.core.pragma_plugin import (
+  AttributeNameCollisionError,
+  MissingRequiredServiceError,
+  OpNameCollisionError,
+  PragmaPlugin,
+  PragmaPluginConflictError,
+  Render,
+  RenderDoubleRegistrationError,
+  pragma_plugin,
+)
 from srdatalog.ir.core.scope import EmptyScope, Scope
+from srdatalog.ir.core.services import (
+  ServiceConflictError,
+  ServiceMissingError,
+  Services,
+)
 from srdatalog.ir.core.strategy import (
   Strategy,
   all_,
@@ -116,6 +135,9 @@ __all__ = [
   'ENTRY_POINT_GROUP',
   'TARGET_ENTRY_POINT_GROUP',
   'AmbiguousLowering',
+  'Attribute',
+  'AttributeDict',
+  'AttributeNameCollisionError',
   'Compiler',
   'Dialect',
   'EmptyScope',
@@ -123,9 +145,13 @@ __all__ = [
   'Lowering',
   'LoweringMissingError',
   'LoweringPass',
+  'MaterializePragmaPass',
+  'MissingRequiredServiceError',
   'NameGen',
   'Op',
+  'OpNameCollisionError',
   'Pass',
+  'PassCycleError',
   'PassDriver',
   'PassOrderingError',
   'PluginConflictError',
@@ -136,10 +162,17 @@ __all__ = [
   'PragmaConfigError',
   'PragmaCtx',
   'PragmaOrderingError',
+  'PragmaPlugin',
+  'PragmaPluginConflictError',
   'ProgramPass',
+  'Render',
+  'RenderDoubleRegistrationError',
   'Rewrite',
   'RewritePass',
   'Scope',
+  'ServiceConflictError',
+  'ServiceMissingError',
+  'Services',
   'Strategy',
   'Type',
   'UnconsumedPragmaError',
@@ -157,11 +190,13 @@ __all__ = [
   'id_',
   'one',
   'pragma_handler',
+  'pragma_plugin',
   'program_pass',
   'repeat',
   'seq',
   'some',
   'top_down',
+  'topo_sort_passes',
   'try_',
   'verify_renderability',
 ]

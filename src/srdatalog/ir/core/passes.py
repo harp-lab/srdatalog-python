@@ -373,15 +373,37 @@ class Pass(ABC):
   Per `docs/compiler_redesign.md` §4: every step in every
   `Compiler.run` pipeline is one of these three kinds; nothing else.
 
-  `consumes` / `produces` declare dialect dependencies for the
-  ordering validation done by `Compiler.run` at construction time
-  (per the R4 research report and `phase_b_lowering_dispatcher.md`
-  §5). They are advisory data, not enforced inside `apply`.
+  `consumes` / `produces` (str-typed, dialect names) declare dialect
+  dependencies for the dialect-level ordering validation done by
+  `Compiler.run` at construction time (per the R4 research report and
+  `phase_b_lowering_dispatcher.md` §5). They are advisory data, not
+  enforced inside `apply`.
+
+  `consumes_ops` / `produces_ops` / `preserves` (PR-P0, spec §
+  3.2.1.3) declare op-type-level dependencies for the LLVM-style
+  topological scheduler. A pass that `produces_ops=(BgRoot, ...)`
+  must run before any pass that `consumes_ops=(BgRoot, ...)`. The
+  scheduler (`topo_sort_passes`) is consulted by
+  `Compiler.register_pragma_plugin` when a plugin contributes new
+  passes; the existing dialect-name `consumes` / `produces` remain
+  the surface for legacy pipelines built by hand.
+
+  Naming note: the spec example in § 3.2.1.3 / § 6.0.0 lists Pass
+  fields as `produces` / `consumes` (typed as op classes). The
+  pre-PR-P0 framework already uses those names for str-typed dialect
+  IDs (`tuple[str, ...]`); renaming would break every existing pass
+  subclass and every pipeline that constructs them. The op-typed
+  fields are introduced under suffixed names (`produces_ops`,
+  `consumes_ops`, `preserves`) so the two ordering surfaces coexist
+  cleanly during the per-pragma migration phases (PR-P1..P5).
   '''
 
   name: str
   consumes: tuple[str, ...] = ()
   produces: tuple[str, ...] = ()
+  consumes_ops: tuple[type, ...] = ()
+  produces_ops: tuple[type, ...] = ()
+  preserves: tuple[type, ...] = ()
 
   @abstractmethod
   def apply(self, prog: Any, compiler: Any) -> Any:
@@ -555,6 +577,91 @@ class ProgramPass(Pass):
     return self.fn(prog, compiler)
 
 
+class PassCycleError(Exception):
+  '''Cycle in the op-type-level produces/consumes graph across the
+  passes registered with a `Compiler` (PR-P0, spec § 3.2.1.3).
+
+  Raised by `topo_sort_passes` when the LLVM-style scheduler cannot
+  produce a linear order. Carries the cycle as a list of pass names
+  for diagnostics.
+
+  Distinct from `PassOrderingError` (pipeline-position-based dialect
+  dependency error). `PassCycleError` is the op-type-graph error
+  raised during plugin registration; `PassOrderingError` is the
+  pipeline-construction error raised at `Compiler.run` time.
+  '''
+
+  def __init__(self, cycle: list[str]) -> None:
+    self.cycle = cycle
+    super().__init__(
+      f'pass produces/consumes graph has a cycle involving: {cycle}. '
+      f'A pass that consumes an op type must run after every pass that '
+      f'produces it; declare an alternative ordering via `preserves` or '
+      f'split the cyclic responsibility across separate passes. See '
+      f'spec § 3.2.1.3 (LLVM-style topo-sort).'
+    )
+
+
+def topo_sort_passes(passes: list[Pass]) -> list[Pass]:
+  '''Topologically sort `passes` by op-type-level produces/consumes.
+
+  LLVM legacy-pass-manager shape (spec § 11.3): a pass that
+  `produces_ops=(X, ...)` must run before any pass that
+  `consumes_ops=(X, ...)`. Passes that share neither relation may run
+  in any order; the scheduler picks a deterministic order (stable on
+  the input list, lex-tiebreak on pass name when sets allow it).
+
+  Returns a new list of `Pass` instances in topo-sorted order. Raises
+  `PassCycleError` if no linear order exists.
+
+  Self-edges (a pass that both produces and consumes the same op
+  type) are tolerated — the produces side is interpreted as "after
+  this pass, instances of X exist", and the consumes side as "this
+  pass may read X". A pass legitimately may produce and consume the
+  same type (the materialization passes do exactly that).
+  '''
+  # Map op type -> indices of passes that produce that type.
+  producers: dict[type, list[int]] = {}
+  for i, p in enumerate(passes):
+    for op_type in p.produces_ops:
+      producers.setdefault(op_type, []).append(i)
+
+  # Build edges: producer index -> consumer index.
+  out_edges: dict[int, set[int]] = {i: set() for i in range(len(passes))}
+  in_degree: dict[int, int] = dict.fromkeys(range(len(passes)), 0)
+  for j, p in enumerate(passes):
+    for op_type in p.consumes_ops:
+      for i in producers.get(op_type, []):
+        if i == j:
+          # Self-edge tolerated; see docstring.
+          continue
+        if j not in out_edges[i]:
+          out_edges[i].add(j)
+          in_degree[j] += 1
+
+  # Kahn: pop lex-smallest (by pass name, then original index) zero-
+  # in-degree node, repeat. Stable on inputs where the graph permits.
+  def _sort_key(i: int) -> tuple[str, int]:
+    return (passes[i].name, i)
+
+  ready = sorted([i for i, d in in_degree.items() if d == 0], key=_sort_key)
+  order: list[int] = []
+  while ready:
+    i = ready.pop(0)
+    order.append(i)
+    new_ready: list[int] = []
+    for j in sorted(out_edges[i], key=_sort_key):
+      in_degree[j] -= 1
+      if in_degree[j] == 0:
+        new_ready.append(j)
+    ready = sorted(set(ready) | set(new_ready), key=_sort_key)
+
+  if len(order) != len(passes):
+    remaining = sorted(set(range(len(passes))) - set(order))
+    raise PassCycleError([passes[i].name for i in remaining])
+  return [passes[i] for i in order]
+
+
 def program_pass(
   *,
   name: str,
@@ -594,6 +701,7 @@ __all__ = [
   'LoweringMissingError',
   'LoweringPass',
   'Pass',
+  'PassCycleError',
   'PassDependencyError',
   'PassDriver',
   'PassOrderingError',
@@ -603,5 +711,6 @@ __all__ = [
   'lowering',
   'program_pass',
   'rewrite',
+  'topo_sort_passes',
   'verifier',
 ]

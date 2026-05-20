@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import dataclasses
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
 
 from srdatalog.ir.core.ops import Op
 
@@ -202,11 +202,19 @@ def _map_children(op: Op, transform: Strategy, *, all_or_nothing: bool) -> Op | 
   When `all_or_nothing=False`, transform-fails are treated as
   identity (Stratego `try_(all)` semantics, used by traversal
   walkers).
+
+  The framework-owned `attributes` field on the `Op` base (PR-P0,
+  spec § 3.2.1.2 Risks 2 + 5) is intentionally skipped — it carries
+  per-pass metadata, NOT IR children. `dataclasses.replace` preserves
+  the field's value when it is not in the kwargs, so the resulting
+  op still carries the same `AttributeDict` reference.
   '''
   # Op subclasses are always dataclasses by D4 (see design_principles.md).
   changed = False
-  new_values: dict[str, object] = {}
+  new_values: dict[str, Any] = {}
   for f in dataclasses.fields(op):
+    if f.name == 'attributes':
+      continue
     val = getattr(op, f.name)
     new_val, child_changed, ok = _transform_field(val, transform, all_or_nothing)
     if not ok:
@@ -221,14 +229,20 @@ def _map_children(op: Op, transform: Strategy, *, all_or_nothing: bool) -> Op | 
 def _map_one_child(op: Op, transform: Strategy) -> Op | None:
   '''Apply `transform` to exactly one Op-valued child (left-to-right
   first that succeeds). Returns None if no child succeeds.
+
+  The framework-owned `attributes` field (PR-P0) is skipped — see
+  `_map_children` docstring for the rationale.
   '''
   # Op subclasses are always dataclasses by D4 (see design_principles.md).
   for f in dataclasses.fields(op):
+    if f.name == 'attributes':
+      continue
     val = getattr(op, f.name)
     if isinstance(val, Op):
       r = transform(val)
       if r is not None and r is not val:
-        return dataclasses.replace(op, **{f.name: r})
+        kw: dict[str, Any] = {f.name: r}
+        return dataclasses.replace(op, **kw)
     elif isinstance(val, (list, tuple)):
       for i, x in enumerate(val):
         if isinstance(x, Op):
@@ -236,18 +250,24 @@ def _map_one_child(op: Op, transform: Strategy) -> Op | None:
           if r is not None and r is not x:
             new_list = list(val)
             new_list[i] = r
-            return dataclasses.replace(op, **{f.name: type(val)(new_list)})
+            kw_seq: dict[str, Any] = {f.name: type(val)(new_list)}
+            return dataclasses.replace(op, **kw_seq)
   return None
 
 
 def _map_some_children(op: Op, transform: Strategy) -> Op | None:
   '''Apply `transform` to as many Op-valued children as succeed.
   Returns None if no child succeeds (Stratego `some` semantics).
+
+  The framework-owned `attributes` field (PR-P0) is skipped — see
+  `_map_children` docstring for the rationale.
   '''
   # Op subclasses are always dataclasses by D4 (see design_principles.md).
   any_succeeded = False
-  new_values: dict[str, object] = {}
+  new_values: dict[str, Any] = {}
   for f in dataclasses.fields(op):
+    if f.name == 'attributes':
+      continue
     val = getattr(op, f.name)
     new_val, ok = _transform_field_some(val, transform)
     new_values[f.name] = new_val

@@ -265,15 +265,36 @@ def pragma_handler(
   def _wrap(
     fn: Callable[[Any, Pragma, PragmaCtx], Any],
   ) -> Callable[[Any, Pragma, PragmaCtx], Any]:
-    _PRAGMA_REGISTRY.append(
-      PragmaRegistration(
-        pragma_cls=pragma_cls,
-        on=on,
-        fn=fn,
-        before=tuple(before),
-        after=tuple(after),
-      )
+    reg = PragmaRegistration(
+      pragma_cls=pragma_cls,
+      on=on,
+      fn=fn,
+      before=tuple(before),
+      after=tuple(after),
     )
+
+    # PR-P0 back-compat shim (spec § 6.0.0 row 8): if a
+    # `_compiler_registration_scope(compiler)` is active, stage the
+    # registration into THAT compiler's per-Compiler pragma_handlers
+    # list. Otherwise fall back to the legacy module-global registry
+    # (existing behavior, deleted in PR-P5).
+    #
+    # The per-Compiler list lives on `compiler._pragma_handlers`
+    # (private attr; the framework owns it). It is populated either
+    # directly here (when this decorator runs inside a registration
+    # scope) or by `register_pragma_plugin` unpacking the plugin's
+    # `pragma_cls` into a synthetic legacy registration. PR-P5
+    # collapses both code paths into the typed PragmaPlugin contract.
+    from srdatalog.ir.core.dialect import _get_current_compiler
+
+    compiler = _get_current_compiler()
+    if compiler is not None:
+      handlers: list[PragmaRegistration] = getattr(compiler, '_pragma_handlers', [])
+      if not handlers:
+        compiler._pragma_handlers = handlers  # type: ignore[attr-defined]
+      handlers.append(reg)
+    else:
+      _PRAGMA_REGISTRY.append(reg)
     return fn
 
   return _wrap
@@ -327,7 +348,165 @@ def has_pragma(op: Any, pragma_cls: type[Pragma]) -> bool:
   return any(isinstance(p, pragma_cls) for p in pragmas)
 
 
+# -----------------------------------------------------------------------------
+# PR-P0 back-compat Pass: MaterializePragmaPass
+#
+# When a `@pragma_handler` is staged into a per-Compiler scope via
+# `_compiler_registration_scope`, the framework needs a Pass instance
+# that actually runs those handlers as part of `compiler.run(...)`.
+# Today's `mir.pragma_pass.MirPragmaPass` is the production handler-
+# runner, but it pulls from the module-global registry. The shim below
+# is a lightweight Pass that iterates `get_compiler_pragma_handlers`
+# (which returns the per-Compiler list when present) and applies each
+# handler to matching ops in `prog`.
+#
+# PR-P5 deletes this shim alongside the module-global registry; by
+# then every pragma is a full `PragmaPlugin` with its own typed Pass.
+# -----------------------------------------------------------------------------
+
+
+def _materialize_pragma_pass_factory() -> Any:
+  '''Lazily build the `MaterializePragmaPass` class so its
+  dependency on `Pass` (from `passes.py`, which imports Compiler from
+  `dialect.py`) doesn't introduce a module-load cycle.
+
+  Returns the class; instances are constructed by callers.
+  '''
+  from dataclasses import dataclass as _dataclass
+  from dataclasses import field as _field
+
+  from srdatalog.ir.core.passes import Pass
+
+  @_dataclass(frozen=True)
+  class MaterializePragmaPass(Pass):
+    '''PR-P0 back-compat shim Pass: materialize one Pragma subclass.
+
+    Runs the registered `@pragma_handler(pragma_cls, on=<op_type>)`
+    for `pragma_cls` against every matching op in `prog`. Hand-rolled
+    tree walk (no strategy combinator) so the shim has no dependency
+    on the IIR-walk infrastructure.
+
+    Each handler signature is `(op, pragma, ctx) -> Op | None`. A
+    None return is treated as "this pragma did not apply to this op"
+    and leaves the op unchanged; a returned Op replaces the matched
+    op in the program tree.
+    '''
+
+    name: str = 'materialize_pragma_shim'
+    pragma_cls: type[Pragma] | None = _field(default=None)
+
+    def apply(self, prog: Any, compiler: Any) -> Any:
+      handlers = get_compiler_pragma_handlers(compiler)
+      if self.pragma_cls is not None:
+        handlers = [h for h in handlers if h.pragma_cls is self.pragma_cls]
+      if not handlers:
+        return prog
+
+      ctx = PragmaCtx(compiler=compiler)
+
+      def _apply_handlers_to(op: Any) -> Any:
+        for h in handlers:
+          if not isinstance(op, h.on):
+            continue
+          pragmas = getattr(op, 'pragmas', None)
+          if pragmas is None:
+            continue
+          for p in pragmas:
+            if isinstance(p, h.pragma_cls):
+              new = h.fn(op, p, ctx)
+              if new is not None:
+                op = new
+        return op
+
+      # Walk the tree top-down: visit the root, then recurse into
+      # dataclass fields that are Ops or contain Ops. Mirrors the
+      # MIR pragma-pass's reach without depending on its dialect
+      # specifics.
+      def _walk(node: Any) -> Any:
+        import dataclasses as _dc
+
+        node = _apply_handlers_to(node) if _is_op_like(node) else node
+        if not _dc.is_dataclass(node) or isinstance(node, type):
+          return node
+        new_fields: dict[str, Any] = {}
+        any_changed = False
+        for f in _dc.fields(node):
+          val = getattr(node, f.name)
+          new_val = _walk_value(val)
+          new_fields[f.name] = new_val
+          if new_val is not val:
+            any_changed = True
+        if any_changed:
+          return _dc.replace(node, **new_fields)
+        return node
+
+      def _walk_value(val: Any) -> Any:
+        if _is_op_like(val):
+          return _walk(val)
+        if isinstance(val, list):
+          new_list = [_walk_value(x) for x in val]
+          return new_list if any(a is not b for a, b in zip(new_list, val)) else val
+        if isinstance(val, tuple):
+          new_tuple = tuple(_walk_value(x) for x in val)
+          return new_tuple if any(a is not b for a, b in zip(new_tuple, val)) else val
+        return val
+
+      def _is_op_like(node: Any) -> bool:
+        # An Op subclass instance; avoid importing Op at module init
+        # by walking MRO names.
+        cls = type(node)
+        for base in cls.__mro__:
+          if base.__name__ == 'Op' and base.__module__ == 'srdatalog.ir.core.ops':
+            return True
+        return False
+
+      return _walk(prog)
+
+  return MaterializePragmaPass
+
+
+def get_compiler_pragma_handlers(compiler: Any) -> list[PragmaRegistration]:
+  '''PR-P0 back-compat shim (spec § 6.0.0 row 8): snapshot the
+  per-Compiler `_pragma_handlers` list staged by
+  `@pragma_handler` decorations that ran inside a
+  `_compiler_registration_scope(compiler)` block.
+
+  Returns the legacy module-global registrations IF the compiler has
+  no per-instance staging (every existing test path), so callers
+  written before the per-Compiler shape continue to work unchanged.
+  Otherwise returns the per-Compiler staged registrations
+  concatenated with the module-globals (the compiler instance is
+  authoritative; module-globals are fallback for legacy code paths).
+
+  Used by `MaterializePragmaPass` (a back-compat shim Pass that
+  iterates these registrations and applies them). After PR-P5,
+  pragmas register exclusively via `PragmaPlugin` and this helper
+  is deleted alongside the module-global registry.
+  '''
+  per_compiler: list[PragmaRegistration] = list(getattr(compiler, '_pragma_handlers', []))
+  if per_compiler:
+    return per_compiler + list(_PRAGMA_REGISTRY)
+  return list(_PRAGMA_REGISTRY)
+
+
+def MaterializePragmaPass(*args: Any, **kwargs: Any) -> Any:
+  '''Public constructor for the back-compat shim Pass (PR-P0).
+
+  Calls `_materialize_pragma_pass_factory()` on first use to avoid
+  the module-load cycle with `passes.py`; subsequent calls reuse the
+  cached class.
+  '''
+  global _MATERIALIZE_PRAGMA_PASS_CLS
+  if _MATERIALIZE_PRAGMA_PASS_CLS is None:
+    _MATERIALIZE_PRAGMA_PASS_CLS = _materialize_pragma_pass_factory()
+  return _MATERIALIZE_PRAGMA_PASS_CLS(*args, **kwargs)
+
+
+_MATERIALIZE_PRAGMA_PASS_CLS: type | None = None
+
+
 __all__ = [
+  'MaterializePragmaPass',
   'Pragma',
   'PragmaConfigError',
   'PragmaCtx',
@@ -335,6 +514,7 @@ __all__ = [
   'PragmaRegistration',
   'UnconsumedPragmaError',
   'UnregisteredPragmaError',
+  'get_compiler_pragma_handlers',
   'get_pragma',
   'get_pragma_registrations',
   'has_pragma',

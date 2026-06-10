@@ -246,6 +246,14 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
     return res
 
   if isinstance(node, m.Negation):
+    # `const_args` are (col, value) pairs the negated lookup pins before
+    # the prefix vars (e.g. ~Method_Modifier("abstract", meth)). Emitting
+    # them is required for faithful downstream codegen: the const prefix
+    # (.prefix(<value>, ...)) cannot be recovered otherwise. Emitted only
+    # when present so const-free negations keep their prior byte form.
+    consts = ""
+    if node.const_args:
+      consts = " :consts (" + " ".join(f"({c} {v})" for c, v in node.const_args) + ")"
     return (
       p
       + "(negation"
@@ -257,6 +265,7 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
       + _index(node.rel_name, node.index)
       + " :prefix "
       + _var_tuple(node.prefix_vars)
+      + consts
       + ")"
     )
 

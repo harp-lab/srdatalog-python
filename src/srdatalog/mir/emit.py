@@ -1,103 +1,58 @@
-'''S-expression emitter for Python MIR, matching the output of
-src/srdatalog/mir/printer.nim byte-for-byte.
+'''Positional s-expression emitter for Python MIR — the `parse-Lmir`-native
+form (no keyword plist), so the Racket side ingests the `.sexpr` directly with
+`parse-Lmir` and needs no keyword→positional reader.
 
-The canonical text form is what Racket will ingest as the final metalang,
-so S-expr is the target rather than JSON. Indentation uses two spaces per
-level, matching the Nim printer's `repeat("  ", indent)` convention.
-
-Every registered Nim MIR op kind now has a Python emitter case. For
-ops where Nim's printer silently returns empty (no `of` branch —
-CreateFlatView, ProbeJoin, GatherColumn), the Python formats are new
-conventions; if byte-diff on those becomes necessary, add matching
-cases to src/srdatalog/mir/printer.nim first.
+Each form matches a production of the `Lmir` grammar in
+private/dialects/mir.rkt exactly (field order, lowercase versions, `#t`/`#f`
+booleans). Whitespace is irrelevant to `read`/`parse-Lmir`; two-space indent
+is for human readability only.
 '''
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-
 import srdatalog.mir.types as m
-from srdatalog.hir.types import Version
-
-# -----------------------------------------------------------------------------
-# Small helpers (mirror Nim printVarTuple / printIndex / printVer)
-# -----------------------------------------------------------------------------
-
-
-def _var_tuple(vars: list[str]) -> str:
-  '''"(x y z)" — Nim uses space-separated, no commas.'''
-  return "(" + " ".join(vars) + ")"
-
-
-def _index(rel_name: str, cols: list[int]) -> str:
-  '''"(Rel 0 1 ...)"'''
-  return "(" + rel_name + " " + " ".join(str(c) for c in cols) + ")"
-
-
-def _ver(v: Version) -> str:
-  return v.value
 
 
 # -----------------------------------------------------------------------------
-# index-spec helpers (used by ExecutePipeline's :sources / :dests)
+# Leaf formatters
 # -----------------------------------------------------------------------------
 
 
-def _index_spec(node: m.MirNode) -> str:
-  '''Mirror printIndexSpec in printer.nim.
-
-  Joins flatten: a ColumnJoin / CartesianJoin contributes specs from ALL
-  its sources, space-separated. Everything else produces one spec.
-  '''
-  if isinstance(node, m.ColumnJoin):
-    return " ".join(_flatten_specs(s) for s in node.sources)
-  if isinstance(node, m.CartesianJoin):
-    return " ".join(_flatten_specs(s) for s in node.sources)
-
-  if isinstance(node, m.ColumnSource) or isinstance(node, m.Negation):
-    rel, ver, idx = node.rel_name, node.version, node.index
-  elif isinstance(node, m.InsertInto):
-    # Dest always uses FULL index for dedup logic (matches Nim).
-    rel, ver, idx = node.rel_name, Version.FULL, node.index
-  elif isinstance(node, m.Scan):
-    rel, ver, idx = node.rel_name, node.version, node.index
-  else:
-    return "void"
-
-  return (
-    "(index-spec :schema "
-    + rel
-    + " :index ("
-    + " ".join(str(c) for c in idx)
-    + ")"
-    + " :ver "
-    + _ver(ver)
-    + ")"
-  )
+def _cols(cols) -> str:
+  '''"(0 1 2)" — bare column-index list.'''
+  return "(" + " ".join(str(c) for c in cols) + ")"
 
 
-def _flatten_specs(node: m.MirNode) -> str:
-  '''Flatten joins into concatenated leaf index-specs.'''
-  if isinstance(node, m.ColumnJoin):
-    return " ".join(_flatten_specs(s) for s in node.sources)
-  if isinstance(node, m.CartesianJoin):
-    return " ".join(_flatten_specs(s) for s in node.sources)
-  return _index_spec(node)
+def _vars(vs) -> str:
+  '''"(x y z)" — variable list.'''
+  return "(" + " ".join(vs) + ")"
 
 
-def _index_specs_tuple(nodes: Sequence[m.MirNode], indent: int = 0) -> str:
-  '''Mirror printIndexSpecsTuple.'''
-  prefix = "  " * indent
-  if not nodes:
-    return "(tuple)"
-  parts: list[str] = []
-  for n in nodes:
-    if isinstance(n, (m.ColumnJoin, m.CartesianJoin)):
-      for s in n.sources:
-        parts.append(_index_spec(s))
-    else:
-      parts.append(_index_spec(n))
-  return "(tuple\n" + prefix + ("\n" + prefix).join(parts) + ")"
+def _const_args(args) -> str:
+  '''"((0 42) (2 99))" — negation constant-prefix pairs.'''
+  return "(" + " ".join("(%s %s)" % (col, val) for col, val in args) + ")"
+
+
+def _v(ver) -> str:
+  '''Version → lowercase symbol (FULL → full), per srdl-version?.'''
+  return ver.value.lower()
+
+
+def _summary_spec(node: m.MirNode) -> str:
+  '''One `:sources`/`:dests` summary index-spec, flattening joins. This is the
+  flattened source SUMMARY; the authoritative per-source structure lives in the
+  pipeline body (column-join / cartesian-join / negation).'''
+  if isinstance(node, (m.ColumnJoin, m.CartesianJoin)):
+    return " ".join(_summary_spec(s) for s in node.sources)
+  if isinstance(node, (m.ColumnSource, m.Negation, m.Scan)):
+    return "(index-spec %s %s %s)" % (node.rel_name, _cols(node.index), _v(node.version))
+  if isinstance(node, m.InsertInto):
+    return "(index-spec %s %s full)" % (node.rel_name, _cols(node.index))
+  return ""
+
+
+def _tuple(nodes) -> str:
+  return "(tuple (" + " ".join(_summary_spec(n) for n in nodes) + "))"
 
 
 # -----------------------------------------------------------------------------
@@ -107,329 +62,108 @@ def _index_specs_tuple(nodes: Sequence[m.MirNode], indent: int = 0) -> str:
 
 def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
   p = "  " * indent
+  P = print_mir_sexpr
 
-  # --- Leaves ---
+  # --- Program structure ---
 
-  if isinstance(node, m.ColumnSource):
-    return (
-      p
-      + "(column-source"
-      + " :index "
-      + _index(node.rel_name, node.index)
-      + " :ver "
-      + _ver(node.version)
-      + " :prefix "
-      + _var_tuple(node.prefix_vars)
-      + ")"
+  if isinstance(node, m.Program):
+    rels = " ".join(
+      '(relation-schema %s (%s) %s "%s" "%s" %s)'
+      % (nm, " ".join(types), semiring, input_file, index_type, "#t" if print_size else "#f")
+      for (nm, types, semiring, input_file, index_type, print_size) in (getattr(node, "relations", None) or [])
+    )
+    steps = "\n".join(
+      "%s  (step %s\n%s)" % (p, "#t" if is_rec else "#f", P(plan, indent + 2))
+      for plan, is_rec in node.steps
+    )
+    return "%s(program (%s) (\n%s))" % (p, rels, steps)
+
+  if isinstance(node, m.FixpointPlan):
+    return p + "(fixpoint-plan (\n" + "\n".join(P(i, indent + 1) for i in node.instructions) + "))"
+
+  if isinstance(node, m.ParallelGroup):
+    return p + "(parallel-group (\n" + "\n".join(P(o, indent + 1) for o in node.ops) + "))"
+
+  if isinstance(node, m.ExecutePipeline):
+    body = "\n".join(P(pn, indent + 1) for pn in node.pipeline)
+    return p + "(execute-pipeline %s %s %s (\n%s))" % (
+      node.rule_name, _tuple(node.source_specs), _tuple(node.dest_specs), body
     )
 
+  if isinstance(node, m.PostStratumReconstructInternCols):
+    return p + "(post-stratum-reconstruct-intern-cols %s %s)" % (
+      node.rel_name, _cols(node.canonical_index)
+    )
+
+  # --- Pipeline body ops ---
+
   if isinstance(node, m.Scan):
-    return (
-      p
-      + "(scan"
-      + " :vars "
-      + _var_tuple(node.vars)
-      + " :index "
-      + _index(node.rel_name, node.index)
-      + " :ver "
-      + _ver(node.version)
-      + " :prefix "
-      + _var_tuple(node.prefix_vars)
-      + ")"
+    return p + "(scan %s %s %s %s %s)" % (
+      _vars(node.vars), node.rel_name, _cols(node.index), _v(node.version), _vars(node.prefix_vars)
+    )
+
+  if isinstance(node, m.ColumnSource):
+    return p + "(column-source %s %s %s %s)" % (
+      node.rel_name, _cols(node.index), _v(node.version), _vars(node.prefix_vars)
     )
 
   if isinstance(node, m.ColumnJoin):
-    body = p + "(column-join :var " + node.var_name
-    body += "\n" + p + "  :sources (\n"
-    for src in node.sources:
-      body += print_mir_sexpr(src, indent + 2) + "\n"
-    body += p + "  ))"
-    return body
+    return p + "(column-join %s (%s))" % (
+      node.var_name, " ".join(P(s, 0) for s in node.sources)
+    )
 
   if isinstance(node, m.CartesianJoin):
-    body = p + "(cartesian-join :vars " + _var_tuple(node.vars)
-    if node.var_from_source:
-      body += " :var-from-source ("
-      body += " ".join(_var_tuple(vs) for vs in node.var_from_source)
-      body += ")"
-    body += "\n" + p + "  :sources (\n"
-    for src in node.sources:
-      body += print_mir_sexpr(src, indent + 2) + "\n"
-    body += p + "  ))"
-    return body
-
-  if isinstance(node, m.Filter):
-    return p + "(filter" + " :vars " + _var_tuple(node.vars) + " :code \"" + node.code + "\")"
-
-  if isinstance(node, m.ConstantBind):
-    return (
-      p
-      + "(constant-bind"
-      + " :var "
-      + node.var_name
-      + " :code \""
-      + node.code
-      + "\""
-      + " :deps "
-      + _var_tuple(node.deps)
-      + ")"
+    vfs = " ".join(_vars(vs) for vs in node.var_from_source)
+    return p + "(cartesian-join %s (%s) (%s))" % (
+      _vars(node.vars), vfs, " ".join(P(s, 0) for s in node.sources)
     )
-
-  if isinstance(node, m.Aggregate):
-    return (
-      p
-      + "(aggregate"
-      + " :var "
-      + node.result_var
-      + " :func "
-      + node.agg_func
-      + " :index "
-      + _index(node.rel_name, node.index)
-      + " :ver "
-      + _ver(node.version)
-      + " :prefix "
-      + _var_tuple(node.prefix_vars)
-      + ")"
-    )
-
-  if isinstance(node, m.CreateFlatView):
-    # (create-flat-view :index (Rel cols) :ver V) — aligned with the
-    # rebuild-index style and matches the Nim printer case added
-    # alongside the Python split-rule lowering.
-    return (
-      p
-      + "(create-flat-view"
-      + " :index "
-      + _index(node.rel_name, node.index)
-      + " :ver "
-      + _ver(node.version)
-      + ")"
-    )
-
-  if isinstance(node, m.InnerPipeline):
-    body = p + "(inner-pipeline"
-    if node.rule_name:
-      body += " :rule " + node.rule_name
-    body += " :bound-vars " + _var_tuple(node.bound_vars)
-    body += "\n" + p + "  :handles (\n"
-    for h in node.input_handles:
-      body += print_mir_sexpr(h, indent + 2) + "\n"
-    body += p + "  )\n"
-    body += p + "  :ops (\n"
-    for op in node.inner_ops:
-      body += print_mir_sexpr(op, indent + 2) + "\n"
-    body += p + "  ))"
-    return body
-
-  if isinstance(node, m.ProbeJoin):
-    # Nim printer has no case for moProbeJoin — Python convention.
-    res = p + "(probe-join"
-    if node.input_buffer:
-      res += " :input-buffer " + node.input_buffer
-    res += " :output-buffer " + node.output_buffer
-    res += " :probe " + _index(node.probe_rel, node.probe_index)
-    res += " :ver " + _ver(node.probe_version)
-    res += " :key " + node.join_key
-    res += ")"
-    return res
-
-  if isinstance(node, m.GatherColumn):
-    # Nim printer has no case for moGatherColumn — Python convention.
-    res = p + "(gather-column"
-    if node.input_buffer:
-      res += " :input-buffer " + node.input_buffer
-    res += " :schema " + node.rel_name
-    res += " :ver " + _ver(node.rel_version)
-    res += " :col " + str(node.column)
-    res += " :out " + node.output_var
-    res += ")"
-    return res
 
   if isinstance(node, m.Negation):
-    # `const_args` are (col, value) pairs the negated lookup pins before
-    # the prefix vars (e.g. ~Method_Modifier("abstract", meth)). Emitting
-    # them is required for faithful downstream codegen: the const prefix
-    # (.prefix(<value>, ...)) cannot be recovered otherwise. Emitted only
-    # when present so const-free negations keep their prior byte form.
-    consts = ""
     if node.const_args:
-      consts = " :consts (" + " ".join(f"({c} {v})" for c, v in node.const_args) + ")"
-    return (
-      p
-      + "(negation"
-      + " :schema "
-      + node.rel_name
-      + " :ver "
-      + _ver(node.version)
-      + " :index "
-      + _index(node.rel_name, node.index)
-      + " :prefix "
-      + _var_tuple(node.prefix_vars)
-      + consts
-      + ")"
+      return p + "(negation %s %s %s %s %s)" % (
+        node.rel_name,
+        _v(node.version),
+        _cols(node.index),
+        _vars(node.prefix_vars),
+        _const_args(node.const_args),
+      )
+    return p + "(negation %s %s %s %s)" % (
+      node.rel_name, _v(node.version), _cols(node.index), _vars(node.prefix_vars)
+    )
+
+  if isinstance(node, m.Filter):
+    return p + '(filter %s "%s")' % (_vars(node.vars), node.code.replace("\\", "\\\\").replace('"', '\\"'))
+
+  if isinstance(node, m.ConstantBind):
+    return p + '(constant-bind %s "%s" %s)' % (
+      node.var_name, node.code.replace("\\", "\\\\").replace('"', '\\"'), _vars(node.deps)
     )
 
   if isinstance(node, m.InsertInto):
-    return (
-      p
-      + "(insert-into"
-      + " :schema "
-      + node.rel_name
-      + " :ver "
-      + _ver(node.version)
-      + " :dedup-index ("
-      + " ".join(str(c) for c in node.index)
-      + ")"
-      + " :terms "
-      + _var_tuple(node.vars)
-      + ")"
+    return p + "(insert-into %s %s %s %s)" % (
+      node.rel_name, _v(node.version), _cols(node.index), _vars(node.vars)
     )
 
   # --- Fixpoint maintenance ---
 
   if isinstance(node, m.RebuildIndex):
-    return (
-      p
-      + "(rebuild-index"
-      + " :index "
-      + _index(node.rel_name, node.index)
-      + " :ver "
-      + _ver(node.version)
-      + ")"
-    )
+    return p + "(rebuild-index %s %s %s)" % (node.rel_name, _cols(node.index), _v(node.version))
 
   if isinstance(node, m.ClearRelation):
-    return p + "(clear-relation" + " :schema " + node.rel_name + " :ver " + _ver(node.version) + ")"
+    return p + "(clear-relation %s %s)" % (node.rel_name, _v(node.version))
 
   if isinstance(node, m.CheckSize):
-    return p + "(check-size" + " :schema " + node.rel_name + " :ver " + _ver(node.version) + ")"
-
-  if isinstance(node, m.ComputeDelta):
-    return p + "(compute-delta :schema " + node.rel_name + ")"
+    return p + "(check-size %s %s)" % (node.rel_name, _v(node.version))
 
   if isinstance(node, m.ComputeDeltaIndex):
-    return (
-      p
-      + "(compute-delta-index"
-      + " :schema "
-      + node.rel_name
-      + " :canonical-index ("
-      + " ".join(str(c) for c in node.canonical_index)
-      + ")"
-      + ")"
-    )
+    return p + "(compute-delta-index %s %s)" % (node.rel_name, _cols(node.canonical_index))
 
   if isinstance(node, m.MergeIndex):
-    return p + "(merge-index :index " + _index(node.rel_name, node.index) + ")"
-
-  if isinstance(node, m.MergeRelation):
-    return p + "(merge-relation :schema " + node.rel_name + ")"
+    return p + "(merge-index %s %s)" % (node.rel_name, _cols(node.index))
 
   if isinstance(node, m.RebuildIndexFromIndex):
-    return (
-      p
-      + "(rebuild-index-from-index"
-      + " :source "
-      + _index(node.rel_name, node.source_index)
-      + " :target "
-      + _index(node.rel_name, node.target_index)
-      + " :ver "
-      + _ver(node.version)
-      + ")"
+    return p + "(rebuild-index-from-index %s %s %s %s %s)" % (
+      node.rel_name, _cols(node.source_index), node.rel_name, _cols(node.target_index), _v(node.version)
     )
 
-  # --- Structural ---
-
-  if isinstance(node, m.ExecutePipeline):
-    body = p + "(execute-pipeline"
-    if node.rule_name:
-      body += " :rule " + node.rule_name
-    body += "\n"
-    body += p + "  :sources " + _index_specs_tuple(node.source_specs, indent + 2) + "\n"
-    body += p + "  :dests " + _index_specs_tuple(node.dest_specs, indent + 2) + "\n"
-    for pn in node.pipeline:
-      body += print_mir_sexpr(pn, indent + 2) + "\n"
-    body += p + ")"
-    return body
-
-  if isinstance(node, m.FixpointPlan):
-    body = p + "(fixpoint-plan\n"
-    for instr in node.instructions:
-      body += print_mir_sexpr(instr, indent + 2) + "\n"
-    body += p + ")"
-    return body
-
-  if isinstance(node, m.Block):
-    body = p + "(block\n"
-    for instr in node.instructions:
-      body += print_mir_sexpr(instr, indent + 2) + "\n"
-    body += p + ")"
-    return body
-
-  if isinstance(node, m.BalancedScan):
-    # (balanced-scan :group-var v :source1 (...) :source2 (...)
-    #                :vars1 (...) :vars2 (...))
-    body = p + "(balanced-scan"
-    body += " :group-var " + node.group_var
-    body += "\n" + p + "  :source1 " + print_mir_sexpr(node.source1, 0)
-    body += "\n" + p + "  :source2 " + print_mir_sexpr(node.source2, 0)
-    if node.vars1:
-      body += " :vars1 " + _var_tuple(node.vars1)
-    if node.vars2:
-      body += " :vars2 " + _var_tuple(node.vars2)
-    body += ")"
-    return body
-
-  if isinstance(node, m.PositionedExtract):
-    body = p + "(positioned-extract"
-    body += " :var " + node.var_name
-    body += " :sources ("
-    for i, src in enumerate(node.sources):
-      if i > 0:
-        body += " "
-      body += print_mir_sexpr(src, 0)
-    body += ")"
-    body += " :bind " + _var_tuple(node.bind_vars)
-    body += ")"
-    return body
-
-  if isinstance(node, m.ParallelGroup):
-    body = p + "(parallel-group  ;; " + str(len(node.ops)) + " independent ops\n"
-    for op in node.ops:
-      body += print_mir_sexpr(op, indent + 2) + "\n"
-    body += p + ")"
-    return body
-
-  if isinstance(node, m.InjectCppHook):
-    res = p + "(inject-cpp-hook"
-    if node.rule_name:
-      res += " :rule " + node.rule_name
-    # Nim always writes :code "..." (literal ellipsis) rather than dumping
-    # the raw body — keeps the S-expr readable.
-    res += " :code \"...\")"
-    return res
-
-  if isinstance(node, m.PostStratumReconstructInternCols):
-    return (
-      p
-      + "(post-stratum-reconstruct-intern-cols"
-      + " :rel "
-      + node.rel_name
-      + " :canonical-index ("
-      + " ".join(str(c) for c in node.canonical_index)
-      + ")"
-      + ")"
-    )
-
-  if isinstance(node, m.Program):
-    # Nim uses indent+4 for the nested plan (unlike Block/FixpointPlan which use +2),
-    # and bool printing in Nim is lowercase "true"/"false" — both affect byte-diff.
-    body = p + "(program\n"
-    for plan, is_rec in node.steps:
-      body += p + "  (step :recursive " + ("true" if is_rec else "false") + "\n"
-      body += print_mir_sexpr(plan, indent + 4) + "\n"
-      body += p + "  )\n"
-    body += p + ")"
-    return body
-
-  raise TypeError(f"Unsupported MIR node: {type(node).__name__}")
+  raise TypeError("Unsupported MIR node (positional printer): %s" % type(node).__name__)

@@ -65,7 +65,7 @@ def compile_to_mir(
   to stop at the raw output of `lower_hir_to_mir_steps`.
   '''
   import srdatalog.mir.types as mir
-  from srdatalog.hir.lower import lower_hir_to_mir_steps
+  from srdatalog.hir.lower import lower_hir_to_mir_steps, _relation_schemas
 
   hir = compile_to_hir(program, verbose=verbose)
   steps = lower_hir_to_mir_steps(hir)
@@ -73,4 +73,7 @@ def compile_to_mir(
     from srdatalog.mir.passes import apply_all_mir_passes
 
     steps = apply_all_mir_passes(steps)
-  return mir.Program(steps=[(node, is_rec) for node, is_rec in steps])
+  return mir.Program(
+    steps=[(node, is_rec) for node, is_rec in steps],
+    relations=_relation_schemas(hir),
+  )

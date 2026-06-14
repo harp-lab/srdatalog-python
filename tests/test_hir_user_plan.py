@@ -166,6 +166,9 @@ def test_user_plan_hir_byte_match():
 
 
 def test_user_plan_mir_byte_match():
+  # Golden carries the program-level :relations block (MIR-contract
+  # extension beyond Nim; see srdatalog-rkt ADR 0003). The body below it
+  # remains byte-identical to the Nim dump.
   mir_prog = compile_to_mir(build_p_with_plan())
   actual = print_mir_sexpr(mir_prog)
   golden = (FIXTURES / "tc_with_plan.mir.sexpr").read_text().rstrip("\n")

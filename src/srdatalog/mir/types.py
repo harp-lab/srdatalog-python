@@ -382,9 +382,11 @@ class PostStratumReconstructInternCols:
 
 @dataclass
 class Program:
-  '''(program (step :recursive b <plan>) ...)'''
+  '''(program :relations (<relation-schema> ...) (step :recursive b <plan>) ...)'''
 
   steps: list[tuple[MirNode, bool]]  # (plan, is_recursive)
+  # program-level relation metadata: (name, col_types, semiring, input_file, index_type)
+  relations: list = field(default_factory=list)
 
 
 # -----------------------------------------------------------------------------

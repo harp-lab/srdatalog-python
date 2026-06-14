@@ -649,6 +649,19 @@ def _schema_arities(hir: HirProgram) -> list[tuple[str, int]]:
   return [(d.rel_name, len(d.types)) for d in hir.relation_decls]
 
 
+def _relation_schemas(hir: HirProgram) -> list[tuple]:
+  '''Program-level relation metadata for the self-contained MIR.
+
+  Each entry: (name, col_types, semiring, input_file, index_type, print_size).
+  Carries everything codegen needs per relation so the MIR has zero
+  dependency on the HIR above it.
+  '''
+  return [
+    (d.rel_name, list(d.types), d.semiring, d.input_file, d.index_type, d.print_size)
+    for d in hir.relation_decls
+  ]
+
+
 def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
   '''Assemble per-stratum FixpointPlan + PostStratumReconstructInternCols
   steps. Returns the flat `[(node, is_recursive)]` sequence consumed by
@@ -940,4 +953,7 @@ def lower_hir_to_mir(hir: HirProgram) -> mir.Program:
   so byte-diff lines up.
   '''
   steps = lower_hir_to_mir_steps(hir)
-  return mir.Program(steps=[(node, is_rec) for node, is_rec in steps])
+  return mir.Program(
+    steps=[(node, is_rec) for node, is_rec in steps],
+    relations=_relation_schemas(hir),
+  )

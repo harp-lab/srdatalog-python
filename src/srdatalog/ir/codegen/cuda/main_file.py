@@ -72,6 +72,48 @@ def _extract_computed_relations(plan: m.MirNode) -> list[str]:
   return out
 
 
+def _extract_count_result_relations(program: m.Program) -> list[str]:
+  '''Collect destinations of rule-level count-only pipelines.'''
+  out: list[str] = []
+
+  def _visit(node: m.MirNode) -> None:
+    if isinstance(node, m.ExecutePipeline):
+      if node.count:
+        for dest in node.dest_specs:
+          if isinstance(dest, m.InsertInto) and dest.rel_name not in out:
+            out.append(dest.rel_name)
+      return
+    if isinstance(node, (m.FixpointPlan, m.Block)):
+      for child in node.instructions:
+        _visit(child)
+    elif isinstance(node, m.ParallelGroup):
+      for child in node.ops:
+        _visit(child)
+
+  for step, _is_recursive in program.steps:
+    _visit(step)
+  return out
+
+
+def _gen_count_result_methods(count_relations: list[str]) -> str:
+  '''Runner-local storage used for non-materialized count query results.'''
+  if not count_relations:
+    return ""
+  return (
+    "  inline static std::unordered_map<std::string, unsigned long long> count_results_{};\n"
+    "  static void clear_count_results() { count_results_.clear(); }\n"
+    "  static void record_count_result(const char* rel_name, unsigned long long count) {\n"
+    "    count_results_[rel_name] += count;\n"
+    "  }\n"
+    "  static bool get_count_result(const std::string& rel_name, unsigned long long& count) {\n"
+    "    auto it = count_results_.find(rel_name);\n"
+    "    if (it == count_results_.end()) return false;\n"
+    "    count = it->second;\n"
+    "    return true;\n"
+    "  }\n\n"
+  )
+
+
 # -----------------------------------------------------------------------------
 # Section emitters
 # -----------------------------------------------------------------------------
@@ -238,6 +280,7 @@ def _gen_run_body_per_step(step_idx: int, step: m.MirNode, is_recursive: bool) -
 def _gen_final_print_block(
   decls: list[RelationDecl],
   canonical_indices: dict[str, list[int]] | None,
+  count_relations: list[str] | None = None,
 ) -> str:
   '''Final `print_size` block — emits size reads for every relation
   tagged `print_size=True`. Uses canonical index when available;
@@ -245,9 +288,19 @@ def _gen_final_print_block(
   `{0, 1, ..., arity-1}`. Mirrors Nim codegen.nim:449-522.
   '''
   canonical = canonical_indices or {}
+  counts = set(count_relations or [])
   out = ""
   for d in decls:
     if not d.print_size:
+      continue
+    if d.rel_name in counts:
+      out += "    {\n"
+      out += "      unsigned long long count_result = 0;\n"
+      out += f'      get_count_result("{d.rel_name}", count_result);\n'
+      out += (
+        f'      std::cout << " >>>>>>>>>>>>>>>>> {d.rel_name} : " << count_result << std::endl;\n'
+      )
+      out += "    }\n"
       continue
     if d.rel_name in canonical:
       cols = canonical[d.rel_name]
@@ -291,9 +344,11 @@ def gen_runner_struct(
       print_size stats. If omitted, falls back to default order.
   '''
   assert len(step_bodies) == len(mir_program.steps)
+  count_relations = _extract_count_result_relations(mir_program)
 
   out = f"struct {ruleset_name}_Runner {{\n"
   out += f"  using DB = {ruleset_name}_DB;\n\n"
+  out += _gen_count_result_methods(count_relations)
   out += gen_load_data_method(decls)
 
   # Step bodies — each is a full `template <typename DB> static void step_N(...)`.
@@ -305,9 +360,11 @@ def gen_runner_struct(
   out += (
     "  static void run(DB& db, std::size_t max_iterations = std::numeric_limits<int>::max()) {\n"
   )
+  if count_relations:
+    out += "    clear_count_results();\n"
   for i, (step, is_rec) in enumerate(mir_program.steps):
     out += _gen_run_body_per_step(i, step, is_rec)
-  out += _gen_final_print_block(decls, canonical_indices)
+  out += _gen_final_print_block(decls, canonical_indices, count_relations)
   out += "  }\n"
   out += "};\n"
   return out
@@ -341,8 +398,10 @@ def gen_runner_struct_declonly(
   live in separate shard files.
   '''
   device_db = f"{ruleset_name}_DB_DeviceDB"
+  count_relations = _extract_count_result_relations(mir_program)
   out = f"struct {ruleset_name}_Runner {{\n"
   out += f"  using DB = {device_db};\n\n"
+  out += _gen_count_result_methods(count_relations)
   out += gen_load_data_method(decls)  # load_data stays a template — cheap
   for i in range(len(mir_program.steps)):
     out += f"  static void step_{i}(DB& db, std::size_t max_iterations);\n"
@@ -388,6 +447,7 @@ def _shared_runner_preamble(
   ruleset_name: str,
   decls: list[RelationDecl],
   runner_decls: dict[str, str],
+  mir_program: m.Program,
   extra_index_headers: list[str] | None = None,
 ) -> str:
   '''Preamble shared by every out-of-line shard: srdatalog.h, plugin
@@ -397,6 +457,7 @@ def _shared_runner_preamble(
   extern "C" shim.
   '''
   out = '#include "srdatalog.h"\n'
+  out += "#include <unordered_map>\n"
   out += 'using namespace SRDatalog;\n'
   out += 'using namespace SRDatalog::AST::Literals;\n\n'
   # GPU runtime FIRST so DeviceRelationType / init_cuda are in scope
@@ -424,6 +485,7 @@ def _shared_runner_preamble(
   # `gen_load_data_method` template body, not just a forward decl.
   out += f"struct {ruleset_name}_Runner {{\n"
   out += f"  using DB = {ruleset_name}_DB_DeviceDB;\n\n"
+  out += _gen_count_result_methods(_extract_count_result_relations(mir_program))
   out += gen_load_data_method(decls)
   # step_N + run decls are appended by the caller (we don't know step
   # count here).
@@ -447,7 +509,13 @@ def gen_step_shard_file(
   instead of serializing through main.cpp.
   '''
   device_db = f"{ruleset_name}_DB_DeviceDB"
-  pre = _shared_runner_preamble(ruleset_name, decls, runner_decls, extra_index_headers)
+  pre = _shared_runner_preamble(
+    ruleset_name,
+    decls,
+    runner_decls,
+    mir_program,
+    extra_index_headers,
+  )
   # Complete the Runner struct declaration with all step_N + run sigs.
   for i in range(len(mir_program.steps)):
     pre += f"  static void step_{i}(DB& db, std::size_t max_iterations);\n"
@@ -477,7 +545,13 @@ def gen_run_dispatcher_file(
   Contains the step_0..step_N dispatch + print_size block.
   '''
   device_db = f"{ruleset_name}_DB_DeviceDB"
-  pre = _shared_runner_preamble(ruleset_name, decls, runner_decls, extra_index_headers)
+  pre = _shared_runner_preamble(
+    ruleset_name,
+    decls,
+    runner_decls,
+    mir_program,
+    extra_index_headers,
+  )
   for i in range(len(mir_program.steps)):
     pre += f"  static void step_{i}(DB& db, std::size_t max_iterations);\n"
   pre += (
@@ -485,9 +559,16 @@ def gen_run_dispatcher_file(
   )
   pre += "};\n\n"
   body = f"void {ruleset_name}_Runner::run({device_db}& db, std::size_t max_iterations) {{\n"
+  count_relations = _extract_count_result_relations(mir_program)
+  if count_relations:
+    body += "  clear_count_results();\n"
   for i, (step, is_rec) in enumerate(mir_program.steps):
     body += _gen_run_body_per_step(i, step, is_rec)
-  body += _gen_final_print_block(decls, canonical_indices)
+  body += _gen_final_print_block(
+    decls,
+    canonical_indices,
+    count_relations,
+  )
   body += "}\n"
   return pre + body
 
@@ -503,6 +584,7 @@ def gen_main_file_preamble() -> str:
   for the standalone Python path we emit them explicitly.'''
   return (
     '#include "srdatalog.h"\n'
+    "#include <unordered_map>\n"
     'using namespace SRDatalog;\n'
     'using namespace SRDatalog::AST::Literals;  // _s UDL\n'
     '\n'
@@ -595,6 +677,7 @@ def gen_unity_main_file_content(
   times. For doop that's ~100s → ~20s on cold compile.
   '''
   out = '#include "srdatalog.h"\n'
+  out += '#include <unordered_map>\n'
   out += 'using namespace SRDatalog;\n'
   out += 'using namespace SRDatalog::AST::Literals;  // _s UDL\n\n'
   out += '#include <cstdint>\n'
@@ -656,6 +739,7 @@ def gen_unity_main_file_content(
 def gen_extern_c_shim(
   ruleset_name: str,
   decls: list[RelationDecl],
+  count_relations: list[str] | None = None,
 ) -> str:
   '''Emit an `extern "C"` shim the Python ctypes loader can call.
 
@@ -663,15 +747,19 @@ def gen_extern_c_shim(
     - `srdatalog_init()`                     — init CUDA
     - `srdatalog_load_csv(rel, path)`        — load_from_file for one relation
     - `srdatalog_run(max_iters)`             — copy-to-device + _Runner::run
-    - `srdatalog_shutdown()`                 — free host DB
-    - `srdatalog_size(rel_name)`             — FULL_VER canonical index size
+    - `srdatalog_shutdown()`                 — free host + device DB
+    - `srdatalog_size(rel_name)`             — count result or device relation size
 
   The shim uses a file-scope `HostDB*` holding the live SemiNaiveDatabase
-  so Python can stage data via multiple `load_csv` calls before `run`.
+  so Python can stage data via multiple `load_csv` calls before `run`. It
+  retains the post-run device DB because computed results are not copied
+  back to the host DB.
   '''
+  count_relations = count_relations or []
   ext_db = f"{ruleset_name}_DB"
   blueprint = f"{ext_db}_Blueprint"
   host_db = f"{blueprint}_HostDB"
+  device_db = f"{ext_db}_DeviceDB"
 
   out = [
     "// ======== Python ctypes shim (extern \"C\") ========",
@@ -679,6 +767,7 @@ def gen_extern_c_shim(
     "",
     f"using {host_db} = SRDatalog::AST::SemiNaiveDatabase<{blueprint}>;",
     f"static {host_db}* g_host_db = nullptr;",
+    f"static {device_db}* g_device_db = nullptr;",
     "",
     'extern "C" {',
     "",
@@ -743,8 +832,11 @@ def gen_extern_c_shim(
     "int srdatalog_run(unsigned long long max_iters) {",
     "  if (!g_host_db) return 1;",
     "  try {",
-    "    auto device_db = SRDatalog::GPU::copy_host_to_device(*g_host_db);",
-    f"    {ruleset_name}_Runner::run(device_db, max_iters ? (std::size_t)max_iters : std::numeric_limits<int>::max());",
+    "    if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
+  ]
+  out += [
+    f"    g_device_db = new {device_db}(SRDatalog::GPU::copy_host_to_device(*g_host_db));",
+    f"    {ruleset_name}_Runner::run(*g_device_db, max_iters ? (std::size_t)max_iters : std::numeric_limits<int>::max());",
     "    return 0;",
     "  } catch (const std::exception& e) {",
     '    std::cerr << "srdatalog_run: " << e.what() << std::endl;',
@@ -753,9 +845,21 @@ def gen_extern_c_shim(
     "}",
     "",
     "unsigned long long srdatalog_size(const char* rel_name) {",
-    "  if (!g_host_db || !rel_name) return 0;",
+    "  if (!rel_name) return 0;",
     "  std::string rn(rel_name);",
   ]
+  if count_relations:
+    out += [
+      "  unsigned long long count_result = 0;",
+      f"  if ({ruleset_name}_Runner::get_count_result(rn, count_result)) return count_result;",
+    ]
+  out.append("  if (g_device_db) {")
+  for d in decls:
+    out.append(
+      f'    if (rn == "{d.rel_name}") return (unsigned long long) '
+      f"get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_device_db).size();"
+    )
+  out += ["  }", "  if (!g_host_db) return 0;"]
   for d in decls:
     cols = ", ".join(str(i) for i in range(len(d.types)))
     out.append(f'  if (rn == "{d.rel_name}") {{')
@@ -770,6 +874,7 @@ def gen_extern_c_shim(
     "}",
     "",
     "int srdatalog_shutdown() {",
+    "  if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
     "  if (g_host_db) { delete g_host_db; g_host_db = nullptr; }",
     "  return 0;",
     "}",

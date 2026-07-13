@@ -124,6 +124,15 @@ def diff_orchestrator(fixture_stem: str, actual_cpp: str) -> None:
     raise AssertionError(f"{fixture_stem} orchestrator mismatch:\n" + d)
 
 
+def diff_orchestrator_exact(fixture_stem: str, actual_cpp: str) -> None:
+  '''Require exact source bytes for a Nim-generated orchestrator golden.'''
+  golden_path = JIT_FIXTURES / fixture_stem / "orchestrator.cpp"
+  golden = golden_path.read_text()
+  if actual_cpp != golden:
+    d = _unified_cpp_diff(golden, actual_cpp, fixture_stem)
+    raise AssertionError(f"{fixture_stem} exact orchestrator mismatch:\n" + d)
+
+
 def diff_jit_batch(fixture_stem: str, rule_name: str, actual_cpp: str) -> None:
   '''Byte-diff a JIT batch file against the Nim golden in
   `fixtures/jit/<stem>/jit_batch.<rule>.cpp`.

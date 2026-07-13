@@ -114,6 +114,27 @@ def is_count_only_pipeline(
   )
 
 
+def _count_result_rel_names(instr: m.ExecutePipeline) -> list[str]:
+  '''Destination names under which a count-only result is observable.'''
+  out: list[str] = []
+  for dest in instr.dest_specs:
+    if isinstance(dest, m.InsertInto) and dest.rel_name not in out:
+      out.append(dest.rel_name)
+  return out
+
+
+def _gen_record_count_results(
+  instr: m.ExecutePipeline,
+  total_expr: str,
+  indent: str,
+) -> str:
+  '''Retain counts because count-only destinations are not materialized.'''
+  return "".join(
+    f'{indent}record_count_result("{rel_name}", {total_expr});\n'
+    for rel_name in _count_result_rel_names(instr)
+  )
+
+
 # -----------------------------------------------------------------------------
 # Canonical spec collection
 # -----------------------------------------------------------------------------
@@ -168,6 +189,7 @@ def _gen_execute_pipeline(
       indent + f"  std::cout << \" >>>>>>>>>>>>>>>>> {instr.rule_name}"
       " count: \" << total << std::endl;\n"
     )
+    out += _gen_record_count_results(instr, "total", indent + "  ")
     out += indent + "}\n"
     return out
 
@@ -221,8 +243,11 @@ def _gen_parallel_group(
   if has_dedup:
     out = indent + "// === ParallelGroup (sequential, dedup_hash present) ===\n"
     for op in exec_ops:
-      runner = f"JitRunner_{op.rule_name}"
-      out += indent + f"{runner}::execute(db, {iter_var});\n"
+      if op.count or is_count_only_pipeline(op, count_only_rels):
+        out += _gen_execute_pipeline(op, indent, iter_var, count_only_rels)
+      else:
+        runner = f"JitRunner_{op.rule_name}"
+        out += indent + f"{runner}::execute(db, {iter_var});\n"
     for op in other_ops:
       out += gen_instruction_code(
         op,
@@ -243,7 +268,12 @@ def _gen_parallel_group(
   i2 = indent + "  "
 
   all_fused_eligible = all(
-    not op.dedup_hash and not op.work_stealing and not op.block_group and len(op.dest_specs) == 1
+    not op.count
+    and not is_count_only_pipeline(op, count_only_rels)
+    and not op.dedup_hash
+    and not op.work_stealing
+    and not op.block_group
+    and len(op.dest_specs) == 1
     for op in exec_ops
   )
 
@@ -373,6 +403,7 @@ def _gen_parallel_group(
         i2 + f"std::cout << \" >>>>>>>>>>>>>>>>> {op.rule_name}"
         f" count: \" << total_{idx} << std::endl;\n"
       )
+      out += _gen_record_count_results(op, f"total_{idx}", i2)
 
   # Phase 3c: resize + offsets.
   out += i2 + "// Phase 3c: Resize once per unique dest + assign per-rule offsets\n"

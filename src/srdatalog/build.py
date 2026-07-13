@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 
 from srdatalog.ir.codegen.cuda.build.cache import JitProjectLayout, write_jit_project
 from srdatalog.ir.codegen.cuda.main_file import (
+  _extract_count_result_relations,
   gen_extern_c_shim,
   gen_main_file_content,
   gen_run_dispatcher_file,
@@ -108,7 +109,11 @@ def build_project(
         decl_only_runner=shard_step_bodies,
         canonical_indices=cr.canonical_indices,
       )
-    main_cpp += "\n" + gen_extern_c_shim(project_name, cr.hir.relation_decls)
+    main_cpp += "\n" + gen_extern_c_shim(
+      project_name,
+      cr.hir.relation_decls,
+      _extract_count_result_relations(cr.mir),
+    )
 
   # In unity mode we want no jit_batch_*.cpp files — they'd be
   # redundant (every JitRunner is already inlined in main.cpp).

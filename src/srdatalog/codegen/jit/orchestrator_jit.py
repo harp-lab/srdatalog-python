@@ -151,6 +151,7 @@ def _gen_execute_pipeline(
   indent: str,
   iter_var: str,
   count_only_rels: set[str],
+  tail_mode: bool = True,
 ) -> str:
   runner_name = f"JitRunner_{instr.rule_name}"
   if instr.count or is_count_only_pipeline(instr, count_only_rels):
@@ -177,7 +178,11 @@ def _gen_execute_pipeline(
     and not instr.block_group
     and len(instr.dest_specs) == 1
   )
-  if has_fused:
+  # tail_mode dispatch (fused-execution optimization) is only meaningful in
+  # the RECURSIVE driver, where `_tail_mode` actually flips. In a
+  # non-recursive step it is dead (always false), so emit the plain execute
+  # — keeps the baseline free of the dead fused-execution feature hook.
+  if has_fused and tail_mode:
     return (
       indent + f"if (_tail_mode) {runner_name}::execute_fused(db, {iter_var}); "
       f"else {runner_name}::execute(db, {iter_var});\n"
@@ -191,6 +196,7 @@ def _gen_parallel_group(
   iter_var: str,
   dest_stream_map_out: dict[str, list[int]],
   count_only_rels: set[str],
+  tail_mode: bool = True,
 ) -> str:
   '''Port of Nim's moParallelGroup branch — ~250 LOC of phased stream-
   parallel dispatch. Modifies dest_stream_map_out in place so downstream
@@ -247,20 +253,24 @@ def _gen_parallel_group(
     for op in exec_ops
   )
 
-  out = i + "if (_tail_mode" + ("" if all_fused_eligible else " && false") + ") {\n"
-  if all_fused_eligible:
-    for op in exec_ops:
-      runner = f"JitRunner_{op.rule_name}"
-      out += i2 + f"{runner}::execute_fused(db, {iter_var});\n"
-  for op in other_ops:
-    out += gen_instruction_code(
-      op,
-      i2,
-      iter_var,
-      dest_stream_map_out,
-      count_only_rels,
-    )
-  out += i + "} else {\n"
+  # tail-mode fused dispatch is a recursive-driver concern; in a non-recursive
+  # step _tail_mode is dead, so emit the stream-parallel block directly.
+  out = ""
+  if tail_mode:
+    out += i + "if (_tail_mode" + ("" if all_fused_eligible else " && false") + ") {\n"
+    if all_fused_eligible:
+      for op in exec_ops:
+        runner = f"JitRunner_{op.rule_name}"
+        out += i2 + f"{runner}::execute_fused(db, {iter_var});\n"
+    for op in other_ops:
+      out += gen_instruction_code(
+        op,
+        i2,
+        iter_var,
+        dest_stream_map_out,
+        count_only_rels,
+      )
+    out += i + "} else {\n"
 
   out += i + f"// === ParallelGroup (stream-parallel, {N} rules, shared dests) ===\n"
   out += i + "{\n"
@@ -470,7 +480,8 @@ def _gen_parallel_group(
     )
 
   out += i + "}\n"
-  out += i + "}\n"  # close tail-mode else
+  if tail_mode:
+    out += i + "}\n"  # close tail-mode else
   return out
 
 
@@ -480,13 +491,14 @@ def gen_instruction_code(
   iter_var: str,
   dest_stream_map: dict[str, list[int]],
   count_only_rels: set[str] | None = None,
+  tail_mode: bool = True,
 ) -> str:
   '''Emit imperative C++ for one fixpoint-level MIR instruction.'''
   if count_only_rels is None:
     count_only_rels = set()
 
   if isinstance(instr, m.ExecutePipeline):
-    return _gen_execute_pipeline(instr, indent, iter_var, count_only_rels)
+    return _gen_execute_pipeline(instr, indent, iter_var, count_only_rels, tail_mode)
 
   if isinstance(instr, m.ParallelGroup):
     return _gen_parallel_group(
@@ -495,6 +507,7 @@ def gen_instruction_code(
       iter_var,
       dest_stream_map,
       count_only_rels,
+      tail_mode,
     )
 
   if isinstance(instr, m.ComputeDelta):
@@ -794,11 +807,14 @@ def gen_non_recursive_block(
         out += i + f"mir_helpers::create_index_fn<{spec_type}>(db, 0);\n"
     out += "\n"
 
+    # tail_mode (fused-execution dispatch) is a recursive-driver concern. In a
+    # non-recursive step it is always dead, so the baseline emits neither the
+    # `bool _tail_mode` decl nor the dispatch — both single-pipeline and
+    # parallel-group paths run the plain stream-parallel / execute code.
     canonical_specs = collect_canonical_specs(instrs)
     for rel_name, cols in canonical_specs:
       spec_type = gen_index_spec_type(rel_name, "FULL_VER", cols)
       out += i + f"using {rel_name}_canonical_spec_t = {spec_type};\n"
-    out += i + "bool _tail_mode = false;\n"
     out += "\n"
 
     max_stream_count = 0
@@ -835,6 +851,7 @@ def gen_non_recursive_block(
         "0",
         dest_stream_map,
         count_only_rels,
+        tail_mode=False,
       )
     return out
 

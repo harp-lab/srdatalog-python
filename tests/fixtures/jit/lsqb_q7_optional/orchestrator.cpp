@@ -23,10 +23,7 @@
     mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<ReplyOf, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
     mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<Likes, std::integer_sequence<int, 1, 0>, FULL_VER>>(db, 0);
     mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
-    if (_tail_mode) {
-      JitRunner_MarkHasReply::execute_fused(db, 0);
-      JitRunner_MarkHasLiker::execute_fused(db, 0);
-      JitRunner_Case1Both::execute_fused(db, 0);
+    if (_tail_mode && false) {
     } else {
     // === ParallelGroup (stream-parallel, 3 rules, shared dests) ===
     {
@@ -56,6 +53,7 @@
       uint32_t total_0 = JitRunner_MarkHasReply::read_total(p_0);
 
       std::cout << " >>>>>>>>>>>>>>>>> Case1Both count: " << total_2 << std::endl;
+      record_count_result("Case1", total_2);
       // Phase 3c: Resize once per unique dest + assign per-rule offsets
       // skip resize for count_only dest Case1
       p_2.old_size_0 = 0;
@@ -165,10 +163,7 @@
     mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasCreator, std::integer_sequence<int, 0, 1>, FULL_VER>>(db, 0);
     mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasReply, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
     mir_helpers::create_index_fn<SRDatalog::mir::IndexSpecT<HasLiker, std::integer_sequence<int, 0>, FULL_VER>>(db, 0);
-    if (_tail_mode) {
-      JitRunner_Case2ReplyOnly::execute_fused(db, 0);
-      JitRunner_Case3LikeOnly::execute_fused(db, 0);
-      JitRunner_Case4Neither::execute_fused(db, 0);
+    if (_tail_mode && false) {
     } else {
     // === ParallelGroup (stream-parallel, 3 rules, shared dests) ===
     {
@@ -198,8 +193,11 @@
       uint32_t total_2 = JitRunner_Case4Neither::read_total(p_2);
 
       std::cout << " >>>>>>>>>>>>>>>>> Case2ReplyOnly count: " << total_0 << std::endl;
+      record_count_result("Case2", total_0);
       std::cout << " >>>>>>>>>>>>>>>>> Case3LikeOnly count: " << total_1 << std::endl;
+      record_count_result("Case3", total_1);
       std::cout << " >>>>>>>>>>>>>>>>> Case4Neither count: " << total_2 << std::endl;
+      record_count_result("Case4", total_2);
       // Phase 3c: Resize once per unique dest + assign per-rule offsets
       // skip resize for count_only dest Case2
       p_0.old_size_0 = 0;

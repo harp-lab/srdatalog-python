@@ -1,0 +1,4796 @@
+{
+  "strata": [
+    {
+      "id": 0,
+      "isRecursive": false,
+      "relations": [
+        "JumpTableTarget"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "JumpTableTargetRule",
+            "head": [
+              {
+                "rel": "JumpTableTarget",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "dest"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "JumpTableStart",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "size"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "tableStart"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen2"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RelJumpTableEntryCandidate",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "tableStart"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "size"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen4"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "dest"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen5"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen6"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "JumpTableTargetRule: (JumpTableTarget ea dest) <-\n      (JumpTableStart ea size tableStart _gen1 _gen2),\n      (RelJumpTableEntryCandidate _gen3 tableStart size _gen4 dest _gen5 _gen6)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "size",
+            "tableStart",
+            "ea",
+            "_gen1",
+            "_gen2",
+            "_gen3",
+            "_gen4",
+            "dest",
+            "_gen5",
+            "_gen6"
+          ],
+          "joins": [
+            {
+              "rel": "JumpTableStart",
+              "version": "FULL",
+              "accessOrder": [
+                "size",
+                "tableStart",
+                "ea",
+                "_gen1",
+                "_gen2"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                2,
+                0,
+                3,
+                4
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RelJumpTableEntryCandidate",
+              "version": "FULL",
+              "accessOrder": [
+                "size",
+                "tableStart",
+                "_gen3",
+                "_gen4",
+                "dest",
+                "_gen5",
+                "_gen6"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0,
+                3,
+                4,
+                5,
+                6
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 1,
+      "isRecursive": false,
+      "relations": [
+        "RegDefUseDefUsed",
+        "RegDefUseLiveVarAtBlockEnd",
+        "RegDefUseLiveVarAtPriorUsed",
+        "RegDefUseLiveVarUsed",
+        "RegDefUseReturnValUsed"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "RegDefUsed1",
+            "head": [
+              {
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseBlockLastDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RegDefUsed1: (RegDefUseDefUsed eaDef mvar eaUsed index) <-\n      (RegDefUseUsed eaUsed mvar index),\n      (RegDefUseBlockLastDef eaUsed eaDef mvar)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "eaUsed",
+            "mvar",
+            "index",
+            "eaDef"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "mvar",
+                "index"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseBlockLastDef",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "mvar",
+                "eaDef"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "LiveVarUsed1",
+            "head": [
+              {
+                "rel": "RegDefUseLiveVarUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseUsedInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "RegDefUseBlockLastDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen11"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LiveVarUsed1: (RegDefUseLiveVarUsed blk mvar eaUsed index) <-\n      (RegDefUseUsedInBlock blk eaUsed mvar index),\n      (NOT (RegDefUseBlockLastDef eaUsed _gen11 mvar))",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "blk",
+            "eaUsed",
+            "mvar",
+            "index",
+            "_gen11"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseUsedInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "eaUsed",
+                "mvar",
+                "index"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": [
+            {
+              "rel": "RegDefUseBlockLastDef",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "mvar",
+                "_gen11"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 2,
+      "isRecursive": true,
+      "relations": [
+        "RegDefUseDefUsed",
+        "RegDefUseLiveVarAtBlockEnd",
+        "RegDefUseLiveVarAtPriorUsed",
+        "RegDefUseLiveVarUsed",
+        "RegDefUseReturnValUsed"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "RegDefUsed2",
+            "head": [
+              {
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varIdentity"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varIdentity"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RegDefUsed2: (RegDefUseDefUsed eaDef varIdentity eaUsed index) <-\n      (RegDefUseLiveVarAtBlockEnd blk blockUsed mvar),\n      (RegDefUseLiveVarDef blk varIdentity mvar eaDef),\n      (RegDefUseLiveVarUsed blockUsed mvar eaUsed index)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "blk",
+            "blockUsed",
+            "mvar",
+            "varIdentity",
+            "eaDef",
+            "eaUsed",
+            "index"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseLiveVarAtBlockEnd",
+              "version": "DELTA",
+              "accessOrder": [
+                "blk",
+                "blockUsed",
+                "mvar"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseLiveVarDef",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "mvar",
+                "varIdentity",
+                "eaDef"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1,
+                3
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "RegDefUseLiveVarUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "blockUsed",
+                "mvar",
+                "eaUsed",
+                "index"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "RegDefUsed2",
+            "head": [
+              {
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varIdentity"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varIdentity"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RegDefUsed2: (RegDefUseDefUsed eaDef varIdentity eaUsed index) <-\n      (RegDefUseLiveVarAtBlockEnd blk blockUsed mvar),\n      (RegDefUseLiveVarDef blk varIdentity mvar eaDef),\n      (RegDefUseLiveVarUsed blockUsed mvar eaUsed index)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            0,
+            1
+          ],
+          "varOrder": [
+            "blockUsed",
+            "mvar",
+            "blk",
+            "eaUsed",
+            "index",
+            "varIdentity",
+            "eaDef"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseLiveVarAtBlockEnd",
+              "version": "FULL",
+              "accessOrder": [
+                "blockUsed",
+                "mvar",
+                "blk"
+              ],
+              "prefixLen": 3,
+              "index": [
+                1,
+                2,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseLiveVarDef",
+              "version": "FULL",
+              "accessOrder": [
+                "mvar",
+                "blk",
+                "varIdentity",
+                "eaDef"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                0,
+                1,
+                3
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "RegDefUseLiveVarUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "blockUsed",
+                "mvar",
+                "eaUsed",
+                "index"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "RegDefUsed3",
+            "head": [
+              {
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextEaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextIndex"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarAtPriorUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nxtBlk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen7"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "nxtBlk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextEaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextIndex"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RegDefUsed3: (RegDefUseDefUsed eaDef mvar nextEaUsed nextIndex) <-\n      (RegDefUseLiveVarAtPriorUsed eaUsed nxtBlk mvar),\n      (RegDefUseDefUsed eaDef mvar eaUsed _gen7),\n      (RegDefUseLiveVarUsed nxtBlk mvar nextEaUsed nextIndex)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "eaUsed",
+            "mvar",
+            "nxtBlk",
+            "eaDef",
+            "nextEaUsed",
+            "nextIndex"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseLiveVarAtPriorUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "eaUsed",
+                "mvar",
+                "nxtBlk"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "mvar",
+                "eaDef",
+                "_gen7"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0,
+                3
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "RegDefUseLiveVarUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "mvar",
+                "nxtBlk",
+                "nextEaUsed",
+                "nextIndex"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0,
+                2,
+                3
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "RegDefUsed3",
+            "head": [
+              {
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextEaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextIndex"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarAtPriorUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nxtBlk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen7"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "nxtBlk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextEaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextIndex"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RegDefUsed3: (RegDefUseDefUsed eaDef mvar nextEaUsed nextIndex) <-\n      (RegDefUseLiveVarAtPriorUsed eaUsed nxtBlk mvar),\n      (RegDefUseDefUsed eaDef mvar eaUsed _gen7),\n      (RegDefUseLiveVarUsed nxtBlk mvar nextEaUsed nextIndex)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0,
+            2
+          ],
+          "varOrder": [
+            "eaUsed",
+            "mvar",
+            "nxtBlk",
+            "eaDef",
+            "nextEaUsed",
+            "nextIndex"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseLiveVarAtPriorUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "mvar",
+                "nxtBlk"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "eaUsed",
+                "mvar",
+                "eaDef",
+                "_gen7"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0,
+                3
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "RegDefUseLiveVarUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "mvar",
+                "nxtBlk",
+                "nextEaUsed",
+                "nextIndex"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0,
+                2,
+                3
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "RegDefUsed3",
+            "head": [
+              {
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextEaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextIndex"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarAtPriorUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nxtBlk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen7"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "nxtBlk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextEaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextIndex"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RegDefUsed3: (RegDefUseDefUsed eaDef mvar nextEaUsed nextIndex) <-\n      (RegDefUseLiveVarAtPriorUsed eaUsed nxtBlk mvar),\n      (RegDefUseDefUsed eaDef mvar eaUsed _gen7),\n      (RegDefUseLiveVarUsed nxtBlk mvar nextEaUsed nextIndex)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            0,
+            1
+          ],
+          "varOrder": [
+            "nxtBlk",
+            "mvar",
+            "eaUsed",
+            "eaDef",
+            "nextEaUsed",
+            "nextIndex"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseLiveVarAtPriorUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "nxtBlk",
+                "mvar",
+                "eaUsed"
+              ],
+              "prefixLen": 3,
+              "index": [
+                1,
+                2,
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "mvar",
+                "eaUsed",
+                "eaDef",
+                "_gen7"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                2,
+                0,
+                3
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "RegDefUseLiveVarUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "nxtBlk",
+                "mvar",
+                "nextEaUsed",
+                "nextIndex"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "RegDefUsed4",
+            "head": [
+              {
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseReturnValUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen8"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "callee"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseReturnBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "callee"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen9"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen10"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockEnd"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseBlockLastDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blockEnd"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RegDefUsed4: (RegDefUseDefUsed eaDef reg eaUsed index) <-\n      (RegDefUseReturnValUsed _gen8 callee reg eaUsed index),\n      (RegDefUseReturnBlockEnd callee _gen9 _gen10 blockEnd),\n      (RegDefUseBlockLastDef blockEnd eaDef reg)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "callee",
+            "reg",
+            "blockEnd",
+            "_gen8",
+            "eaUsed",
+            "index",
+            "_gen9",
+            "_gen10",
+            "eaDef"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseReturnValUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "callee",
+                "reg",
+                "_gen8",
+                "eaUsed",
+                "index"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                2,
+                0,
+                3,
+                4
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseReturnBlockEnd",
+              "version": "FULL",
+              "accessOrder": [
+                "callee",
+                "blockEnd",
+                "_gen9",
+                "_gen10"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                3,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "RegDefUseBlockLastDef",
+              "version": "FULL",
+              "accessOrder": [
+                "reg",
+                "blockEnd",
+                "eaDef"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "RetValUsed",
+            "head": [
+              {
+                "rel": "RegDefUseReturnValUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaCall"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "callee"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "indexUsed"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "ArchReturnReg",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaCall"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "indexUsed"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "DirectCall",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaCall"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "callee"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "RetValUsed: (RegDefUseReturnValUsed eaCall callee reg eaUsed indexUsed) <-\n      (ArchReturnReg reg),\n      (RegDefUseDefUsed eaCall reg eaUsed indexUsed),\n      (DirectCall eaCall callee)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0,
+            2
+          ],
+          "varOrder": [
+            "eaCall",
+            "reg",
+            "eaUsed",
+            "indexUsed",
+            "callee"
+          ],
+          "joins": [
+            {
+              "rel": "ArchReturnReg",
+              "version": "FULL",
+              "accessOrder": [
+                "reg"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "eaCall",
+                "reg",
+                "eaUsed",
+                "indexUsed"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "DirectCall",
+              "version": "FULL",
+              "accessOrder": [
+                "eaCall",
+                "callee"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "LiveVarUsed2",
+            "head": [
+              {
+                "rel": "RegDefUseLiveVarUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "retBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseReturnBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "callee"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen12"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "retBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "retBlockEnd"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "RegDefUseBlockLastDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "retBlockEnd"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen13"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseReturnValUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_gen14"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "callee"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "index"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LiveVarUsed2: (RegDefUseLiveVarUsed retBlock reg eaUsed index) <-\n      (RegDefUseReturnBlockEnd callee _gen12 retBlock retBlockEnd),\n      (NOT (RegDefUseBlockLastDef retBlockEnd _gen13 reg)),\n      (RegDefUseReturnValUsed _gen14 callee reg eaUsed index)",
+          "deltaIdx": 2,
+          "clauseOrder": [
+            2,
+            0,
+            1
+          ],
+          "varOrder": [
+            "callee",
+            "_gen14",
+            "reg",
+            "eaUsed",
+            "index",
+            "_gen12",
+            "retBlock",
+            "retBlockEnd",
+            "_gen13"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseReturnBlockEnd",
+              "version": "FULL",
+              "accessOrder": [
+                "callee",
+                "_gen12",
+                "retBlock",
+                "retBlockEnd"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseReturnValUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "callee",
+                "_gen14",
+                "reg",
+                "eaUsed",
+                "index"
+              ],
+              "prefixLen": 1,
+              "index": [
+                1,
+                0,
+                2,
+                3,
+                4
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": [
+            {
+              "rel": "RegDefUseBlockLastDef",
+              "version": "FULL",
+              "accessOrder": [
+                "reg",
+                "retBlockEnd",
+                "_gen13"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        },
+        {
+          "rule": {
+            "name": "LiveVarAtPriorUsed",
+            "head": [
+              {
+                "rel": "RegDefUseLiveVarAtPriorUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseUsedInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen15"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "RegDefUseDefinedInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LiveVarAtPriorUsed: (RegDefUseLiveVarAtPriorUsed eaUsed blockUsed mvar) <-\n      (RegDefUseLiveVarAtBlockEnd blk blockUsed mvar),\n      (RegDefUseUsedInBlock blk eaUsed mvar _gen15),\n      (NOT (RegDefUseDefinedInBlock blk mvar))",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "blk",
+            "mvar",
+            "blockUsed",
+            "eaUsed",
+            "_gen15"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseLiveVarAtBlockEnd",
+              "version": "DELTA",
+              "accessOrder": [
+                "blk",
+                "mvar",
+                "blockUsed"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseUsedInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "mvar",
+                "eaUsed",
+                "_gen15"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                2,
+                1,
+                3
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": [
+            {
+              "rel": "RegDefUseDefinedInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "mvar"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ]
+        },
+        {
+          "rule": {
+            "name": "LiveVarAtBlockEnd1",
+            "head": [
+              {
+                "rel": "RegDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "BlockNext",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "prevBlockEnd"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen16"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen17"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "RegDefUseFlowDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlockEnd"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen18"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LiveVarAtBlockEnd1: (RegDefUseLiveVarAtBlockEnd prevBlock blk mvar) <-\n      (BlockNext prevBlock prevBlockEnd blk),\n      (RegDefUseLiveVarUsed blk mvar _gen16 _gen17),\n      (NOT (RegDefUseFlowDef prevBlockEnd mvar blk _gen18))",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0,
+            2
+          ],
+          "varOrder": [
+            "blk",
+            "mvar",
+            "_gen16",
+            "_gen17",
+            "prevBlock",
+            "prevBlockEnd",
+            "_gen18"
+          ],
+          "joins": [
+            {
+              "rel": "BlockNext",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "prevBlock",
+                "prevBlockEnd"
+              ],
+              "prefixLen": 1,
+              "index": [
+                2,
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseLiveVarUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "blk",
+                "mvar",
+                "_gen16",
+                "_gen17"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": [
+            {
+              "rel": "RegDefUseFlowDef",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "mvar",
+                "prevBlockEnd",
+                "_gen18"
+              ],
+              "prefixLen": 3,
+              "index": [
+                2,
+                1,
+                0,
+                3
+              ],
+              "clauseIdx": 2
+            }
+          ]
+        },
+        {
+          "rule": {
+            "name": "LiveVarAtBlockEnd2",
+            "head": [
+              {
+                "rel": "RegDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "RegDefUseRefInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mvar"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "BlockNext",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen19"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "LiveVarAtBlockEnd2: (RegDefUseLiveVarAtBlockEnd prevBlock blockUsed mvar) <-\n      (RegDefUseLiveVarAtBlockEnd blk blockUsed mvar),\n      (NOT (RegDefUseRefInBlock blk mvar)),\n      (BlockNext prevBlock _gen19 blk)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            2,
+            1
+          ],
+          "varOrder": [
+            "blk",
+            "blockUsed",
+            "mvar",
+            "prevBlock",
+            "_gen19"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseLiveVarAtBlockEnd",
+              "version": "DELTA",
+              "accessOrder": [
+                "blk",
+                "blockUsed",
+                "mvar"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "BlockNext",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "prevBlock",
+                "_gen19"
+              ],
+              "prefixLen": 1,
+              "index": [
+                2,
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": [
+            {
+              "rel": "RegDefUseRefInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "mvar"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "isRecursive": false,
+      "relations": [
+        "StackDefUseLiveVarAtBlockEnd"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "StackLiveVarBlockEnd2",
+            "head": [
+              {
+                "rel": "StackDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "BlockNext",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen35"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarUsedEDB",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen36"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen37"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen38"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen39"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen40"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "StackLiveVarBlockEnd2: (StackDefUseLiveVarAtBlockEnd prevBlock blk varr varp) <-\n      (BlockNext prevBlock _gen35 blk),\n      (StackDefUseLiveVarUsedEDB blk varr varp _gen36 _gen37 _gen38 _gen39 _gen40)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "blk",
+            "prevBlock",
+            "_gen35",
+            "varr",
+            "varp",
+            "_gen36",
+            "_gen37",
+            "_gen38",
+            "_gen39",
+            "_gen40"
+          ],
+          "joins": [
+            {
+              "rel": "BlockNext",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "prevBlock",
+                "_gen35"
+              ],
+              "prefixLen": 1,
+              "index": [
+                2,
+                0,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "StackDefUseLiveVarUsedEDB",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "varr",
+                "varp",
+                "_gen36",
+                "_gen37",
+                "_gen38",
+                "_gen39",
+                "_gen40"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 4,
+      "isRecursive": true,
+      "relations": [
+        "StackDefUseLiveVarAtBlockEnd"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "StackLiveVarBlockEnd1",
+            "head": [
+              {
+                "rel": "StackDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "StackDefUseRefInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "RegDefUseDefinedInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  }
+                ]
+              },
+              {
+                "kind": "split"
+              },
+              {
+                "kind": "relation",
+                "rel": "BlockNext",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "prevBlock"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen34"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "StackLiveVarBlockEnd1: (StackDefUseLiveVarAtBlockEnd prevBlock blockUsed varr varp) <-\n      (StackDefUseLiveVarAtBlockEnd blk blockUsed varr varp),\n      (NOT (StackDefUseRefInBlock blk varr varp)),\n      (NOT (RegDefUseDefinedInBlock blk varr)),\n      ---,\n      (BlockNext prevBlock _gen34 blk)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            4,
+            1,
+            2,
+            3
+          ],
+          "varOrder": [
+            "blk",
+            "varr",
+            "varp",
+            "blockUsed",
+            "prevBlock"
+          ],
+          "joins": [
+            {
+              "rel": "StackDefUseLiveVarAtBlockEnd",
+              "version": "DELTA",
+              "accessOrder": [
+                "blk",
+                "varr",
+                "varp",
+                "blockUsed"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                2,
+                3,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "BlockNext",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "prevBlock",
+                "_gen34"
+              ],
+              "prefixLen": 1,
+              "index": [
+                2,
+                0,
+                1
+              ],
+              "clauseIdx": 4
+            }
+          ],
+          "negations": [
+            {
+              "rel": "StackDefUseRefInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "varr",
+                "varp"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "RegDefUseDefinedInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "varr"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "isRecursive": false,
+      "relations": [
+        "StackDefUseLiveVarAtPriorUsed"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "StackLiveVarPriorUsed",
+            "head": [
+              {
+                "rel": "StackDefUseLiveVarAtPriorUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseUsedInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen41"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "RegDefUseDefinedInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  }
+                ]
+              },
+              {
+                "kind": "negation",
+                "rel": "StackDefUseDefinedInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "StackLiveVarPriorUsed: (StackDefUseLiveVarAtPriorUsed eaUsed blockUsed varr varp) <-\n      (StackDefUseLiveVarAtBlockEnd blk blockUsed varr varp),\n      (StackDefUseUsedInBlock blk eaUsed varr varp _gen41),\n      (NOT (RegDefUseDefinedInBlock blk varr)),\n      (NOT (StackDefUseDefinedInBlock blk varr varp))",
+          "clauseOrder": [
+            0,
+            1,
+            2,
+            3
+          ],
+          "varOrder": [
+            "blk",
+            "varr",
+            "varp",
+            "blockUsed",
+            "eaUsed",
+            "_gen41"
+          ],
+          "joins": [
+            {
+              "rel": "StackDefUseLiveVarAtBlockEnd",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "varr",
+                "varp",
+                "blockUsed"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                2,
+                3,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "StackDefUseUsedInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "varr",
+                "varp",
+                "eaUsed",
+                "_gen41"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                2,
+                3,
+                1,
+                4
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": [
+            {
+              "rel": "RegDefUseDefinedInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "varr"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            },
+            {
+              "rel": "StackDefUseDefinedInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "varr",
+                "varp"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 3
+            }
+          ]
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 6,
+      "isRecursive": false,
+      "relations": [
+        "StackDefUseDefUsed"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "StackDefUsed1",
+            "head": [
+              {
+                "rel": "StackDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "StackDefUseUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen27"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseBlockLastDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "StackDefUsed1: (StackDefUseDefUsed eaDef varr varp eaUsed varr varp) <-\n      (StackDefUseUsed eaUsed varr varp _gen27),\n      (StackDefUseBlockLastDef eaUsed eaDef varr varp)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "eaUsed",
+            "varr",
+            "varp",
+            "_gen27",
+            "eaDef"
+          ],
+          "joins": [
+            {
+              "rel": "StackDefUseUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "varr",
+                "varp",
+                "_gen27"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "StackDefUseBlockLastDef",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "varr",
+                "varp",
+                "eaDef"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                2,
+                3,
+                1
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "StackDefUsed2",
+            "head": [
+              {
+                "rel": "StackDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varUsedr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varUsedp"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarAtBlockEnd",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarUsedEDB",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "blockUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varUsedr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varUsedp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen28"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen29"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "StackDefUsed2: (StackDefUseDefUsed eaDef defVarr defVarp eaUsed varUsedr varUsedp) <-\n      (StackDefUseLiveVarAtBlockEnd blk blockUsed varr varp),\n      (StackDefUseLiveVarDef blk defVarr defVarp varr varp eaDef),\n      (StackDefUseLiveVarUsedEDB blockUsed varr varp varUsedr varUsedp eaUsed _gen28 _gen29)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "blk",
+            "blockUsed",
+            "varr",
+            "varp",
+            "defVarr",
+            "defVarp",
+            "eaDef",
+            "varUsedr",
+            "varUsedp",
+            "eaUsed",
+            "_gen28",
+            "_gen29"
+          ],
+          "joins": [
+            {
+              "rel": "StackDefUseLiveVarAtBlockEnd",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "blockUsed",
+                "varr",
+                "varp"
+              ],
+              "prefixLen": 4,
+              "index": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "StackDefUseLiveVarDef",
+              "version": "FULL",
+              "accessOrder": [
+                "blk",
+                "varr",
+                "varp",
+                "defVarr",
+                "defVarp",
+                "eaDef"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                3,
+                4,
+                1,
+                2,
+                5
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "StackDefUseLiveVarUsedEDB",
+              "version": "FULL",
+              "accessOrder": [
+                "blockUsed",
+                "varr",
+                "varp",
+                "varUsedr",
+                "varUsedp",
+                "eaUsed",
+                "_gen28",
+                "_gen29"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "StackDefUsed3",
+            "head": [
+              {
+                "rel": "StackDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "usedVarr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "usedVarp"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarUsedEDB",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "usedVarr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "usedVarp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen30"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen31"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "MayFallthrough",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "CodeInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "CodeInBlock",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "blk"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseDef",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "defVarp"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "StackDefUsed3: (StackDefUseDefUsed eaDef defVarr defVarp eaUsed usedVarr usedVarp) <-\n      (StackDefUseLiveVarUsedEDB ea defVarr defVarp usedVarr usedVarp eaUsed _gen30 _gen31),\n      (MayFallthrough eaDef ea),\n      (CodeInBlock eaDef blk),\n      (CodeInBlock ea blk),\n      (StackDefUseDef eaDef defVarr defVarp)",
+          "clauseOrder": [
+            0,
+            4,
+            1,
+            2,
+            3
+          ],
+          "varOrder": [
+            "ea",
+            "defVarr",
+            "defVarp",
+            "eaDef",
+            "blk",
+            "usedVarr",
+            "usedVarp",
+            "eaUsed",
+            "_gen30",
+            "_gen31"
+          ],
+          "joins": [
+            {
+              "rel": "StackDefUseLiveVarUsedEDB",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "defVarr",
+                "defVarp",
+                "usedVarr",
+                "usedVarp",
+                "eaUsed",
+                "_gen30",
+                "_gen31"
+              ],
+              "prefixLen": 3,
+              "index": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "MayFallthrough",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "eaDef"
+              ],
+              "prefixLen": 2,
+              "index": [
+                1,
+                0
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "CodeInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "eaDef",
+                "blk"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 2
+            },
+            {
+              "rel": "CodeInBlock",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "blk"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1
+              ],
+              "clauseIdx": 3
+            },
+            {
+              "rel": "StackDefUseDef",
+              "version": "FULL",
+              "accessOrder": [
+                "defVarr",
+                "defVarp",
+                "eaDef"
+              ],
+              "prefixLen": 3,
+              "index": [
+                1,
+                2,
+                0
+              ],
+              "clauseIdx": 4
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 7,
+      "isRecursive": true,
+      "relations": [
+        "StackDefUseDefUsed"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "StackDefUsed4",
+            "head": [
+              {
+                "rel": "StackDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varDefr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varDefp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextEaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varUsedr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varUsedp"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarAtPriorUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nxtBlk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varDefr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varDefp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseLiveVarUsedEDB",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "nxtBlk"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varUsedr"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "varUsedp"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "nextEaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen32"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen33"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "StackDefUsed4: (StackDefUseDefUsed eaDef varDefr varDefp nextEaUsed varUsedr varUsedp) <-\n      (StackDefUseLiveVarAtPriorUsed eaUsed nxtBlk varr varp),\n      (StackDefUseDefUsed eaDef varDefr varDefp eaUsed varr varp),\n      (StackDefUseLiveVarUsedEDB nxtBlk varr varp varUsedr varUsedp nextEaUsed _gen32 _gen33)",
+          "deltaIdx": 1,
+          "clauseOrder": [
+            1,
+            0,
+            2
+          ],
+          "varOrder": [
+            "eaUsed",
+            "varr",
+            "varp",
+            "nxtBlk",
+            "eaDef",
+            "varDefr",
+            "varDefp",
+            "varUsedr",
+            "varUsedp",
+            "nextEaUsed",
+            "_gen32",
+            "_gen33"
+          ],
+          "joins": [
+            {
+              "rel": "StackDefUseLiveVarAtPriorUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "varr",
+                "varp",
+                "nxtBlk"
+              ],
+              "prefixLen": 4,
+              "index": [
+                0,
+                2,
+                3,
+                1
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "StackDefUseDefUsed",
+              "version": "DELTA",
+              "accessOrder": [
+                "eaUsed",
+                "varr",
+                "varp",
+                "eaDef",
+                "varDefr",
+                "varDefp"
+              ],
+              "prefixLen": 3,
+              "index": [
+                3,
+                4,
+                5,
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "StackDefUseLiveVarUsedEDB",
+              "version": "FULL",
+              "accessOrder": [
+                "varr",
+                "varp",
+                "nxtBlk",
+                "varUsedr",
+                "varUsedp",
+                "nextEaUsed",
+                "_gen32",
+                "_gen33"
+              ],
+              "prefixLen": 3,
+              "index": [
+                1,
+                2,
+                0,
+                3,
+                4,
+                5,
+                6,
+                7
+              ],
+              "clauseIdx": 2
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "isRecursive": false,
+      "relations": [
+        "DefUsedForAddress"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "DefUsedAddr1",
+            "head": [
+              {
+                "rel": "DefUsedForAddress",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_hc0"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "DefUsedForAddressEDB",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_c0"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return _c0 == 8859592;"
+              },
+              {
+                "kind": "bind",
+                "var": "_hc0",
+                "code": "8859592"
+              }
+            ]
+          },
+          "hirText": "DefUsedAddr1: (DefUsedForAddress ea reg _hc0) <-\n      (DefUsedForAddressEDB ea reg _c0),\n      (FILTER return _c0 == 8859592;),\n      (LET _hc0 := 8859592)",
+          "clauseOrder": [
+            0,
+            1,
+            2
+          ],
+          "varOrder": [
+            "ea",
+            "reg",
+            "_c0",
+            "_hc0"
+          ],
+          "joins": [
+            {
+              "rel": "DefUsedForAddressEDB",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "reg",
+                "_c0"
+              ],
+              "prefixLen": 0,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "DefUsedAddr2",
+            "head": [
+              {
+                "rel": "DefUsedForAddress",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mtype"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen23"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegUsedFor",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mtype"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "DefUsedAddr2: (DefUsedForAddress eaDef reg mtype) <-\n      (RegDefUseDefUsed eaDef reg ea _gen23),\n      (RegUsedFor ea reg mtype)",
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "ea",
+            "reg",
+            "eaDef",
+            "mtype"
+          ],
+          "joins": [
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "reg",
+                "eaDef",
+                "_gen23"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0,
+                3
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegUsedFor",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "reg",
+                "mtype"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    },
+    {
+      "id": 9,
+      "isRecursive": true,
+      "relations": [
+        "DefUsedForAddress"
+      ],
+      "base": [],
+      "recursive": [
+        {
+          "rule": {
+            "name": "DefUsedAddr3",
+            "head": [
+              {
+                "rel": "DefUsedForAddress",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mtype"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "DefUsedForAddress",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen24"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mtype"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaUsed"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen25"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "DefUsedAddr3: (DefUsedForAddress eaDef reg mtype) <-\n      (DefUsedForAddress eaUsed _gen24 mtype),\n      (RegDefUseDefUsed eaDef reg eaUsed _gen25)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1
+          ],
+          "varOrder": [
+            "eaUsed",
+            "_gen24",
+            "mtype",
+            "eaDef",
+            "reg",
+            "_gen25"
+          ],
+          "joins": [
+            {
+              "rel": "DefUsedForAddress",
+              "version": "DELTA",
+              "accessOrder": [
+                "eaUsed",
+                "_gen24",
+                "mtype"
+              ],
+              "prefixLen": 1,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "eaUsed",
+                "eaDef",
+                "reg",
+                "_gen25"
+              ],
+              "prefixLen": 1,
+              "index": [
+                2,
+                0,
+                1,
+                3
+              ],
+              "clauseIdx": 1
+            }
+          ],
+          "negations": []
+        },
+        {
+          "rule": {
+            "name": "DefUsedAddr4",
+            "head": [
+              {
+                "rel": "DefUsedForAddress",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mtype"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "DefUsedForAddress",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaLoad"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mtype"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ArchMemoryAccess",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_c1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaLoad"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "regBaseLoad"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_c2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "stackPosLoad"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return _c1 == 0 && _c2 == 4;"
+              },
+              {
+                "kind": "relation",
+                "rel": "StackDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaSt"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "regBaseSt"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "stackPosSt"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaLoad"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "regBaseLoad"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "stackPosLoad"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ArchMemoryAccess",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "_c3"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaSt"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "regBaseSt"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_c4"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "stackPosSt"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return _c3 == 2309374 && _c4 == 4;"
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaSt"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen26"
+                  }
+                ]
+              }
+            ]
+          },
+          "hirText": "DefUsedAddr4: (DefUsedForAddress eaDef reg1 mtype) <-\n      (DefUsedForAddress eaLoad reg2 mtype),\n      (ArchMemoryAccess _c1 eaLoad reg2 regBaseLoad _c2 stackPosLoad),\n      (FILTER return _c1 == 0 && _c2 == 4;),\n      (StackDefUseDefUsed eaSt regBaseSt stackPosSt eaLoad regBaseLoad stackPosLoad),\n      (ArchMemoryAccess _c3 eaSt reg1 regBaseSt _c4 stackPosSt),\n      (FILTER return _c3 == 2309374 && _c4 == 4;),\n      (RegDefUseDefUsed eaDef reg1 eaSt _gen26)",
+          "deltaIdx": 0,
+          "clauseOrder": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "varOrder": [
+            "eaLoad",
+            "reg2",
+            "regBaseLoad",
+            "stackPosLoad",
+            "eaSt",
+            "regBaseSt",
+            "stackPosSt",
+            "reg1",
+            "mtype",
+            "_c1",
+            "_c2",
+            "_c3",
+            "_c4",
+            "eaDef",
+            "_gen26"
+          ],
+          "joins": [
+            {
+              "rel": "DefUsedForAddress",
+              "version": "DELTA",
+              "accessOrder": [
+                "eaLoad",
+                "reg2",
+                "mtype"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ArchMemoryAccess",
+              "version": "FULL",
+              "accessOrder": [
+                "eaLoad",
+                "reg2",
+                "regBaseLoad",
+                "stackPosLoad",
+                "_c1",
+                "_c2"
+              ],
+              "prefixLen": 4,
+              "index": [
+                1,
+                2,
+                3,
+                5,
+                0,
+                4
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "StackDefUseDefUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "eaLoad",
+                "regBaseLoad",
+                "stackPosLoad",
+                "eaSt",
+                "regBaseSt",
+                "stackPosSt"
+              ],
+              "prefixLen": 6,
+              "index": [
+                3,
+                4,
+                5,
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 3
+            },
+            {
+              "rel": "ArchMemoryAccess",
+              "version": "FULL",
+              "accessOrder": [
+                "eaSt",
+                "regBaseSt",
+                "stackPosSt",
+                "reg1",
+                "_c3",
+                "_c4"
+              ],
+              "prefixLen": 4,
+              "index": [
+                1,
+                3,
+                5,
+                2,
+                0,
+                4
+              ],
+              "clauseIdx": 4
+            },
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "eaSt",
+                "reg1",
+                "eaDef",
+                "_gen26"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0,
+                3
+              ],
+              "clauseIdx": 6
+            }
+          ],
+          "negations": []
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "isRecursive": false,
+      "relations": [
+        "RegRegArithOpDefs"
+      ],
+      "base": [
+        {
+          "rule": {
+            "name": "RegRegArithDefs",
+            "head": [
+              {
+                "rel": "RegRegArithOpDefs",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "regDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaDef1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "eaDef2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mult"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "offset"
+                  }
+                ]
+              }
+            ],
+            "body": [
+              {
+                "kind": "relation",
+                "rel": "DefUsedForAddress",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "regDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen20"
+                  }
+                ]
+              },
+              {
+                "kind": "relation",
+                "rel": "ArchRegRegArithOp",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "regDef"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "mult"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "offset"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return reg1 != reg2;"
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg1"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen21"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return ea != eaDef1;"
+              },
+              {
+                "kind": "relation",
+                "rel": "RegDefUseDefUsed",
+                "args": [
+                  {
+                    "kind": "var",
+                    "name": "eaDef2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "reg2"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "ea"
+                  },
+                  {
+                    "kind": "var",
+                    "name": "_gen22"
+                  }
+                ]
+              },
+              {
+                "kind": "filter",
+                "code": "return ea != eaDef2;"
+              }
+            ]
+          },
+          "hirText": "RegRegArithDefs: (RegRegArithOpDefs ea regDef eaDef1 reg1 eaDef2 reg2 mult offset) <-\n      (DefUsedForAddress ea regDef _gen20),\n      (ArchRegRegArithOp ea regDef reg1 reg2 mult offset),\n      (FILTER return reg1 != reg2;),\n      (RegDefUseDefUsed eaDef1 reg1 ea _gen21),\n      (FILTER return ea != eaDef1;),\n      (RegDefUseDefUsed eaDef2 reg2 ea _gen22),\n      (FILTER return ea != eaDef2;)",
+          "clauseOrder": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "varOrder": [
+            "ea",
+            "regDef",
+            "reg1",
+            "reg2",
+            "_gen20",
+            "mult",
+            "offset",
+            "eaDef1",
+            "_gen21",
+            "eaDef2",
+            "_gen22"
+          ],
+          "joins": [
+            {
+              "rel": "DefUsedForAddress",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "regDef",
+                "_gen20"
+              ],
+              "prefixLen": 2,
+              "index": [
+                0,
+                1,
+                2
+              ],
+              "clauseIdx": 0
+            },
+            {
+              "rel": "ArchRegRegArithOp",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "regDef",
+                "reg1",
+                "reg2",
+                "mult",
+                "offset"
+              ],
+              "prefixLen": 4,
+              "index": [
+                0,
+                1,
+                2,
+                3,
+                4,
+                5
+              ],
+              "clauseIdx": 1
+            },
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "reg1",
+                "eaDef1",
+                "_gen21"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0,
+                3
+              ],
+              "clauseIdx": 3
+            },
+            {
+              "rel": "RegDefUseDefUsed",
+              "version": "FULL",
+              "accessOrder": [
+                "ea",
+                "reg2",
+                "eaDef2",
+                "_gen22"
+              ],
+              "prefixLen": 2,
+              "index": [
+                2,
+                1,
+                0,
+                3
+              ],
+              "clauseIdx": 5
+            }
+          ],
+          "negations": []
+        }
+      ],
+      "recursive": []
+    }
+  ],
+  "relations": {
+    "JumpTableTarget": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "JumpTableStart": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RelJumpTableEntryCandidate": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseDefUsed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseUsed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseBlockLastDef": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseLiveVarAtBlockEnd": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseLiveVarDef": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseLiveVarUsed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseLiveVarAtPriorUsed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseReturnValUsed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseReturnBlockEnd": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ArchReturnReg": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int"
+      ]
+    },
+    "DirectCall": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseUsedInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseDefinedInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "BlockNext": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseFlowDef": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegDefUseRefInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "RegRegArithOpDefs": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "DefUsedForAddress": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ArchRegRegArithOp": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "DefUsedForAddressEDB": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "RegUsedFor": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "ArchMemoryAccess": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseDefUsed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseUsed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseBlockLastDef": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseLiveVarAtBlockEnd": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseLiveVarDef": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseLiveVarUsedEDB": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "MayFallthrough": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "CodeInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseDef": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseLiveVarAtPriorUsed": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseRefInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseUsedInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "StackDefUseDefinedInBlock": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int"
+      ]
+    },
+    "_temp_StackLiveVarBlockEnd1": {
+      "semiring": "NoProvenance",
+      "types": [
+        "int",
+        "int",
+        "int",
+        "int"
+      ]
+    }
+  }
+}

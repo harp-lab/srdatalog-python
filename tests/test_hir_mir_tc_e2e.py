@@ -6,19 +6,14 @@ python/tests/fixtures/tc.mir.sexpr produced by srdatalog_plan.nim (with
 its `emitMir` branch -- pre-MIR-pass output, matching what
 lower_hir_to_mir produces in Python).
 
-The golden additionally carries the program-level `:relations` block (a
-deliberate extension of the MIR contract beyond Nim's dump -- see
-srdatalog-rkt ADR 0003: relation metadata is a first-class MIR
-construct). The body below `:relations` remains byte-identical to Nim.
-
 This closes the loop for tc: DSL -> HIR -> MIR, both byte-verified.
 '''
 
 from pathlib import Path
 
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.hir import compile_to_mir
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir import compile_to_mir
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 

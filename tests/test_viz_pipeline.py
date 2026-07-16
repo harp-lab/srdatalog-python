@@ -4,7 +4,7 @@ artifacts as build_project, just in-memory.'''
 from __future__ import annotations
 
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.pipeline import compile_program
+from srdatalog.ir.pipeline import compile_program
 
 
 def _triangle_program() -> Program:

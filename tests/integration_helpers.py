@@ -14,9 +14,9 @@ import re
 from pathlib import Path
 
 from srdatalog.dsl import Program
-from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir.emit import hir_to_obj
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir.emit import hir_to_obj
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "integration"
 JIT_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "jit"
@@ -122,6 +122,15 @@ def diff_orchestrator(fixture_stem: str, actual_cpp: str) -> None:
   if _cpp_norm(actual_cpp) != _cpp_norm(golden):
     d = _unified_cpp_diff(golden, actual_cpp, fixture_stem)
     raise AssertionError(f"{fixture_stem} orchestrator mismatch:\n" + d)
+
+
+def diff_orchestrator_exact(fixture_stem: str, actual_cpp: str) -> None:
+  '''Require exact source bytes for a Nim-generated orchestrator golden.'''
+  golden_path = JIT_FIXTURES / fixture_stem / "orchestrator.cpp"
+  golden = golden_path.read_text()
+  if actual_cpp != golden:
+    d = _unified_cpp_diff(golden, actual_cpp, fixture_stem)
+    raise AssertionError(f"{fixture_stem} exact orchestrator mismatch:\n" + d)
 
 
 def diff_jit_batch(fixture_stem: str, rule_name: str, actual_cpp: str) -> None:

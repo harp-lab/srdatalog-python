@@ -9,10 +9,10 @@ import json
 from pathlib import Path
 
 from srdatalog.dsl import PlanEntry, Program, Relation, Var
-from srdatalog.hir import compile_to_hir, compile_to_mir
-from srdatalog.hir.emit import hir_to_obj
-from srdatalog.hir.plan import derive_clause_order_from_var_order
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir.emit import hir_to_obj
+from srdatalog.ir.hir.plan import derive_clause_order_from_var_order
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -166,9 +166,6 @@ def test_user_plan_hir_byte_match():
 
 
 def test_user_plan_mir_byte_match():
-  # Golden carries the program-level :relations block (MIR-contract
-  # extension beyond Nim; see srdatalog-rkt ADR 0003). The body below it
-  # remains byte-identical to the Nim dump.
   mir_prog = compile_to_mir(build_p_with_plan())
   actual = print_mir_sexpr(mir_prog)
   golden = (FIXTURES / "tc_with_plan.mir.sexpr").read_text().rstrip("\n")

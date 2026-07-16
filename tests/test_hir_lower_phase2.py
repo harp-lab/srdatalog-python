@@ -9,18 +9,18 @@ The MIR tree is spot-checked structurally and then re-emitted through the
 S-expr printer so the concatenated output is locked against regressions.
 '''
 
-import srdatalog.mir.types as mir
+import srdatalog.ir.mir.types as mir
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.hir import compile_to_hir
-from srdatalog.hir.lower import (
+from srdatalog.ir.hir import compile_to_hir
+from srdatalog.ir.hir.lower import (
   generate_loop_maintenance,
   generate_merge_indices,
   generate_rebuild_indices,
   generate_simple_maintenance,
   lower_variant_to_pipeline,
 )
-from srdatalog.hir.types import Version
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir.types import Version
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 
 def build_tc() -> Program:
@@ -98,17 +98,17 @@ def test_tc_rec_sexpr_roundtrip():
   ops = lower_variant_to_pipeline(variant, hir.strata[2])
   sexpr = "\n".join(print_mir_sexpr(op) for op in ops)
   expected = (
-    "(column-join :var y\n"
-    "  :sources (\n"
-    "    (column-source :index (Path 1 0) :ver DELTA :prefix ())\n"
-    "    (column-source :index (Edge 0 1) :ver FULL :prefix ())\n"
+    "(column-join #:var y\n"
+    "  #:sources (\n"
+    "    (column-source #:index (Path 1 0) #:ver DELTA #:prefix ())\n"
+    "    (column-source #:index (Edge 0 1) #:ver FULL #:prefix ())\n"
     "  ))\n"
-    "(cartesian-join :vars (x z) :var-from-source ((x) (z))\n"
-    "  :sources (\n"
-    "    (column-source :index (Path 1 0) :ver DELTA :prefix (y))\n"
-    "    (column-source :index (Edge 0 1) :ver FULL :prefix (y))\n"
+    "(cartesian-join #:vars (x z) #:var-from-source ((x) (z))\n"
+    "  #:sources (\n"
+    "    (column-source #:index (Path 1 0) #:ver DELTA #:prefix (y))\n"
+    "    (column-source #:index (Edge 0 1) #:ver FULL #:prefix (y))\n"
     "  ))\n"
-    "(insert-into :schema Path :ver NEW :dedup-index (1 0) :terms (x z))"
+    "(insert-into #:schema Path #:ver NEW #:dedup-index (1 0) #:terms (x z))"
   )
   assert sexpr == expected
 

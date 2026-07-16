@@ -15,7 +15,7 @@ codegen writes to its own JIT cache — they self-contain the schema +
 DB type alias, so the same compile flags / external deps that work
 for Nim's output work here too.
 
-This module is a thin wrapper over `srdatalog.pipeline.compile_program`
+This module is a thin wrapper over `srdatalog.ir.pipeline.compile_program`
 plus the file-emitting layer (`cache.write_jit_project` + optional
 shard/main file emission). The compile phase lives in `pipeline.py`
 so viz / other consumers can share it without touching disk.
@@ -25,15 +25,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from srdatalog.codegen.jit.cache import JitProjectLayout, write_jit_project
-from srdatalog.codegen.jit.main_file import (
+from srdatalog.ir.codegen.cuda.build.cache import JitProjectLayout, write_jit_project
+from srdatalog.ir.codegen.cuda.main_file import (
+  _extract_count_result_relations,
   gen_extern_c_shim,
   gen_main_file_content,
   gen_run_dispatcher_file,
   gen_step_shard_file,
   gen_unity_main_file_content,
 )
-from srdatalog.pipeline import compile_program
+from srdatalog.ir.pipeline import compile_program
 
 if TYPE_CHECKING:
   from srdatalog.dsl import Program
@@ -108,7 +109,11 @@ def build_project(
         decl_only_runner=shard_step_bodies,
         canonical_indices=cr.canonical_indices,
       )
-    main_cpp += "\n" + gen_extern_c_shim(project_name, cr.hir.relation_decls)
+    main_cpp += "\n" + gen_extern_c_shim(
+      project_name,
+      cr.hir.relation_decls,
+      _extract_count_result_relations(cr.mir),
+    )
 
   # In unity mode we want no jit_batch_*.cpp files — they'd be
   # redundant (every JitRunner is already inlined in main.cpp).

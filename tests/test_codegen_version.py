@@ -5,7 +5,7 @@ Checks the `.method`, `.number`, `.code` properties added to
 so the MIR S-expr byte-match against Nim keeps working.
 '''
 
-from srdatalog.hir.types import Version
+from srdatalog.ir.hir.types import Version
 
 
 def test_version_value_unchanged():

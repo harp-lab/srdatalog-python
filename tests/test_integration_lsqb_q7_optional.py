@@ -1,8 +1,16 @@
 '''lsqb_q7_optional.nim -- 4 cases via negation + wildcards _gen1, _gen2'''
 
-from integration_helpers import diff_hir, diff_mir
+import csv
+from collections import Counter
+from pathlib import Path
+
+from integration_helpers import diff_hir, diff_mir, diff_orchestrator_exact
 
 from srdatalog.dsl import Program, Relation, Var
+from srdatalog.ir.codegen.cuda.orchestrator import gen_step_body
+from srdatalog.ir.hir import compile_to_mir
+
+SMALL_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "lsqb_q7_small"
 
 
 def build_lsqb_q7_optional() -> Program:
@@ -70,7 +78,43 @@ def test_lsqb_q7_optional_mir():
   diff_mir(build_lsqb_q7_optional(), "lsqb_q7_optional")
 
 
+def test_lsqb_q7_optional_orchestrator_exactly_matches_nim():
+  mir = compile_to_mir(build_lsqb_q7_optional())
+  actual = "".join(
+    gen_step_body(step, "LSQB_Q7_Plan_DB_DeviceDB", is_recursive, i)
+    for i, (step, is_recursive) in enumerate(mir.steps)
+  )
+  diff_orchestrator_exact("lsqb_q7_optional", actual)
+
+
+def test_lsqb_q7_small_fixture_has_expected_case_counts():
+  def message_counts(filename: str, message_column: int) -> Counter[int]:
+    with (SMALL_FIXTURE / filename).open(newline="") as f:
+      return Counter(int(row[message_column]) for row in csv.reader(f))
+
+  tags = message_counts("Message_hasTag_Tag.csv", 0)
+  creators = message_counts("Message_hasCreator_Person.csv", 0)
+  replies = message_counts("ReplyOf_Comment_Message.csv", 1)
+  likes = message_counts("Person_likes_Message.csv", 1)
+  cases = [0, 0, 0, 0]
+  for message in tags.keys() & creators.keys():
+    base = tags[message] * creators[message]
+    reply_count = replies[message]
+    like_count = likes[message]
+    if reply_count and like_count:
+      cases[0] += base * reply_count * like_count
+    elif reply_count:
+      cases[1] += base * reply_count
+    elif like_count:
+      cases[2] += base * like_count
+    else:
+      cases[3] += base
+  assert cases == [6, 2, 3, 1]
+
+
 if __name__ == "__main__":
   test_lsqb_q7_optional_hir()
   test_lsqb_q7_optional_mir()
+  test_lsqb_q7_optional_orchestrator_exactly_matches_nim()
+  test_lsqb_q7_small_fixture_has_expected_case_counts()
   print("lsqb_q7_optional: OK")

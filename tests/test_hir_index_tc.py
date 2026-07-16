@@ -6,7 +6,7 @@ test them directly on the HirProgram object rather than via byte-diff.
 '''
 
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.hir import compile_to_hir
+from srdatalog.ir.hir import compile_to_hir
 
 
 def build_tc() -> Program:

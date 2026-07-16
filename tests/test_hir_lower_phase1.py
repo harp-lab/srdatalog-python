@@ -8,16 +8,16 @@ Runs the full HIR pipeline on tc, then lowers each single-clause variant
 Multi-clause variants (TCRec) raise NotImplementedError until Phase 2.
 '''
 
-import srdatalog.mir.types as mir
+import srdatalog.ir.mir.types as mir
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.hir import compile_to_hir
-from srdatalog.hir.lower import (
+from srdatalog.ir.hir import compile_to_hir
+from srdatalog.ir.hir.lower import (
   generate_column_source,
   generate_insert_into,
   lower_variant_to_pipeline,
 )
-from srdatalog.hir.types import Version
-from srdatalog.mir.emit import print_mir_sexpr
+from srdatalog.ir.hir.types import Version
+from srdatalog.ir.mir.print import print_mir_sexpr
 
 
 def build_tc() -> Program:
@@ -63,8 +63,8 @@ def test_edge_load_sexpr_roundtrip():
   ops = lower_variant_to_pipeline(hir.strata[0].base_variants[0], hir.strata[0])
   sexpr = "\n".join(print_mir_sexpr(op) for op in ops)
   assert sexpr == (
-    "(scan :vars (x y) :index (ArcInput 0 1) :ver FULL :prefix ())\n"
-    "(insert-into :schema Edge :ver NEW :dedup-index (0 1) :terms (x y))"
+    "(scan #:vars (x y) #:index (ArcInput 0 1) #:ver FULL #:prefix ())\n"
+    "(insert-into #:schema Edge #:ver NEW #:dedup-index (0 1) #:terms (x y))"
   )
 
 
@@ -101,7 +101,7 @@ def test_generate_column_source_shape():
   A pattern with prefix_len=1, access_order=[y,x], index_cols=[1,0]
   produces a ColumnSource with prefix_vars=[y].
   '''
-  from srdatalog.hir.types import AccessPattern
+  from srdatalog.ir.hir.types import AccessPattern
 
   ap = AccessPattern(
     rel_name="Path",

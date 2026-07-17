@@ -25,11 +25,9 @@ RULES_FILE = HERE / "rules" / "analyst_rules.csv"
 def _load_pyreason(checkout: str | None):
   if checkout:
     root = Path(checkout).expanduser().resolve()
-  else:
-    root = HERE.parent.parent / "pyreason"
-  if not (root / "pyreason" / "__init__.py").exists():
-    raise RuntimeError(f"PyReason checkout not found at {root}; pass --pyreason-checkout")
-  sys.path.insert(0, str(root))
+    if not (root / "pyreason" / "__init__.py").exists():
+      raise RuntimeError(f"PyReason checkout not found at {root}")
+    sys.path.insert(0, str(root))
   import pyreason as pr
 
   return pr

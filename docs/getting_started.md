@@ -7,9 +7,8 @@ Contributors (editable checkout):
 ```bash
 git clone https://github.com/harp-lab/srdatalog-python.git
 cd srdatalog-python
-uv sync --group dev
-uv run python scripts/populate_vendor.py   # fetch boost / highway / RMM / spdlog (~3 min, one-time)
-uv pip install -e .
+uv sync --frozen
+uv run --frozen python scripts/populate_vendor.py   # fetch boost / highway / RMM / spdlog (~3 min, one-time)
 ```
 
 End users (PyPI wheel, once published — vendor is already bundled):

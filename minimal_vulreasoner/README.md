@@ -77,10 +77,15 @@ b1 (computed_write_length)
 ## Run
 
 ```bash
-pyenv activate vulreasoner-venv   # Python 3.10.19, pyreason==3.6.0
-cd scripts/minimal_pyreason
-PYTHONHASHSEED=0 python run_minimal_reasoner.py
+uv sync --project minimal_vulreasoner --frozen
+PYTHONHASHSEED=0 uv run --project minimal_vulreasoner --frozen \
+  python minimal_vulreasoner/run_minimal_reasoner.py
 ```
+
+The nested uv project pins Python 3.10.12, the validated PyReason Git
+revision, and every transitive dependency in `minimal_vulreasoner/uv.lock`.
+It is intentionally independent of the repository's Python 3.12 development
+environment.
 
 Expected tail:
 
@@ -98,7 +103,8 @@ This command consumes the checked-in `CWE_121_MVP2.graphml`,
 `analyst_rules.csv`, and the workflow facts declared in `example_config.py`:
 
 ```bash
-PYTHONPATH=src:. python3 minimal_vulreasoner/run_srdatalog_reasoner.py \
+uv run --project minimal_vulreasoner --frozen \
+  python minimal_vulreasoner/run_srdatalog_reasoner.py \
   --jobs "$(nproc)"
 ```
 
@@ -108,7 +114,8 @@ the DSL query, loads the relations, runs the GPU fixpoint, and prints one
 `RESULT_JSON=...` line. After the first build, reuse the cached shared library:
 
 ```bash
-PYTHONPATH=src:. python3 minimal_vulreasoner/run_srdatalog_reasoner.py \
+uv run --project minimal_vulreasoner --frozen \
+  python minimal_vulreasoner/run_srdatalog_reasoner.py \
   --no-compile
 ```
 
@@ -124,10 +131,11 @@ The exact result is:
 }
 ```
 
-For a fresh differential comparison against the sibling PyReason checkout:
+For a fresh differential comparison against the locked PyReason installation:
 
 ```bash
-PYTHONPATH=src:. python3 minimal_vulreasoner/validate_minimal_parity.py \
+uv run --project minimal_vulreasoner --frozen \
+  python minimal_vulreasoner/validate_minimal_parity.py \
   --no-compile
 ```
 
@@ -174,7 +182,8 @@ sorted-array GPU maintenance is one physical realization of it.
 Run the PyReason oracle in one warm process:
 
 ```bash
-python minimal_vulreasoner/benchmark_pyreason.py \
+uv run --project minimal_vulreasoner --frozen \
+  python minimal_vulreasoner/benchmark_pyreason.py \
   --warmup \
   --case 4,4,2 \
   --case 8,32,4 \
@@ -184,7 +193,8 @@ python minimal_vulreasoner/benchmark_pyreason.py \
 Build once and run the same shapes on SRDatalog:
 
 ```bash
-PYTHONPATH=src:. python minimal_vulreasoner/benchmark_srdatalog.py \
+uv run --project minimal_vulreasoner --frozen \
+  python minimal_vulreasoner/benchmark_srdatalog.py \
   --case 4,4,2 \
   --case 8,32,4 \
   --case 12,128,8 \

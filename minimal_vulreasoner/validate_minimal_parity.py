@@ -21,11 +21,9 @@ RESULT_PREFIX = "RESULT_JSON="
 def _pyreason_rows(checkout: str | None) -> dict[str, list[float]]:
   if checkout:
     root = Path(checkout).expanduser().resolve()
-  else:
-    root = Path(__file__).resolve().parents[2] / "pyreason"
-  if not (root / "pyreason" / "__init__.py").exists():
-    raise RuntimeError(f"PyReason checkout not found at {root}; pass --pyreason-checkout")
-  sys.path.insert(0, str(root))
+    if not (root / "pyreason" / "__init__.py").exists():
+      raise RuntimeError(f"PyReason checkout not found at {root}")
+    sys.path.insert(0, str(root))
 
   import pyreason as pr
 

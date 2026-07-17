@@ -11,6 +11,7 @@ so a sub-tree mixing dialects renders cleanly.
 
 from __future__ import annotations
 
+from srdatalog.ir.core import Op
 from srdatalog.ir.dialects.iir.cf.ops import (
   AddCount,
   Bind,
@@ -63,7 +64,7 @@ OPS: tuple[type, ...] = (
 )
 
 
-def print_op(op, indent: int = 0) -> str:
+def print_op(op: Op, indent: int = 0) -> str:
   p = _ind(indent)
 
   # --- Sequencing primitives ---

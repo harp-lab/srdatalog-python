@@ -15,7 +15,7 @@ docs/stage2_emitter_audit.md for the emission patterns these lower to.
 
 from __future__ import annotations
 
-from srdatalog.ir.core import Dialect
+from srdatalog.ir.core import Dialect, VerificationError
 from srdatalog.ir.dialects.iir.cf.ops import (
   AddCount,
   Bind,
@@ -103,7 +103,7 @@ def _register_passes() -> None:
   from srdatalog.ir.core.passes import verifier
 
   @verifier(DIALECT)
-  def _verify(_prog):
+  def _verify(_prog: object) -> list[VerificationError]:
     return []
 
 

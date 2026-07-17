@@ -7,6 +7,7 @@ print_source_spec() that BgRootCjMulti's printer calls directly.
 
 from __future__ import annotations
 
+from srdatalog.ir.core import Op
 from srdatalog.ir.dialects.parallel.data.block_group import BgRootCjMulti, BgSourceSpec
 from srdatalog.ir.print_iir import _bool, _ind, print_iir
 
@@ -26,7 +27,7 @@ def _print_source_spec(spec: BgSourceSpec, indent: int) -> str:
   )
 
 
-def print_op(op, indent: int = 0) -> str:
+def print_op(op: Op, indent: int = 0) -> str:
   p = _ind(indent)
 
   if isinstance(op, BgRootCjMulti):

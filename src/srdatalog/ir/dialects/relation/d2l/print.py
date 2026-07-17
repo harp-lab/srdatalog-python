@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+from srdatalog.ir.core import Op
 from srdatalog.ir.dialects.relation.d2l.ops import D2lSegmentLoop
 from srdatalog.ir.print_iir import _bool, _ind, print_iir
 
 OPS: tuple[type, ...] = (D2lSegmentLoop,)
 
 
-def print_op(op, indent: int = 0) -> str:
+def print_op(op: Op, indent: int = 0) -> str:
   p = _ind(indent)
 
   if isinstance(op, D2lSegmentLoop):

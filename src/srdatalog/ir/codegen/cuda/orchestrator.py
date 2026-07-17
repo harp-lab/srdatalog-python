@@ -153,7 +153,7 @@ def collect_canonical_specs(
     if isinstance(instr, m.ComputeDelta) and instr.rel_name not in seen:
       out.append((instr.rel_name, list(instr.index)))
       seen.append(instr.rel_name)
-    elif isinstance(instr, m.ComputeDeltaIndex) and instr.rel_name not in seen:
+    elif isinstance(instr, (m.ComputeDeltaIndex, m.LatticeMergeDelta)) and instr.rel_name not in seen:
       out.append((instr.rel_name, list(instr.canonical_index)))
       seen.append(instr.rel_name)
     elif isinstance(instr, m.MergeIndex) and instr.rel_name not in seen:
@@ -554,6 +554,58 @@ def gen_instruction_code(
     out += indent + 'nvtxRangePop();  // merge\n'
     return out
 
+  if isinstance(instr, m.LatticeMergeDelta):
+    if instr.rel_name in count_only_rels:
+      return indent + f"// skip lattice_merge_delta for count_only rel {instr.rel_name}\n"
+    expected_layout = list(instr.key_columns) + list(instr.value_columns)
+    if list(instr.canonical_index) != expected_layout:
+      raise ValueError(
+        f"{instr.rel_name}: lattice canonical index must be key columns followed "
+        f"by value columns; expected {expected_layout}, got {instr.canonical_index}"
+      )
+    if instr.join.value not in ("interval-intersection", "max-lower-select"):
+      raise ValueError(f"unsupported lattice join for CUDA: {instr.join.value}")
+    expected_encoding = (
+      "uint32-words" if instr.join.value == "max-lower-select" else "float32-bits"
+    )
+    if instr.encoding.value != expected_encoding:
+      raise ValueError(
+        f"{instr.join.value} requires {expected_encoding}, got {instr.encoding.value}"
+      )
+
+    canonical = list(instr.canonical_index)
+    spec_new = gen_index_spec_type(instr.rel_name, "NEW_VER", canonical)
+    spec_full = gen_index_spec_type(instr.rel_name, "FULL_VER", canonical)
+    spec_delta = gen_index_spec_type(instr.rel_name, "DELTA_VER", canonical)
+    select_max_lower = "true" if instr.join.value == "max-lower-select" else "false"
+    out = indent + 'nvtxRangePushA("lattice_merge_delta");\n'
+    out += (
+      indent
+      + "SRDatalog::GPU::mir_helpers::lattice_merge_delta_fn<"
+      + f"{spec_new}, {spec_full}, {spec_delta}, {len(instr.key_columns)}, "
+      + f"{select_max_lower}>(db);\n"
+    )
+    for target in instr.delta_indices:
+      if list(target) == canonical:
+        continue
+      target_spec = gen_index_spec_type(instr.rel_name, "DELTA_VER", list(target))
+      out += (
+        indent
+        + "SRDatalog::GPU::mir_helpers::rebuild_index_from_index_fn<"
+        + f"{spec_delta}, {target_spec}>(db);\n"
+      )
+    for target in instr.full_indices:
+      if list(target) == canonical:
+        continue
+      target_spec = gen_index_spec_type(instr.rel_name, "FULL_VER", list(target))
+      out += (
+        indent
+        + "SRDatalog::GPU::mir_helpers::rebuild_index_from_index_fn<"
+        + f"{spec_full}, {target_spec}>(db);\n"
+      )
+    out += indent + 'nvtxRangePop();  // lattice_merge_delta\n'
+    return out
+
   if isinstance(instr, m.MergeIndex):
     if instr.rel_name in count_only_rels:
       return indent + f"// skip merge_index for count_only rel {instr.rel_name}\n"
@@ -741,6 +793,7 @@ def gen_fixpoint_body(
     m.RebuildIndex,
     m.ComputeDelta,
     m.ComputeDeltaIndex,
+    m.LatticeMergeDelta,
     m.ClearRelation,
     m.CheckSize,
     m.MergeIndex,

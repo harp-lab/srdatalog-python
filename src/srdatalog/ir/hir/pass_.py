@@ -107,6 +107,7 @@ def program_to_decls(program: Program) -> list[RelationDecl]:
         print_size=bool(getattr(rel, "print_size", False)),
         output_file=getattr(rel, "output_file", "") or "",
         index_type=getattr(rel, "index_type", "") or "",
+        value_spec=getattr(rel, "value_spec", None),
       )
     )
   return decls

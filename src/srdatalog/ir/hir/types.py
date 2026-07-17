@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from srdatalog.dsl import Rule
+from srdatalog.value_semantics import LatticeValueSpec
 
 
 class Version(Enum):
@@ -140,6 +141,7 @@ class RelationDecl:
   index_type: str = ""
   is_generated: bool = False
   is_temp: bool = False
+  value_spec: LatticeValueSpec | None = None
 
 
 @dataclass

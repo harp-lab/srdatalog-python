@@ -24,6 +24,7 @@ from enum import Enum
 from typing import Union
 
 from srdatalog.ir.hir.provenance import USER_PROVENANCE, Provenance
+from srdatalog.value_semantics import LatticeValueSpec
 
 
 class ArgKind(Enum):
@@ -468,6 +469,7 @@ class Relation:
     "output_file",
     "print_size",
     "semiring",
+    "value_spec",
   )
 
   def __init__(
@@ -481,6 +483,7 @@ class Relation:
     output_file: str = "",
     index_type: str = "",
     semiring: str = "NoProvenance",
+    value_spec: LatticeValueSpec | None = None,
   ):
     self.name = name
     self.arity = arity
@@ -490,6 +493,9 @@ class Relation:
     self.output_file = output_file
     self.index_type = index_type
     self.semiring = semiring
+    if value_spec is not None:
+      value_spec.validate(arity)
+    self.value_spec = value_spec
 
   def __call__(self, *args) -> Atom:
     if len(args) != self.arity:

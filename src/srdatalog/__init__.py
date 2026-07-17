@@ -68,6 +68,15 @@ from srdatalog.ir.codegen.cuda.orchestrator import gen_step_body
 
 # Compilation pipeline
 from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.value_semantics import (
+  LatticeJoin,
+  LatticeValueSpec,
+  ValueEncoding,
+  float32_to_u32,
+  interval_lattice,
+  max_lower_lattice,
+  u32_to_float32,
+)
 
 __version__ = "0.2.0.dev0"
 
@@ -76,6 +85,13 @@ __all__ = [
   "Var",
   "Relation",
   "Program",
+  "LatticeJoin",
+  "LatticeValueSpec",
+  "ValueEncoding",
+  "interval_lattice",
+  "max_lower_lattice",
+  "float32_to_u32",
+  "u32_to_float32",
   # Compile
   "compile_to_hir",
   "compile_to_mir",

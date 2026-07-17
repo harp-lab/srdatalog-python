@@ -528,6 +528,17 @@ class DeviceSortedArrayIndex {
   /// @note Side Effect: Updates 'full_idx' provenance in-place for matching keys!
   void set_difference_update(DeviceSortedArrayIndex& full_idx, DeviceSortedArrayIndex& delta_idx);
 
+  /// @brief Keyed lattice: reduce NEW by key, update FULL, emit changed DELTA rows.
+  /// @details With ``SelectMaxLower=false``, the index layout is key columns
+  ///          followed by lower and upper float32-bit columns, joined by
+  ///          interval intersection. With true, the value layout is rank,
+  ///          lower, upper and the greatest lower wins, with minimum rank as
+  ///          the deterministic tie breaker.
+  template <std::size_t KeyArity, bool SelectMaxLower>
+  void pair_lattice_merge_update(const IndexSpec& spec,
+                                 DeviceSortedArrayIndex& full_idx,
+                                 DeviceSortedArrayIndex& delta_idx);
+
   /// @brief Fused set difference: (this - full_idx - head_idx) → delta_idx
   /// @details Single-kernel anti-join against two sorted arrays (FULL + HEAD).
   ///          Used by Device2LevelIndex to avoid 2-step diff with intermediate temp.

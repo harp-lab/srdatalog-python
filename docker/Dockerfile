@@ -106,7 +106,7 @@ WORKDIR /root/srdatalog-python
 # point of the pod is interactive work, and `docker/test_wheel.sh` does its
 # own fresh-venv wheel test on demand.
 RUN python3 scripts/populate_vendor.py && \
-    uv pip install --system --break-system-packages -e ".[dev]" && \
+    uv pip install --system --break-system-packages --group dev -e . && \
     srdatalog info
 
 # Expose: 22 SSH, 8000 VSCode Server, 8001 VSCode proxy, 8888 Jupyter Lab

@@ -51,7 +51,7 @@ The legacy `plugin_view_count` is the underlying source for
 from __future__ import annotations
 
 from srdatalog.ir.codegen.cuda.envelope import ViewSpec
-from srdatalog.ir.core import Dialect
+from srdatalog.ir.core import Dialect, VerificationError
 
 # Side-effect import: registers D2L's CUDA plugin with
 # `codegen.cuda.plugin` so `plugin_view_count` etc. dispatch correctly
@@ -98,7 +98,7 @@ def _register_passes() -> None:
   from srdatalog.ir.core.passes import verifier
 
   @verifier(DIALECT)
-  def _verify(_prog):
+  def _verify(_prog: object) -> list[VerificationError]:
     return []
 
 

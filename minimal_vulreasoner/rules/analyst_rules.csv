@@ -1,0 +1,7 @@
+rule_text,name,infer_edges,set_static
+"analystAt(CB2):paired_minimum_bounds_ann_fn <-1 analystAt(CB1):[0.25,1], hasLabel(CB1, Lcause):[0.1,1], hasLabel(CB2, Leffect):[0.1,1], can_cause(Lcause, Leffect):[0.1,1], stepFrom(CB1, CB2)",analyst-rule-1,True,False
+"analystAt(CB2):paired_minimum_bounds_ann_fn <-1 analystAt(CB1):[0.25,1], hasLabel(CB1, Lcontrib):[0.1,1], hasLabel(CB2, Lfault):[0.1,1], contributes_to(Lcontrib, Lfault):[0.1,1], stepFrom(CB1, CB2)",analyst-rule-2,True,False
+"analystAt(CB2):paired_minimum_bounds_ann_fn <-1 analystAt(CB1):[0.25,1], hasLabel(CB1, Lop):[0.1,1], hasLabel(CB2, Lderived):[0.1,1], derives(Lop, Lderived):[0.1,1], stepFrom(CB1, CB2)",analyst-rule-3,True,False
+"analystAt(CB2):paired_minimum_bounds_ann_fn <-1 analystAt(CB1):[0.25,1], hasLabel(CB1, Lunsafe):[0.1,1], hasLabel(CB2, Lsafe_concept):[0.1,1], unsafe_variant_of(Lunsafe, Lsafe_concept):[0.1,1], stepFrom(CB1, CB2)",analyst-rule-4,True,False
+"analystAt(CB2):paired_minimum_bounds_ann_fn <-1 analystAt(CB1):[0.25,1], hasLabel(CB1, Lfault):[0.1,1], hasLabel(CB2, Lcwe):[0.1,1], manifestation_of(Lfault, Lcwe):[0.1,1], stepFrom(CB1, CB2)",analyst-rule-5,True,False
+"analystAt(CB2):paired_minimum_bounds_ann_fn <-1 analystAt(CB1):[0.25,1], hasLabel(CB1, Lfunc):[0.1,1], hasLabel(CB2, Lop):[0.1,1], implements(Lfunc, Lop):[0.1,1], stepFrom(CB1, CB2)",analyst-rule-6,True,False

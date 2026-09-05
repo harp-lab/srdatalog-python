@@ -16,7 +16,7 @@ shapes the target lowering produces.
 
 from __future__ import annotations
 
-from srdatalog.ir.core import Dialect
+from srdatalog.ir.core import Dialect, Op, VerificationError
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
   SaChildRange,
   SaDegree,
@@ -90,7 +90,10 @@ __all__ = [
 def _register_passes() -> None:
   import srdatalog.ir.mir.types as mir
   from srdatalog.ir.core.passes import lowering, verifier
-  from srdatalog.ir.dialects.relation.sorted_array.lowerings import lower_scan_pipeline
+  from srdatalog.ir.dialects.relation.sorted_array.lowerings import (
+    LoweringCtx,
+    lower_scan_pipeline,
+  )
 
   @lowering(
     DIALECT,
@@ -98,13 +101,13 @@ def _register_passes() -> None:
     consumes=('mir',),
     produces=('iir.cf', 'relation.sorted_array', 'relation.d2l', 'parallel.data'),
   )
-  def lower_execute_pipeline(ep, ctx):
+  def lower_execute_pipeline(ep: mir.ExecutePipeline, ctx: LoweringCtx) -> Op:
     return lower_scan_pipeline(ep.pipeline, ctx)
 
   # Verifier scaffolding — per-op invariants (D9: SaHint inside
   # IterURV scope, etc.) land incrementally as we encode them.
   @verifier(DIALECT)
-  def _verify(_prog):
+  def _verify(_prog: object) -> list[VerificationError]:
     return []
 
 

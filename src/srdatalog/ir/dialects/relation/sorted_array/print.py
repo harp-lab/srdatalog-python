@@ -6,6 +6,7 @@ contract. Twelve ops, each maps to a single s-expression form.
 
 from __future__ import annotations
 
+from srdatalog.ir.core import Op
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
   SaChildRange,
   SaDegree,
@@ -38,7 +39,7 @@ OPS: tuple[type, ...] = (
 )
 
 
-def print_op(op, indent: int = 0) -> str:
+def print_op(op: Op, indent: int = 0) -> str:
   p = _ind(indent)
 
   if isinstance(op, SaRoot):

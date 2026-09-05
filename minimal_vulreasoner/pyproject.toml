@@ -1,0 +1,36 @@
+[project]
+name = "srdatalog-vulreasoner-demo"
+version = "0.1.0"
+description = "Reproducible PyReason and SRDatalog VulReasoner parity application"
+requires-python = "==3.10.*"
+dependencies = [
+  "networkx==3.3",
+  "numba==0.60.0",
+  "numpy==1.26.4",
+  "pandas==2.2.2",
+  "pyreason",
+  "setuptools<81",
+  "srdatalog",
+]
+
+[dependency-groups]
+notebook = [
+  "ipykernel==6.29.5",
+  "ipython==8.39.0",
+  "jinja2==3.1.6",
+  "matplotlib==3.10.0",
+  "nbclient==0.10.4",
+  "nbformat==5.10.4",
+]
+gpu-benchmark = [
+  "cupy-cuda12x==13.3.0",
+]
+
+[tool.uv]
+default-groups = ["notebook", "gpu-benchmark"]
+package = false
+python-preference = "only-managed"
+
+[tool.uv.sources]
+pyreason = { git = "https://github.com/lab-v2/pyreason.git", rev = "e1a94af33e1f9d925c9df8284113dd0e14fe8a73" }
+srdatalog = { path = "..", editable = true }

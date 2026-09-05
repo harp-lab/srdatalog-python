@@ -280,7 +280,7 @@
                         (column-source #:index (Method_Descriptor 0 1) #:ver FULL #:prefix (meth))
                         (column-source #:index (Method_DeclaringType 0 1) #:ver FULL #:prefix (meth))
                       ))
-                    (negation #:schema Method_Modifier #:ver FULL #:index (Method_Modifier 0 1) #:prefix (meth))
+                    (negation #:schema Method_Modifier #:ver FULL #:index (Method_Modifier 0 1) #:prefix (meth) #:consts ((0 2161502)))
                     (insert-into #:schema MethodImplemented #:ver NEW #:dedup-index (0 1 2 3) #:terms (simplename descriptor mtype meth))
                 )
                 (execute-pipeline #:rule MainMethodDecl_Base

@@ -122,6 +122,52 @@ bool compute_delta_index_fn(DB& db) {
 }
 
 // ============================================================================
+// lattice_merge_delta_fn - Keyed lattice join with changed-value delta
+// ============================================================================
+
+/**
+ * @brief Reduce NEW lattice candidates by key, update FULL, and replace DELTA
+ *        with only new or changed complete values.
+ *
+ * @tparam NewSpecT Canonical NEW index; keys must precede lower and upper.
+ * @tparam FullSpecT Canonical FULL index with the same column order.
+ * @tparam DeltaSpecT Canonical DELTA index with the same column order.
+ * @tparam KeyArity Number of leading functional-key columns.
+ * @tparam SelectMaxLower False for interval intersection; true for ranked
+ *        maximum-lower selection.
+ */
+template <typename NewSpecT, typename FullSpecT, typename DeltaSpecT,
+          std::size_t KeyArity, bool SelectMaxLower, typename DB>
+bool lattice_merge_delta_fn(DB& db) {
+  using Schema = typename NewSpecT::schema_type;
+  static_assert(NewSpecT::kVersion == NEW_VER);
+  static_assert(FullSpecT::kVersion == FULL_VER);
+  static_assert(DeltaSpecT::kVersion == DELTA_VER);
+
+  auto& new_rel = get_relation_by_schema<Schema, NEW_VER>(db);
+  auto& full_rel = get_relation_by_schema<Schema, FULL_VER>(db);
+  auto& delta_rel = get_relation_by_schema<Schema, DELTA_VER>(db);
+
+  using ColSeq = typename NewSpecT::column_indexes_type;
+  auto runtime_spec = []<typename T, T... Cols>(std::integer_sequence<T, Cols...>) {
+    return SRDatalog::IndexSpec{{static_cast<int>(Cols)...}};
+  }(ColSeq{});
+
+  auto& new_idx = new_rel.get_index(runtime_spec);
+  full_rel.ensure_index(runtime_spec, false);
+  auto& full_idx = full_rel.get_index(runtime_spec);
+  delta_rel.clear();
+  delta_rel.ensure_index(runtime_spec, false);
+  auto& delta_idx = delta_rel.get_index(runtime_spec);
+
+  new_idx.template pair_lattice_merge_update<KeyArity, SelectMaxLower>(
+      runtime_spec, full_idx, delta_idx);
+  const bool changed = !delta_idx.empty();
+  new_rel.clear();
+  return changed;
+}
+
+// ============================================================================
 // merge_index_fn - Extracted from executor_merge_index.h
 // ============================================================================
 

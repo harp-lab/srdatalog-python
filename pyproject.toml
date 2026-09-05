@@ -26,29 +26,6 @@ classifiers = [
 ]
 dependencies = []
 
-[project.optional-dependencies]
-dev = [
-  "pytest>=7",
-  "ruff",
-]
-# Optional extras for testing Jupyter integration end-to-end. The
-# `test_viz_jupyter.py` layers gate on `importlib.util.find_spec`, so
-# skipping them locally is fine; CI installs `srdatalog[dev,test-jupyter]`
-# to exercise the kernel-roundtrip path.
-test-jupyter = [
-  "ipython>=8",
-  "ipykernel>=6",
-  "nbclient>=0.10",
-  "nbformat>=5",
-]
-docs = [
-  "sphinx>=7",
-  "furo",
-  "myst-parser",
-  "sphinx-autodoc2",
-  "sphinx-copybutton",
-]
-
 [project.scripts]
 srdatalog = "srdatalog.cli:main"
 
@@ -206,8 +183,8 @@ warn_unreachable = true
 warn_redundant_casts = true
 warn_return_any = true
 files = [
-  "src/srdatalog/ir_core",
-  "src/srdatalog/dialects",
+  "src/srdatalog/ir/core",
+  "src/srdatalog/ir/dialects",
 ]
 
 # Don't try to check the rest of the existing codebase — this is the
@@ -217,15 +194,33 @@ module = "srdatalog.*"
 follow_untyped_imports = true
 
 # ---------------------------------------------------------------------------
-# uv dev group
+# uv development environments
 # ---------------------------------------------------------------------------
 
 [dependency-groups]
+test = [
+  "pytest>=7,<9",
+]
+lint = [
+  "ruff==0.9.10",
+]
+typecheck = [
+  "mypy>=1.10,<2",
+]
+build = [
+  "cibuildwheel>=2.20,<3",
+]
 dev = [
-  "pytest>=7",
-  "ruff",
-  "mypy>=1.10",
-  "cibuildwheel>=2.20",
+  { include-group = "test" },
+  { include-group = "lint" },
+  { include-group = "typecheck" },
+  { include-group = "build" },
+]
+jupyter-test = [
+  "ipython>=8",
+  "ipykernel>=6",
+  "nbclient>=0.10",
+  "nbformat>=5",
 ]
 docs = [
   "sphinx>=7",
@@ -234,6 +229,10 @@ docs = [
   "sphinx-autodoc2",
   "sphinx-copybutton",
 ]
+
+[tool.uv]
+default-groups = ["dev"]
+python-preference = "only-managed"
 
 # ---------------------------------------------------------------------------
 # cibuildwheel — build wheels on Linux x86_64 + aarch64.

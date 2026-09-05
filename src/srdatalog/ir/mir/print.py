@@ -246,6 +246,9 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
     return res
 
   if isinstance(node, m.Negation):
+    consts = ""
+    if node.const_args:
+      consts = " #:consts (" + " ".join(f"({c} {v})" for c, v in node.const_args) + ")"
     return (
       p
       + "(negation"
@@ -257,6 +260,7 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
       + _index(node.rel_name, node.index)
       + " #:prefix "
       + _var_tuple(node.prefix_vars)
+      + consts
       + ")"
     )
 
@@ -314,6 +318,35 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
 
   if isinstance(node, m.MergeIndex):
     return p + "(merge-index #:index " + _index(node.rel_name, node.index) + ")"
+
+  if isinstance(node, m.LatticeMergeDelta):
+    delta_indices = "(" + " ".join(
+      "(" + " ".join(str(c) for c in idx) + ")" for idx in node.delta_indices
+    ) + ")"
+    full_indices = "(" + " ".join(
+      "(" + " ".join(str(c) for c in idx) + ")" for idx in node.full_indices
+    ) + ")"
+    return (
+      p
+      + "(lattice-merge-delta"
+      + " #:schema "
+      + node.rel_name
+      + " #:key-columns ("
+      + " ".join(str(c) for c in node.key_columns)
+      + ") #:value-columns ("
+      + " ".join(str(c) for c in node.value_columns)
+      + ") #:join "
+      + node.join.value
+      + " #:encoding "
+      + node.encoding.value
+      + " #:canonical-index ("
+      + " ".join(str(c) for c in node.canonical_index)
+      + ") #:delta-indices "
+      + delta_indices
+      + " #:full-indices "
+      + full_indices
+      + ")"
+    )
 
   if isinstance(node, m.MergeRelation):
     return p + "(merge-relation #:schema " + node.rel_name + ")"

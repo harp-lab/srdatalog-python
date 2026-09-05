@@ -152,13 +152,24 @@ def select_indices(hir: HirProgram) -> HirProgram:
       if not indices:
         indices.append(default_index(rel_name, decls))
 
+      decl = next(d for d in decls if d.rel_name == rel_name)
+      if decl.value_spec is not None:
+        value_canonical = list(
+          decl.value_spec.key_columns + decl.value_spec.value_columns
+        )
+        if value_canonical not in indices:
+          indices.insert(0, value_canonical)
+
       stratum.required_indices[rel_name] = indices
-      stratum.canonical_index[rel_name] = canonical_index(
-        rel_name,
-        indices,
-        decls,
-        full_indices=full_idx if stratum.is_recursive else None,
-      )
+      if decl.value_spec is not None:
+        stratum.canonical_index[rel_name] = value_canonical
+      else:
+        stratum.canonical_index[rel_name] = canonical_index(
+          rel_name,
+          indices,
+          decls,
+          full_indices=full_idx if stratum.is_recursive else None,
+        )
 
   return hir
 

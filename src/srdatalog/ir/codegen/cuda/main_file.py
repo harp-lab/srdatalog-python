@@ -749,11 +749,16 @@ def gen_extern_c_shim(
     - `srdatalog_run(max_iters)`             — copy-to-device + _Runner::run
     - `srdatalog_shutdown()`                 — free host + device DB
     - `srdatalog_size(rel_name)`             — count result or device relation size
+    - `srdatalog_dev_count(rel_name)`        — row count of the device result
+    - `srdatalog_dev_itemsize(rel_name)`     — sizeof column value type (bytes)
+    - `srdatalog_dev_ptr(rel_name, col)`     — raw GPU pointer to a result
+                                               column (zero-copy; wrap with CuPy)
 
   The shim uses a file-scope `HostDB*` holding the live SemiNaiveDatabase
   so Python can stage data via multiple `load_csv` calls before `run`. It
   retains the post-run device DB because computed results are not copied
-  back to the host DB.
+  back to the host DB and zero-copy result views must stay valid until the
+  next run or shutdown.
   '''
   count_relations = count_relations or []
   ext_db = f"{ruleset_name}_DB"
@@ -869,10 +874,56 @@ def gen_extern_c_shim(
       '    return rel.has_index(idx) ? (unsigned long long)rel.get_index(idx).root().degree() : 0ULL;'
     )
     out.append('  }')
+  out += ["  return 0;", "}", ""]
+
+  # The retained device DB backs zero-copy result access from Python.
   out += [
-    "  return 0;",
-    "}",
-    "",
+    "// Row count of a relation's FULL_VER device result (live until next run).",
+    "unsigned long long srdatalog_dev_count(const char* rel_name) {",
+    "  if (!g_device_db || !rel_name) return 0;",
+    "  std::string rn(rel_name);",
+  ]
+  for d in decls:
+    out.append(
+      f'  if (rn == "{d.rel_name}") return (unsigned long long) '
+      f"get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_device_db).size();"
+    )
+  out += ["  return 0;", "}", ""]
+
+  out += [
+    "// sizeof the interned column value type (bytes) — dtype hint for the caller.",
+    "unsigned long long srdatalog_dev_itemsize(const char* rel_name) {",
+    "  if (!rel_name) return 0;",
+    "  std::string rn(rel_name);",
+  ]
+  for d in decls:
+    out.append(
+      f'  if (rn == "{d.rel_name}") return (unsigned long long) '
+      f"sizeof(typename {d.rel_name}::intern_value_type);"
+    )
+  out += ["  return 0;", "}", ""]
+
+  out += [
+    "// Raw device pointer to column `col` of a relation's FULL_VER result.",
+    "// Zero-copy: valid until the next srdatalog_run()/srdatalog_shutdown().",
+    "void* srdatalog_dev_ptr(const char* rel_name, unsigned col) {",
+    "  if (!g_device_db || !rel_name) return nullptr;",
+    "  std::string rn(rel_name);",
+  ]
+  for d in decls:
+    out.append(f'  if (rn == "{d.rel_name}") {{')
+    out.append(f"    auto& rel = get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_device_db);")
+    out.append("    switch (col) {")
+    for i in range(len(d.types)):
+      out.append(
+        f"      case {i}: return (void*) rel.unsafe_interned_columns().template column_ptr<{i}>();"
+      )
+    out.append("      default: return nullptr;")
+    out.append("    }")
+    out.append("  }")
+  out += ["  return nullptr;", "}", ""]
+
+  out += [
     "int srdatalog_shutdown() {",
     "  if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
     "  if (g_host_db) { delete g_host_db; g_host_db = nullptr; }",

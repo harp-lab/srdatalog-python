@@ -23,7 +23,15 @@ from __future__ import annotations
 import srdatalog.ir.mir.types as mir
 from srdatalog.dsl import ArgKind, Atom, Filter, Let
 from srdatalog.ir.hir.index import complete_index, get_arity
-from srdatalog.ir.hir.types import AccessPattern, HirProgram, HirRuleVariant, HirStratum, Version
+from srdatalog.ir.hir.types import (
+  AccessPattern,
+  HirProgram,
+  HirRuleVariant,
+  HirStratum,
+  RelationDecl,
+  Version,
+)
+from srdatalog.value_semantics import LatticeValueSpec
 
 
 def _prefix_vars(pattern: AccessPattern) -> list[str]:
@@ -125,8 +133,16 @@ def _lower_multi_clause_body(
       if v not in positive_vars:
         negation_only_vars.add(v)
 
+  let_bound_vars = {
+    clause.var_name for clause in rule.body if isinstance(clause, Let)
+  }
+
   independent_vars = [
-    v for v in var_order if v not in join_vars_set and v not in negation_only_vars
+    v
+    for v in var_order
+    if v not in join_vars_set
+    and v not in negation_only_vars
+    and v not in let_bound_vars
   ]
   indep_set = set(independent_vars)
   # Wildcards (_genN) may not be in var_order but still appear in positive
@@ -558,6 +574,61 @@ def generate_loop_maintenance(
   return ops
 
 
+def generate_lattice_merge_maintenance(
+  rel_name: str,
+  indices: list[list[int]],
+  canonical_index: list[int],
+  arity: int,
+  value_spec: LatticeValueSpec,
+  full_needed: set[tuple[int, ...]] | None = None,
+) -> list[mir.MirNode]:
+  '''Maintenance for a functional, lattice-valued relation.
+
+  ``full_needed=None`` is the non-recursive case and maintains every FULL
+  index.  A set is the recursive case and maintains only the canonical FULL
+  index plus FULL indices read by the SCC.  In both cases DELTA contains only
+  keys whose complete lattice value changed; it is not the raw delayed NEW
+  candidate set.
+  '''
+  assert len(canonical_index) == arity, (
+    f"canonical index for {rel_name!r} has {len(canonical_index)} cols, expected arity {arity}"
+  )
+  value_spec.validate(arity)
+  delta_indices = [list(idx) for idx in indices]
+  if full_needed is None:
+    full_indices = [list(idx) for idx in indices]
+  else:
+    canon_t = tuple(canonical_index)
+    full_indices = [
+      list(idx) for idx in indices if tuple(idx) == canon_t or tuple(idx) in full_needed
+    ]
+  return [
+    mir.RebuildIndex(
+      rel_name=rel_name,
+      version=Version.NEW,
+      index=list(canonical_index),
+    ),
+    mir.CheckSize(rel_name=rel_name, version=Version.NEW),
+    mir.LatticeMergeDelta(
+      rel_name=rel_name,
+      key_columns=list(value_spec.key_columns),
+      value_columns=list(value_spec.value_columns),
+      join=value_spec.join,
+      encoding=value_spec.encoding,
+      canonical_index=list(canonical_index),
+      delta_indices=delta_indices,
+      full_indices=full_indices,
+    ),
+  ]
+
+
+def _relation_decl(rel_name: str, decls: list[RelationDecl]) -> RelationDecl:
+  for decl in decls:
+    if decl.rel_name == rel_name:
+      return decl
+  raise ValueError(f"missing relation declaration for {rel_name!r}")
+
+
 # -----------------------------------------------------------------------------
 # Phase 3: Stratum wrapping (wrapInExecutePipeline + lowerHirToMirSteps +
 # lowerHirToMir). Mirrors the top-level pieces of lowering.nim.
@@ -764,15 +835,28 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
           full_needed: set[tuple[int, ...]] = set()
           for raw_idx in full_map.get(rel_name, set()):
             full_needed.add(tuple(complete_index(list(raw_idx), arity)))
-          loop_ops.extend(
-            generate_loop_maintenance(
-              rel_name,
-              stratum.required_indices[rel_name],
-              canonical_idx,
-              arity,
-              full_needed,
+          value_spec = _relation_decl(rel_name, decls).value_spec
+          if value_spec is not None:
+            loop_ops.extend(
+              generate_lattice_merge_maintenance(
+                rel_name,
+                stratum.required_indices[rel_name],
+                canonical_idx,
+                arity,
+                value_spec,
+                full_needed,
+              )
             )
-          )
+          else:
+            loop_ops.extend(
+              generate_loop_maintenance(
+                rel_name,
+                stratum.required_indices[rel_name],
+                canonical_idx,
+                arity,
+                full_needed,
+              )
+            )
 
       if loop_ops:
         out.append(
@@ -873,14 +957,26 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
               stratum.required_indices[rel_name][0],
             )
             arity = get_arity(rel_name, decls)
-            maintenance_ops.extend(
-              generate_simple_maintenance(
-                rel_name,
-                stratum.required_indices[rel_name],
-                canonical_idx,
-                arity,
+            value_spec = _relation_decl(rel_name, decls).value_spec
+            if value_spec is not None:
+              maintenance_ops.extend(
+                generate_lattice_merge_maintenance(
+                  rel_name,
+                  stratum.required_indices[rel_name],
+                  canonical_idx,
+                  arity,
+                  value_spec,
+                )
               )
-            )
+            else:
+              maintenance_ops.extend(
+                generate_simple_maintenance(
+                  rel_name,
+                  stratum.required_indices[rel_name],
+                  canonical_idx,
+                  arity,
+                )
+              )
 
       ops: list[mir.MirNode] = []
       # Split phase runs first (sequential; depends on temp being populated).

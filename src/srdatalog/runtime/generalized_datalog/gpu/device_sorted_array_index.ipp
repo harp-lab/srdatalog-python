@@ -40,7 +40,9 @@
 #include <thrust/functional.h>
 #include <thrust/gather.h>
 #include <thrust/iterator/counting_iterator.h>
+#include <thrust/iterator/iterator_traits.h>
 #include <thrust/iterator/zip_iterator.h>
+#include <thrust/reduce.h>
 #include <thrust/sequence.h>
 #include <thrust/set_operations.h>
 #include <thrust/sort.h>
@@ -55,6 +57,145 @@
 #include "runtime/custom_set_op.h"
 
 namespace SRDatalog::GPU {
+
+template <typename ValueType>
+struct IntervalMeetTuple {
+  GPU_HD thrust::tuple<ValueType, ValueType> operator()(
+      const thrust::tuple<ValueType, ValueType>& left,
+      const thrust::tuple<ValueType, ValueType>& right) const {
+    const ValueType lower = thrust::get<0>(left) > thrust::get<0>(right)
+                                ? thrust::get<0>(left)
+                                : thrust::get<0>(right);
+    const ValueType upper = thrust::get<1>(left) < thrust::get<1>(right)
+                                ? thrust::get<1>(left)
+                                : thrust::get<1>(right);
+    return thrust::make_tuple(lower, upper);
+  }
+};
+
+template <typename ValueType>
+struct MaxLowerFirstRankTuple {
+  using Tuple = thrust::tuple<ValueType, ValueType, ValueType>;
+
+  GPU_HD Tuple operator()(const Tuple& left, const Tuple& right) const {
+    const ValueType left_rank = thrust::get<0>(left);
+    const ValueType left_lower = thrust::get<1>(left);
+    const ValueType right_rank = thrust::get<0>(right);
+    const ValueType right_lower = thrust::get<1>(right);
+    return right_lower > left_lower ||
+                   (right_lower == left_lower && right_rank < left_rank)
+               ? right
+               : left;
+  }
+};
+
+struct IntervalStatusChanged {
+  GPU_HD bool operator()(uint8_t status) const {
+    return status != 0;
+  }
+};
+
+struct IntervalStatusMissing {
+  GPU_HD bool operator()(uint8_t status) const {
+    return status == 2;
+  }
+};
+
+template <typename ValueType, std::size_t Arity, std::size_t KeyArity,
+          bool SelectMaxLower>
+__global__ void pair_lattice_probe_update_kernel(
+    ValueType* reduced_data, uint32_t reduced_stride, uint32_t reduced_size,
+    ValueType* full_data, uint32_t full_stride, uint32_t full_size,
+    uint8_t* status) {
+  static_assert(Arity == KeyArity + (SelectMaxLower ? 3 : 2));
+  const uint32_t row = blockIdx.x * blockDim.x + threadIdx.x;
+  if (row >= reduced_size)
+    return;
+
+  uint32_t lo = 0;
+  uint32_t hi = full_size;
+  while (lo < hi) {
+    const uint32_t mid = lo + ((hi - lo) / 2);
+    int cmp = 0;
+#pragma unroll
+    for (std::size_t col = 0; col < KeyArity; ++col) {
+      const ValueType new_value = reduced_data[(col * reduced_stride) + row];
+      const ValueType full_value = full_data[(col * full_stride) + mid];
+      if (new_value < full_value) {
+        cmp = -1;
+        break;
+      }
+      if (new_value > full_value) {
+        cmp = 1;
+        break;
+      }
+    }
+    if (cmp > 0) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+
+  bool found = lo < full_size;
+  if (found) {
+#pragma unroll
+    for (std::size_t col = 0; col < KeyArity; ++col) {
+      if (reduced_data[(col * reduced_stride) + row] !=
+          full_data[(col * full_stride) + lo]) {
+        found = false;
+        break;
+      }
+    }
+  }
+
+  if (!found) {
+    status[row] = 2;
+    return;
+  }
+
+  const std::size_t rank_col = KeyArity;
+  const std::size_t lower_col = KeyArity + (SelectMaxLower ? 1 : 0);
+  const std::size_t upper_col = lower_col + 1;
+  const ValueType old_lower = full_data[(lower_col * full_stride) + lo];
+  const ValueType old_upper = full_data[(upper_col * full_stride) + lo];
+  const ValueType new_lower = reduced_data[(lower_col * reduced_stride) + row];
+  const ValueType new_upper = reduced_data[(upper_col * reduced_stride) + row];
+  ValueType joined_lower;
+  ValueType joined_upper;
+  ValueType joined_rank = 0;
+  ValueType old_rank = 0;
+  ValueType new_rank = 0;
+  if constexpr (SelectMaxLower) {
+    old_rank = full_data[(rank_col * full_stride) + lo];
+    new_rank = reduced_data[(rank_col * reduced_stride) + row];
+    const bool select_new = new_lower > old_lower ||
+                            (new_lower == old_lower && new_rank < old_rank);
+    joined_rank = select_new ? new_rank : old_rank;
+    joined_lower = select_new ? new_lower : old_lower;
+    joined_upper = select_new ? new_upper : old_upper;
+  } else {
+    joined_lower = old_lower > new_lower ? old_lower : new_lower;
+    joined_upper = old_upper < new_upper ? old_upper : new_upper;
+  }
+
+  if constexpr (SelectMaxLower) {
+    reduced_data[(rank_col * reduced_stride) + row] = joined_rank;
+  }
+  reduced_data[(lower_col * reduced_stride) + row] = joined_lower;
+  reduced_data[(upper_col * reduced_stride) + row] = joined_upper;
+  if (joined_lower != old_lower || joined_upper != old_upper ||
+      (SelectMaxLower && joined_rank != old_rank)) {
+    if constexpr (SelectMaxLower) {
+      full_data[(rank_col * full_stride) + lo] = joined_rank;
+    }
+    full_data[(lower_col * full_stride) + lo] = joined_lower;
+    full_data[(upper_col * full_stride) + lo] = joined_upper;
+    status[row] = 1;
+  } else {
+    status[row] = 0;
+  }
+}
 
 // function to get sort context in current thread
 template <Semiring SR, ColumnElementTuple AttrTuple, typename ValueType, typename RowIdType>
@@ -961,6 +1102,117 @@ __global__ void set_diff_probe_compact_dual_kernel(
 ///        At ratio 8, binary search does 8*N*log2(F) comparisons vs merge-scan's N+F reads.
 ///        For N=300K, F=250M: binary = 300K*28 = 8.4M ops, merge = 250M reads. ~30x better.
 static constexpr double kSearchSetDiffRatio = 8.0;
+
+template <Semiring SR, ColumnElementTuple AttrTuple, typename ValueType, typename RowIdType>
+template <std::size_t KeyArity, bool SelectMaxLower>
+void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::
+    pair_lattice_merge_update(const IndexSpec& spec,
+                              DeviceSortedArrayIndex& full_idx,
+                              DeviceSortedArrayIndex& delta_idx) {
+  static_assert(!has_provenance_v<SR>,
+                "column-valued interval lattice requires NoProvenance");
+  static_assert(arity == KeyArity + (SelectMaxLower ? 3 : 2),
+                "lattice layout must be key + [rank] + lower + upper");
+
+  delta_idx.clear();
+  if (empty()) {
+    return;
+  }
+
+  const std::size_t input_size = p_->cols.num_rows();
+  NDDeviceArray<ValueType, arity> reduced_cols;
+  reduced_cols.resize(input_size);
+
+  auto make_key_iter = []<typename Array, std::size_t... I>(
+                           Array& arr, std::index_sequence<I...>) {
+    return thrust::make_zip_iterator(
+        thrust::make_tuple(arr.template column_ptr<I>()...));
+  };
+  auto make_row_iter = []<typename Array, std::size_t... I>(
+                           Array& arr, std::index_sequence<I...>) {
+    return thrust::make_zip_iterator(
+        thrust::make_tuple(arr.template column_ptr<I>()...));
+  };
+  auto input_keys = make_key_iter(p_->cols, std::make_index_sequence<KeyArity>{});
+  auto reduced_keys = make_key_iter(reduced_cols, std::make_index_sequence<KeyArity>{});
+  using KeyTuple = typename thrust::iterator_value<decltype(input_keys)>::type;
+  std::size_t reduced_size = 0;
+  if constexpr (SelectMaxLower) {
+    auto input_values = thrust::make_zip_iterator(thrust::make_tuple(
+        p_->cols.template column_ptr<KeyArity>(),
+        p_->cols.template column_ptr<KeyArity + 1>(),
+        p_->cols.template column_ptr<KeyArity + 2>()));
+    auto reduced_values = thrust::make_zip_iterator(thrust::make_tuple(
+        reduced_cols.template column_ptr<KeyArity>(),
+        reduced_cols.template column_ptr<KeyArity + 1>(),
+        reduced_cols.template column_ptr<KeyArity + 2>()));
+    auto reduced_end = thrust::reduce_by_key(
+        rmm::exec_policy{}, input_keys, input_keys + input_size, input_values,
+        reduced_keys, reduced_values, thrust::equal_to<KeyTuple>{},
+        MaxLowerFirstRankTuple<ValueType>{});
+    reduced_size = reduced_end.first - reduced_keys;
+  } else {
+    auto input_values = thrust::make_zip_iterator(thrust::make_tuple(
+        p_->cols.template column_ptr<KeyArity>(),
+        p_->cols.template column_ptr<KeyArity + 1>()));
+    auto reduced_values = thrust::make_zip_iterator(thrust::make_tuple(
+        reduced_cols.template column_ptr<KeyArity>(),
+        reduced_cols.template column_ptr<KeyArity + 1>()));
+    auto reduced_end = thrust::reduce_by_key(
+        rmm::exec_policy{}, input_keys, input_keys + input_size, input_values,
+        reduced_keys, reduced_values, thrust::equal_to<KeyTuple>{},
+        IntervalMeetTuple<ValueType>{});
+    reduced_size = reduced_end.first - reduced_keys;
+  }
+  reduced_cols.resize(reduced_size);
+
+  std::monostate no_provenance;
+  if (full_idx.empty()) {
+    delta_idx.build_from_encoded_device(spec, reduced_cols, no_provenance);
+    full_idx.clone_from(delta_idx);
+    return;
+  }
+
+  DeviceArray<uint8_t> status(reduced_size);
+  constexpr uint32_t kBlockSize = 256;
+  const uint32_t grid =
+      (static_cast<uint32_t>(reduced_size) + kBlockSize - 1) / kBlockSize;
+  pair_lattice_probe_update_kernel<ValueType, arity, KeyArity, SelectMaxLower>
+      <<<grid, kBlockSize>>>(
+          reduced_cols.data(), static_cast<uint32_t>(reduced_cols.stride()),
+          static_cast<uint32_t>(reduced_size), full_idx.p_->cols.data(),
+          static_cast<uint32_t>(full_idx.p_->cols.stride()),
+          static_cast<uint32_t>(full_idx.p_->cols.num_rows()), status.data());
+
+  auto reduced_rows =
+      make_row_iter(reduced_cols, std::make_index_sequence<arity>{});
+
+  NDDeviceArray<ValueType, arity> delta_cols;
+  delta_cols.resize(reduced_size);
+  auto delta_rows = make_row_iter(delta_cols, std::make_index_sequence<arity>{});
+  auto delta_end = thrust::copy_if(
+      rmm::exec_policy{}, reduced_rows, reduced_rows + reduced_size,
+      status.begin(), delta_rows, IntervalStatusChanged{});
+  const std::size_t delta_size = delta_end - delta_rows;
+  delta_cols.resize(delta_size);
+  if (delta_size > 0) {
+    delta_idx.build_from_encoded_device(spec, delta_cols, no_provenance);
+  }
+
+  NDDeviceArray<ValueType, arity> missing_cols;
+  missing_cols.resize(reduced_size);
+  auto missing_rows = make_row_iter(missing_cols, std::make_index_sequence<arity>{});
+  auto missing_end = thrust::copy_if(
+      rmm::exec_policy{}, reduced_rows, reduced_rows + reduced_size,
+      status.begin(), missing_rows, IntervalStatusMissing{});
+  const std::size_t missing_size = missing_end - missing_rows;
+  missing_cols.resize(missing_size);
+  if (missing_size > 0) {
+    DeviceSortedArrayIndex missing_idx;
+    missing_idx.build_from_encoded_device(spec, missing_cols, no_provenance);
+    full_idx.merge(missing_idx, full_idx.size());
+  }
+}
 
 template <Semiring SR, ColumnElementTuple AttrTuple, typename ValueType, typename RowIdType>
 void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::set_difference_update(

@@ -39,6 +39,7 @@ from dataclasses import dataclass, field
 from typing import Union
 
 from srdatalog.ir.hir.types import Version
+from srdatalog.value_semantics import LatticeJoin, ValueEncoding
 
 # -----------------------------------------------------------------------------
 # Leaf / pipeline ops
@@ -262,6 +263,27 @@ class MergeIndex:
 
 
 @dataclass
+class LatticeMergeDelta:
+  '''Monotone keyed merge from NEW into FULL, producing changed DELTA values.
+
+  Semantically, this operation groups NEW by ``key_columns``, joins each
+  group's values, joins that result with the prior FULL value, replaces DELTA
+  with only new or changed complete values, updates FULL, and clears NEW.
+  ``delta_indices`` and ``full_indices`` describe the logical index views that
+  must remain available; their physical representation is selected below MIR.
+  '''
+
+  rel_name: str
+  key_columns: list[int]
+  value_columns: list[int]
+  join: LatticeJoin
+  encoding: ValueEncoding
+  canonical_index: list[int]
+  delta_indices: list[list[int]]
+  full_indices: list[list[int]]
+
+
+@dataclass
 class MergeRelation:
   '''(merge-relation #:schema R)'''
 
@@ -411,6 +433,7 @@ MirNode = Union[
   ComputeDelta,
   ComputeDeltaIndex,
   MergeIndex,
+  LatticeMergeDelta,
   MergeRelation,
   RebuildIndexFromIndex,
   ExecutePipeline,

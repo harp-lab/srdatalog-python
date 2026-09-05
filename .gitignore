@@ -42,3 +42,6 @@ wheelhouse/
 # the committed tree stays minimal.
 docs/_build/
 docs/api/
+
+# Runtime traces produced by the VulReasoner oracle.
+/minimal_vulreasoner/output/

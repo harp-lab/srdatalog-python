@@ -1,0 +1,1795 @@
+<?xml version='1.0' encoding='utf-8'?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+  <key id="node_class" for="node" attr.name="node_class" attr.type="string" />
+  <key id="can_cause" for="edge" attr.name="can_cause" attr.type="long" />
+  <key id="contributes_to" for="edge" attr.name="contributes_to" attr.type="long" />
+  <key id="derives" for="edge" attr.name="derives" attr.type="long" />
+  <key id="evidence_of" for="edge" attr.name="evidence_of" attr.type="long" />
+  <key id="implements" for="edge" attr.name="implements" attr.type="long" />
+  <key id="incidental_component_of" for="edge" attr.name="incidental_component_of" attr.type="long" />
+  <key id="informative_component_of" for="edge" attr.name="informative_component_of" attr.type="long" />
+  <key id="involves" for="edge" attr.name="involves" attr.type="long" />
+  <key id="is_a" for="edge" attr.name="is_a" attr.type="long" />
+  <key id="manifestation_of" for="edge" attr.name="manifestation_of" attr.type="long" />
+  <key id="may_use" for="edge" attr.name="may_use" attr.type="long" />
+  <key id="mitigates" for="edge" attr.name="mitigates" attr.type="long" />
+  <key id="possible_realization" for="edge" attr.name="possible_realization" attr.type="long" />
+  <key id="required_component_of" for="edge" attr.name="required_component_of" attr.type="long" />
+  <key id="unsafe_variant_of" for="edge" attr.name="unsafe_variant_of" attr.type="long" />
+  <key id="validates" for="edge" attr.name="validates" attr.type="long" />
+  <graph edgedefault="directed">
+    <node id="CWE_121">
+      <data key="node_class">VulnerabilityClass</data>
+    </node>
+    <node id="addition">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="address_of">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="arithmetic_cast">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="arithmetic_length">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="arithmetic_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="array_decay">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="array_length">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="array_subscript">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="assignment">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="atoi">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="atol">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="atoll">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="base">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="boundary_calculation">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="bounds_check">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="buffer">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="buffer_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="bulk_write">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="calloc">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="capacity">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="capacity_assertion">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="capacity_guard">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="cast">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="comparison">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="comparison_operator">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="computed_address">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="computed_address_expression">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="computed_length">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="computed_pointer">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="computed_size">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="computed_write_length">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="conditional_branch">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="converted_size">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="copy_loop">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="copy_operation">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="copy_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="copy_size_check">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="count">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="decompiler.memory_write">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="decompiler.pointer_arithmetic">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="destination_buffer">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="destination_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="destination_size_validation">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="division">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="effective_address">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="end_pointer">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="fgets">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="field_offset">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="formatted_output">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="frame_pointer_overwrite">
+      <data key="node_class">OutcomeLevelFault</data>
+    </node>
+    <node id="fscanf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="function_pointer">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="function_pointer_overwrite">
+      <data key="node_class">OutcomeLevelFault</data>
+    </node>
+    <node id="functiongraph.graph.block_with_comparison">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="functiongraph.graph.block_with_memory_write">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="functiongraph.graph.conditional_branch_edge">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="fwrite">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="getcwd">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="gets">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="getwd">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="guard_condition">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="incorrect_bounds_check">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="incorrect_length_calculation">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="incorrect_pointer_arithmetic">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="index">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="indexed_write">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="input_buffer">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="input_operation">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="input_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="integer_cast">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="integer_overflow_in_size">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="integer_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="integer_size_calculation">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="integer_size_calculation_error">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="integer_truncation_in_size">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="last_valid_index">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="length">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="length_calculation">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="length_variable">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="listing.assembly.comparison_instruction">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="listing.assembly.conditional_branch">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="listing.assembly.indirect_call_instruction">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="listing.assembly.memory_write_instruction">
+      <data key="node_class">Beacon</data>
+    </node>
+    <node id="loop_bound">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="lower_bound">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="malloc">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="memcmp">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="memcpy">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="memmove">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="memory_write">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="memset">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="min_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="missing_bounds_check">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="mixed_integer_comparison">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="mixed_signed_unsigned_comparison">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="multiplication">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="narrowing_conversion">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="null_terminator_position">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="off_by_one_error">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="offset">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="offsetof">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="out_of_bounds_write">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="output_write">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="pointer">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="pointer_arithmetic">
+      <data key="node_class">CodeOperation</data>
+    </node>
+    <node id="pointer_cast">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="pointer_dereference">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="pointer_minus_offset">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="pointer_plus_offset">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="pointer_plus_offset_expression">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="range_check">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="read">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="read_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="realloc">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="recv">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="return_address_overwrite">
+      <data key="node_class">OutcomeLevelFault</data>
+    </node>
+    <node id="scaled_index">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="scaled_index_expression">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="scanf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="signed_operand_unsigned_arithmetic">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="signed_to_unsigned_conversion">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="signed_unsigned_assignment">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="signed_unsigned_cast">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="signed_unsigned_conversion_error">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="size_addition">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="size_comparison">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="size_minus_one">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="size_multiplication">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="size_shift">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="size_subtraction">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="sizeof">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="snprintf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="source_buffer">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="sprintf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="sscanf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="stack_pointer_overwrite">
+      <data key="node_class">OutcomeLevelFault</data>
+    </node>
+    <node id="store">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="strcat">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strcmp">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strcpy">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="stride">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="strlcat">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strlcpy">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strlen">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strncat">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strncmp">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strncpy">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strnlen">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strtol">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strtoll">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strtoul">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="strtoull">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="subtraction">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="truncation_logic">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="unchecked_copy_operation">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="unchecked_input_operation">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="unchecked_memory_write">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="unchecked_pointer_arithmetic">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="unsafe_function">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="unsigned_operand_signed_comparison">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="unsigned_to_signed_conversion">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="upper_bound">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="user_controlled_index">
+      <data key="node_class">InputProperty</data>
+    </node>
+    <node id="user_controlled_length">
+      <data key="node_class">InputProperty</data>
+    </node>
+    <node id="user_controlled_pointer">
+      <data key="node_class">InputProperty</data>
+    </node>
+    <node id="user_controlled_write_size">
+      <data key="node_class">InputProperty</data>
+    </node>
+    <node id="user_controlled_write_target">
+      <data key="node_class">InputProperty</data>
+    </node>
+    <node id="vfscanf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="vscanf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="vsnprintf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="vsprintf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="vsscanf">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="wcscat">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="wcscpy">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="wcslen">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="wcsncat">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="wcsncpy">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="widening_conversion">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="width_conversion">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="write">
+      <data key="node_class">Function</data>
+    </node>
+    <node id="write_operation">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <node id="write_size">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="write_target">
+      <data key="node_class">CodeEntity</data>
+    </node>
+    <node id="write_what_where_condition">
+      <data key="node_class">OutcomeLevelFault</data>
+    </node>
+    <node id="write_without_destination_size_validation">
+      <data key="node_class">FaultCondition</data>
+    </node>
+    <node id="zeroing">
+      <data key="node_class">CodePattern</data>
+    </node>
+    <edge source="integer_overflow_in_size" target="incorrect_length_calculation">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="integer_truncation_in_size" target="incorrect_length_calculation">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="integer_size_calculation_error" target="incorrect_length_calculation">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="user_controlled_length" target="incorrect_length_calculation">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="user_controlled_length" target="out_of_bounds_write">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="user_controlled_index" target="unchecked_pointer_arithmetic">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="user_controlled_pointer" target="incorrect_pointer_arithmetic">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="user_controlled_write_target" target="unchecked_memory_write">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="user_controlled_write_size" target="out_of_bounds_write">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="computed_write_length" target="incorrect_length_calculation">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="pointer_plus_offset_expression" target="unchecked_pointer_arithmetic">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="pointer_plus_offset_expression" target="incorrect_pointer_arithmetic">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="scaled_index_expression" target="unchecked_pointer_arithmetic">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="scaled_index_expression" target="incorrect_pointer_arithmetic">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="out_of_bounds_write" target="return_address_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="out_of_bounds_write" target="frame_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="out_of_bounds_write" target="stack_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="out_of_bounds_write" target="function_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="out_of_bounds_write" target="write_what_where_condition">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="missing_bounds_check" target="return_address_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="missing_bounds_check" target="frame_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="missing_bounds_check" target="stack_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="missing_bounds_check" target="function_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="incorrect_bounds_check" target="return_address_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="incorrect_length_calculation" target="return_address_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="incorrect_length_calculation" target="frame_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="incorrect_length_calculation" target="stack_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="incorrect_length_calculation" target="function_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="off_by_one_error" target="return_address_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="off_by_one_error" target="frame_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="off_by_one_error" target="stack_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="unchecked_copy_operation" target="return_address_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="unchecked_copy_operation" target="frame_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="unchecked_copy_operation" target="stack_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="unchecked_copy_operation" target="function_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="write_without_destination_size_validation" target="return_address_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="write_without_destination_size_validation" target="frame_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="write_without_destination_size_validation" target="function_pointer_overwrite">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="unchecked_pointer_arithmetic" target="write_what_where_condition">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="unchecked_memory_write" target="write_what_where_condition">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="incorrect_pointer_arithmetic" target="write_what_where_condition">
+      <data key="can_cause">1</data>
+    </edge>
+    <edge source="return_address_overwrite" target="CWE_121">
+      <data key="manifestation_of">1</data>
+    </edge>
+    <edge source="frame_pointer_overwrite" target="CWE_121">
+      <data key="manifestation_of">1</data>
+    </edge>
+    <edge source="stack_pointer_overwrite" target="CWE_121">
+      <data key="manifestation_of">1</data>
+    </edge>
+    <edge source="function_pointer_overwrite" target="CWE_121">
+      <data key="manifestation_of">1</data>
+    </edge>
+    <edge source="write_what_where_condition" target="CWE_121">
+      <data key="manifestation_of">1</data>
+    </edge>
+    <edge source="out_of_bounds_write" target="memory_write">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="missing_bounds_check" target="bounds_check">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="incorrect_bounds_check" target="bounds_check">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="incorrect_length_calculation" target="length_calculation">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="off_by_one_error" target="boundary_calculation">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="unchecked_copy_operation" target="copy_operation">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="write_without_destination_size_validation" target="destination_size_validation">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="unchecked_pointer_arithmetic" target="pointer_arithmetic">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="unchecked_memory_write" target="memory_write">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="incorrect_pointer_arithmetic" target="pointer_arithmetic">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="integer_overflow_in_size" target="integer_size_calculation">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="integer_truncation_in_size" target="integer_size_calculation">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="integer_size_calculation_error" target="integer_size_calculation">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="memory_write" target="write_size">
+      <data key="involves">1</data>
+    </edge>
+    <edge source="memcpy" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="memmove" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="memset" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strcpy" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strcat" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="sprintf" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="snprintf" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="vsprintf" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="vsnprintf" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="fgets" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="gets" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="read" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="recv" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="fwrite" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="write" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="bounds_check" target="index">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="bounds_check" target="length">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="bounds_check" target="size">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="bounds_check" target="upper_bound">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="bounds_check" target="lower_bound">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="bounds_check" target="loop_bound">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="bounds_check" target="sizeof">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="bounds_check" target="strcmp">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="bounds_check" target="strncmp">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="bounds_check" target="memcmp">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="length_calculation" target="length">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="length_calculation" target="size">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="length_calculation" target="count">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="length_calculation" target="computed_length">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="length_calculation" target="sizeof">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="length_calculation" target="strlen">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="length_calculation" target="strnlen">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="length_calculation" target="wcslen">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="length_calculation" target="computed_size">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="length_calculation" target="snprintf">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="loop_bound">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="upper_bound">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="lower_bound">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="last_valid_index">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="size_minus_one">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="comparison_operator">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="array_length">
+      <data key="involves">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="null_terminator_position">
+      <data key="involves">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="end_pointer">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="strlen">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="strnlen">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="copy_operation" target="copy_size">
+      <data key="involves">1</data>
+    </edge>
+    <edge source="memcpy" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="memmove" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strncpy" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strcpy" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strcat" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strncat" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="sprintf" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="snprintf" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="vsprintf" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="vsnprintf" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="copy_operation" target="copy_loop">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="copy_operation" target="formatted_output">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="read" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="getcwd" target="memory_write">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strlcpy" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strlcat" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="wcsncpy" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="wcsncat" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="recv" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="fwrite" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="write" target="copy_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="size">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="capacity">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="sizeof">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="size_comparison">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="capacity_guard">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="copy_size_check">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="truncation_logic">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="min_size">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="capacity_assertion">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="strnlen">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="destination_size_validation" target="snprintf">
+      <data key="validates">1</data>
+    </edge>
+    <edge source="copy_operation" target="memory_write">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="boundary_calculation" target="length_calculation">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="length_calculation">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="pointer_plus_offset_expression" target="computed_address_expression">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="scaled_index_expression" target="computed_address_expression">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="base">
+      <data key="involves">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="pointer_minus_offset">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="scaled_index">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="pointer_cast">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="array_decay">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="decompiler.memory_write" target="memory_write">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="decompiler.pointer_arithmetic" target="pointer_arithmetic">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="memcpy" target="pointer_arithmetic">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="memmove" target="pointer_arithmetic">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="memory_write" target="write_operation">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="memory_write" target="pointer_dereference">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="memory_write" target="indexed_write">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="memory_write" target="bulk_write">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="memory_write" target="zeroing">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="memory_write" target="output_write">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="field_offset">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="address_of">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="computed_pointer">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="effective_address">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="offsetof" target="pointer_arithmetic">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="integer_size">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="size_addition">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="size_multiplication">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="size_subtraction">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="size_shift">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="arithmetic_cast">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="arithmetic_size">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="arithmetic_length">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="malloc" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="calloc" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="realloc" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="memcpy" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="memmove" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="read" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="recv" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="signed_to_unsigned_conversion">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="unsigned_to_signed_conversion">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="converted_size">
+      <data key="derives">1</data>
+    </edge>
+    <edge source="atoi" target="integer_size_calculation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="atol" target="integer_size_calculation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="atoll" target="integer_size_calculation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strtol" target="integer_size_calculation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strtoul" target="integer_size_calculation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strtoll" target="integer_size_calculation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="strtoull" target="integer_size_calculation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="sscanf" target="integer_size_calculation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="mixed_signed_unsigned_comparison">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="signed_unsigned_assignment">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="signed_operand_unsigned_arithmetic">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="integer_size_calculation" target="unsigned_operand_signed_comparison">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="atoi" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="strtol" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="strtoul" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="sscanf" target="integer_size_calculation">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="computed_write_length" target="strlen">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="computed_write_length" target="strnlen">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="incorrect_length_calculation" target="computed_size">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="incorrect_bounds_check" target="upper_bound">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="incorrect_bounds_check" target="lower_bound">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="incorrect_bounds_check" target="guard_condition">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="out_of_bounds_write" target="write_size">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="out_of_bounds_write" target="buffer">
+      <data key="may_use">1</data>
+    </edge>
+    <edge source="gets" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="strcpy" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="strcat" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="sprintf" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="vsprintf" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="scanf" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="fscanf" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="sscanf" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="vscanf" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="vfscanf" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="vsscanf" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="getwd" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="wcscpy" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="wcscat" target="unsafe_function">
+      <data key="is_a">1</data>
+    </edge>
+    <edge source="unsafe_function" target="unchecked_copy_operation">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="unsafe_function" target="write_without_destination_size_validation">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="unsafe_function" target="out_of_bounds_write">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="fgets" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="fgets" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strncpy" target="unchecked_copy_operation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strncpy" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strncpy" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strlcpy" target="unchecked_copy_operation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strlcpy" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strlcpy" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strncat" target="unchecked_copy_operation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strncat" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strncat" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strlcat" target="unchecked_copy_operation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strlcat" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="strlcat" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="snprintf" target="unchecked_copy_operation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="snprintf" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="snprintf" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="vsnprintf" target="unchecked_copy_operation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="vsnprintf" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="vsnprintf" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="getcwd" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="getcwd" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="wcsncpy" target="unchecked_copy_operation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="wcsncpy" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="wcsncpy" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="wcsncat" target="unchecked_copy_operation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="wcsncat" target="write_without_destination_size_validation">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="wcsncat" target="out_of_bounds_write">
+      <data key="mitigates">1</data>
+    </edge>
+    <edge source="signed_unsigned_conversion_error" target="integer_size_calculation_error">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="scanf" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="unchecked_input_operation" target="write_without_destination_size_validation">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="unchecked_input_operation" target="out_of_bounds_write">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="unchecked_input_operation" target="input_operation">
+      <data key="unsafe_variant_of">1</data>
+    </edge>
+    <edge source="fscanf" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="sscanf" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="vscanf" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="vfscanf" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="vsscanf" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="fgets" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="gets" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="read" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="recv" target="input_operation">
+      <data key="implements">1</data>
+    </edge>
+    <edge source="write_target" target="memory_write">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="comparison" target="bounds_check">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="comparison_operator" target="bounds_check">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="guard_condition" target="bounds_check">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="source_buffer" target="copy_operation">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="destination_buffer" target="copy_operation">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="comparison" target="destination_size_validation">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="comparison_operator" target="destination_size_validation">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="guard_condition" target="destination_size_validation">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="capacity" target="destination_size_validation">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="destination_size" target="destination_size_validation">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="write_target" target="input_operation">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="pointer" target="pointer_arithmetic">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="pointer_dereference" target="memory_write">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="array_subscript" target="memory_write">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="store" target="memory_write">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="assignment" target="memory_write">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="buffer" target="memory_write">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer" target="memory_write">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="offset" target="memory_write">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="index" target="memory_write">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="computed_address" target="memory_write">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="range_check" target="bounds_check">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="upper_bound" target="bounds_check">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="lower_bound" target="bounds_check">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="index" target="bounds_check">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="loop_bound" target="bounds_check">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="conditional_branch" target="bounds_check">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="computed_length" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="computed_size" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="addition" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="subtraction" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="multiplication" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="division" target="length_calculation">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="cast" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="integer_cast" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="size_addition" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="size_multiplication" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="converted_size" target="length_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="upper_bound" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="lower_bound" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="loop_bound" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="last_valid_index" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="size_minus_one" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="addition" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="subtraction" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="comparison" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="comparison_operator" target="boundary_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer_dereference" target="copy_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="array_subscript" target="copy_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="assignment" target="copy_operation">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="store" target="copy_operation">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="buffer" target="copy_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer" target="copy_operation">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="index" target="copy_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="offset" target="copy_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="write_size" target="copy_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="read_size" target="copy_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="buffer_size" target="destination_size_validation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="upper_bound" target="destination_size_validation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="length_variable" target="destination_size_validation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="input_buffer" target="input_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="buffer" target="input_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer" target="input_operation">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="assignment" target="input_operation">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="store" target="input_operation">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="read_size" target="input_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="input_size" target="input_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer_dereference" target="input_operation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="integer_size" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="computed_size" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="converted_size" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="addition" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="subtraction" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="multiplication" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="division" target="integer_size_calculation">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="cast" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="integer_cast" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="signed_unsigned_cast" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="narrowing_conversion" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="widening_conversion" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="width_conversion" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="mixed_integer_comparison" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="signed_operand_unsigned_arithmetic" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="unsigned_operand_signed_comparison" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="index" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="offset" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="stride" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="field_offset" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="addition" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="subtraction" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer_plus_offset" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="computed_address" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="effective_address" target="pointer_arithmetic">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="address_of" target="pointer_arithmetic">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="computed_length" target="computed_write_length">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="computed_size" target="computed_write_length">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="addition" target="computed_write_length">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="multiplication" target="computed_write_length">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="subtraction" target="computed_write_length">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="cast" target="computed_write_length">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer_plus_offset" target="pointer_plus_offset_expression">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="computed_address" target="pointer_plus_offset_expression">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="base" target="pointer_plus_offset_expression">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="offset" target="pointer_plus_offset_expression">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer_cast" target="pointer_plus_offset_expression">
+      <data key="incidental_component_of">1</data>
+    </edge>
+    <edge source="scaled_index" target="scaled_index_expression">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="array_subscript" target="scaled_index_expression">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="computed_address" target="scaled_index_expression">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="index" target="scaled_index_expression">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="multiplication" target="scaled_index_expression">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="base" target="scaled_index_expression">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="pointer_plus_offset" target="pointer_plus_offset_expression">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="pointer_plus_offset_expression">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="pointer_arithmetic" target="scaled_index_expression">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="cast" target="narrowing_conversion">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="conditional_branch" target="bounds_check">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="narrowing_conversion" target="integer_truncation_in_size">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="mixed_signed_unsigned_comparison" target="signed_unsigned_conversion_error">
+      <data key="contributes_to">1</data>
+    </edge>
+    <edge source="mixed_signed_unsigned_comparison" target="integer_size_calculation">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="length_calculation" target="computed_write_length">
+      <data key="possible_realization">1</data>
+    </edge>
+    <edge source="computed_length" target="computed_write_length">
+      <data key="informative_component_of">1</data>
+    </edge>
+    <edge source="scaled_index" target="scaled_index_expression">
+      <data key="required_component_of">1</data>
+    </edge>
+    <edge source="functiongraph.graph.block_with_comparison" target="comparison">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="functiongraph.graph.conditional_branch_edge" target="conditional_branch">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="functiongraph.graph.block_with_memory_write" target="memory_write">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.memory_write_instruction" target="write_target">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.memory_write_instruction" target="memory_write">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.comparison_instruction" target="comparison">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.conditional_branch" target="conditional_branch">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="functiongraph.graph.block_with_comparison" target="comparison">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="functiongraph.graph.conditional_branch_edge" target="conditional_branch">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="functiongraph.graph.block_with_memory_write" target="memory_write">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.memory_write_instruction" target="write_target">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.memory_write_instruction" target="memory_write">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.indirect_call_instruction" target="function_pointer">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.comparison_instruction" target="comparison">
+      <data key="evidence_of">1</data>
+    </edge>
+    <edge source="listing.assembly.conditional_branch" target="conditional_branch">
+      <data key="evidence_of">1</data>
+    </edge>
+  </graph>
+</graphml>

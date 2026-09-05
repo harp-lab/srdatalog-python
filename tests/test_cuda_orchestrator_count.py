@@ -88,3 +88,7 @@ def test_c_abi_retains_device_db_and_prefers_count_results():
   assert 'static CountPlan_DB_DeviceDB* g_device_db = nullptr;' in out
   assert 'CountPlan_Runner::get_count_result(rn, count_result)' in out
   assert 'get_relation_by_schema<OutA, FULL_VER>(*g_device_db).size()' in out
+  assert 'unsigned long long srdatalog_dev_count(const char* rel_name)' in out
+  assert 'unsigned long long srdatalog_dev_itemsize(const char* rel_name)' in out
+  assert 'void* srdatalog_dev_ptr(const char* rel_name, unsigned col)' in out
+  assert 'rel.unsafe_interned_columns().template column_ptr<0>()' in out

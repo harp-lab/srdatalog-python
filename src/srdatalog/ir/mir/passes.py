@@ -53,6 +53,8 @@ def _extract_merged_indices(step: mir.MirNode, rel_name: str) -> set[tuple[int, 
   for instr in step.instructions:
     if isinstance(instr, mir.MergeIndex) and instr.rel_name == rel_name:
       out.add(tuple(instr.index))
+    elif isinstance(instr, mir.LatticeMergeDelta) and instr.rel_name == rel_name:
+      out.update(tuple(idx) for idx in instr.full_indices)
     elif isinstance(instr, mir.ParallelGroup):
       for op in instr.ops:
         if isinstance(op, mir.MergeIndex) and op.rel_name == rel_name:

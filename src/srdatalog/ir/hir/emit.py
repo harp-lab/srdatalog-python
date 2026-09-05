@@ -204,10 +204,18 @@ def _relations_obj(decls: list[RelationDecl]) -> dict:
   '''
   out: dict = {}
   for d in decls:
-    out[d.rel_name] = {
+    rel_obj = {
       "semiring": d.semiring,
       "types": list(d.types),
     }
+    if d.value_spec is not None:
+      rel_obj["functionalValue"] = {
+        "keyColumns": list(d.value_spec.key_columns),
+        "valueColumns": list(d.value_spec.value_columns),
+        "join": d.value_spec.join.value,
+        "encoding": d.value_spec.encoding.value,
+      }
+    out[d.rel_name] = rel_obj
   return out
 
 

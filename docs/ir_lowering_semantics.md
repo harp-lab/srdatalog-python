@@ -195,6 +195,124 @@ $$
 This is the spec. **No lowering may produce an Output that differs
 from this multiset** (modulo the refinement defined in §8).
 
+### 6.1 Functional lattice relations and delta
+
+A functional lattice relation separates a tuple into a key and a value:
+
+$$
+\rho : K \rightharpoonup L
+$$
+
+where $(L, \sqcup)$ is a join-semilattice.  The HIR relation declaration owns
+this semantic choice; neither MIR nor a storage dialect may infer it from a
+relation name.  A rule still emits ordinary candidate rows into `NEW`.  Its
+maintenance step has the following denotation, evaluated independently for
+each key $k$:
+
+$$
+\begin{aligned}
+n_k &= \bigsqcup \{v \mid (k,v) \in \mathrm{NEW}\} \\
+f'_k &=
+  \begin{cases}
+    n_k & k \notin \operatorname{dom}(\mathrm{FULL}) \\
+    \mathrm{FULL}(k) \sqcup n_k & \text{otherwise}
+  \end{cases} \\
+\mathrm{DELTA}' &= \{(k,f'_k) \mid f'_k \ne \mathrm{FULL}(k)\} \\
+\mathrm{FULL}' &= \mathrm{FULL}[k \mapsto f'_k] \\
+\mathrm{NEW}' &= \varnothing
+\end{aligned}
+$$
+
+Thus `DELTA` contains the complete changed value, not a raw candidate or a
+numeric derivative.  `LatticeMergeDelta` is the atomic MIR operation that
+denotes these equations.  It names key/value columns, the lattice join, and the
+logical value encoding, but not a sorted array, hash table, or GPU algorithm.
+Those are later realization choices.
+
+For interval knowledge, $L$ is pairs $[l,u]$ and
+$[l_1,u_1] \sqcup [l_2,u_2] = [\max(l_1,l_2),\min(u_1,u_2)]$.  A selected-witness
+relation may instead retain the payload with maximum lower bound, using an
+explicit stable rank for deterministic ties.  This second case is the
+materialized state of a grouped `ARG MAX`, as explained in Section 6.2; it
+must not be confused with ordinary semiring addition over alternative
+derivations.  Positive IEEE-754 binary32 values can be bit-cast into 32-bit
+unsigned words: over $[0,1]$, integer order agrees with floating-point order,
+so this representation changes storage but not the logical ordering.
+
+Temporal delay is orthogonal.  A source-level delay of one is represented by
+an explicit successor relation, for example
+`AnalystAt(x,t,...) ∧ Successor(t,t1) → AnalystAt(y,t1,...)`.  Semi-naive
+evaluation then propagates only newly changed lattice states.  The delay
+selects the logical time key; the delta is still the changed lattice value
+defined above.
+
+### 6.2 Provenance-aware witness selection
+
+The VulReasoner annotation callback uses PyReason-specific vocabulary for a
+standard database operation.  A satisfied rule body is a **join result**.  It
+is also a **derivation witness**: one concrete set of input tuples that jointly
+supports the head tuple.  The alternative witnesses for a fixed rule and head
+key are the tuple's rule-local **why-provenance candidates**.
+
+PyReason passes those witnesses and their interval payloads to
+`paired_minimum_bounds_ann_fn`.  In database terms, this function is a
+user-defined, grouped `ARG MAX` aggregate, not merely a function that decorates
+one already-selected tuple.  For rule $r$, head key $k$, and witness set
+$W_{r,k}$, its relevant denotation is:
+
+$$
+\begin{aligned}
+I(w) &= [\min(l_c,l_e,l_d),\min(u_c,u_e,u_d)] \\
+w^*_{r,k} &= \operatorname*{arg\,max}_{w\in W_{r,k}}
+             (\operatorname{lower}(I(w)),-\operatorname{rank}(w)) \\
+C_r(k) &= I(w^*_{r,k}).
+\end{aligned}
+$$
+
+Here $c$, $e$, and $d$ are the cause-label, effect-label, and connector tuples
+used jointly by the witness.  `rank` makes PyReason's first-witness tie policy
+explicit and order-independent.  It is a tie-break key, not confidence or
+evidence strength.  The functional invariant is that a fixed $(r,k,rank)$
+identifies one payload.
+
+This is **provenance-aware selection**, because the returned interval remains
+attached to the particular supporting witness that attained the maximum.  It
+is not, by itself, a complete semiring-provenance implementation.  Classical
+semiring provenance would retain alternative witnesses using addition; a full
+explanation facility would additionally retain the selected witness's
+provenance token, or all maximizing tokens on a tie.  The VulReasoner parity
+encoding retains only the stable witness rank and its interval payload.
+
+The selected witness is not yet the final head value.  Winners from distinct
+rules are duplicate derivations of the same `AnalystAt` key and are combined by
+the interval-information join:
+
+$$
+\operatorname{AnalystAt}(k)
+  = \bigsqcup_r C_r(k)
+  = \left[\max_r \operatorname{lower}(C_r(k)),
+           \min_r \operatorname{upper}(C_r(k))\right].
+$$
+
+Consequently the two reductions cannot be represented by one relation update:
+
+1. group the raw witnesses of each $(r,k)$ and apply `ARG MAX`;
+2. project the selected interval and join it into `AnalystAt`.
+
+The current HIR expresses that boundary with one candidate relation per rule.
+The join rule inserts every witness into `Candidate.NEW`; keyed candidate
+maintenance performs the `ARG MAX` and emits only a new or changed winner in
+`Candidate.DELTA`.  The following copy rule performs no selection: it projects
+that winner into `AnalystAt.NEW`, whose maintenance applies interval
+intersection.  Whether the producer is a join or a copy is irrelevant;
+duplicate handling is determined by the target relation.
+
+A future head-aggregate construct may hide the named candidate relation and
+lower directly to `join -> segmented ARG MAX -> interval merge`.  Such a
+lowering may fuse the temporary storage, but it must preserve the rule-local
+provenance grouping boundary.  Directly inserting all raw witnesses into
+`AnalystAt` changes the denotation by intersecting losing witnesses as well.
+
 ## 7. Multi-dialect lowering correctness
 
 The classical lowering theorem states: a lowering $L$ is correct iff

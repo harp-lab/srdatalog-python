@@ -1097,6 +1097,9 @@ def gen_complete_runner(
     "",
   )
   decl += decl_aliases
+  if node.dedup_hash:
+    # LaunchParams stores the table by value, so main needs its full definition.
+    decl += _gen_dedup_table_struct(node)
   decl += _gen_launch_params_struct(
     len(node.dest_specs),
     is_fused_eligible,

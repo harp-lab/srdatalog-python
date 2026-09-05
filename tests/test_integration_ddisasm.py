@@ -18,7 +18,10 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 from integration_helpers import FIXTURES, diff_hir, diff_mir
+
+from srdatalog import build_project
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
 from ddisasm import build_ddisasmdb_program
@@ -35,6 +38,26 @@ def test_ddisasm_hir():
 
 def test_ddisasm_mir():
   diff_mir(build_ddisasm(), "ddisasm")
+
+
+@pytest.mark.parametrize("layout", ["split", "sharded", "unity"])
+def test_ddisasm_dedup_type_defined_before_use(tmp_path, layout):
+  project = build_project(
+    build_ddisasm(),
+    "DdisasmPlan",
+    cache_base=str(tmp_path),
+    shard_step_bodies=layout == "sharded",
+    unity=layout == "unity",
+  )
+  checked = 0
+  for path in [project["main"], *project["batches"]]:
+    cpp = Path(path).read_text()
+    if "DedupTable dedup_table{};" not in cpp:
+      continue
+    assert cpp.count("struct DedupTable {") == 1, path
+    assert cpp.index("struct DedupTable {") < cpp.index("DedupTable dedup_table{};"), path
+    checked += 1
+  assert checked > 0
 
 
 if __name__ == "__main__":

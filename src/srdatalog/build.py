@@ -113,6 +113,7 @@ def build_project(
       project_name,
       cr.hir.relation_decls,
       _extract_count_result_relations(cr.mir),
+      canonical_indices=cr.canonical_indices,
     )
 
   # In unity mode we want no jit_batch_*.cpp files — they'd be

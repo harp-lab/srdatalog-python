@@ -736,10 +736,102 @@ def gen_unity_main_file_content(
   return out
 
 
+def _gen_relation_export_helper() -> str:
+  '''Bounded host-side TSV export without rebuilding an index from stale columns.'''
+  return r'''
+#include <array>
+#include <fstream>
+#include <locale>
+#include <type_traits>
+
+namespace {
+inline void srdatalog_check_gpu(GPU_ERROR_T status) {
+  if (status != GPU_SUCCESS)
+    throw std::runtime_error(GPU_GET_ERROR_STRING(status));
+}
+
+template<class Schema, class DB>
+void srdatalog_write_tsv(DB& db, const char* path, const SRDatalog::IndexSpec& canonical) {
+  using Attrs = typename Schema::attr_ts_type;
+  constexpr std::size_t arity = std::tuple_size_v<Attrs>;
+  auto& relation = get_relation_by_schema<Schema, FULL_VER>(db);
+  using Rel = std::remove_reference_t<decltype(relation)>;
+  using Value = typename Rel::value_type;
+  constexpr bool integer_columns = []<std::size_t... I>(std::index_sequence<I...>) {
+    return ((std::is_integral_v<std::tuple_element_t<I, Attrs>> &&
+             sizeof(std::tuple_element_t<I, Attrs>) <= sizeof(Value)) && ...);
+  }(std::make_index_sequence<arity>{});
+  constexpr bool column_index = requires(typename Rel::IndexTypeInst& index) {
+    index.data().view().column_ptr(0);
+  };
+  if constexpr (!integer_columns || !column_index ||
+                Rel::Layout != SRDatalog::GPU::StorageLayout::SoA) {
+    throw std::runtime_error("TSV export requires integer-valued SoA column indexes");
+  } else {
+    // Index maintenance can leave intern columns stale. Borrow authoritative
+    // index storage and undo its column permutation without a second GPU copy.
+    std::array<const Value*, arity> device_columns{};
+    std::size_t rows = relation.size();
+    if (!canonical.cols.empty()) {
+      if (canonical.cols.size() != arity || !relation.has_index(canonical))
+        throw std::runtime_error("TSV export: missing canonical index");
+      auto& index = relation.get_index(canonical);
+      // Two-level indexes expose only FULL through data(); consolidate HEAD
+      // before borrowing it. Fixedpoint-exit reconstruction normally did this.
+      if constexpr (requires { index.compact(); }) index.compact();
+      srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());
+      rows = index.size();
+      if (rows) {
+        const auto view = index.data().view();
+        std::array<bool, arity> seen{};
+        for (std::size_t position = 0; position < arity; ++position) {
+          const auto logical = canonical.cols[position];
+          if (logical < 0 || logical >= arity || seen[logical])
+            throw std::runtime_error("TSV export: invalid canonical permutation");
+          seen[logical] = true;
+          device_columns[logical] = view.column_ptr(position);
+        }
+      }
+    } else if (rows) {
+      const auto view = relation.unsafe_interned_columns().view();
+      for (std::size_t column = 0; column < arity; ++column)
+        device_columns[column] = view.column_ptr(column);
+    }
+    std::ofstream output;
+    output.exceptions(std::ios::failbit | std::ios::badbit);
+    output.imbue(std::locale::classic());
+    output.open(path, std::ios::out | std::ios::trunc);
+    constexpr std::size_t chunk_rows = 65536;
+    std::array<std::vector<Value>, arity> host;
+    for (auto& column : host) column.resize(std::min(rows, chunk_rows));
+    for (std::size_t first = 0; first < rows; first += chunk_rows) {
+      const auto count = std::min(chunk_rows, rows - first);
+      for (std::size_t column = 0; column < arity; ++column) {
+        srdatalog_check_gpu(GPU_MEMCPY(
+            host[column].data(), device_columns[column] + first,
+            count * sizeof(Value), GPU_DEVICE_TO_HOST));
+      }
+      for (std::size_t row = 0; row < count; ++row) {
+        [&]<std::size_t... I>(std::index_sequence<I...>) {
+          ((output << (I ? "\t" : "")
+                   << +static_cast<std::tuple_element_t<I, Attrs>>(host[I][row])), ...);
+        }(std::make_index_sequence<arity>{});
+        output << '\n';
+      }
+    }
+    output.close();
+  }
+}
+}  // namespace
+'''
+
+
 def gen_extern_c_shim(
   ruleset_name: str,
   decls: list[RelationDecl],
   count_relations: list[str] | None = None,
+  *,
+  canonical_indices: dict[str, list[int]] | None = None,
 ) -> str:
   '''Emit an `extern "C"` shim the Python ctypes loader can call.
 
@@ -749,13 +841,20 @@ def gen_extern_c_shim(
     - `srdatalog_run(max_iters)`             — copy-to-device + _Runner::run
     - `srdatalog_shutdown()`                 — free host + device DB
     - `srdatalog_size(rel_name)`             — count result or device relation size
+    - `srdatalog_synchronize()`              — checked device synchronization
+    - `srdatalog_get_size(rel_name, out)`    — checked authoritative cardinality
+    - `srdatalog_export_tsv(rel_name, path)` — integer tuples in logical column order
 
   The shim uses a file-scope `HostDB*` holding the live SemiNaiveDatabase
   so Python can stage data via multiple `load_csv` calls before `run`. It
   retains the post-run device DB because computed results are not copied
   back to the host DB.
+  The checked cardinality/export APIs use the compiler's canonical index map.
+  Export supports integer-valued SoA relations, rejects count-only results, and
+  requires a completed run. The caller owns the destination file/directory.
   '''
   count_relations = count_relations or []
+  canonical = canonical_indices or {}
   ext_db = f"{ruleset_name}_DB"
   blueprint = f"{ext_db}_Blueprint"
   host_db = f"{blueprint}_HostDB"
@@ -764,6 +863,7 @@ def gen_extern_c_shim(
   out = [
     "// ======== Python ctypes shim (extern \"C\") ========",
     '#include "gpu/init.h"  // SRDatalog::GPU::init_cuda',
+    _gen_relation_export_helper(),
     "",
     f"using {host_db} = SRDatalog::AST::SemiNaiveDatabase<{blueprint}>;",
     f"static {host_db}* g_host_db = nullptr;",
@@ -781,10 +881,11 @@ def gen_extern_c_shim(
     "",
     "int srdatalog_load_csv(const char* rel_name, const char* path) {",
     "  if (!rel_name || !path) return 1;",
-    f"  if (!g_host_db) g_host_db = new {host_db}();",
     "  try {",
+    f"    if (!g_host_db) g_host_db = new {host_db}();",
     "    std::string rn(rel_name);",
   ]
+  # Allocate inside the exception boundary so allocation failure cannot cross C.
   # Only emit load_from_file dispatch for relations marked with
   # `input_file=...`. Non-input relations (pure IDB, or relations
   # with non-default index types like Device2LevelIndex) fail to
@@ -819,8 +920,8 @@ def gen_extern_c_shim(
     "// Matches the Nim driver pattern: single call, relies on _Runner::load_data.",
     "int srdatalog_load_all(const char* data_dir) {",
     "  if (!data_dir) return 1;",
-    f"  if (!g_host_db) g_host_db = new {host_db}();",
     "  try {",
+    f"    if (!g_host_db) g_host_db = new {host_db}();",
     f"    {ruleset_name}_Runner::load_data(*g_host_db, std::string(data_dir));",
     "    return 0;",
     "  } catch (const std::exception& e) {",
@@ -836,7 +937,7 @@ def gen_extern_c_shim(
   ]
   out += [
     f"    g_device_db = new {device_db}(SRDatalog::GPU::copy_host_to_device(*g_host_db));",
-    f"    {ruleset_name}_Runner::run(*g_device_db, max_iters ? (std::size_t)max_iters : std::numeric_limits<int>::max());",
+    f"    {ruleset_name}_Runner::run(*g_device_db, max_iters ? (std::size_t)max_iters : std::numeric_limits<std::size_t>::max());",
     "    return 0;",
     "  } catch (const std::exception& e) {",
     '    std::cerr << "srdatalog_run: " << e.what() << std::endl;',
@@ -873,10 +974,73 @@ def gen_extern_c_shim(
     "  return 0;",
     "}",
     "",
+    "int srdatalog_synchronize() {",
+    "  return (int)GPU_DEVICE_SYNCHRONIZE();",
+    "}",
+    "",
+    "int srdatalog_get_size(const char* rel_name, unsigned long long* result) {",
+    "  if (!rel_name || !result || !g_device_db) return 1;",
+    "  try {",
+    "    std::string rn(rel_name);",
+  ]
+  if count_relations:
+    out.append(f"    if ({ruleset_name}_Runner::get_count_result(rn, *result)) return 0;")
+  for d in decls:
+    out.append(f'    if (rn == "{d.rel_name}") {{')
+    out.append(f'      auto& rel = get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_device_db);')
+    if d.rel_name in canonical:
+      cols = ", ".join(str(c) for c in canonical[d.rel_name])
+      out.append(f"      SRDatalog::IndexSpec spec{{{cols}}};")
+      out.append('      if (!rel.has_index(spec)) return 2;')
+      out.append('      *result = (unsigned long long)rel.get_index(spec).size();')
+    else:
+      out.append('      *result = (unsigned long long)rel.size();')
+    out += ["      return 0;", "    }"]
+  out += [
+    "    return 2;",
+    "  } catch (const std::exception& e) {",
+    '    std::cerr << "srdatalog_get_size: " << e.what() << std::endl;',
+    "    return 3;",
+    "  } catch (...) { return 4; }",
+    "}",
+    "",
+    "int srdatalog_export_tsv(const char* rel_name, const char* path) {",
+    "  if (!rel_name || !path || !g_device_db) return 1;",
+    "  try {",
+    "    srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());",
+    "    std::string rn(rel_name);",
+  ]
+  for d in decls:
+    out.append(f'    if (rn == "{d.rel_name}") {{')
+    if d.rel_name in count_relations or d.count_only:
+      out.append("      return 2; // A count-only result has no materialized tuples.")
+    else:
+      cols = ", ".join(str(c) for c in canonical.get(d.rel_name, []))
+      out.append(
+        f"      srdatalog_write_tsv<{d.rel_name}>(*g_device_db, path, "
+        f"SRDatalog::IndexSpec{{{cols}}});"
+      )
+      out.append("      return 0;")
+    out.append("    }")
+  out += [
+    "    return 2;",
+    "  } catch (const std::exception& e) {",
+    '    std::cerr << "srdatalog_export_tsv: " << e.what() << std::endl;',
+    "    return 3;",
+    "  } catch (...) { return 4; }",
+    "}",
+    "",
     "int srdatalog_shutdown() {",
-    "  if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
-    "  if (g_host_db) { delete g_host_db; g_host_db = nullptr; }",
-    "  return 0;",
+    "  try {",
+    "    srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());",
+    "    if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
+    "    if (g_host_db) { delete g_host_db; g_host_db = nullptr; }",
+    "    srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());",
+    "    return 0;",
+    "  } catch (const std::exception& e) {",
+    '    std::cerr << "srdatalog_shutdown: " << e.what() << std::endl;',
+    "    return 1;",
+    "  } catch (...) { return 2; }",
     "}",
     "",
     "}  // extern \"C\"",

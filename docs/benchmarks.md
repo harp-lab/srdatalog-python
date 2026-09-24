@@ -117,6 +117,69 @@ correctness. An incomplete preparation is not published; existing prepared
 datasets are verified rather than overwritten. Do not reuse another dataset's
 interned constants or compare old-generation facts under the same application
 name without recording that change.
+Prepared directories are immutable snapshots: their manifests retain the exact
+adapter hash used to create them. Reuse verifies those stored tuples, not whether
+the adapter source is unchanged; use a new data root when applying normalization
+changes. Execution conservatively requires the recorded canonical query source
+hash to match the current query, even for source-only edits.
+
+## Running the DOOP correctness and timing suite
+
+`examples/run_doop_suite.py` runs the canonical Python query, with each dataset's
+own metadata. The CPU backend translates that instantiated logical program to
+Soufflé; it does not substitute a separately maintained query. It requires
+Soufflé and its development headers, a C++17/OpenMP compiler, and zlib/SQLite
+development libraries. `SOUFFLE`, `SOUFFLE_INCLUDE_DIR`, `CXX`, `CPPFLAGS`,
+`CXXFLAGS`, and `LDFLAGS` support nonstandard installations.
+The GPU backend requires the normal [CUDA build setup](getting_started).
+
+```bash
+# Prepare first; each run needs a new external output directory.
+CXX=g++ python examples/run_doop_suite.py --all \
+    --root /path/to/doop-data --output /path/to/results/cpu \
+    --backend cpu --threads 12
+
+python examples/run_doop_suite.py --all \
+    --root /path/to/doop-data --output /path/to/results/gpu-baseline \
+    --backend gpu --plan baseline --jobs 2 \
+    --reference /path/to/results/cpu/suite.json
+
+python examples/run_doop_suite.py --all \
+    --root /path/to/doop-data --output /path/to/results/gpu-bitmap \
+    --backend gpu --plan bitmap --jobs 2 \
+    --reference /path/to/results/cpu/suite.json
+```
+
+Use `--dataset NAME ...` or `--tier TIER` instead of `--all` for smaller runs.
+The bitmap variant applies the opt-in plan only to `VPT_Assign`'s two recursive
+variants; the baseline and logical query remain unchanged.
+Defaults are one warmup and three measured repetitions, each in a fresh process.
+`--timeout` bounds each build/execution process; `--warmups 0 --repeats 1` is
+useful for validation but is not a stable performance measurement.
+
+The suite records build, load, execution, and export separately. GPU execution
+includes host-to-device initialization and synchronizes before the timer stops;
+CPU execution times the Soufflé query after loading. These scopes are recorded
+in the reports and must not be presented as interchangeable kernel-only times.
+Every run reaches an unlimited fixedpoint and must exit normally.
+Failures and timeouts retain logs and appear explicitly in `suite.json`;
+the command exits unsuccessfully if any selected dataset fails.
+
+The final measured run records all 74 relation cardinalities and exports all
+37 derived relation sets. With `--reference`, comparison requires matching
+query/input identities, complete relation coverage, equal cardinalities, and
+exact integer tuple sets after external sorting—not just matching VPT counts.
+Without a reference, correctness is `not_compared`, even when execution passes.
+Reports distinguish `input_rows`/`input_bytes` for the 37 consumed inputs from
+`prepared_input_rows`/`prepared_input_bytes` for all 39 prepared files.
+The runner rejects a prepared benchmark with no selected main method rather than
+accepting a vacuous empty-analysis match. The per-process timeout also covers
+loading and final tuple export; increase it for large exports.
+
+Reserve substantial disk space for derived results and sort scratch, especially
+Jython; small compressed inputs do not imply small fixedpoints. Run performance
+measurements without competing CPU/GPU workloads. Compilation and a small GPU
+smoke test do not establish that a complete dataset fits in available VRAM.
 
 ## Regenerating from Nim
 

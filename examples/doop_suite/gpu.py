@@ -92,7 +92,7 @@ def _run_process(command: list[str], log: Path, timeout: int) -> float:
       stdout=stream,
       stderr=subprocess.STDOUT,
       start_new_session=True,
-      cwd=_ROOT,
+      cwd=log.parent.resolve(),
     )
     try:
       code = child.wait(timeout=timeout)

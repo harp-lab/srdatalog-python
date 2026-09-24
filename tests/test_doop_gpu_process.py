@@ -41,3 +41,20 @@ def test_worker_timeout_is_an_error_with_preserved_diagnostics(tmp_path):
   with pytest.raises(subprocess.TimeoutExpired):
     gpu._run_process(command, log, timeout=2)
   assert "entered native fixedpoint" in log.read_text()
+
+
+def test_failed_worker_keeps_relative_artifacts_outside_checkout(tmp_path, monkeypatch):
+  checkout, output = tmp_path / "checkout", tmp_path / "output"
+  checkout.mkdir()
+  output.mkdir()
+  monkeypatch.setattr(gpu, "_ROOT", checkout)
+  command = [
+    sys.executable,
+    "-c",
+    "from pathlib import Path; Path('allocator_failure.log').write_text('pool exhausted'); "
+    "raise SystemExit(17)",
+  ]
+  with pytest.raises(RuntimeError, match="exited 17"):
+    gpu._run_process(command, output / "worker.log", timeout=10)
+  assert (output / "allocator_failure.log").read_text() == "pool exhausted"
+  assert not (checkout / "allocator_failure.log").exists()

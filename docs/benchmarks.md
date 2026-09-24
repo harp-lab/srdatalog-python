@@ -58,26 +58,67 @@ Each invocation prints one line per phase (DSL build → emit →
 compile → load → run) with wall-clock timings — useful when
 diagnosing where time is going on your box.
 
-## Twelve-dataset DOOP corpus
+## Real-application DOOP corpus
 
-`examples/doop_benchmark.py` prepares twelve real DaCapo
+`examples/doop_benchmark.py` combines the original twelve DaCapo
 23.11-MR2-chopin applications from the
-[published FlowLog facts](https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/tree/main/dataset/csv).
-`examples/doop_suite/datasets.json` pins the corpus revision, archive SHA-256,
-archive size, and the source of the upstream reference cardinalities.
-These are fresh Chopin datasets, not aliases for the older five local datasets.
+[published FlowLog facts](https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/tree/main/dataset/csv)
+with new DaCapo 2006 and independent JVM applications.
+`examples/doop_suite/datasets.json` pins each archive's SHA-256, size, source
+revision, and per-application provenance. The
+[expansion release](https://github.com/harp-lab/srdatalog-python/releases/tag/doop-corpus-expanded-v1)
+contains the new raw fact archives, extraction provenance, `measurements.json`,
+and a candidate-selection audit. No binaries or facts are stored in Git.
 
-The following **local scheduling tiers** use upstream reference `VarPointsTo`
-cardinality, not input size or measured SRDatalog results. They are not official
-DOOP dataset editions. H2O, for example, has substantially more raw input than
-Jython but a much smaller upstream points-to result.
+The **local scheduling tiers** now uniformly use measured canonical SRDatalog
+CPU `VarPointsTo` cardinality, not archive size or mixed upstream analyses.
+The thresholds are unchanged; these are not official DOOP dataset editions.
+The original twelve archives are unchanged, and their upstream cardinalities
+remain separately recorded for traceability. Every selected application has
+completed the unchanged canonical CPU query with 74 relation counts and all
+37 IDB exports. Zero warmups and one repetition establish cardinality evidence,
+not comparative performance or GPU equivalence.
 
-| Tier | Reference VPT rows | Applications |
+The catalog has **21 distinct applications: 6 small, 5 medium, 6 large, 4 xlarge**,
+compared with the original 5/2/4/1 distribution.
+
+| Tier | Canonical VPT rows | Applications |
 |---|---:|---|
-| small | < 15 million | xalan, zxing, biojava, pmd, sunflow |
-| medium | 15–<30 million | h2o, spring |
-| large | 30–<100 million | batik, eclipse, fop, h2 |
-| xlarge | >= 100 million | jython |
+| small | < 15 million | xalan, zxing, biojava, pmd, bloat, sunflow |
+| medium | 15–<30 million | clojure, chart, h2o, javac, spring |
+| large | 30–<100 million | batik, eclipse, h2, fop, jruby, pdfbox |
+| xlarge | >= 100 million | soot, jython, scala, kotlin |
+
+| New application | Version / source | Measured VPT rows |
+|---|---|---:|
+| bloat | DaCapo 2006 | 11,227,250 |
+| chart | DaCapo 2006 | 17,221,612 |
+| clojure | 1.8.0 | 16,591,860 |
+| javac | OpenJDK 8u312 | 24,163,325 |
+| jruby | 1.7.27 | 60,512,570 |
+| pdfbox | 2.0.20 | 69,315,812 |
+| soot | 4.3.0 | 412,802,921 |
+| scala | 2.11.12 | 612,741,889 |
+| kotlin | 1.5.31 | 1,076,040,872 |
+
+New inputs use DOOP 4.24.9 and `java_8`, with the container image, platform,
+application and dependency hashes recorded in each provenance asset.
+They preserve all extracted facts and genuine application main methods:
+no multiplied facts, synthetic roots, sampled inputs, or duplicate versions
+counted as new applications. Raw archive preparation was checked for byte-identical
+normalized relations and metadata against the immutable CPU-validated inputs.
+Recorded absolute paths in the evidence identify the original runs; portable
+use goes through the catalog commands below.
+
+These are static extracted-fact workloads, not claims of complete Java or
+reflection coverage. Phantom diagnostics are retained, not suppressed:
+some name generated outer prefixes whose dollar-suffixed classes exist, while
+optional missing types remain in some applications. Scala retains phantom-based
+methods. Kotlin's official embeddable artifact omits shaded IntelliJ UI classes;
+after supplying its dependencies, JNA and Java 8 tools, 23 phantom methods and
+3 phantom-based methods remain. Consult the full provenance rather than assuming
+a phantom-free corpus. Failed Soot extraction attempts were not promoted merely
+because the process exited zero. Upstream software retains its own licenses.
 
 ```bash
 python examples/doop_benchmark.py list
@@ -92,8 +133,8 @@ python examples/doop_benchmark.py prepare --tier medium \
 ```
 
 Python 3.10+ and the external `sort` command are required for preparation.
-Downloading all archives requires approximately 1.74 GB; the complete raw facts
-require approximately 28.3 GB before normalized inputs, dictionaries, build
+Downloading all archives requires approximately 2.96 GB; the complete raw facts
+require approximately 52.3 GB before normalized inputs, dictionaries, build
 caches or result exports. Keep all data outside the source checkout.
 `--archive-cache DIR` optionally reuses a read-only archive cache after checksum
 verification. `DOOP_SORT_TMPDIR` can select an existing scratch directory.

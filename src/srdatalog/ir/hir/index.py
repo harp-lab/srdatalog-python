@@ -26,6 +26,7 @@ only has to be stable, not byte-matched against Nim.
 from __future__ import annotations
 
 from srdatalog.ir.hir.pass_ import IRLevel, PassInfo, PassLevel
+from srdatalog.ir.hir.plan import bitmap_join_patterns
 from srdatalog.ir.hir.types import (
   HirProgram,
   HirRuleVariant,
@@ -101,9 +102,28 @@ def _append_unique_indices(
       dest.append(cidx)
 
 
+def bitmap_index_requirements(hir: HirProgram) -> dict[str, set[tuple[int, ...]]]:
+  '''Include the value-first dictionary index even when no logical source uses it.
+
+  These indices must also survive producer strata: DELTA uses FULL on iteration zero.
+  '''
+  out: dict[str, set[tuple[int, ...]]] = {}
+  for stratum in hir.strata:
+    for variant in (*stratum.base_variants, *stratum.recursive_variants):
+      patterns = bitmap_join_patterns(variant)
+      if patterns is None:
+        continue
+      assign, points = patterns
+      for pattern in patterns:
+        out.setdefault(pattern.rel_name, set()).add(tuple(pattern.index_cols))
+      out[points.rel_name].add(tuple(reversed(points.index_cols)))
+  return out
+
+
 def select_indices(hir: HirProgram) -> HirProgram:
   '''Pass 5 entry. Mutates and returns the HirProgram.'''
   decls = hir.relation_decls
+  bitmap_indices = bitmap_index_requirements(hir)
 
   # ----- First pass: global_index_map over all strata.
   for stratum in hir.strata:
@@ -116,6 +136,12 @@ def select_indices(hir: HirProgram) -> HirProgram:
         idx_list = list(t)
         if idx_list not in hir.global_index_map[rel_name]:
           hir.global_index_map[rel_name].append(idx_list)
+
+  for rel_name, indices in bitmap_indices.items():
+    registered = hir.global_index_map.setdefault(rel_name, [])
+    for index in sorted(indices):
+      if list(index) not in registered:
+        registered.append(list(index))
 
   # ----- Second pass: per-stratum required + canonical.
   for stratum in hir.strata:
@@ -140,6 +166,10 @@ def select_indices(hir: HirProgram) -> HirProgram:
       else:
         if rel_name in all_idx:
           _append_unique_indices(indices, all_idx[rel_name], arity)
+
+      # Bitmap sources and their value dictionary are explicit physical
+      # requirements, including when a producer already has other local indices.
+      _append_unique_indices(indices, bitmap_indices.get(rel_name, set()), arity)
 
       # Fallback 1: global index map (indices used by OTHER strata).
       if not indices and rel_name in hir.global_index_map:

@@ -167,6 +167,22 @@ def collect_canonical_specs(
 # -----------------------------------------------------------------------------
 
 
+def _required_index_sources(ep: m.ExecutePipeline) -> list[m.MirNode]:
+  if ep.bitmap_join is None:
+    return ep.source_specs
+  plan = ep.bitmap_join
+  return [
+    *ep.source_specs,
+    plan.assign,
+    plan.points,
+    m.ColumnSource(
+      rel_name=plan.points.rel_name,
+      version=plan.points.version,
+      index=list(reversed(plan.points.index)),
+    ),
+  ]
+
+
 def _gen_execute_pipeline(
   instr: m.ExecutePipeline,
   indent: str,
@@ -174,6 +190,10 @@ def _gen_execute_pipeline(
   count_only_rels: set[str],
 ) -> str:
   runner_name = f"JitRunner_{instr.rule_name}"
+  if instr.bitmap_join is not None:
+    if instr.count or is_count_only_pipeline(instr, count_only_rels):
+      raise ValueError('dedup_bitmap does not support count-only execution')
+    return indent + f"{runner_name}::execute(db, {iter_var});\n"
   if instr.count or is_count_only_pipeline(instr, count_only_rels):
     out = indent + "// Count-only query mode\n"
     out += indent + "{\n"
@@ -226,7 +246,7 @@ def _gen_parallel_group(
     else:
       other_ops.append(op)
 
-  has_dedup = any(op.dedup_hash for op in exec_ops)
+  has_dedup = any(op.dedup_hash or op.bitmap_join is not None for op in exec_ops)
 
   if len(exec_ops) <= 1:
     out = indent + "// === ParallelGroup (single rule, sequential) ===\n"
@@ -241,7 +261,10 @@ def _gen_parallel_group(
     return out
 
   if has_dedup:
-    out = indent + "// === ParallelGroup (sequential, dedup_hash present) ===\n"
+    strategy = (
+      "dedup_bitmap" if any(op.bitmap_join is not None for op in exec_ops) else "dedup_hash"
+    )
+    out = indent + f"// === ParallelGroup (sequential, {strategy} present) ===\n"
     for op in exec_ops:
       if op.count or is_count_only_pipeline(op, count_only_rels):
         out += _gen_execute_pipeline(op, indent, iter_var, count_only_rels)
@@ -663,7 +686,7 @@ def gen_fixpoint_body(
           exec_pipelines.append(op)
 
     for ep in exec_pipelines:
-      for src_spec in ep.source_specs:
+      for src_spec in _required_index_sources(ep):
         if isinstance(src_spec, m.ColumnSource):
           ver = version_string(src_spec.version.code)
           spec_type = gen_index_spec_type(src_spec.rel_name, ver, list(src_spec.index))
@@ -851,7 +874,7 @@ def gen_non_recursive_block(
             if isinstance(op, m.ExecutePipeline):
               exec_pipelines.append(op)
         for ep in exec_pipelines:
-          for src_spec in ep.source_specs:
+          for src_spec in _required_index_sources(ep):
             rel_name, raw_ver, idx = extract_source_info(src_spec)
             if rel_name:
               ver = version_string(raw_ver)

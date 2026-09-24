@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 
 from srdatalog.dsl import Agg, ArgKind, Atom, Filter, Let, Negation, PlanEntry, Rule, Split
 from srdatalog.ir.hir.pass_ import IRLevel, PassInfo, PassLevel
-from srdatalog.ir.hir.types import AccessPattern, HirProgram, HirRuleVariant, Version
+from srdatalog.ir.hir.types import AccessPattern, HirProgram, HirRuleVariant, RelationDecl, Version
 
 # -----------------------------------------------------------------------------
 # Rule Analysis
@@ -449,6 +449,81 @@ def compute_temp_vars(rule: Rule, split_at: int) -> list[str]:
   return result
 
 
+def _validate_bitmap_plan(rule: Rule, plan: PlanEntry, decls: dict[str, RelationDecl]) -> None:
+  label = f"dedup_bitmap for rule {rule.name or '<anonymous>'!r}"
+  incompatible = [
+    name
+    for name in (
+      "dedup_hash",
+      "fanout",
+      "work_stealing",
+      "block_group",
+      "balanced_root",
+      "balanced_sources",
+    )
+    if getattr(plan, name)
+  ]
+  if rule.count:
+    incompatible.append("count")
+  if incompatible:
+    raise ValueError(f"{label} is incompatible with {', '.join(incompatible)}")
+  if (
+    len(rule.heads) != 1
+    or len(rule.head.args) != 2
+    or len(rule.body) != 2
+    or any(not isinstance(atom, Atom) or len(atom.args) != 2 for atom in rule.body)
+  ):
+    raise ValueError(
+      f"{label} requires one binary head and exactly two positive binary atoms "
+      "(no filters, negation, aggregates, lets, or split)"
+    )
+  atoms = (rule.head, *rule.body)
+  if any(
+    arg.kind is not ArgKind.LVAR or arg.var_name is None for atom in atoms for arg in atom.args
+  ):
+    raise ValueError(f"{label} requires only variables, without constants or expressions")
+  value, destination = (arg.var_name for arg in rule.head.args)
+  body_vars = [{arg.var_name for arg in atom.args} for atom in rule.body]
+  shared = body_vars[0] & body_vars[1]
+  if (
+    value == destination
+    or len(shared) != 1
+    or len(body_vars[0] | body_vars[1]) != 3
+    or value in shared
+    or destination in shared
+    or {value, destination} != (body_vars[0] | body_vars[1]) - shared
+  ):
+    raise ValueError(
+      f"{label} requires C(value, destination) :- A(join, destination), B(join, value) "
+      "with three distinct variables (either body column/clause order is allowed)"
+    )
+  join = next(iter(shared))
+  if plan.var_order and (
+    len(plan.var_order) != 3
+    or set(plan.var_order) != {join, value, destination}
+    or plan.var_order[0] != join
+  ):
+    raise ValueError(f"{label} requires var_order to contain all three variables, join first")
+  if plan.clause_order and sorted(plan.clause_order) != [0, 1]:
+    raise ValueError(f"{label} requires clause_order to be a permutation of [0, 1]")
+  for atom in atoms:
+    decl = decls.get(atom.rel)
+    semiring = decl.semiring if decl is not None else getattr(atom.relation, "semiring", None)
+    if semiring is None or semiring.rsplit("::", 1)[-1] != "NoProvenance":
+      raise ValueError(f"{label} requires NoProvenance set semantics for relation {atom.rel!r}")
+    if (decl is not None and decl.count_only) or getattr(atom.relation, "count_only", False):
+      raise ValueError(f"{label} is incompatible with count-only relation {atom.rel!r}")
+
+
+def bitmap_join_patterns(v: HirRuleVariant) -> tuple[AccessPattern, AccessPattern] | None:
+  '''Return validated source roles without adding a synthetic body clause.'''
+  if not v.dedup_bitmap:
+    return None
+  destination = v.original_rule.head.args[1].var_name
+  first, second = v.access_patterns
+  return (first, second) if destination in first.access_order else (second, first)
+
+
 def _plan_variant(v: HirRuleVariant) -> None:
   rule = v.original_rule
   analysis = analyze_rule(rule)
@@ -476,8 +551,11 @@ def _plan_variant(v: HirRuleVariant) -> None:
     v.work_stealing = plan.work_stealing
     v.block_group = plan.block_group
     v.dedup_hash = plan.dedup_hash
+    v.dedup_bitmap = plan.dedup_bitmap
     v.balanced_root = list(plan.balanced_root)
     v.balanced_sources = list(plan.balanced_sources)
+    if plan.dedup_bitmap and plan.clause_order:
+      clause_order = list(plan.clause_order)
 
   v.count = rule.count
   v.clause_order = clause_order
@@ -507,6 +585,27 @@ def _plan_variant(v: HirRuleVariant) -> None:
 
 def plan_joins(hir: HirProgram) -> HirProgram:
   '''HIR Pass 4 entry. Mutates and returns the HirProgram.'''
+  decls = {decl.rel_name: decl for decl in hir.relation_decls}
+  variants = [
+    variant
+    for stratum in hir.strata
+    for variant in (*stratum.base_variants, *stratum.recursive_variants)
+  ]
+  for variant in variants:
+    rule = variant.original_rule
+    for plan in rule.plans:
+      if plan.dedup_bitmap:
+        _validate_bitmap_plan(rule, plan, decls)
+        if not any(
+          candidate.original_rule is rule
+          and candidate.delta_idx == plan.delta
+          and _find_plan(rule, candidate.delta_idx) is plan
+          for candidate in variants
+        ):
+          raise ValueError(
+            f"dedup_bitmap for rule {rule.name or '<anonymous>'!r}: "
+            f"plan delta={plan.delta} does not select an evaluated variant"
+          )
   for stratum in hir.strata:
     for v in stratum.base_variants:
       _plan_variant(v)

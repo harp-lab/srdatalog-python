@@ -23,6 +23,10 @@ The byte-equivalence harnesses:
     spec for count-phase shape, since the runner files contain
     count bodies but no isolated count-only goldens exist).
 
+Plans requiring preprocessing or multiple coordinated kernel phases must use
+`compile_runner`. Exact bitmap plans cannot be represented by standalone
+kernel entry points and are rejected there.
+
 See:
   - docs/stage2_emitter_audit.md — the per-milestone migration plan.
   - docs/ir_lowering_semantics.md — the formal lowering rules.
@@ -86,6 +90,9 @@ def compile_runner(
   The byte-equivalence gate (`tests/test_runner_byte_equivalence.py`)
   anchors this entry point to the upstream goldens throughout the
   migration.
+
+  Exact bitmap plans use this entry point to emit their execute-only runner,
+  including preprocessing and exact count/materialization.
   '''
   from srdatalog.ir.codegen.cuda.runner import emit_runner_full
 
@@ -134,6 +141,8 @@ def compile_kernel_body(
       slots advance by 2 per FULL_VER D2L source — matching legacy
       `compute_view_slot_offsets`. Pass {} or None for plain DSAI.
   '''
+  if ep.bitmap_join is not None:
+    raise ValueError('dedup_bitmap requires a complete runner; use compile_runner')
   from srdatalog.ir.codegen.cuda.emit import EmitCtx, emit
   from srdatalog.ir.codegen.cuda.envelope import (
     assign_handle_positions,

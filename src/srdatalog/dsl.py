@@ -342,6 +342,7 @@ class PlanEntry:
     - work_stealing   -> mid-level work-stealing (task queue + steal loop)
     - block_group     -> block-group work partitioning
     - dedup_hash      -> GPU hash table for in-kernel existential dedup
+    - dedup_bitmap    -> exact bitmap dedup for binary join projections
   `balanced_root` / `balanced_sources` drive balanced partitioning for
   skewed joins (not yet lowered in Python).
   '''
@@ -355,6 +356,7 @@ class PlanEntry:
   dedup_hash: bool = False
   balanced_root: tuple[str, ...] = ()
   balanced_sources: tuple[str, ...] = ()
+  dedup_bitmap: bool = False
 
 
 @dataclass(frozen=True)
@@ -406,6 +408,7 @@ class Rule:
     work_stealing: bool = False,
     block_group: bool = False,
     dedup_hash: bool = False,
+    dedup_bitmap: bool = False,
     balanced_root: tuple[str, ...] | list[str] | None = None,
     balanced_sources: tuple[str, ...] | list[str] | None = None,
   ) -> Rule:
@@ -420,6 +423,7 @@ class Rule:
       work_stealing=work_stealing,
       block_group=block_group,
       dedup_hash=dedup_hash,
+      dedup_bitmap=dedup_bitmap,
       balanced_root=tuple(balanced_root) if balanced_root is not None else (),
       balanced_sources=tuple(balanced_sources) if balanced_sources is not None else (),
     )

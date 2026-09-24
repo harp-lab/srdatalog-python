@@ -1,0 +1,126 @@
+{
+  "schema_version": 1,
+  "suite": "doop-chopin-12",
+  "corpus": "DaCapo 23.11-MR2-chopin",
+  "repository": "NemoYuu/flowlog_benchmark",
+  "revision": "da9e91b3ff75d94604f57ba2b21ef3aa97e241ec",
+  "reference_source": "https://github.com/flowlog-rs/flowlog-bench/blob/caa5f4afb630f8c275f3ea541f628f9c58245a8d/docs/data/doop-data-prep.md",
+  "tier_metric": "upstream_reference_VarPointsTo_rows",
+  "tier_note": "Local scheduling tiers based on upstream FlowLog results, not measured SRDatalog outputs, input bytes, or official DOOP size editions.",
+  "tiers": {
+    "small": {
+      "min_rows": 0,
+      "max_rows_exclusive": 15000000
+    },
+    "medium": {
+      "min_rows": 15000000,
+      "max_rows_exclusive": 30000000
+    },
+    "large": {
+      "min_rows": 30000000,
+      "max_rows_exclusive": 100000000
+    },
+    "xlarge": {
+      "min_rows": 100000000,
+      "max_rows_exclusive": null
+    }
+  },
+  "datasets": [
+    {
+      "name": "xalan",
+      "tier": "small",
+      "reference_vpt_rows": 2741586,
+      "archive_bytes": 105440689,
+      "archive_sha256": "fb80819fb66153b4370325cafb632ee5649917ff7e2d5b6645d6e360c61dd11f",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/xalan.zip"
+    },
+    {
+      "name": "zxing",
+      "tier": "small",
+      "reference_vpt_rows": 4024065,
+      "archive_bytes": 72025076,
+      "archive_sha256": "154593343fefd18306d4098ba9f6286947b134b56ebcf83d8e8eae368d5867e7",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/zxing.zip"
+    },
+    {
+      "name": "biojava",
+      "tier": "small",
+      "reference_vpt_rows": 4901635,
+      "archive_bytes": 173260481,
+      "archive_sha256": "6e81c27378dd151de6415ab49bb62ced9f8e70bfb69d9cd59df0a57c02091cde",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/biojava.zip"
+    },
+    {
+      "name": "pmd",
+      "tier": "small",
+      "reference_vpt_rows": 8511281,
+      "archive_bytes": 86623764,
+      "archive_sha256": "8825defd6500c31ac1fbc2c5b82d8f46da6a7dbd3d395b1b7de245fef4d230c9",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/pmd.zip"
+    },
+    {
+      "name": "sunflow",
+      "tier": "small",
+      "reference_vpt_rows": 11616018,
+      "archive_bytes": 67542238,
+      "archive_sha256": "18641d21a7267abf19616ba12d9a39c667f15c0cd1ea8fd2c611cbe9f01ab717",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/sunflow.zip"
+    },
+    {
+      "name": "h2o",
+      "tier": "medium",
+      "reference_vpt_rows": 17911631,
+      "archive_bytes": 681540893,
+      "archive_sha256": "65dfd99a751a7de2d6181b6be0eaa7643e2b3303cd2b47c53187c51fa081d816",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/h2o.zip"
+    },
+    {
+      "name": "spring",
+      "tier": "medium",
+      "reference_vpt_rows": 25953984,
+      "archive_bytes": 84803735,
+      "archive_sha256": "3ee424fb3b748c3b3f28a4841ae99d3506af37eefb6d3bb608c93e8f1519d5a8",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/spring.zip"
+    },
+    {
+      "name": "batik",
+      "tier": "large",
+      "reference_vpt_rows": 37237353,
+      "archive_bytes": 105982324,
+      "archive_sha256": "0e66c095e6a65e765e0481bb1cc878f1d4d9845bbd11e744dea80be9470adda2",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/batik.zip"
+    },
+    {
+      "name": "eclipse",
+      "tier": "large",
+      "reference_vpt_rows": 39139806,
+      "archive_bytes": 44907723,
+      "archive_sha256": "bae047f6d5fe1dfaa3c171516922e66ba3d2f8dd7244b43059c2ec7e6677ffc3",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/eclipse.zip"
+    },
+    {
+      "name": "fop",
+      "tier": "large",
+      "reference_vpt_rows": 39818826,
+      "archive_bytes": 108025042,
+      "archive_sha256": "f88c3d58fa3b5216ad49402a593676e474dc5067e87af498ed3d8f8b64eb343c",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/fop.zip"
+    },
+    {
+      "name": "h2",
+      "tier": "large",
+      "reference_vpt_rows": 39871906,
+      "archive_bytes": 83784448,
+      "archive_sha256": "f9c4d90ce0868456e73bdb0b05aa6e1d9177f2feff5bd964f3dbb61c8d2c1fdf",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/h2.zip"
+    },
+    {
+      "name": "jython",
+      "tier": "xlarge",
+      "reference_vpt_rows": 438304400,
+      "archive_bytes": 121807572,
+      "archive_sha256": "67c0f289eda34b05cd8226dc4e41e87d016b8ddd2ec2e0f8a8d888c555596008",
+      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/jython.zip"
+    }
+  ]
+}

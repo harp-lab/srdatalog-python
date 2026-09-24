@@ -58,6 +58,66 @@ Each invocation prints one line per phase (DSL build → emit →
 compile → load → run) with wall-clock timings — useful when
 diagnosing where time is going on your box.
 
+## Twelve-dataset DOOP corpus
+
+`examples/doop_benchmark.py` prepares twelve real DaCapo
+23.11-MR2-chopin applications from the
+[published FlowLog facts](https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/tree/main/dataset/csv).
+`examples/doop_suite/datasets.json` pins the corpus revision, archive SHA-256,
+archive size, and the source of the upstream reference cardinalities.
+These are fresh Chopin datasets, not aliases for the older five local datasets.
+
+The following **local scheduling tiers** use upstream reference `VarPointsTo`
+cardinality, not input size or measured SRDatalog results. They are not official
+DOOP dataset editions. H2O, for example, has substantially more raw input than
+Jython but a much smaller upstream points-to result.
+
+| Tier | Reference VPT rows | Applications |
+|---|---:|---|
+| small | < 15 million | xalan, zxing, biojava, pmd, sunflow |
+| medium | 15–<30 million | h2o, spring |
+| large | 30–<100 million | batik, eclipse, fop, h2 |
+| xlarge | >= 100 million | jython |
+
+```bash
+python examples/doop_benchmark.py list
+python examples/doop_benchmark.py fetch --all --root /path/to/doop-data
+python examples/doop_benchmark.py prepare --all --root /path/to/doop-data
+
+# Select named applications or a workload tier instead:
+python examples/doop_benchmark.py prepare --dataset xalan jython \
+    --root /path/to/doop-data
+python examples/doop_benchmark.py prepare --tier medium \
+    --root /path/to/doop-data
+```
+
+Python 3.10+ and the external `sort` command are required for preparation.
+Downloading all archives requires approximately 1.74 GB; the complete raw facts
+require approximately 28.3 GB before normalized inputs, dictionaries, build
+caches or result exports. Keep all data outside the source checkout.
+`--archive-cache DIR` optionally reuses a read-only archive cache after checksum
+verification. `DOOP_SORT_TMPDIR` can select an existing scratch directory.
+
+Preparation preserves the complete `MainClass` set and uses one shared symbol
+dictionary per dataset. It derives all 39 declared integer TSV input files,
+including descriptors and heap types, then materializes each projected relation
+as a set with `sort -u`; it never samples rows or adds synthetic roots.
+Required files, arities, signed-int32 numeric domains, and functional attributes
+needed by the normalization are checked explicitly.
+The instantiated program currently uses 37 of those inputs and has 37 derived
+relations; `Var_DeclaringMethod` and `isVirtualMethodInvocation_Insn` are declared
+but unused. Preparation reports all declared files; execution reports the
+actually consumed input rows and bytes separately.
+
+Each `prepared/APP/` contains the input CSV files (tab-delimited despite their
+extension), `meta.json`, `str2num.json`, and `manifest.json`. The manifest records
+raw/prepared hashes, prepared rows and bytes, entrypoints, and provenance.
+The status `prepared_not_engine_validated` deliberately does not claim query
+correctness. An incomplete preparation is not published; existing prepared
+datasets are verified rather than overwritten. Do not reuse another dataset's
+interned constants or compare old-generation facts under the same application
+name without recording that change.
+
 ## Regenerating from Nim
 
 When upstream Nim sources change, regenerate every benchmark with:

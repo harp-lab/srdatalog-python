@@ -36,6 +36,7 @@ from __future__ import annotations
 # NumSources and diverging from upstream.
 import srdatalog.ir.dialects.relation.d2l  # noqa: F401
 import srdatalog.ir.mir.types as m
+from srdatalog.ir.codegen.cuda.bitmap import gen_bitmap_runner
 from srdatalog.ir.codegen.cuda.materialized import is_materialized_pipeline
 from srdatalog.ir.codegen.cuda.pipeline_utils import (
   assign_handle_positions,
@@ -910,6 +911,8 @@ def gen_complete_runner(
   orchestrator can call `JitRunner_X::execute()`).
   '''
   assert isinstance(node, m.ExecutePipeline)
+  if node.bitmap_join is not None:
+    return gen_bitmap_runner(node, db_type_name, rel_index_types or {})
   if rel_index_types is None:
     rel_index_types = {}
 

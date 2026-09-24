@@ -102,6 +102,41 @@ Relation pragmas you'll actually use:
 Rule builders: `atom <= body1 & body2 & ~neg & Filter((v,), "...")`.
 See the {py:mod}`srdatalog.dsl` API reference for every operator.
 
+## Opt-in exact bitmap join plans
+
+`with_plan(dedup_bitmap=True)` selects an exact bitmap implementation for a
+binary set-valued join projection. It changes the physical plan, not the rule's
+logical tuple set, and is not enabled automatically:
+
+```python
+from srdatalog import Program, Relation, Var
+
+join, value, destination = Var("join"), Var("value"), Var("destination")
+Assign = Relation("Assign", 2, input_file="Assign.csv")
+Points = Relation("Points", 2, input_file="Points.csv")
+Output = Relation("Output", 2)
+prog = Program([
+    (Output(value, destination) <= Assign(join, destination) & Points(join, value))
+    .with_plan(dedup_bitmap=True)
+])
+```
+
+For recursive rules, select the intended semi-naive variants explicitly with
+`with_plan(delta=..., dedup_bitmap=True)`. The compiler maintains the required
+dictionary indexes across producer strata and recursive iterations.
+
+This specialization supports unconstrained binary `NoProvenance` projections:
+the shared join variable is eliminated and one distinct variable from each
+source is retained. Filters, negation, constants, incompatible execution
+strategies, count-only rules, unsupported index types, and plans matching no
+recursive variant are rejected rather than silently approximated. Runtime
+shared-memory capacity limits also fail explicitly.
+
+Bitmap plans require a complete runner (`build_project` or `compile_runner`),
+not standalone `compile_pipeline` kernel emission. Keep the ordinary plan as a
+correctness/performance control; enabling a bitmap plan is not by itself evidence
+of an end-to-end speedup.
+
 ## Translating from Nim
 
 The upstream Nim reference has a few dozen benchmark programs under

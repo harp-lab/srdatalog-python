@@ -18,6 +18,7 @@ from srdatalog.ir.core import Dialect
 from srdatalog.ir.mir.types import (
   Aggregate,
   BalancedScan,
+  BitmapJoin,
   Block,
   CartesianJoin,
   CheckSize,

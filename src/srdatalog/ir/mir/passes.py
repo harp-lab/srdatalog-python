@@ -91,6 +91,12 @@ def _collect_needed_indices(node: mir.MirNode, rel_name: str, out: set[tuple[int
     for s in node.sources:
       _collect_needed_indices(s, rel_name, out)
   elif isinstance(node, mir.ExecutePipeline):
+    if node.bitmap_join is not None:
+      for source in (node.bitmap_join.assign, node.bitmap_join.points):
+        _collect_needed_indices(source, rel_name, out)
+      points = node.bitmap_join.points
+      if points.rel_name == rel_name:
+        out.add(tuple(reversed(points.index)))
     for op in node.pipeline:
       _collect_needed_indices(op, rel_name, out)
   elif isinstance(node, mir.ParallelGroup):

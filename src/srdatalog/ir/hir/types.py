@@ -102,6 +102,7 @@ class HirRuleVariant:
   block_group: bool = False
   dedup_hash: bool = False
   count: bool = False
+  dedup_bitmap: bool = False
 
 
 @dataclass

@@ -284,6 +284,14 @@ class RebuildIndexFromIndex:
 
 
 @dataclass
+class BitmapJoin:
+  '''Binary projection sources, each indexed in logical (join, other) order.'''
+
+  assign: ColumnSource
+  points: ColumnSource
+
+
+@dataclass
 class ExecutePipeline:
   '''(execute-pipeline #:rule N #:sources (tuple ...) #:dests (tuple ...) <body>)'''
 
@@ -299,6 +307,7 @@ class ExecutePipeline:
   dedup_hash: bool = False
   count: bool = False
   concurrent_write: bool = False
+  bitmap_join: BitmapJoin | None = None
 
 
 @dataclass

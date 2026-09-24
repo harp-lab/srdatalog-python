@@ -22,7 +22,8 @@ from __future__ import annotations
 
 import srdatalog.ir.mir.types as mir
 from srdatalog.dsl import ArgKind, Atom, Filter, Let
-from srdatalog.ir.hir.index import complete_index, get_arity
+from srdatalog.ir.hir.index import bitmap_index_requirements, complete_index, get_arity
+from srdatalog.ir.hir.plan import bitmap_join_patterns
 from srdatalog.ir.hir.types import AccessPattern, HirProgram, HirRuleVariant, HirStratum, Version
 
 
@@ -599,6 +600,7 @@ def wrap_in_execute_pipeline(
   block_group: bool = False,
   count: bool = False,
   dedup_hash: bool = False,
+  bitmap_join: mir.BitmapJoin | None = None,
 ) -> mir.ExecutePipeline:
   '''Wrap a pipeline body in an ExecutePipeline node, extracting source
   specs (flattened through ColumnJoin/CartesianJoin) and dest specs
@@ -621,6 +623,22 @@ def wrap_in_execute_pipeline(
     block_group=block_group,
     dedup_hash=dedup_hash,
     count=count,
+    bitmap_join=bitmap_join,
+  )
+
+
+def _lower_bitmap_join(variant: HirRuleVariant) -> mir.BitmapJoin | None:
+  patterns = bitmap_join_patterns(variant)
+  if patterns is None:
+    return None
+  assign, points = patterns
+  return mir.BitmapJoin(
+    assign=mir.ColumnSource(
+      rel_name=assign.rel_name, version=assign.version, index=list(assign.index_cols)
+    ),
+    points=mir.ColumnSource(
+      rel_name=points.rel_name, version=points.version, index=list(points.index_cols)
+    ),
   )
 
 
@@ -658,6 +676,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
   '''
   out: list[tuple[mir.MirNode, bool]] = []
   decls = hir.relation_decls
+  bitmap_indices = bitmap_index_requirements(hir)
 
   for stratum in hir.strata:
     if stratum.is_recursive:
@@ -727,6 +746,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
                 block_group=variant.block_group,
                 count=variant.count,
                 dedup_hash=variant.dedup_hash,
+                bitmap_join=_lower_bitmap_join(variant),
               )
             )
         else:
@@ -741,6 +761,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
               block_group=variant.block_group,
               count=variant.count,
               dedup_hash=variant.dedup_hash,
+              bitmap_join=_lower_bitmap_join(variant),
             )
           )
 
@@ -764,6 +785,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
           full_needed: set[tuple[int, ...]] = set()
           for raw_idx in full_map.get(rel_name, set()):
             full_needed.add(tuple(complete_index(list(raw_idx), arity)))
+          full_needed.update(bitmap_indices.get(rel_name, set()))
           loop_ops.extend(
             generate_loop_maintenance(
               rel_name,
@@ -846,6 +868,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
                 block_group=variant.block_group,
                 count=variant.count,
                 dedup_hash=variant.dedup_hash,
+                bitmap_join=_lower_bitmap_join(variant),
               )
             )
         else:
@@ -860,6 +883,7 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
               block_group=variant.block_group,
               count=variant.count,
               dedup_hash=variant.dedup_hash,
+              bitmap_join=_lower_bitmap_join(variant),
             )
           )
 

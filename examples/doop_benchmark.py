@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare and inspect the pinned twelve-application DOOP benchmark suite."""
+"""Prepare and inspect the pinned real-application DOOP benchmark suite."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from doop_suite.catalog import (
 
 def selection(parser: argparse.ArgumentParser, *, required: bool = True) -> None:
   group = parser.add_mutually_exclusive_group(required=required)
-  group.add_argument('--all', action='store_true', help='Select all twelve datasets')
+  group.add_argument('--all', action='store_true', help='Select all catalog datasets')
   group.add_argument('--dataset', nargs='+', metavar='NAME', help='Select named datasets')
   group.add_argument('--tier', choices=list(load_catalog()['tiers']))
 
@@ -37,21 +37,14 @@ def prepare_dataset(dataset: dict, root: Path, archive_cache: Path | None = None
     verify_raw(archive, dataset, raw)
   else:
     raw = extract_archive(archive, dataset, root)
-  catalog = load_catalog()
-  provenance = dict(
-    dataset,
-    corpus=catalog['corpus'],
-    revision=catalog['revision'],
-    repository=catalog['repository'],
-    reference_source=catalog['reference_source'],
-  )
+  provenance = dict(dataset)
   return prepare(raw, output, provenance=provenance)
 
 
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description=__doc__)
   commands = parser.add_subparsers(dest='command', required=True)
-  listing = commands.add_parser('list', help='Show tiers, names and upstream reference sizes')
+  listing = commands.add_parser('list', help='Show tiers, names and canonical reference sizes')
   selection(listing, required=False)
   listing.add_argument('--json', action='store_true')
   for command in ('fetch', 'prepare'):
@@ -71,9 +64,7 @@ def main(argv: list[str] | None = None) -> int:
       if args.json:
         print(json.dumps(datasets, indent=2))
       else:
-        print(
-          'Local tiers use upstream reference VarPointsTo rows, NOT input size or local results.'
-        )
+        print('Local tiers use measured canonical VarPointsTo rows, NOT input or archive size.')
         print(f'{"DATASET":12} {"TIER":8} {"REFERENCE VPT":>15} {"ARCHIVE MB":>12}')
         for item in datasets:
           print(

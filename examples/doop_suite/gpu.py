@@ -197,7 +197,12 @@ def _execute(build: dict, facts: Path, report_path: Path, export: Path | None) -
     if code != 0:
       raise RuntimeError(f"srdatalog_{name} returned {code}")
 
-  report = {"status": "running", "stages_seconds": {}, "outputs": {}}
+  report = {
+    "status": "running",
+    "stages_seconds": {},
+    "outputs": {},
+    "memory_resource": os.environ.get("SRDATALOG_RMM_RESOURCE") or "pool",
+  }
   initialized = False
   _save(report_path, report)
   try:
@@ -295,6 +300,7 @@ def run_gpu(
     "backend": "gpu",
     "dataset": facts.name,
     "plan": plan,
+    "memory_resource": os.environ.get("SRDATALOG_RMM_RESOURCE") or "pool",
     "facts": str(facts),
     "source_sha256": _sha256(_SOURCE),
     "timings_seconds": [],

@@ -77,8 +77,13 @@ formatting is not a compatibility contract.
 reconstruction elimination for closed, index-backed C-ABI consumers such as the
 DOOP suite. Generic and custom C++ builds keep raw output storage by default.
 The opt-in analysis preserves reconstruction for raw readers, opaque hooks,
-custom representations, and recursive results; counts and TSV exports still
-observe the complete logical relations through their canonical indexes.
+unsupported representations, and nonterminal recursive consumers. Terminal
+recursive results may omit raw exit copies only when no later MIR consumer needs
+them; live recursive DELTA remains intact during iteration, and dead scratch is
+released only after synchronized convergence. Counts and TSV exports observe the
+complete logical relations through their canonical indexes. Built-in
+NoProvenance two-level indexes export both base and HEAD in bounded host chunks,
+without allocating a compacted device-sized output table.
 
 ## Compile → load
 

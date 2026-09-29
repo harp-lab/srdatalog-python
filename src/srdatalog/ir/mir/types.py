@@ -317,6 +317,9 @@ class FixpointPlan:
 
   instructions: list[MirNode]
   schema_arities: list[tuple[str, int]] = field(default_factory=list)
+  # Closed index-backed outputs with no later MIR consumers. Loop maintenance
+  # remains unchanged; only raw exit reconstruction and dead scratch differ.
+  index_only_exit_relations: set[str] = field(default_factory=set)
 
 
 @dataclass

@@ -314,7 +314,7 @@ def _gen_final_print_block(
     out += "        auto& idx = rel.get_index(canonical_idx);\n"
     out += (
       f'        std::cout << " >>>>>>>>>>>>>>>>> {d.rel_name} : " '
-      "<< idx.root().degree() << std::endl;\n"
+      "<< idx.size() << std::endl;\n"
     )
     out += "      } else {\n"
     out += (
@@ -740,6 +740,7 @@ def _gen_relation_export_helper() -> str:
   '''Bounded host-side TSV export without rebuilding an index from stale columns.'''
   return r'''
 #include <array>
+#include "gpu/device_2level_index.h"
 #include <fstream>
 #include <locale>
 #include <type_traits>
@@ -749,6 +750,14 @@ inline void srdatalog_check_gpu(GPU_ERROR_T status) {
   if (status != GPU_SUCCESS)
     throw std::runtime_error(GPU_GET_ERROR_STRING(status));
 }
+
+template<class Index>
+struct srdatalog_segmented_tsv_index : std::false_type {};
+
+template<class Attrs, class Value, class RowId>
+struct srdatalog_segmented_tsv_index<
+    SRDatalog::GPU::Device2LevelIndex<NoProvenance, Attrs, Value, RowId>>
+    : std::true_type {};
 
 template<class Schema, class DB>
 void srdatalog_write_tsv(DB& db, const char* path, const SRDatalog::IndexSpec& canonical) {
@@ -770,32 +779,45 @@ void srdatalog_write_tsv(DB& db, const char* path, const SRDatalog::IndexSpec& c
   } else {
     // Index maintenance can leave intern columns stale. Borrow authoritative
     // index storage and undo its column permutation without a second GPU copy.
-    std::array<const Value*, arity> device_columns{};
-    std::size_t rows = relation.size();
+    std::array<std::array<const Value*, arity>, 2> device_columns{};
+    std::array<std::size_t, 2> segment_rows{};
     if (!canonical.cols.empty()) {
       if (canonical.cols.size() != arity || !relation.has_index(canonical))
         throw std::runtime_error("TSV export: missing canonical index");
       auto& index = relation.get_index(canonical);
-      // Two-level indexes expose only FULL through data(); consolidate HEAD
-      // before borrowing it. Fixedpoint-exit reconstruction normally did this.
-      if constexpr (requires { index.compact(); }) index.compact();
-      srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());
-      rows = index.size();
-      if (rows) {
-        const auto view = index.data().view();
+      const auto borrow_segment = [&](const auto& segment, std::size_t slot) {
+        segment_rows[slot] = segment.size();
+        if (!segment_rows[slot]) return;
+        const auto view = segment.data().view();
         std::array<bool, arity> seen{};
         for (std::size_t position = 0; position < arity; ++position) {
           const auto logical = canonical.cols[position];
           if (logical < 0 || logical >= arity || seen[logical])
             throw std::runtime_error("TSV export: invalid canonical permutation");
           seen[logical] = true;
-          device_columns[logical] = view.column_ptr(position);
+          device_columns[slot][logical] = view.column_ptr(position);
         }
+      };
+      if constexpr (srdatalog_segmented_tsv_index<typename Rel::IndexTypeInst>::value) {
+        // Built-in NoProvenance FULL/HEAD contain disjoint, individually sorted
+        // tuple sets: DELTA excludes both segments before it is merged into HEAD.
+        // TSV promises logical tuples, not global row ordering; emit both without
+        // materializing their union. Neither segment nor live DELTA is consumed.
+        srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());
+        borrow_segment(index.full(), 0);
+        borrow_segment(index.head(), 1);
+      } else {
+        // Preserve existing consolidation for other representations/semirings;
+        // their segment or provenance contracts may differ from the built-in.
+        if constexpr (requires { index.compact(); }) index.compact();
+        srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());
+        borrow_segment(index, 0);
       }
-    } else if (rows) {
+    } else if (const auto rows = relation.size()) {
+      segment_rows[0] = rows;
       const auto view = relation.unsafe_interned_columns().view();
       for (std::size_t column = 0; column < arity; ++column)
-        device_columns[column] = view.column_ptr(column);
+        device_columns[0][column] = view.column_ptr(column);
     }
     std::ofstream output;
     output.exceptions(std::ios::failbit | std::ios::badbit);
@@ -803,20 +825,24 @@ void srdatalog_write_tsv(DB& db, const char* path, const SRDatalog::IndexSpec& c
     output.open(path, std::ios::out | std::ios::trunc);
     constexpr std::size_t chunk_rows = 65536;
     std::array<std::vector<Value>, arity> host;
-    for (auto& column : host) column.resize(std::min(rows, chunk_rows));
-    for (std::size_t first = 0; first < rows; first += chunk_rows) {
-      const auto count = std::min(chunk_rows, rows - first);
-      for (std::size_t column = 0; column < arity; ++column) {
-        srdatalog_check_gpu(GPU_MEMCPY(
-            host[column].data(), device_columns[column] + first,
-            count * sizeof(Value), GPU_DEVICE_TO_HOST));
-      }
-      for (std::size_t row = 0; row < count; ++row) {
-        [&]<std::size_t... I>(std::index_sequence<I...>) {
-          ((output << (I ? "\t" : "")
-                   << +static_cast<std::tuple_element_t<I, Attrs>>(host[I][row])), ...);
-        }(std::make_index_sequence<arity>{});
-        output << '\n';
+    for (auto& column : host)
+      column.resize(std::min(std::max(segment_rows[0], segment_rows[1]), chunk_rows));
+    for (std::size_t segment = 0; segment < segment_rows.size(); ++segment) {
+      const auto rows = segment_rows[segment];
+      for (std::size_t first = 0; first < rows; first += chunk_rows) {
+        const auto count = std::min(chunk_rows, rows - first);
+        for (std::size_t column = 0; column < arity; ++column) {
+          srdatalog_check_gpu(GPU_MEMCPY(
+              host[column].data(), device_columns[segment][column] + first,
+              count * sizeof(Value), GPU_DEVICE_TO_HOST));
+        }
+        for (std::size_t row = 0; row < count; ++row) {
+          [&]<std::size_t... I>(std::index_sequence<I...>) {
+            ((output << (I ? "\t" : "")
+                     << +static_cast<std::tuple_element_t<I, Attrs>>(host[I][row])), ...);
+          }(std::make_index_sequence<arity>{});
+          output << '\n';
+        }
       }
     }
     output.close();

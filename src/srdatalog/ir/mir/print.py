@@ -348,6 +348,8 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
 
   if isinstance(node, m.FixpointPlan):
     body = p + "(fixpoint-plan\n"
+    if node.index_only_exit_relations:
+      body += p + "  #:index-only-exit " + _var_tuple(sorted(node.index_only_exit_relations)) + "\n"
     for instr in node.instructions:
       body += print_mir_sexpr(instr, indent + 2) + "\n"
     body += p + ")"

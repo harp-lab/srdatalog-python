@@ -420,3 +420,92 @@ def test_input_custom_index_and_semiring_preserve_raw_output_contract(relation_o
   program = Program(rules=[(result(x, y) <= source(x, y)).named("Seed")])
   compiled = compile_program(program, "RawConsumer", index_only_outputs=True)
   assert _raw_reconstruction_relations(compiled.mir.steps) == {"Result"}
+
+
+def _recursive_output_program(*, downstream=False, **relation_options):
+  from srdatalog.dsl import Program, Relation, Var
+
+  x, y, z = Var("x"), Var("y"), Var("z")
+  edge = Relation("Edge", 2, input_file="edges.csv")
+  path = Relation("Path", 2, print_size=True, **relation_options)
+  rules = [
+    (path(x, y) <= edge(x, y)).named("Seed"),
+    (path(x, z) <= path(x, y) & edge(y, z)).named("Extend"),
+  ]
+  if downstream:
+    output = Relation("Output", 2)
+    rules.append((output(x, y) <= path(x, y)).named("ReadFinalPath"))
+  return Program(rules=rules)
+
+
+@pytest.mark.parametrize("index_type", ["", "SRDatalog::GPU::Device2LevelIndex"])
+def test_terminal_recursive_outputs_keep_loop_and_seed_but_elide_exit_copies(index_type):
+  from srdatalog.ir.pipeline import compile_program
+
+  program = _recursive_output_program(index_type=index_type)
+  generic = compile_program(program, "RawRecursive")
+  indexed = compile_program(program, "IndexedRecursive", index_only_outputs=True)
+  generic_loop = next(node for node, recursive in generic.mir.steps if recursive)
+  indexed_loop = next(node for node, recursive in indexed.mir.steps if recursive)
+  assert generic_loop.index_only_exit_relations == set()
+  assert indexed_loop.index_only_exit_relations == {"Path"}
+  assert indexed_loop.instructions == generic_loop.instructions
+  assert all(
+    not op.consume_delta for op in indexed_loop.instructions if isinstance(op, mir.MergeIndex)
+  )
+  # Seed reconstruction is needed by the first iteration and must stay. Only
+  # post-convergence raw storage is dead; canonical export metadata survives.
+  loop_position = next(i for i, (_, recursive) in enumerate(indexed.mir.steps) if recursive)
+  assert _raw_reconstruction_relations(indexed.mir.steps[:loop_position]) == {"Path"}
+  assert _raw_reconstruction_relations(indexed.mir.steps[loop_position + 1:]) == set()
+  assert indexed.canonical_indices == generic.canonical_indices
+
+
+def test_recursive_output_read_by_later_stratum_keeps_exit_reconstruction():
+  from srdatalog.ir.pipeline import compile_program
+
+  compiled = compile_program(
+    _recursive_output_program(downstream=True), "LaterReader", index_only_outputs=True
+  )
+  loop_position = next(i for i, (_, recursive) in enumerate(compiled.mir.steps) if recursive)
+  loop = compiled.mir.steps[loop_position][0]
+  assert loop.index_only_exit_relations == set()
+  assert "Path" in _raw_reconstruction_relations(compiled.mir.steps[loop_position + 1:])
+
+
+@pytest.mark.parametrize("version", [Version.FULL, Version.DELTA, Version.NEW])
+def test_any_later_version_consumer_prevents_recursive_exit_release(version):
+  from srdatalog.ir.hir import compile_to_mir
+
+  original = compile_to_mir(_recursive_output_program()).steps
+  read = mir.Scan(["x", "y"], "Path", version, [0, 1])
+  later = mir.ExecutePipeline(pipeline=[read], source_specs=[read], dest_specs=[])
+  out = elide_dead_full_reconstructions([*original, (later, False)], {"Path"})
+  loop = next(node for node, recursive in out if recursive)
+  assert loop.index_only_exit_relations == set()
+
+
+def test_opaque_hook_blocks_recursive_exit_elision():
+  from srdatalog.ir.hir import compile_to_mir
+
+  original = compile_to_mir(_recursive_output_program()).steps
+  out = elide_dead_full_reconstructions(
+    [*original, (mir.InjectCppHook("read_raw_results(db);"), False)], {"Path"}
+  )
+  assert next(node for node, recursive in out if recursive).index_only_exit_relations == set()
+
+
+@pytest.mark.parametrize("relation_options", [
+  {"input_file": "initial-path.csv"},
+  {"index_type": "SRDatalog::GPU::DeviceTvjoinIndex"},
+  {"semiring": "BooleanSR"},
+])
+def test_recursive_raw_or_unsupported_output_contract_retains_exit_copy(relation_options):
+  from srdatalog.ir.pipeline import compile_program
+
+  compiled = compile_program(
+    _recursive_output_program(**relation_options), "RawRecursive", index_only_outputs=True
+  )
+  assert next(
+    node for node, recursive in compiled.mir.steps if recursive
+  ).index_only_exit_relations == set()

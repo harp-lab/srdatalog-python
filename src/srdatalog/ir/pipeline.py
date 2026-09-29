@@ -97,7 +97,17 @@ def compile_program(
       d.rel_name for d in hir.relation_decls
       if not d.input_file and not d.index_type and d.semiring == "NoProvenance"
     }
-    mir.steps = elide_dead_full_reconstructions(mir.steps, index_only_relations)
+    terminal_index_only_relations = {
+      d.rel_name for d in hir.relation_decls
+      if not d.input_file
+      and d.index_type in ("", "SRDatalog::GPU::Device2LevelIndex")
+      and d.semiring == "NoProvenance"
+    }
+    mir.steps = elide_dead_full_reconstructions(
+      mir.steps,
+      index_only_relations,
+      terminal_index_only_relations=terminal_index_only_relations,
+    )
 
   ext_db = f"{project_name}_DB"
   device_db = f"{ext_db}_DeviceDB"

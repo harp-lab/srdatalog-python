@@ -797,9 +797,11 @@ def _gen_setup(
     code += "  // Block-group: pre-allocate and compute work histogram in setup\n"
     code += "  // Both thresholds must pass: enough total rows AND enough unique keys\n"
     code += "  if (p.num_root_keys >= 256 && p.num_unique_root_keys >= 32) {\n"
-    code += "    // BG buffers: static rmm::device_uvector, resize only when needed\n"
-    code += "    static rmm::device_uvector<uint64_t> s_bg_wk(0, rmm::cuda_stream_default);\n"
-    code += "    static rmm::device_uvector<uint64_t> s_bg_cw(0, rmm::cuda_stream_default);\n"
+    # Input allocations initialize RMM's thread-local event state before this
+    # scratch. Destroy scratch before that state and the process-static streams.
+    code += "    // Per-thread reusable scratch must not outlive RMM's thread state.\n"
+    code += "    static thread_local rmm::device_uvector<uint64_t> s_bg_wk(0, rmm::cuda_stream_default);\n"
+    code += "    static thread_local rmm::device_uvector<uint64_t> s_bg_cw(0, rmm::cuda_stream_default);\n"
     code += "    if (s_bg_wk.size() < p.num_unique_root_keys) {\n"
     code += "      s_bg_wk.resize(p.num_unique_root_keys, rmm::cuda_stream_view{stream});\n"
     code += "      s_bg_cw.resize(p.num_unique_root_keys, rmm::cuda_stream_view{stream});\n"

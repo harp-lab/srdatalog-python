@@ -1,7 +1,7 @@
 '''Recursive split-rule end-to-end test.
 
-Builds split_rec.nim via DSL, runs compile_to_mir, byte-matches both HIR
-and MIR against Nim golden. Exercises the recursive-stratum split path:
+Builds split_rec.nim via DSL, checks HIR schema fixtures and MIR index
+lifetimes. Exercises the recursive-stratum split path:
 ClearRelation temp NEW per iteration + Pipeline A + CreateFlatView temp
 NEW + Pipeline B with temp_version=NEW.
 '''
@@ -9,10 +9,11 @@ NEW + Pipeline B with temp_version=NEW.
 import json
 from pathlib import Path
 
+from integration_helpers import check_mir_lifetimes
+
 from srdatalog.dsl import SPLIT, Program, Relation, Var
-from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir import compile_to_hir
 from srdatalog.ir.hir.emit import hir_to_obj
-from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -80,27 +81,8 @@ def test_recursive_split_hir_byte_match():
     raise AssertionError("HIR mismatch:\n" + diff)
 
 
-def test_recursive_split_mir_byte_match():
-  '''Recursive split stratum MIR: ClearRelation(temp, NEW) +
-  ExecutePipeline(splitA) + CreateFlatView(temp, NEW) +
-  ExecutePipeline(splitB, temp Scan uses NEW) + loop maintenance.
-  '''
-  mir_prog = compile_to_mir(build_split_rec_program())
-  actual = print_mir_sexpr(mir_prog)
-  golden = (FIXTURES / "split_rec.mir.sexpr").read_text().rstrip("\n")
-  if actual != golden:
-    import difflib
-
-    diff = "\n".join(
-      difflib.unified_diff(
-        golden.splitlines(),
-        actual.splitlines(),
-        fromfile="nim-golden",
-        tofile="python",
-        lineterm="",
-      )
-    )
-    raise AssertionError("MIR mismatch:\n" + diff)
+def test_recursive_split_mir_index_lifetimes():
+  check_mir_lifetimes(build_split_rec_program())
 
 
 if __name__ == "__main__":
@@ -108,7 +90,7 @@ if __name__ == "__main__":
     test_recursive_split_variant_has_metadata,
     test_recursive_split_temp_rel_synthesised,
     test_recursive_split_hir_byte_match,
-    test_recursive_split_mir_byte_match,
+    test_recursive_split_mir_index_lifetimes,
   ]
   for t in tests:
     t()

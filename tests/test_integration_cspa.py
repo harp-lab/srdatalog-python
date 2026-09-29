@@ -1,6 +1,6 @@
 '''cspa.nim -- mutual-recursion + wildcard body args (_gen1..._gen4)'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Program, Relation, Var
 
@@ -44,7 +44,7 @@ def test_cspa_hir():
 
 
 def test_cspa_mir():
-  diff_mir(build_cspa(), "cspa")
+  check_mir_lifetimes(build_cspa())
 
 
 if __name__ == "__main__":

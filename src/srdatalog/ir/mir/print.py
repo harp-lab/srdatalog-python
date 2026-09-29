@@ -313,7 +313,8 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
     )
 
   if isinstance(node, m.MergeIndex):
-    return p + "(merge-index #:index " + _index(node.rel_name, node.index) + ")"
+    consume = " #:consume-delta #t" if node.consume_delta else ""
+    return p + "(merge-index #:index " + _index(node.rel_name, node.index) + consume + ")"
 
   if isinstance(node, m.MergeRelation):
     return p + "(merge-relation #:schema " + node.rel_name + ")"

@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
 from crdt import build_crdtdb_program
@@ -14,7 +14,7 @@ def test_crdt_hir():
 
 
 def test_crdt_mir():
-  diff_mir(build_crdtdb_program(), "crdt")
+  check_mir_lifetimes(build_crdtdb_program())
 
 
 if __name__ == "__main__":

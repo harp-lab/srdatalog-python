@@ -492,8 +492,8 @@ def generate_simple_maintenance(
   arity: int,
 ) -> list[mir.MirNode]:
   '''Maintenance for a non-recursive (simple) SCC: build canonical NEW,
-  size-check, compute delta, clear NEW, rebuild non-canonical DELTAs,
-  merge every index into FULL.
+  compute delta, build and consume secondary DELTAs, then consume canonical
+  DELTA after its last index-building use. Later strata read FULL.
   '''
   assert len(canonical_index) == arity, (
     f"canonical index for {rel_name!r} has {len(canonical_index)} cols, expected arity {arity}"
@@ -504,16 +504,20 @@ def generate_simple_maintenance(
   ops.append(mir.ComputeDeltaIndex(rel_name=rel_name, canonical_index=list(canonical_index)))
   ops.append(mir.ClearRelation(rel_name=rel_name, version=Version.NEW))
   for idx in indices:
-    if list(idx) != list(canonical_index):
-      ops.append(
-        mir.RebuildIndexFromIndex(
-          rel_name=rel_name,
-          source_index=list(canonical_index),
-          target_index=list(idx),
-          version=Version.DELTA,
-        )
+    if list(idx) == list(canonical_index):
+      continue
+    ops.append(
+      mir.RebuildIndexFromIndex(
+        rel_name=rel_name,
+        source_index=list(canonical_index),
+        target_index=list(idx),
+        version=Version.DELTA,
       )
-    ops.append(mir.MergeIndex(rel_name=rel_name, index=list(idx)))
+    )
+    ops.append(mir.MergeIndex(rel_name=rel_name, index=list(idx), consume_delta=True))
+  ops.append(
+    mir.MergeIndex(rel_name=rel_name, index=list(canonical_index), consume_delta=True)
+  )
   return ops
 
 
@@ -891,20 +895,24 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
           rel_name = head.rel
           if rel_name not in modified_rels:
             modified_rels.append(rel_name)
-          if rel_name in stratum.required_indices:
-            canonical_idx = stratum.canonical_index.get(
+
+      # Multiple rules can share a head (e.g. DOOP's Precompute0 rules).
+      # All their output is already in NEW; finalize each relation only once.
+      for rel_name in modified_rels:
+        if rel_name in stratum.required_indices:
+          canonical_idx = stratum.canonical_index.get(
+            rel_name,
+            stratum.required_indices[rel_name][0],
+          )
+          arity = get_arity(rel_name, decls)
+          maintenance_ops.extend(
+            generate_simple_maintenance(
               rel_name,
-              stratum.required_indices[rel_name][0],
+              stratum.required_indices[rel_name],
+              canonical_idx,
+              arity,
             )
-            arity = get_arity(rel_name, decls)
-            maintenance_ops.extend(
-              generate_simple_maintenance(
-                rel_name,
-                stratum.required_indices[rel_name],
-                canonical_idx,
-                arity,
-              )
-            )
+          )
 
       ops: list[mir.MirNode] = []
       # Split phase runs first (sequential; depends on temp being populated).

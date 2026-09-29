@@ -1,16 +1,15 @@
-'''Semi-join optimization tests. Byte-diffs against the Nim fixture and
-exercises the pass logic directly.
-'''
+'''Semi-join optimization, HIR fixtures, and MIR index lifetime tests.'''
 
 import json
 from pathlib import Path
 
+from integration_helpers import check_mir_lifetimes
+
 from srdatalog.dsl import Atom, Program, Relation, Var
-from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir import compile_to_hir
 from srdatalog.ir.hir.emit import hir_to_obj
 from srdatalog.ir.hir.provenance import ProvenanceKind
 from srdatalog.ir.hir.rule_rewrite import _is_semi_join_candidate, optimize_semi_joins
-from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -125,23 +124,8 @@ def test_semi_join_hir_byte_match():
     raise AssertionError("HIR mismatch:\n" + diff)
 
 
-def test_semi_join_mir_byte_match():
-  mir_prog = compile_to_mir(build_semi_join_program())
-  actual = print_mir_sexpr(mir_prog)
-  golden = (FIXTURES / "semi_join.mir.sexpr").read_text().rstrip("\n")
-  if actual != golden:
-    import difflib
-
-    diff = "\n".join(
-      difflib.unified_diff(
-        golden.splitlines(),
-        actual.splitlines(),
-        fromfile="nim-golden",
-        tofile="python",
-        lineterm="",
-      )
-    )
-    raise AssertionError("MIR mismatch:\n" + diff)
+def test_semi_join_mir_index_lifetimes():
+  check_mir_lifetimes(build_semi_join_program())
 
 
 if __name__ == "__main__":
@@ -153,7 +137,7 @@ if __name__ == "__main__":
     test_optimize_semi_joins_skips_rules_with_two_or_fewer_clauses,
     test_optimize_semi_joins_generates_expected_rel_and_prov,
     test_semi_join_hir_byte_match,
-    test_semi_join_mir_byte_match,
+    test_semi_join_mir_index_lifetimes,
   ]
   for t in tests:
     t()

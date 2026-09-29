@@ -1,6 +1,6 @@
 '''gen_jit_code.nim -- trivial triangle from Edge'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Program, Relation, Var
 
@@ -23,7 +23,7 @@ def test_gen_jit_code_hir():
 
 
 def test_gen_jit_code_mir():
-  diff_mir(build_gen_jit_code(), "gen_jit_code")
+  check_mir_lifetimes(build_gen_jit_code())
 
 
 if __name__ == "__main__":

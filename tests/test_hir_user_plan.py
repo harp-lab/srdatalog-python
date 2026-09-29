@@ -8,11 +8,12 @@ running the default heuristic.
 import json
 from pathlib import Path
 
+from integration_helpers import check_mir_lifetimes
+
 from srdatalog.dsl import PlanEntry, Program, Relation, Var
-from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir import compile_to_hir
 from srdatalog.ir.hir.emit import hir_to_obj
 from srdatalog.ir.hir.plan import derive_clause_order_from_var_order
-from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -137,7 +138,7 @@ def test_derive_clause_order_two_clauses_picks_by_var_order():
 
 
 # -----------------------------------------------------------------------------
-# End-to-end: DSL -> HIR JSON matches Nim fixture; MIR S-expr matches too.
+# End-to-end HIR schema fixture and MIR index lifetimes.
 # -----------------------------------------------------------------------------
 
 
@@ -165,23 +166,8 @@ def test_user_plan_hir_byte_match():
     raise AssertionError("HIR mismatch:\n" + diff)
 
 
-def test_user_plan_mir_byte_match():
-  mir_prog = compile_to_mir(build_p_with_plan())
-  actual = print_mir_sexpr(mir_prog)
-  golden = (FIXTURES / "tc_with_plan.mir.sexpr").read_text().rstrip("\n")
-  if actual != golden:
-    import difflib
-
-    diff = "\n".join(
-      difflib.unified_diff(
-        golden.splitlines(),
-        actual.splitlines(),
-        fromfile="nim-golden",
-        tofile="python",
-        lineterm="",
-      )
-    )
-    raise AssertionError("MIR mismatch:\n" + diff)
+def test_user_plan_mir_index_lifetimes():
+  check_mir_lifetimes(build_p_with_plan())
 
 
 if __name__ == "__main__":
@@ -194,7 +180,7 @@ if __name__ == "__main__":
     test_derive_clause_order_simple,
     test_derive_clause_order_two_clauses_picks_by_var_order,
     test_user_plan_hir_byte_match,
-    test_user_plan_mir_byte_match,
+    test_user_plan_mir_index_lifetimes,
   ]
   for t in tests:
     t()

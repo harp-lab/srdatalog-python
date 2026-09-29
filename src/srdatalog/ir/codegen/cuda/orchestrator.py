@@ -582,7 +582,8 @@ def gen_instruction_code(
       return indent + f"// skip merge_index for count_only rel {instr.rel_name}\n"
     spec_type = gen_index_spec_type(instr.rel_name, "FULL_VER", list(instr.index))
     out = indent + 'nvtxRangePushA("merge");\n'
-    out += indent + f"SRDatalog::GPU::mir_helpers::merge_index_fn<{spec_type}>(db);\n"
+    consume = ", true" if instr.consume_delta else ""
+    out += indent + f"SRDatalog::GPU::mir_helpers::merge_index_fn<{spec_type}{consume}>(db);\n"
     out += indent + 'nvtxRangePop();  // merge\n'
     return out
 

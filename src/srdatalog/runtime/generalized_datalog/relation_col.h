@@ -709,6 +709,11 @@ class Relation {
   /// @details This will clear the relation and mark the indexes as dirty.
   void clear();
 
+  /// @brief Clear a device relation and release its storage after its last use.
+  /// @details Keeps index specifications and entries for reuse, but invalidates
+  ///          all data views/handles. Unlike clear(), retains no device capacity.
+  void release_device_storage() requires(StorageTraits::is_device);
+
   // ---------- Row appends (write path) ----------
 
   /// @brief Push a row into the relation.

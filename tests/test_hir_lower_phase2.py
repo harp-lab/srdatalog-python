@@ -5,9 +5,13 @@ Covers:
   - Dual-delta PathCompose variants
   - Fixpoint maintenance generators for tc (simple + loop)
 
-The MIR tree is spot-checked structurally and then re-emitted through the
-S-expr printer so the concatenated output is locked against regressions.
+Maintenance regressions verify index availability and last-use ownership,
+not a fixed instruction ordering.
 '''
+
+from itertools import permutations
+
+from integration_helpers import check_delta_lifetimes
 
 import srdatalog.ir.mir.types as mir
 from srdatalog.dsl import Program, Relation, Var
@@ -153,49 +157,32 @@ def test_generate_merge_indices():
   assert all(isinstance(o, mir.MergeIndex) for o in ops)
 
 
-def test_simple_maintenance_shape_for_edge():
-  '''Edge in stratum 0 is non-recursive with canonical [0,1] and one index.
-  Simple maintenance: rebuild NEW, size-check, delta, clear NEW, merge [0,1].
-  '''
+def test_simple_maintenance_consumes_single_index():
   ops = generate_simple_maintenance("Edge", [[0, 1]], [0, 1], arity=2)
-  # Expected shape: RebuildIndex, CheckSize, ComputeDeltaIndex, ClearRelation,
-  # MergeIndex (no RebuildIndexFromIndex because idx == canonical).
-  kinds = [type(o).__name__ for o in ops]
-  assert kinds == [
-    "RebuildIndex",
-    "CheckSize",
-    "ComputeDeltaIndex",
-    "ClearRelation",
-    "MergeIndex",
-  ]
-  assert ops[0].version is Version.NEW
-  assert ops[0].index == [0, 1]
-  assert ops[3].version is Version.NEW  # ClearRelation NEW
-  assert ops[4].index == [0, 1]
+  live, merged = check_delta_lifetimes(ops, recursive=False)
+  assert live == set()
+  assert merged == {("Edge", (0, 1))}
 
 
-def test_simple_maintenance_with_non_canonical_index():
-  '''If indices include a non-canonical entry, a RebuildIndexFromIndex is
-  emitted for it before MergeIndex.
-  '''
-  ops = generate_simple_maintenance("Path", [[1, 0], [0, 1]], [1, 0], arity=2)
-  # For [1,0] (canonical): just MergeIndex.
-  # For [0,1]: RebuildIndexFromIndex + MergeIndex.
-  kinds = [type(o).__name__ for o in ops]
-  assert kinds == [
-    "RebuildIndex",
-    "CheckSize",
-    "ComputeDeltaIndex",
-    "ClearRelation",
-    "MergeIndex",  # [1,0] canonical
-    "RebuildIndexFromIndex",  # [0,1] from [1,0]
-    "MergeIndex",  # [0,1]
-  ]
-  rfi = ops[5]
-  assert isinstance(rfi, mir.RebuildIndexFromIndex)
-  assert rfi.source_index == [1, 0]
-  assert rfi.target_index == [0, 1]
-  assert rfi.version is Version.DELTA
+def test_simple_maintenance_preserves_canonical_until_all_rebuilds():
+  canonical = [2, 0, 3, 1]
+  indices = [canonical, [0, 1, 2, 3], [3, 1, 2, 0]]
+  for ordered_indices in permutations(indices):
+    ops = generate_simple_maintenance("CastTo", list(ordered_indices), canonical, arity=4)
+    live, merged = check_delta_lifetimes(ops, recursive=False)
+    assert live == set()
+    assert merged == {("CastTo", tuple(index)) for index in indices}
+
+
+def test_loop_maintenance_retains_next_iteration_deltas():
+  indices = [[1, 0], [0, 1]]
+  for full_needed in (set(), {(0, 1)}):
+    ops = generate_loop_maintenance(
+      "Path", indices, [1, 0], arity=2, full_needed=full_needed
+    )
+    live, merged = check_delta_lifetimes(ops, recursive=True)
+    assert live == {("Path", tuple(index)) for index in indices}
+    assert merged == {("Path", (1, 0))} | {("Path", index) for index in full_needed}
 
 
 def test_loop_maintenance_shape_for_tc_path():
@@ -288,8 +275,9 @@ if __name__ == "__main__":
     test_path_compose_both_delta_variants_lower,
     test_generate_rebuild_indices_round_trip,
     test_generate_merge_indices,
-    test_simple_maintenance_shape_for_edge,
-    test_simple_maintenance_with_non_canonical_index,
+    test_simple_maintenance_consumes_single_index,
+    test_simple_maintenance_preserves_canonical_until_all_rebuilds,
+    test_loop_maintenance_retains_next_iteration_deltas,
     test_loop_maintenance_shape_for_tc_path,
     test_loop_maintenance_skips_full_merge_for_non_full_needed_non_canonical,
     test_loop_maintenance_includes_full_merge_when_needed,

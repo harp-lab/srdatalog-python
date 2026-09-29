@@ -255,10 +255,11 @@ class ComputeDeltaIndex:
 
 @dataclass
 class MergeIndex:
-  '''(merge-index #:index (R cols...))'''
+  '''Merge DELTA into FULL, optionally consuming DELTA at its last use.'''
 
   rel_name: str
   index: list[int]
+  consume_delta: bool = False
 
 
 @dataclass

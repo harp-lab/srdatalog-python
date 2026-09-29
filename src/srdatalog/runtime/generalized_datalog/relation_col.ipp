@@ -151,6 +151,21 @@ inline void Relation<SR, AttrTuple, IndexType, Policy, ValueType, RowIdType>::cl
   }
 }
 
+template <Semiring SR, ColumnElementTuple AttrTuple,
+          template <Semiring, ColumnElementTuple, typename...> class IndexType, typename Policy,
+          typename ValueType, typename RowIdType>
+inline void Relation<SR, AttrTuple, IndexType, Policy, ValueType,
+                     RowIdType>::release_device_storage() requires(StorageTraits::is_device) {
+  device_storage().device_interned_cols_ = DeviceColsType{};
+  if constexpr (has_provenance_v<SR>) {
+    auto& annotations = device_storage().device_ann_;
+    annotations = std::remove_reference_t<decltype(annotations)>{};
+  }
+  for (auto& [_, idx] : indexes_) {
+    idx = IndexTypeInst{};
+  }
+}
+
 // Reserve capacity on all attribute columns and the annotation column.
 template <Semiring SR, ColumnElementTuple AttrTuple,
           template <Semiring, ColumnElementTuple, typename...> class IndexType, typename Policy,

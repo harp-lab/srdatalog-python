@@ -1,6 +1,6 @@
 '''lsqb_triangle_count.nim -- Triangle count with `count: true`'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Program, Relation, Var
 
@@ -26,7 +26,7 @@ def test_lsqb_triangle_count_hir():
 
 
 def test_lsqb_triangle_count_mir():
-  diff_mir(build_lsqb_triangle_count(), "lsqb_triangle_count")
+  check_mir_lifetimes(build_lsqb_triangle_count())
 
 
 if __name__ == "__main__":

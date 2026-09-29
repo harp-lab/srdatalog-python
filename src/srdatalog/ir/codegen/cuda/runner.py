@@ -241,7 +241,7 @@ def emit_launch_fused(
     code += '\n  // BG fused: compute histogram for block assignment (stream-ordered)\n'
     code += '  int num_sms = 0;\n'
     code += '  GPU_DEVICE_GET_ATTRIBUTE(&num_sms, GPU_DEV_ATTR_MULTIPROCESSOR_COUNT, 0);\n'
-    code += '  static SRDatalog::GPU::DeviceArray<uint64_t> bg_work_per_key;\n'
+    code += '  static thread_local SRDatalog::GPU::DeviceArray<uint64_t> bg_work_per_key;\n'
     code += '  bg_work_per_key.resize(p.num_unique_root_keys);\n'
     code += '  {\n'
     code += (
@@ -257,7 +257,7 @@ def emit_launch_fused(
       'bg_work_per_key.data());\n'
     )
     code += '  }\n'
-    code += '  static SRDatalog::GPU::DeviceArray<uint64_t> bg_cumulative_work;\n'
+    code += '  static thread_local SRDatalog::GPU::DeviceArray<uint64_t> bg_cumulative_work;\n'
     code += '  bg_cumulative_work.resize(p.num_unique_root_keys);\n'
     code += (
       '  thrust::inclusive_scan(rmm::exec_policy(stream), '
@@ -646,9 +646,9 @@ def emit_execute_fused(
     code += f'  dest_rel_{i}.resize_interned_columns(old_size_{i} + capacity);\n'
   code += '\n'
   for i in range(len(ep.dest_specs)):
-    code += f'  static SRDatalog::GPU::DeviceArray<uint32_t> s_wp_{i}(1);\n'
+    code += f'  static thread_local SRDatalog::GPU::DeviceArray<uint32_t> s_wp_{i}(1);\n'
     code += f'  cudaMemsetAsync(s_wp_{i}.data(), 0, sizeof(uint32_t), 0);\n'
-  code += '  static SRDatalog::GPU::DeviceArray<uint32_t> s_of(1);\n'
+  code += '  static thread_local SRDatalog::GPU::DeviceArray<uint32_t> s_of(1);\n'
   code += '  cudaMemsetAsync(s_of.data(), 0, sizeof(uint32_t), 0);\n'
 
   if ep.block_group:

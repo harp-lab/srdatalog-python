@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 
-from integration_helpers import FIXTURES, diff_hir, diff_mir
+from integration_helpers import FIXTURES, check_mir_lifetimes, diff_hir
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
 from doop import build_doopdb_program
@@ -25,7 +25,7 @@ def test_doop_hir():
 
 
 def test_doop_mir():
-  diff_mir(build_doop(), "doop")
+  check_mir_lifetimes(build_doop())
 
 
 if __name__ == "__main__":

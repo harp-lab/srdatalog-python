@@ -956,10 +956,15 @@ def gen_extern_c_shim(
     ]
   out.append("  if (g_device_db) {")
   for d in decls:
-    out.append(
-      f'    if (rn == "{d.rel_name}") return (unsigned long long) '
-      f"get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_device_db).size();"
-    )
+    out.append(f'    if (rn == "{d.rel_name}") {{')
+    out.append(f'      auto& rel = get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_device_db);')
+    if d.rel_name in canonical:
+      cols = ", ".join(str(c) for c in canonical[d.rel_name])
+      out.append(f"      SRDatalog::IndexSpec spec{{{cols}}};")
+      out.append('      return rel.has_index(spec) ? (unsigned long long)rel.get_index(spec).size() : 0ULL;')
+    else:
+      out.append('      return (unsigned long long)rel.size();')
+    out.append('    }')
   out += ["  }", "  if (!g_host_db) return 0;"]
   for d in decls:
     cols = ", ".join(str(i) for i in range(len(d.types)))

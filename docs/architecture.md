@@ -59,17 +59,26 @@ together:
   composes the main.cpp (schemas → DB alias → GPU includes → runner
   fwd decls → `_Runner` struct).
 - {py:func}`srdatalog.codegen.jit.main_file.gen_extern_c_shim` appends
-  the five `extern "C"` entries the ctypes layer expects:
+  the nine `extern "C"` entries used by native callers:
   `srdatalog_init`, `srdatalog_load_all`, `srdatalog_load_csv`,
-  `srdatalog_run`, `srdatalog_size`, `srdatalog_shutdown`.
+  `srdatalog_run`, `srdatalog_size`, `srdatalog_get_size`,
+  `srdatalog_export_tsv`, `srdatalog_synchronize`, `srdatalog_shutdown`.
 - {py:func}`srdatalog.codegen.jit.cache.write_jit_project` writes the
   `.cpp` tree to `<cache_base>/jit/<Project>_<hash>/`.
 
-**Byte-match property**: for every rule that compiles through the
-standard path, the emitted `jit_batch_N.cpp` is byte-identical to what
-the upstream Nim codegen writes to its own cache — verified by the
-`test_e2e_batch_match_nim.py` fixture suite (125 / 127 passing; the
-last 2 require the work-stealing runner variant which is deferred).
+**Behavioral validation** checks MIR index availability and DELTA lifetimes,
+including secondary-index reads before ownership transfer and retention across
+recursive iterations. Native CUDA regressions exercise result tuples, consuming
+index ownership, provenance, wide column addressing, and process teardown;
+enable them with `SRDATALOG_JIT_RUN_COMPILE_TESTS=1`. Historical Nim source
+formatting is not a compatibility contract.
+
+`build_project(index_only_outputs=True)` enables proven-dead raw FULL
+reconstruction elimination for closed, index-backed C-ABI consumers such as the
+DOOP suite. Generic and custom C++ builds keep raw output storage by default.
+The opt-in analysis preserves reconstruction for raw readers, opaque hooks,
+custom representations, and recursive results; counts and TSV exports still
+observe the complete logical relations through their canonical indexes.
 
 ## Compile → load
 

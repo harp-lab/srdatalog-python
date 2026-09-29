@@ -124,7 +124,9 @@ def _build(facts: Path, output: Path, plan: str, jobs: int) -> None:
   )
 
   started = time.perf_counter()
-  project = build_project(program, "DoopSuite", cache_base=str(output / "build-cache"))
+  project = build_project(
+    program, "DoopSuite", cache_base=str(output / "build-cache"), index_only_outputs=True
+  )
   emit_seconds = time.perf_counter() - started
   config = CompilerConfig(
     include_paths=runtime_include_paths() + cuda_include_paths(),

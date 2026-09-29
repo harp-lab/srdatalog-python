@@ -1,7 +1,7 @@
 '''Split-rule end-to-end tests.
 
-Builds the split_test.nim program via the Python DSL and byte-matches
-HIR + MIR against the Nim golden. Exercises detect_split, compute_temp_vars,
+Builds the split_test.nim program via the Python DSL, checks HIR schema
+fixtures and MIR lifetimes. Exercises detect_split, compute_temp_vars,
 TempRelSynthesisPass, TempIndexRegistrationPass, lower_split_above,
 lower_split_below, and the split-aware stratum wrapping.
 '''
@@ -9,11 +9,12 @@ lower_split_below, and the split-aware stratum wrapping.
 import json
 from pathlib import Path
 
+from integration_helpers import check_mir_lifetimes
+
 from srdatalog.dsl import SPLIT, Program, Relation, Var
-from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir import compile_to_hir
 from srdatalog.ir.hir.emit import hir_to_obj
 from srdatalog.ir.hir.plan import compute_temp_vars, detect_split
-from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -116,23 +117,8 @@ def test_split_rule_hir_byte_match():
     raise AssertionError("HIR mismatch:\n" + diff)
 
 
-def test_split_rule_mir_byte_match():
-  mir_prog = compile_to_mir(build_split_program())
-  actual = print_mir_sexpr(mir_prog)
-  golden = (FIXTURES / "split_test.mir.sexpr").read_text().rstrip("\n")
-  if actual != golden:
-    import difflib
-
-    diff = "\n".join(
-      difflib.unified_diff(
-        golden.splitlines(),
-        actual.splitlines(),
-        fromfile="nim-golden",
-        tofile="python",
-        lineterm="",
-      )
-    )
-    raise AssertionError("MIR mismatch:\n" + diff)
+def test_split_rule_mir_index_lifetimes():
+  check_mir_lifetimes(build_split_program())
 
 
 if __name__ == "__main__":
@@ -144,7 +130,7 @@ if __name__ == "__main__":
     test_temp_rel_decl_synthesised,
     test_temp_index_registered_in_stratum,
     test_split_rule_hir_byte_match,
-    test_split_rule_mir_byte_match,
+    test_split_rule_mir_index_lifetimes,
   ]
   for t in tests:
     t()

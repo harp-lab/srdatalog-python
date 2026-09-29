@@ -1,6 +1,6 @@
 '''andersen.nim -- multi-variant plans, delta/clause_order/var_order triples'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import PlanEntry, Program, Relation, Var
 
@@ -55,7 +55,7 @@ def test_andersen_hir():
 
 
 def test_andersen_mir():
-  diff_mir(build_andersen(), "andersen")
+  check_mir_lifetimes(build_andersen())
 
 
 if __name__ == "__main__":

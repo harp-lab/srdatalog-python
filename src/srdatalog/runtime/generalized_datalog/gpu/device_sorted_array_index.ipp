@@ -75,7 +75,8 @@ NodeHandle<SR, ValueTypeParam, RowIdType>::prefix(ValueTypeParam key, Group tile
 
   // Deeper levels: search in column
   // Get column base pointer, then offset by begin_ (matching values() implementation)
-  const ValueTypeParam* col_base = view.col_data() + depth_ * view.stride_;
+  const ValueTypeParam* col_base =
+      view.col_data() + static_cast<std::size_t>(depth_) * view.stride_;
   const ValueTypeParam* col = col_base + begin_;
   RowIdType n = end_ - begin_;
 
@@ -98,7 +99,8 @@ NodeHandle<SR, ValueTypeParam, RowIdType>::prefix_seq(ValueTypeParam key, const 
   }
 
   // Get column base pointer, then offset by begin_
-  const ValueTypeParam* col_base = view.col_data() + depth_ * view.stride_;
+  const ValueTypeParam* col_base =
+      view.col_data() + static_cast<std::size_t>(depth_) * view.stride_;
   const ValueTypeParam* col = col_base + begin_;
   RowIdType n = end_ - begin_;
 
@@ -123,7 +125,8 @@ NodeHandle<SR, ValueTypeParam, RowIdType>::prefix_lower_only(ValueTypeParam key,
     return {0, false};
   }
 
-  const ValueTypeParam* col_base = view.col_data() + depth_ * view.stride_;
+  const ValueTypeParam* col_base =
+      view.col_data() + static_cast<std::size_t>(depth_) * view.stride_;
   const ValueTypeParam* col = col_base + begin_;
   RowIdType n = end_ - begin_;
 
@@ -146,7 +149,8 @@ NodeHandle<SR, ValueTypeParam, RowIdType>::child_range(RowIdType position, Value
   RowIdType new_begin = begin_ + position;
 
   // Search for upper bound in remaining range [new_begin, end_)
-  const ValueTypeParam* col_base = view.col_data() + depth_ * view.stride_;
+  const ValueTypeParam* col_base =
+      view.col_data() + static_cast<std::size_t>(depth_) * view.stride_;
   const ValueTypeParam* col = col_base + new_begin;
   RowIdType remaining = end_ - new_begin;
 
@@ -169,9 +173,9 @@ __device__ RowIdType NodeHandle<SR, ValueType, RowIdType>::column_position() con
 
 template <Semiring SR, typename ValueType, typename RowIdType>
 template <int COLUMN>
-__device__ RowIdType NodeHandle<SR, ValueType, RowIdType>::offset(RowIdType row,
-                                                                  const View& view) const noexcept {
-  return COLUMN * view.stride_ + row;
+__device__ std::size_t NodeHandle<SR, ValueType, RowIdType>::offset(
+    RowIdType row, const View& view) const noexcept {
+  return static_cast<std::size_t>(COLUMN) * view.stride_ + row;
 }
 
 template <Semiring SR, typename ValueType, typename RowIdType>
@@ -197,7 +201,8 @@ __device__ bool NodeHandle<SR, ValueType, RowIdType>::contains_value(ValueType k
   }
 
   // Get column base pointer, then offset by begin_ (matching values() implementation)
-  const ValueType* col_base = view.col_data() + depth_ * view.stride_;
+  const ValueType* col_base =
+      view.col_data() + static_cast<std::size_t>(depth_) * view.stride_;
   const ValueType* col = col_base + begin_;
   RowIdType n = end_ - begin_;
   return group_contains<ValueType, RowIdType>(col, n, key, tile);
@@ -216,7 +221,8 @@ NodeHandle<SR, ValueTypeParam, RowIdType>::prefix_lower_bound(ValueTypeParam key
   }
 
   // Get column base pointer, then offset by begin_
-  const ValueTypeParam* col_base = view.col_data() + depth_ * view.stride_;
+  const ValueTypeParam* col_base =
+      view.col_data() + static_cast<std::size_t>(depth_) * view.stride_;
   const ValueTypeParam* col = col_base + begin_;
   RowIdType n = end_ - begin_;
 
@@ -243,7 +249,8 @@ NodeHandle<SR, ValueTypeParam, RowIdType>::prefix_lower_bound_seq(ValueTypeParam
   }
 
   // Get column base pointer, then offset by begin_
-  const ValueTypeParam* col_base = view.col_data() + depth_ * view.stride_;
+  const ValueTypeParam* col_base =
+      view.col_data() + static_cast<std::size_t>(depth_) * view.stride_;
   const ValueTypeParam* col = col_base + begin_;
   RowIdType n = end_ - begin_;
 
@@ -364,7 +371,7 @@ void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::build_take_own
   p_->index_arity = spec.cols.size();
   const std::size_t index_arity = p_->index_arity;
 
-  // Step 1: Transfer columns — zero-copy swap for identity spec, copy otherwise
+  // Step 1: Reorder full-arity columns in place, then transfer their allocation.
   bool is_identity_spec = (index_arity == arity);
   if (is_identity_spec) {
     for (std::size_t i = 0; i < index_arity; ++i) {
@@ -376,11 +383,35 @@ void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::build_take_own
   }
 
   nvtxRangePushA("Index_TakeOwnership_Columns");
-  if (is_identity_spec) {
-    // Identity spec: swap ownership — zero-copy transfer.
+  if (index_arity == arity) {
+    if (!is_identity_spec) {
+      // Each thread owns one row: load all source values before overwriting any
+      // column. The fixed-size temporaries need no relation-sized device buffer.
+      struct ColumnOrder {
+        std::size_t cols[arity];
+      } order;
+      for (std::size_t i = 0; i < arity; ++i) {
+        order.cols[i] = spec.cols[i];
+      }
+      const auto columns = encoded_cols.view();
+      thrust::for_each_n(
+          rmm::exec_policy{}, thrust::make_counting_iterator<std::size_t>(0), num_rows,
+          [columns, order] __device__(std::size_t row) {
+            ValueType values[arity];
+            #pragma unroll
+            for (std::size_t col = 0; col < arity; ++col) {
+              values[col] = columns.get(row, order.cols[col]);
+            }
+            #pragma unroll
+            for (std::size_t col = 0; col < arity; ++col) {
+              columns.get(row, col) = values[col];
+            }
+          });
+    }
     p_->cols.swap(encoded_cols);
   } else {
-    // Non-identity: copy and reorder columns per spec (same stream as sort)
+    // A partial index only copies its indexed columns. Do not transfer unrelated
+    // columns into the compile-time-arity sort/deduplication machinery.
     p_->cols.resize(num_rows);
     for (std::size_t idx_pos = 0; idx_pos < index_arity; ++idx_pos) {
       const std::size_t src_col = spec.cols[idx_pos];
@@ -391,14 +422,13 @@ void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::build_take_own
   }
   nvtxRangePop();  // Index_TakeOwnership_Columns
 
-  // Step 2: Copy provenance
+  // Step 2: Consume matching provenance; preserve unit initialization otherwise.
   if constexpr (has_provenance_v<SR>) {
-    p_->provenance.resize(num_rows);
-    nvtxRangePushA("Index_Copy_Provenance");
+    nvtxRangePushA("Index_TakeOwnership_Provenance");
     if (provenance.size() == num_rows) {
-      GPU_MEMCPY(p_->provenance.data(), provenance.data(), num_rows * sizeof(semiring_value_t<SR>),
-                 GPU_DEVICE_TO_DEVICE);
+      p_->provenance.swap(provenance);
     } else {
+      p_->provenance.resize(num_rows);
       thrust::fill(thrust::device, p_->provenance.begin(), p_->provenance.end(), sr_one<SR>());
     }
     nvtxRangePop();
@@ -558,8 +588,12 @@ void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::sort_with_perm
 template <Semiring SR, ColumnElementTuple AttrTuple, typename ValueType, typename RowIdType>
 void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::gather_by_permutation(
     std::span<const RowIdType> permutation, DeviceArray<semiring_value_t<SR>>& provenance) {
+  // Gather cannot alias its input: a destination write could clobber a value
+  // another thread has yet to read, even for a permutation without duplicates.
+  DeviceArray<semiring_value_t<SR>> reordered(provenance.size());
   thrust::gather(rmm::exec_policy{}, permutation.begin(), permutation.end(), provenance.begin(),
-                 thrust::device_ptr<semiring_value_t<SR>>(provenance.data()));
+                 reordered.begin());
+  provenance.swap(reordered);
 }
 
 template <Semiring SR, ColumnElementTuple AttrTuple, typename ValueType, typename RowIdType>
@@ -1033,13 +1067,7 @@ void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::set_difference
         delta_idx.p_->cols.swap(out_cols);
 
         // Compute root unique values for delta
-        delta_idx.p_->root_unique_values.resize(diff_sz);
-        auto end_unique =
-            thrust::unique_copy(rmm::exec_policy{}, delta_idx.p_->cols.template column_ptr<0>(),
-                                delta_idx.p_->cols.template column_ptr<0>() + diff_sz,
-                                delta_idx.p_->root_unique_values.begin());
-        delta_idx.p_->root_unique_values.resize(end_unique -
-                                                delta_idx.p_->root_unique_values.begin());
+        generate_unique(delta_idx.p_->cols, delta_idx.p_->root_unique_values);
       }
 
       delta_idx.p_->index_arity = p_->index_arity;
@@ -1115,25 +1143,7 @@ void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::set_difference
   delta_idx.p_->index_arity = p_->index_arity;
   delta_idx.rows_processed_ = diff_size;  // approximate
 
-  // Compute unique values for Delta (Step 4 of TODO)
-  // Since Delta is sorted, unique_copy on first column (keys are Zip)
-  // Wait, root_unique uses the *first* column of the index (if we are building a trie index)
-  // Actually deduplicate_aggregate_and_unique does this. But we already have unique keys.
-  // Just gathering the first column root values should be enough.
-  // But `root_unique_values` is typically used for partitioning.
-  // Let's perform a simple `unique_copy` on the first column of output.
-  {
-    if (diff_size > 0) {
-      delta_idx.p_->root_unique_values.resize(diff_size);
-      // Use rmm::exec_policy() for proper memory allocation through RMM pool
-      auto end_unique =
-          thrust::unique_copy(rmm::exec_policy{}, delta_idx.p_->cols.template column_ptr<0>(),
-                              delta_idx.p_->cols.template column_ptr<0>() + diff_size,
-                              delta_idx.p_->root_unique_values.begin());
-      delta_idx.p_->root_unique_values.resize(end_unique -
-                                              delta_idx.p_->root_unique_values.begin());
-    }
-  }
+  generate_unique(delta_idx.p_->cols, delta_idx.p_->root_unique_values);
 }
 
 /// @brief Fused set difference against two sorted arrays: (this - full_idx - head_idx) → delta_idx
@@ -1217,14 +1227,7 @@ void DeviceSortedArrayIndex<SR, AttrTuple, ValueType, RowIdType>::set_difference
   delta_idx.rows_processed_ = diff_sz;
 
   // Compute root unique values for delta
-  if (diff_sz > 0) {
-    delta_idx.p_->root_unique_values.resize(diff_sz);
-    auto end_unique =
-        thrust::unique_copy(rmm::exec_policy{}, delta_idx.p_->cols.template column_ptr<0>(),
-                            delta_idx.p_->cols.template column_ptr<0>() + diff_sz,
-                            delta_idx.p_->root_unique_values.begin());
-    delta_idx.p_->root_unique_values.resize(end_unique - delta_idx.p_->root_unique_values.begin());
-  }
+  generate_unique(delta_idx.p_->cols, delta_idx.p_->root_unique_values);
 
   nvtxRangePop();
 }

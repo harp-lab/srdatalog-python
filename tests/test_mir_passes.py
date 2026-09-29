@@ -1,9 +1,11 @@
 '''Unit tests for python/mir_passes.py. Each pass gets a hand-constructed
 steps list exercising the relevant transformation.
 
-End-to-end byte-match against Nim is in test_hir_mir_tc_e2e.py /
-test_hir_user_plan.py; this file verifies each pass in isolation.
+End-to-end lifetime checks live in test_hir_mir_tc_e2e.py and the integration
+programs; this file verifies each pass in isolation.
 '''
+
+import pytest
 
 import srdatalog.ir.mir.types as mir
 from srdatalog.ir.hir.types import Version
@@ -11,6 +13,7 @@ from srdatalog.ir.mir.passes import (
   apply_all_mir_passes,
   apply_clause_order_reordering,
   apply_prefix_source_reordering,
+  elide_dead_full_reconstructions,
   insert_pre_reconstruct_rebuilds,
 )
 
@@ -308,3 +311,112 @@ if __name__ == "__main__":
   for t in tests:
     t()
   print(f"OK ({len(tests)} tests)")
+
+
+def _index_only_candidate_steps(*, recursive=False, dedup_hash=False):
+  from srdatalog.ir.hir.lower import generate_simple_maintenance
+
+  insert = mir.InsertInto("R", Version.NEW, ["x", "y"], [1, 0])
+  producer = mir.ExecutePipeline(
+    pipeline=[insert], source_specs=[], dest_specs=[insert],
+    rule_name="Seed", dedup_hash=dedup_hash,
+  )
+  plan = mir.FixpointPlan(
+    instructions=[
+      producer,
+      *generate_simple_maintenance("R", [[1, 0], [0, 1]], [1, 0], 2),
+    ]
+  )
+  read = mir.Scan(["x", "y"], "R", Version.FULL, [0, 1])
+  consumer = mir.ExecutePipeline(
+    pipeline=[read], source_specs=[read], dest_specs=[], rule_name="ReadSecondary",
+  )
+  return [
+    (plan, recursive),
+    (mir.PostStratumReconstructInternCols("R", [1, 0]), False),
+    (mir.FixpointPlan([consumer]), False),
+  ]
+
+
+def _raw_reconstruction_relations(steps):
+  return {
+    node.rel_name for node, _ in steps
+    if isinstance(node, mir.PostStratumReconstructInternCols)
+  }
+
+
+def test_index_only_outputs_elide_unused_raw_copy_but_keep_both_full_orders():
+  steps = _index_only_candidate_steps()
+  out = elide_dead_full_reconstructions(steps, {"R"})
+  assert _raw_reconstruction_relations(out) == set()
+  assert {
+    tuple(op.index) for op in out[0][0].instructions if isinstance(op, mir.MergeIndex)
+  } == {(1, 0), (0, 1)}
+  assert out[-1] == steps[-1]  # The secondary-index reader is retained.
+  assert _raw_reconstruction_relations(steps) == {"R"}  # No mutation of generic MIR.
+
+
+@pytest.mark.parametrize("reader", [
+  mir.RebuildIndex("R", Version.FULL, [0, 1]),
+  mir.CreateFlatView("R", Version.FULL, [0, 1]),
+  mir.CheckSize("R", Version.FULL),
+  mir.InjectCppHook("consume_raw_columns(db);"),
+  mir.MergeRelation("R"),  # Unknown/raw operation: conservative barrier.
+])
+def test_raw_or_opaque_consumer_retains_full_reconstruction(reader):
+  steps = [*_index_only_candidate_steps(), (reader, False)]
+  assert _raw_reconstruction_relations(elide_dead_full_reconstructions(steps, {"R"})) == {"R"}
+
+
+@pytest.mark.parametrize("recursive,dedup_hash", [(True, False), (False, True)])
+def test_recursive_or_raw_cardinality_consumer_retains_reconstruction(recursive, dedup_hash):
+  steps = _index_only_candidate_steps(recursive=recursive, dedup_hash=dedup_hash)
+  assert _raw_reconstruction_relations(elide_dead_full_reconstructions(steps, {"R"})) == {"R"}
+
+
+def test_multiple_writing_strata_retain_raw_full_storage():
+  steps = _index_only_candidate_steps()
+  steps.append((steps[0][0], False))
+  assert _raw_reconstruction_relations(elide_dead_full_reconstructions(steps, {"R"})) == {"R"}
+
+
+def test_unbuilt_secondary_order_prevents_index_only_finalization():
+  steps = _index_only_candidate_steps()
+  plan = steps[0][0]
+  plan.instructions = [
+    op for op in plan.instructions
+    if not (isinstance(op, mir.MergeIndex) and op.index == [0, 1])
+  ]
+  assert _raw_reconstruction_relations(elide_dead_full_reconstructions(steps, {"R"})) == {"R"}
+
+
+def test_generic_compile_preserves_raw_outputs_and_index_only_keeps_export_metadata():
+  from srdatalog.dsl import Program, Relation, Var
+  from srdatalog.ir.pipeline import compile_program
+
+  x, y = Var("x"), Var("y")
+  source = Relation("Source", 2, input_file="source.csv")
+  result = Relation("Result", 2, print_size=True)
+  program = Program(rules=[(result(x, y) <= source(x, y)).named("Seed")])
+  generic = compile_program(program, "RawConsumer")
+  indexed = compile_program(program, "IndexedConsumer", index_only_outputs=True)
+  assert _raw_reconstruction_relations(generic.mir.steps) == {"Result"}
+  assert _raw_reconstruction_relations(indexed.mir.steps) == set()
+  assert indexed.canonical_indices == generic.canonical_indices == {"Result": [0, 1]}
+
+
+@pytest.mark.parametrize("relation_options", [
+  {"input_file": "initial.csv"},
+  {"index_type": "SRDatalog::GPU::Device2LevelIndex"},
+  {"semiring": "BooleanSR"},
+])
+def test_input_custom_index_and_semiring_preserve_raw_output_contract(relation_options):
+  from srdatalog.dsl import Program, Relation, Var
+  from srdatalog.ir.pipeline import compile_program
+
+  x, y = Var("x"), Var("y")
+  source = Relation("Source", 2)
+  result = Relation("Result", 2, **relation_options)
+  program = Program(rules=[(result(x, y) <= source(x, y)).named("Seed")])
+  compiled = compile_program(program, "RawConsumer", index_only_outputs=True)
+  assert _raw_reconstruction_relations(compiled.mir.steps) == {"Result"}

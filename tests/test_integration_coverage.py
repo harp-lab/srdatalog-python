@@ -25,7 +25,7 @@ def _fixture_stems_jit() -> set[str]:
 
 
 def _fixture_stems_integration() -> set[str]:
-  # Stems come in {stem}.hir.json / {stem}.mir.sexpr pairs.
+  # HIR schema fixtures identify the integration-program catalog.
   return {p.name.split(".")[0] for p in INTEGRATION_FIXTURES.glob("*.hir.json")}
 
 
@@ -38,14 +38,14 @@ def test_every_jit_fixture_has_an_integration_test():
   orphans = [s for s in sorted(_fixture_stems_jit()) if f'"{s}"' not in sources]
   assert not orphans, (
     f"JIT fixture dirs without a matching integration test: {orphans}.\n"
-    f"Add tests/test_integration_<name>.py that calls diff_hir/diff_mir on each."
+    f"Add tests/test_integration_<name>.py with HIR and MIR lifetime checks."
   )
 
 
 def test_every_integration_fixture_has_an_integration_test():
   sources = _integration_test_sources()
   orphans = [s for s in sorted(_fixture_stems_integration()) if f'"{s}"' not in sources]
-  assert not orphans, f"Integration fixtures (.hir.json/.mir.sexpr) without a test: {orphans}"
+  assert not orphans, f"Integration fixtures (.hir.json) without a test: {orphans}"
 
 
 def test_jit_and_integration_fixture_sets_agree():

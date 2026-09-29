@@ -332,6 +332,96 @@ def apply_balanced_scan_pass(
   return steps
 
 
+def elide_dead_full_reconstructions(
+  steps: list[tuple[mir.MirNode, bool]],
+  index_only_relations: set[str],
+) -> list[tuple[mir.MirNode, bool]]:
+  '''Remove raw FULL copies only for closed, index-backed output consumers.
+
+  The caller excludes input relations, custom index/storage types and semirings.
+  A relation must be produced by one nonrecursive plan, with every reader's
+  FULL order already merged. Raw readers and opaque operations prevent elision.
+  Generic MIR compilation does not invoke this CUDA consumer-specific pass.
+  '''
+  writers: dict[str, set[int]] = {}
+  merged: dict[str, set[tuple[int, ...]]] = {}
+  needed: dict[str, set[tuple[int, ...]]] = {}
+  raw_required: set[str] = set()
+
+  def source_read(source) -> bool:
+    if not isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation)):
+      return False
+    if source.version in (Version.FULL, Version.DELTA):
+      needed.setdefault(source.rel_name, set()).add(tuple(source.index))
+    return True
+
+  def inspect(node: mir.MirNode, step: int, recursive: bool) -> bool:
+    if isinstance(node, (mir.FixpointPlan, mir.Block)):
+      return all(inspect(op, step, recursive) for op in node.instructions)
+    if isinstance(node, mir.ParallelGroup):
+      return all(inspect(op, step, recursive) for op in node.ops)
+    if isinstance(node, mir.ExecutePipeline):
+      if not all(source_read(source) for source in node.source_specs):
+        return False
+      if node.bitmap_join is not None:
+        for source in (node.bitmap_join.assign, node.bitmap_join.points):
+          if not source_read(source):
+            return False
+        points = node.bitmap_join.points
+        needed.setdefault(points.rel_name, set()).add(tuple(reversed(points.index)))
+      for dest in node.dest_specs:
+        if dest.version is not Version.NEW:
+          return False
+        writers.setdefault(dest.rel_name, set()).add(step)
+        # Dedup-hash capacity currently reads its destination's raw FULL size.
+        if recursive or node.dedup_hash:
+          raw_required.add(dest.rel_name)
+      return all(
+        isinstance(op, (
+          mir.Scan, mir.ColumnJoin, mir.CartesianJoin, mir.Negation,
+          mir.Filter, mir.ConstantBind, mir.InsertInto,
+          mir.BalancedScan, mir.PositionedExtract,
+        ))
+        for op in node.pipeline
+      )
+    if isinstance(node, mir.MergeIndex):
+      merged.setdefault(node.rel_name, set()).add(tuple(node.index))
+      return True
+    if isinstance(node, (mir.RebuildIndex, mir.CreateFlatView, mir.CheckSize)):
+      if node.version is Version.FULL:
+        raw_required.add(node.rel_name)
+      return True
+    if isinstance(node, mir.ClearRelation):
+      if node.version is Version.FULL:
+        raw_required.add(node.rel_name)
+      return True
+    if isinstance(node, mir.RebuildIndexFromIndex):
+      if node.version is Version.FULL:
+        needed.setdefault(node.rel_name, set()).add(tuple(node.source_index))
+      return True
+    return isinstance(node, (mir.ComputeDeltaIndex, mir.PostStratumReconstructInternCols))
+
+  # In particular, InjectCppHook can read any relation's raw storage. Unknown
+  # operations get the same conservative treatment rather than guessing.
+  if not all(inspect(node, step, recursive) for step, (node, recursive) in enumerate(steps)):
+    return steps
+  removable = {
+    rel for rel in index_only_relations
+    if len(writers.get(rel, set())) == 1
+    and rel not in raw_required
+    and needed.get(rel, set()) <= merged.get(rel, set())
+  }
+  return [
+    (node, recursive)
+    for node, recursive in steps
+    if not (
+      isinstance(node, mir.PostStratumReconstructInternCols)
+      and node.rel_name in removable
+      and tuple(node.canonical_index) in merged.get(node.rel_name, set())
+    )
+  ]
+
+
 # -----------------------------------------------------------------------------
 # Chain
 # -----------------------------------------------------------------------------

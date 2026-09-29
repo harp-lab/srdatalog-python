@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from integration_helpers import FIXTURES, diff_hir, diff_mir
+from integration_helpers import FIXTURES, check_mir_lifetimes, diff_hir
 
 from srdatalog import build_project
 
@@ -37,7 +37,7 @@ def test_ddisasm_hir():
 
 
 def test_ddisasm_mir():
-  diff_mir(build_ddisasm(), "ddisasm")
+  check_mir_lifetimes(build_ddisasm())
 
 
 @pytest.mark.parametrize("layout", ["split", "sharded", "unity"])

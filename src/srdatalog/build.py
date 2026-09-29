@@ -48,6 +48,7 @@ def build_project(
   emit_main_file: bool = True,
   shard_step_bodies: bool = False,
   unity: bool = False,
+  index_only_outputs: bool = False,
 ) -> JitProjectLayout:
   '''Compile `program` end-to-end and write the .cpp tree.
 
@@ -76,11 +77,17 @@ def build_project(
       compile from ~100s to ~20s. Set False for the traditional
       main + batch layout (better for byte-match testing against the
       Nim reference or for partial recompiles once PCH works).
+    index_only_outputs: opt into eliminating provably unused raw FULL copies.
+      Only for consumers of the generated C ABI's index-backed sizes/exports;
+      custom C++ consumers of relation columns must keep the default False.
+      Requires emit_main_file=True.
 
   Returns the dict from `cache.write_jit_project`:
     { "dir", "main", "batches": [...], "schema_header", "kernel_header" }
   '''
-  cr = compile_program(program, project_name)
+  if index_only_outputs and not emit_main_file:
+    raise ValueError("index_only_outputs requires the generated C ABI (emit_main_file=True)")
+  cr = compile_program(program, project_name, index_only_outputs=index_only_outputs)
 
   main_cpp = ""
   if emit_main_file:
@@ -154,6 +161,7 @@ def build_project(
       cr.hir.relation_decls,
       cr.runner_decls,
       cr.mir,
+      canonical_indices=cr.canonical_indices,
       extra_index_headers=cr.extra_headers,
     )
     path = os.path.join(str(result["dir"]), "runner_dispatcher.cpp")

@@ -16,6 +16,8 @@
 #include "gpu/index_ops.h"
 #include "gpu_fixpoint_executor_common.h"
 #include <chrono>
+#include <type_traits>
+#include <utility>
 
 namespace SRDatalog::GPU::mir_helpers {
 
@@ -115,8 +117,9 @@ bool compute_delta_index_fn(DB& db) {
     index_ops::set_difference(new_idx, full_idx, delta_idx);
   }
 
-  // Clear NEW (intern cols + indices)
-  new_rel.clear();
+  // NEW has no remaining readers: return its old candidate/index capacity to
+  // RMM before FULL/HEAD merging. DELTA remains independently owned and live.
+  new_rel.release_device_storage();
 
   return !delta_idx.empty();
 }
@@ -129,10 +132,11 @@ bool compute_delta_index_fn(DB& db) {
  * @brief Merge DELTA index into FULL index using CPO dispatch.
  *
  * @tparam IndexSpecT The index spec (must be FULL_VER)
+ * @tparam ConsumeDelta Whether this is the last use of DELTA (nonrecursive maintenance)
  * @tparam DB The database type
  * @param db The database reference
  */
-template <typename IndexSpecT, typename DB>
+template <typename IndexSpecT, bool ConsumeDelta = false, typename DB>
 void merge_index_fn(DB& db) {
   using Schema = typename IndexSpecT::schema_type;
   static_assert(IndexSpecT::kVersion == FULL_VER, "MergeIndex must be for FULL_VER index");
@@ -152,9 +156,19 @@ void merge_index_fn(DB& db) {
   auto& delta_idx = delta_rel.get_index(runtime_spec);
 
   if (!delta_idx.empty()) {
-    std::size_t full_before = full_idx.size();
-    std::size_t delta_size = delta_idx.size();
-    index_ops::merge_index(full_idx, delta_idx, full_rel, delta_rel);
+    if constexpr (ConsumeDelta) {
+      if (full_idx.empty()) {
+        // Transfer the complete index, including its sorted order and root
+        // metadata. No views alias DELTA after this instruction.
+        std::swap(full_idx, delta_idx);
+      } else {
+        index_ops::merge_index(full_idx, delta_idx, full_rel, delta_rel);
+      }
+      delta_idx = std::remove_cvref_t<decltype(delta_idx)>{};
+    } else {
+      // Recursive pipelines and convergence checks still need DELTA.
+      index_ops::merge_index(full_idx, delta_idx, full_rel, delta_rel);
+    }
   }
 }
 

@@ -864,7 +864,8 @@ def gen_extern_c_shim(
   Exposes (all C-ABI, return 0 on success / nonzero on error):
     - `srdatalog_init()`                     — init CUDA
     - `srdatalog_load_csv(rel, path)`        — load_from_file for one relation
-    - `srdatalog_run(max_iters)`             — copy-to-device + _Runner::run
+    - `srdatalog_prepare()`                 — fresh device DB + checked H2D completion
+    - `srdatalog_run(max_iters)`             — use prepared DB once or copy fresh + run
     - `srdatalog_shutdown()`                 — free host + device DB
     - `srdatalog_size(rel_name)`             — count result or device relation size
     - `srdatalog_synchronize()`              — checked device synchronization
@@ -872,9 +873,11 @@ def gen_extern_c_shim(
     - `srdatalog_export_tsv(rel_name, path)` — integer tuples in logical column order
 
   The shim uses a file-scope `HostDB*` holding the live SemiNaiveDatabase
-  so Python can stage data via multiple `load_csv` calls before `run`. It
-  retains the post-run device DB because computed results are not copied
-  back to the host DB.
+  so Python can stage data via multiple `load_csv` calls before `run`. Optional
+  `prepare` stages a fresh device DB before the caller's compute-only timer;
+  the next run consumes it. Loading invalidates preparation, and subsequent runs
+  rebuild from the host DB, preserving empty-IDB repeated-run semantics.
+  The post-run device DB is retained because results are not copied to the host.
   The checked cardinality/export APIs use the compiler's canonical index map.
   Export supports integer-valued SoA relations, rejects count-only results, and
   requires a completed run. The caller owns the destination file/directory.
@@ -894,6 +897,13 @@ def gen_extern_c_shim(
     f"using {host_db} = SRDatalog::AST::SemiNaiveDatabase<{blueprint}>;",
     f"static {host_db}* g_host_db = nullptr;",
     f"static {device_db}* g_device_db = nullptr;",
+    "static bool g_device_prepared = false;",
+    "",
+    "static void srdatalog_prepare_device() {",
+    "  g_device_prepared = false;",
+    "  if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
+    f"  g_device_db = new {device_db}(SRDatalog::GPU::copy_host_to_device(*g_host_db));",
+    "}",
     "",
     'extern "C" {',
     "",
@@ -908,6 +918,7 @@ def gen_extern_c_shim(
     "int srdatalog_load_csv(const char* rel_name, const char* path) {",
     "  if (!rel_name || !path) return 1;",
     "  try {",
+    "    g_device_prepared = false;",
     f"    if (!g_host_db) g_host_db = new {host_db}();",
     "    std::string rn(rel_name);",
   ]
@@ -947,6 +958,7 @@ def gen_extern_c_shim(
     "int srdatalog_load_all(const char* data_dir) {",
     "  if (!data_dir) return 1;",
     "  try {",
+    "    g_device_prepared = false;",
     f"    if (!g_host_db) g_host_db = new {host_db}();",
     f"    {ruleset_name}_Runner::load_data(*g_host_db, std::string(data_dir));",
     "    return 0;",
@@ -956,13 +968,24 @@ def gen_extern_c_shim(
     "  }",
     "}",
     "",
+    "int srdatalog_prepare() {",
+    "  if (!g_host_db) return 1;",
+    "  try {",
+    "    srdatalog_prepare_device();",
+    "    srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());",
+    "    g_device_prepared = true;",
+    "    return 0;",
+    "  } catch (const std::exception& e) {",
+    '    std::cerr << "srdatalog_prepare: " << e.what() << std::endl;',
+    "    return 2;",
+    "  } catch (...) { return 3; }",
+    "}",
+    "",
     "int srdatalog_run(unsigned long long max_iters) {",
     "  if (!g_host_db) return 1;",
     "  try {",
-    "    if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
-  ]
-  out += [
-    f"    g_device_db = new {device_db}(SRDatalog::GPU::copy_host_to_device(*g_host_db));",
+    "    if (!g_device_prepared) srdatalog_prepare_device();",
+    "    g_device_prepared = false;",
     f"    {ruleset_name}_Runner::run(*g_device_db, max_iters ? (std::size_t)max_iters : std::numeric_limits<std::size_t>::max());",
     "    return 0;",
     "  } catch (const std::exception& e) {",
@@ -1063,6 +1086,7 @@ def gen_extern_c_shim(
     "",
     "int srdatalog_shutdown() {",
     "  try {",
+    "    g_device_prepared = false;",
     "    srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());",
     "    if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
     "    if (g_host_db) { delete g_host_db; g_host_db = nullptr; }",

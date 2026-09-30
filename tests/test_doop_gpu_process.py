@@ -78,16 +78,21 @@ def test_native_block_group_scratch_survives_normal_process_teardown(tmp_path, i
   )
 
   key, left, right = Var("key"), Var("left"), Var("right")
+  start, middle, end = Var("start"), Var("middle"), Var("end")
   lhs = Relation("Left", 2, input_file="Left.csv")
   rhs = Relation("Right", 2, input_file="Right.csv")
   joined = Relation("Joined", 2)
   projected = Relation("Projected", 1)
+  chain = Relation("Chain", 2, input_file="Chain.csv")
+  closure = Relation("Closure", 2)
   program = Program(
     rules=[
       (joined(left, right) <= lhs(key, left) & rhs(key, right))
       .named("Join")
       .with_plan(block_group=True, var_order=["key", "left", "right"]),
       (projected(left) <= joined(left, right)).named("ReadJoined"),
+      (closure(start, end) <= chain(start, end)).named("ClosureSeed"),
+      (closure(start, end) <= closure(start, middle) & chain(middle, end)).named("ClosureStep"),
     ]
   )
   project = build_project(
@@ -114,16 +119,20 @@ def test_native_block_group_scratch_survives_normal_process_teardown(tmp_path, i
     (facts / filename).write_text(
       "".join(f"{k}\t{offset + 2 * k + v}\n" for k in range(512) for v in range(2))
     )
+  (facts / "Chain.csv").write_text("0\t1\n1\t2\n2\t3\n3\t4\n")
   exported = tmp_path / "Joined.tsv"
-  worker = """
+  worker = r"""
 import ctypes as c
 import os
 import sys
+from pathlib import Path
 
 lib = c.CDLL(sys.argv[1], mode=c.RTLD_GLOBAL)
 signatures = {
     "init": ([], c.c_int),
     "load_all": ([c.c_char_p], c.c_int),
+    "load_csv": ([c.c_char_p, c.c_char_p], c.c_int),
+    "prepare": ([], c.c_int),
     "run": ([c.c_ulonglong], c.c_int),
     "get_size": ([c.c_char_p, c.POINTER(c.c_ulonglong)], c.c_int),
     "size": ([c.c_char_p], c.c_ulonglong),
@@ -135,16 +144,48 @@ for name, (arguments, result) in signatures.items():
     function.argtypes = arguments
     function.restype = result
 assert lib.srdatalog_init() == 0
+assert lib.srdatalog_prepare() == 1  # No host database exists yet.
 try:
     assert lib.srdatalog_load_all(os.fsencode(sys.argv[2])) == 0
-    assert lib.srdatalog_run(0) == 0
+    assert lib.srdatalog_prepare() == 0
     count = c.c_ulonglong()
+    assert lib.srdatalog_get_size(b"Left", c.byref(count)) == 0
+    assert count.value == 1024
+    # Canonical IDB indexes are not built until run; the legacy size probe is
+    # valid here and must observe empty outputs after input-only preparation.
+    assert lib.srdatalog_size(b"Joined") == 0
+    assert lib.srdatalog_run(0) == 0
+    assert lib.srdatalog_get_size(b"Closure", c.byref(count)) == 0
+    assert count.value == 10
     assert lib.srdatalog_get_size(b"Joined", c.byref(count)) == 0
     assert count.value == lib.srdatalog_size(b"Joined") == 2048
     assert lib.srdatalog_export_tsv(b"Joined", os.fsencode(sys.argv[3])) == 0
     assert lib.srdatalog_get_size(b"Projected", c.byref(count)) == 0
     assert count.value == lib.srdatalog_size(b"Projected") == 1024
     assert lib.srdatalog_export_tsv(b"Projected", os.fsencode(sys.argv[3] + ".projected")) == 0
+    # A capped rerun must start from empty IDB, not reuse the completed closure.
+    assert lib.srdatalog_run(1) == 0
+    assert lib.srdatalog_get_size(b"Closure", c.byref(count)) == 0
+    capped_count = count.value
+    assert 0 < capped_count < 10
+    assert lib.srdatalog_run(1) == 0
+    assert lib.srdatalog_get_size(b"Closure", c.byref(count)) == 0
+    assert count.value == capped_count
+    # Both loading APIs invalidate an already prepared snapshot. Loading appends
+    # host inputs, so the subsequent run must include the newly staged chains.
+    assert lib.srdatalog_prepare() == 0
+    chain_path = Path(sys.argv[2]) / "Chain.csv"
+    chain_path.write_text("10\t11\n20\t21\n")
+    assert lib.srdatalog_load_csv(b"Chain", os.fsencode(chain_path)) == 0
+    assert lib.srdatalog_run(0) == 0
+    assert lib.srdatalog_get_size(b"Closure", c.byref(count)) == 0
+    assert count.value == 12
+    assert lib.srdatalog_prepare() == 0
+    chain_path.write_text("30\t31\n31\t32\n")
+    assert lib.srdatalog_load_all(os.fsencode(sys.argv[2])) == 0
+    assert lib.srdatalog_run(0) == 0
+    assert lib.srdatalog_get_size(b"Closure", c.byref(count)) == 0
+    assert count.value == 15
 finally:
     assert lib.srdatalog_shutdown() == 0
 """

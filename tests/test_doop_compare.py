@@ -43,3 +43,20 @@ def test_comparison_rejects_missing_exports_and_different_inputs(tmp_path):
   changed['input_manifest_sha256'] = 'different-input'
   with pytest.raises(ValueError, match='input_manifest_sha256'):
     compare_results(report(path), changed, tmp_path / 'changed.json')
+
+
+def test_cardinality_only_comparison_never_requires_tuple_files(tmp_path):
+  left = report(tmp_path / 'not-exported')
+  right = report(tmp_path / 'also-not-exported')
+  left['outputs'] = {}
+  right['outputs'] = {}
+  comparison = compare_results(left, right, tmp_path / 'counts.json', compare_tuples=False)
+  assert comparison['passed']
+  assert all('equal_tuple_sets' not in row for row in comparison['relations'])
+  right['relation_counts'] = {'Input': 1, 'Output': 3}
+  assert not compare_results(
+    left, right, tmp_path / 'different-counts.json', compare_tuples=False
+  )['passed']
+  right['input_manifest_sha256'] = 'different-input'
+  with pytest.raises(ValueError, match='input_manifest_sha256'):
+    compare_results(left, right, tmp_path / 'different-input.json', compare_tuples=False)

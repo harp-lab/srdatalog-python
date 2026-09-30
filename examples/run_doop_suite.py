@@ -32,9 +32,13 @@ def main(argv: list[str] | None = None) -> int:
   parser.add_argument('--warmups', type=int, default=1)
   parser.add_argument('--repeats', type=int, default=3)
   parser.add_argument(
+    '--no-export', action='store_true',
+    help='Compute-only timing and cardinality checks; do not export tuple files',
+  )
+  parser.add_argument(
     '--reference',
     type=Path,
-    help='Reference suite.json; require every selected relation set to match',
+    help='Reference suite.json; compare tuple sets, or cardinalities with --no-export',
   )
   args = parser.parse_args(argv)
   try:
@@ -50,6 +54,7 @@ def main(argv: list[str] | None = None) -> int:
       warmups=args.warmups,
       repeats=args.repeats,
       reference=args.reference,
+      export_tuples=not args.no_export,
     )
   except (OSError, ValueError, RuntimeError) as error:
     print(f'[error] {error}', file=sys.stderr)

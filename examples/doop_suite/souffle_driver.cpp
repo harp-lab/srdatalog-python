@@ -52,8 +52,9 @@ int main(int argc, char** argv) {
         const auto instantiated = Clock::now();
         program->loadAll(facts.string());
         const auto loaded = Clock::now();
-        // No input/output or intermediate pruning inside the measured fixedpoint.
-        // Completion of this synchronous call includes all OpenMP work.
+        // .output or .printsize roots retain every IDB in generated code.
+        // Generated I/O (including printsize) and pruning are disabled here;
+        // completion of this synchronous call includes all OpenMP work.
         program->runAll("", "", false, false);
         const auto fixedpoint = Clock::now();
 
@@ -93,11 +94,16 @@ int main(int argc, char** argv) {
         report.open(report_path);
         report << std::setprecision(12)
                << "{\"schema_version\":1,\"threads\":" << threads
+               << ",\"measurement_mode\":\"fixedpoint-only\""
+               << ",\"export_mode\":\"" << (format == "tsv" ? "exact-tuples" : "none") << '"'
+               << ",\"timing_boundary\":\"runAll with I/O and pruning disabled; "
+                  "excludes instantiation, load, counts, printsize and tuple export; "
+                  "includes inherent RAM rule accesses\""
                << ",\"instantiate_seconds\":" << seconds(begin, instantiated)
                << ",\"load_seconds\":" << seconds(instantiated, loaded)
                << ",\"run_seconds\":" << seconds(loaded, fixedpoint)
                << ",\"count_seconds\":" << seconds(fixedpoint, counted)
-               << ",\"export_seconds\":" << seconds(counted, exported_at)
+               << ",\"export_seconds\":" << (format == "tsv" ? seconds(counted, exported_at) : 0.0)
                << ",\"relation_counts\":{";
         bool first = true;
         for (const auto& item : counts) {

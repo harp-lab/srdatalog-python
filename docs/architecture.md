@@ -59,9 +59,9 @@ together:
   composes the main.cpp (schemas → DB alias → GPU includes → runner
   fwd decls → `_Runner` struct).
 - {py:func}`srdatalog.codegen.jit.main_file.gen_extern_c_shim` appends
-  the nine `extern "C"` entries used by native callers:
+  the ten `extern "C"` entries used by native callers:
   `srdatalog_init`, `srdatalog_load_all`, `srdatalog_load_csv`,
-  `srdatalog_run`, `srdatalog_size`, `srdatalog_get_size`,
+  `srdatalog_prepare`, `srdatalog_run`, `srdatalog_size`, `srdatalog_get_size`,
   `srdatalog_export_tsv`, `srdatalog_synchronize`, `srdatalog_shutdown`.
 - {py:func}`srdatalog.codegen.jit.cache.write_jit_project` writes the
   `.cpp` tree to `<cache_base>/jit/<Project>_<hash>/`.
@@ -113,9 +113,18 @@ mode=RTLD_GLOBAL)`. Symbols:
 | `srdatalog_init()` | `int()` | `SRDatalog::GPU::init_cuda()` |
 | `srdatalog_load_csv(rel, path)` | `int(const char*, const char*)` | Per-relation CSV load; only dispatches to relations declared with `input_file`. |
 | `srdatalog_load_all(dir)` | `int(const char*)` | Convenience — iterates every `input_file` relation. |
-| `srdatalog_run(max_iters)` | `int(uint64_t)` | Copy host→device, call `<Project>_Runner::run`, `0` means unlimited. |
-| `srdatalog_size(rel)` | `uint64_t(const char*)` | Canonical-index size on the host DB. |
-| `srdatalog_shutdown()` | `int()` | Free the host DB. |
+| `srdatalog_prepare()` | `int()` | Construct a fresh device DB and finish H2D transfer before timing. |
+| `srdatalog_run(max_iters)` | `int(uint64_t)` | Consume a prepared DB once, or copy fresh host→device; run complete fixedpoint, `0` means unlimited. |
+| `srdatalog_size(rel)` | `uint64_t(const char*)` | Canonical-index size on the device DB after execution; legacy zero-on-missing probe. |
+| `srdatalog_get_size(rel, out)` | `int(const char*, uint64_t*)` | Checked size read; reports missing indexes rather than masking errors. |
+| `srdatalog_export_tsv(rel, path)` | `int(const char*, const char*)` | Export logical tuples after execution. |
+| `srdatalog_synchronize()` | `int()` | Checked completion boundary for GPU work. |
+| `srdatalog_shutdown()` | `int()` | Synchronize and free host and device DBs. |
+
+Preparation is a one-shot snapshot, not a result cache. Loading more host inputs
+invalidates it; repeated runs without preparation still reconstruct empty IDBs.
+The DOOP benchmark calls preparation outside its fixedpoint timer and collects
+counts/optional exports afterward.
 
 ## Nim ↔ Python parity
 

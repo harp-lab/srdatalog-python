@@ -80,12 +80,12 @@ def _filter(clause: Filter) -> list[str]:
   return translated
 
 
-def translate_program(program: Program) -> tuple[str, dict]:
+def translate_program(program: Program, *, export_tuples: bool = True) -> tuple[str, dict]:
   """Export integer set rules, rejecting unsupported semantics rather than guessing.
 
   SPLIT and GPU plans affect execution only. Multiheads become independent
   rules with the same body; anonymous variables and negation stay intact.
-  All IDBs are observable outputs, including intermediates needed for parity.
+  All IDBs remain observable: tuple outputs by default, printsize roots otherwise.
   """
   relations = {relation.name: relation for relation in program.relations}
   if len(relations) != len(program.relations):
@@ -111,10 +111,14 @@ def translate_program(program: Program) -> tuple[str, dict]:
       declarations.append(
         f'.input {relation.name}(IO="file", filename={json.dumps(str(filename))}, delimiter="\\t")'
       )
-    else:
+    elif export_tuples:
       declarations.append(
         f'.output {relation.name}(IO="file", filename="{relation.name}.tsv", delimiter="\\t")'
       )
+    else:
+      # Observable cardinality roots prevent Souffle from removing unused IDBs.
+      # The embedded driver disables generated I/O during the timed fixedpoint.
+      declarations.append(f".printsize {relation.name}")
     schema.append(
       {"name": relation.name, "arity": relation.arity, "input_file": relation.input_file or None}
     )
@@ -175,6 +179,7 @@ def translate_program(program: Program) -> tuple[str, dict]:
   )
   return text, {
     "relations": schema,
+    "export_mode": "exact-tuples" if export_tuples else "none",
     "source_rule_count": len(program.rules),
     "emitted_rule_count": len(rules),
     "rule_map": rule_map,
@@ -299,12 +304,14 @@ def run_cpu(
   timeout: int = 900,
   warmups: int = 1,
   repeats: int = 3,
+  export_tuples: bool = True,
 ) -> dict:
-  """Run exact CPU fixedpoints; ``output`` must not exist, even if empty.
+  """Run complete CPU fixedpoints; ``output`` must not exist, even if empty.
 
-  Each warmup/repetition starts a fresh process with empty IDBs. Only run()
-  is timed as the fixedpoint; load, compilation, counting and final all-IDB
-  TSV export are separate. Timeout applies to each build or execution process.
+  Each warmup/repetition starts a fresh process with empty IDBs. Only the
+  synchronous runAll() with I/O and pruning disabled is timed; instantiation,
+  load, compilation, counting and optional final all-IDB TSV export are separate.
+  Inherent RAM rule accesses remain included. Timeout applies per process.
   """
   for name, value, minimum in (
     ("threads", threads, 1),
@@ -331,6 +338,15 @@ def run_cpu(
     "repeats": repeats,
     "timings_seconds": [],
     "runs": [],
+    "outputs": {},
+    "export_mode": "exact-tuples" if export_tuples else "none",
+    "measurement_mode": "fixedpoint-only",
+    "validation_mode": "exact-tuples" if export_tuples else "cardinality-only",
+    "timing_boundary": (
+      "Synchronous Souffle runAll with I/O and relation pruning disabled; "
+      "excludes compilation, instantiation, input loading, cardinality collection, "
+      "printsize output and tuple export; includes inherent RAM rule accesses."
+    ),
   }
   try:
     manifest_path, metadata_path = facts / "manifest.json", facts / "meta.json"
@@ -357,7 +373,9 @@ def run_cpu(
       raise ImportError(f"Cannot load canonical program: {source}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    text, exported = translate_program(module.build_doopdb_program(metadata))
+    text, exported = translate_program(
+      module.build_doopdb_program(metadata), export_tuples=export_tuples
+    )
     schema = {relation["name"]: relation for relation in exported["relations"]}
     inputs = {name: relation for name, relation in schema.items() if relation["input_file"]}
     idbs = set(schema) - inputs.keys()
@@ -403,7 +421,7 @@ def run_cpu(
       warmup = index < warmups
       run_dir = output / (f"warmup-{index:03d}" if warmup else f"run-{index - warmups:03d}")
       run_dir.mkdir()
-      export = index == warmups + repeats - 1
+      export = export_tuples and index == warmups + repeats - 1
       timing_path = run_dir / "timing.json"
       command = [
         build["binary"],
@@ -428,6 +446,8 @@ def run_cpu(
       counts = observed
       if set(timing["exported_relations"]) != (idbs if export else set()):
         raise ValueError(f"CPU export omitted or added a relation: {run_dir}")
+      if not export and (run_dir / "tuples").exists():
+        raise ValueError(f"CPU unexpectedly created a tuple directory: {run_dir}")
       result["runs"].append({"warmup": warmup, "process": process, "timing": timing})
       if not warmup:
         result["timings_seconds"].append(timing["run_seconds"])
@@ -441,6 +461,7 @@ def run_cpu(
       relation_counts=counts,
       load_seconds=[run["timing"]["load_seconds"] for run in result["runs"] if not run["warmup"]],
       export_seconds=result["runs"][-1]["timing"]["export_seconds"],
+      count_seconds=[run["timing"]["count_seconds"] for run in result["runs"] if not run["warmup"]],
       page_cache_policy="Uncontrolled; fresh processes, no automatic cache flush; explicit warmups only.",
       input_verification="Prepared manifest sizes/schema and loaded set counts; input hashes recorded at preparation.",
     )
@@ -464,6 +485,10 @@ def main() -> None:
   parser.add_argument("--timeout", type=int, default=900)
   parser.add_argument("--warmups", type=int, default=1)
   parser.add_argument("--repeats", type=int, default=3)
+  parser.add_argument(
+    "--no-export", action="store_true",
+    help="Retain every relation and report cardinalities without exporting tuples.",
+  )
   args = parser.parse_args()
   print(
     json.dumps(
@@ -474,6 +499,7 @@ def main() -> None:
         timeout=args.timeout,
         warmups=args.warmups,
         repeats=args.repeats,
+        export_tuples=not args.no_export,
       ),
       indent=2,
     )

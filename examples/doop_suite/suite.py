@@ -35,6 +35,7 @@ def run_matrix(
   warmups: int = 1,
   repeats: int = 3,
   reference: Path | None = None,
+  export_tuples: bool = True,
 ) -> dict:
   if backend not in ('cpu', 'gpu'):
     raise ValueError(f'Unknown backend: {backend}')
@@ -56,6 +57,7 @@ def run_matrix(
     'status': 'running',
     'backend': backend,
     'plan': plan,
+    'export_tuples': export_tuples,
     'selected_datasets': [d['name'] for d in datasets],
     'tier_metric': load_catalog()['tier_metric'],
     'results': [],
@@ -84,7 +86,8 @@ def run_matrix(
         from .cpu import run_cpu
 
         result = run_cpu(
-          facts, output / name, threads=threads, timeout=timeout, warmups=warmups, repeats=repeats
+          facts, output / name, threads=threads, timeout=timeout, warmups=warmups,
+          repeats=repeats, export_tuples=export_tuples,
         )
       else:
         from .gpu import run_gpu
@@ -97,11 +100,14 @@ def run_matrix(
           timeout=timeout,
           warmups=warmups,
           repeats=repeats,
+          export_tuples=export_tuples,
         )
       if result['status'] != 'passed':
         raise RuntimeError(f'Backend did not complete: {result["status"]}')
-      if set(result['relation_counts']) != expected or set(result['outputs']) != expected - inputs:
-        raise ValueError('Backend did not report/export every query relation')
+      if set(result['relation_counts']) != expected or set(result['outputs']) != (
+        expected - inputs if export_tuples else set()
+      ):
+        raise ValueError('Backend did not report every relation or honor the export mode')
       if result['source_sha256'] != digest(REPO / 'examples' / 'doop.py') or result[
         'metadata_sha256'
       ] != digest(facts / 'meta.json'):
@@ -120,12 +126,18 @@ def run_matrix(
       )
       if reference is not None:
         try:
-          comparison = compare_results(references[name], result, output / name / 'comparison.json')
+          comparison = compare_results(
+            references[name], result, output / name / 'comparison.json',
+            compare_tuples=export_tuples,
+          )
         except Exception as error:
           result['status'] = 'failed'
           result['error'] = f'Reference comparison failed: {error!r}'
         else:
-          result['correctness'] = 'exact_match' if comparison['passed'] else 'mismatch'
+          result['correctness'] = (
+            ('exact_match' if export_tuples else 'cardinality_match')
+            if comparison['passed'] else 'mismatch'
+          )
           if not comparison['passed']:
             result['status'] = 'failed'
       report['results'].append(result)

@@ -1,5 +1,7 @@
 """Semantic checks for the conservative canonical-Program CPU translation."""
 
+import json
+import os
 import shutil
 import subprocess
 import sys
@@ -10,7 +12,7 @@ import pytest
 from srdatalog.dsl import SPLIT, Const, Filter, Program, Relation, Var
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
-from doop_suite.cpu import translate_program
+from doop_suite.cpu import _build, translate_program
 
 
 def test_translation_preserves_recursive_multihead_filter_negation_and_split(tmp_path):
@@ -60,6 +62,44 @@ def test_translation_preserves_recursive_multihead_filter_negation_and_split(tmp
   assert tuples("Forward") == {(1, 2), (2, 3), (1, 3)}
   assert tuples("Reverse") == {(2, 1), (3, 2)}
   assert tuples("FromOne") == {(2,), (3,)}
+
+
+def test_compute_only_driver_retains_recursive_unused_and_empty_relations(tmp_path):
+  if shutil.which(os.environ.get("SOUFFLE", "souffle")) is None:
+    pytest.skip("Souffle and development headers are required for the embedded driver")
+  x, y, z = Var("x"), Var("y"), Var("z")
+  seed = Relation("Seed", 2, input_file="Seed.csv")
+  reach = Relation("Reach", 2)
+  unused = Relation("Unused", 2)
+  empty = Relation("Empty", 2)
+  program = Program(
+    rules=[
+      reach(x, y) <= seed(x, y),
+      reach(x, z) <= reach(x, y) & seed(y, z),
+      unused(y, x) <= seed(x, y),
+      empty(x, y) <= seed(x, y) & Filter(("x",), "return x == 99;"),
+    ]
+  )
+  text, _ = translate_program(program, export_tuples=False)
+  source = tmp_path / "doop_reference.dl"
+  source.write_text(text, encoding="utf-8")
+  (tmp_path / "Seed.csv").write_text("1\t2\n2\t3\n3\t4\n")
+  env = os.environ.copy()
+  env["OMP_NUM_THREADS"] = "2"
+  build = _build(source, tmp_path, 2, env, 120)
+  tuples = tmp_path / "tuples"
+  report = tmp_path / "timing.json"
+  completed = subprocess.run(
+    [build["binary"], build["factory_name"], str(tmp_path), str(tuples), "2", str(report), "none"],
+    check=True, capture_output=True, text=True, timeout=30, env=env,
+  )
+  timing = json.loads(report.read_text())
+  assert timing["relation_counts"] == {"Seed": 3, "Reach": 6, "Unused": 3, "Empty": 0}
+  assert timing["exported_relations"] == []
+  assert timing["export_seconds"] == 0
+  assert not tuples.exists()
+  assert completed.stdout == "", "Generated printsize I/O must stay outside the fixedpoint"
+
 
 
 @pytest.mark.parametrize(

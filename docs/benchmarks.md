@@ -266,24 +266,48 @@ Defaults are one warmup and three measured repetitions, each in a fresh process.
 `--timeout` bounds each build/execution process; `--warmups 0 --repeats 1` is
 useful for validation but is not a stable performance measurement.
 
-The suite records build, load, execution, and export separately. GPU execution
-includes host-to-device initialization and synchronizes before the timer stops;
-CPU execution times the Soufflé query after loading. These scopes are recorded
-in the reports and must not be presented as interchangeable kernel-only times.
+The suite records build, load, GPU preparation, execution, and export separately.
+GPU preparation constructs a fresh device database, transfers the inputs and
+synchronizes **before** the fixedpoint timer starts. GPU execution ends with
+checked device synchronization; CPU execution times Soufflé after loading.
+Both fixedpoint timers exclude input loading, tuple serialization/export and
+cardinality checks. Internal RAM/VRAM accesses and rule/index work remain part
+of execution; this is complete fixedpoint timing, not kernel-only timing.
+Historical v2 GPU reports include H2D setup and must not be mixed with this
+new timing boundary.
 Every run reaches an unlimited fixedpoint and must exit normally.
 Failures and timeouts retain logs and appear explicitly in `suite.json`;
 the command exits unsuccessfully if any selected dataset fails.
 
-The final measured run records all 74 relation cardinalities and exports all
-37 derived relation sets. With `--reference`, comparison requires matching
-query/input identities, complete relation coverage, equal cardinalities, and
-exact integer tuple sets after external sorting—not just matching VPT counts.
+By default, the final measured run records all 74 relation cardinalities and
+exports all 37 derived relation sets. With `--reference`, comparison requires
+matching query/input identities, complete relation coverage, equal cardinalities,
+and exact integer tuple sets after external sorting—not just matching VPT counts.
 Without a reference, correctness is `not_compared`, even when execution passes.
 Reports distinguish `input_rows`/`input_bytes` for the 37 consumed inputs from
 `prepared_input_rows`/`prepared_input_bytes` for all 39 prepared files.
 The runner rejects a prepared benchmark with no selected main method rather than
 accepting a vacuous empty-analysis match. The per-process timeout also covers
 loading and final tuple export; increase it for large exports.
+
+For computation-only performance runs, add `--no-export` on **both** backends.
+Soufflé uses `.printsize` instead of `.output` to keep every IDB observable;
+the embedded driver disables generated I/O and reads cardinalities after the
+timed fixedpoint. The GPU skips tuple export and reads sizes after its timer.
+No tuple files are created, including on the final repetition. With
+`--reference`, this mode reports `cardinality_match`, **not** `exact_match`;
+retain a separate exact-export validation run for tuple-level correctness.
+
+```bash
+python examples/run_doop_suite.py --tier xlarge \
+    --root /path/to/doop-data --output /path/to/results/cpu-compute \
+    --backend cpu --threads 12 --warmups 1 --repeats 3 --no-export
+SRDATALOG_RMM_RESOURCE=cuda_async \
+python examples/run_doop_suite.py --tier xlarge \
+    --root /path/to/doop-data --output /path/to/results/gpu-compute \
+    --backend gpu --plan bitmap --warmups 1 --repeats 3 --no-export \
+    --reference /path/to/results/cpu-compute/suite.json
+```
 
 Reserve substantial disk space for derived results and sort scratch, especially
 Jython; small compressed inputs do not imply small fixedpoints. Run performance

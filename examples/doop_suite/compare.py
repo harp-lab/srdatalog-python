@@ -9,7 +9,9 @@ import tempfile
 from pathlib import Path
 
 
-def compare_results(left: dict, right: dict, output: Path) -> dict:
+def compare_results(
+  left: dict, right: dict, output: Path, *, compare_tuples: bool = True
+) -> dict:
   if left['status'] != 'passed' or right['status'] != 'passed':
     raise ValueError('Only successful complete fixedpoints can be compared')
   for key in ('dataset', 'source_sha256', 'metadata_sha256', 'input_manifest_sha256'):
@@ -25,7 +27,9 @@ def compare_results(left: dict, right: dict, output: Path) -> dict:
   ):
     raise ValueError('Reference and candidate have different relation schemas')
   for result in (left, right):
-    if set(result['relation_counts']) != expected or set(result['outputs']) != outputs:
+    if set(result['relation_counts']) != expected or (
+      compare_tuples and set(result['outputs']) != outputs
+    ):
       raise ValueError('Result does not cover every relation in the query')
   output.parent.mkdir(parents=True, exist_ok=True)
   if output.exists():
@@ -40,7 +44,7 @@ def compare_results(left: dict, right: dict, output: Path) -> dict:
         'right_rows': right['relation_counts'][name],
       }
       check['passed'] = check['left_rows'] == check['right_rows']
-      if name in outputs:
+      if compare_tuples and name in outputs:
         for label, result in (('left', left), ('right', right)):
           subprocess.run(
             [
@@ -74,7 +78,11 @@ def compare_results(left: dict, right: dict, output: Path) -> dict:
   result = {
     'passed': all(row['passed'] for row in checks),
     'dataset': left['dataset'],
-    'method': 'Complete lexicographically sorted integer TSV tuple sets; no sampling',
+    'method': (
+      'Complete lexicographically sorted integer TSV tuple sets; no sampling'
+      if compare_tuples
+      else 'Complete relation cardinalities only; tuple equality not checked'
+    ),
     'input_manifest_sha256': left['input_manifest_sha256'],
     'relations': checks,
   }

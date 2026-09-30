@@ -1,8 +1,9 @@
 """Build and measure the canonical DOOP program through the generated CUDA ABI.
 
 Every warmup/repetition runs in a fresh process and must exit normally after
-checked shutdown. Build, CSV loading and exact IDB exports are not timed as
-fixedpoint work. A successful report does not assert cross-engine equality.
+checked shutdown. Build, CSV loading, device database construction/H2D and exact
+IDB exports are not timed as fixedpoint work. A successful report does not assert
+cross-engine equality.
 """
 
 from __future__ import annotations
@@ -21,6 +22,11 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[2]
 _SOURCE = _ROOT / "examples" / "doop.py"
+_TIMING_BOUNDARY = (
+  "entire unlimited fixedpoint on a prepared device database + checked device synchronization; "
+  "excludes build, CSV loading, database construction/H2D, cardinality collection, "
+  "tuple export/D2H and teardown; includes inherent rule RAM/VRAM accesses"
+)
 
 
 def _sha256(path: Path) -> str:
@@ -181,6 +187,7 @@ def _execute(build: dict, facts: Path, report_path: Path, export: Path | None) -
   signatures = {
     "init": [],
     "load_all": [ctypes.c_char_p],
+    "prepare": [],
     "run": [ctypes.c_ulonglong],
     "synchronize": [],
     "shutdown": [],
@@ -202,6 +209,8 @@ def _execute(build: dict, facts: Path, report_path: Path, export: Path | None) -
     "stages_seconds": {},
     "outputs": {},
     "memory_resource": os.environ.get("SRDATALOG_RMM_RESOURCE") or "pool",
+    "measurement_mode": "fixedpoint-only",
+    "timing_boundary": _TIMING_BOUNDARY,
   }
   initialized = False
   _save(report_path, report)
@@ -215,7 +224,10 @@ def _execute(build: dict, facts: Path, report_path: Path, export: Path | None) -
     checked("load_all", os.fsencode(facts))
     checked("synchronize")
     report["stages_seconds"]["load"] = time.perf_counter() - started
-    # Includes fresh host-to-device DB construction and *every* fixedpoint step.
+    started = time.perf_counter()
+    checked("prepare")
+    report["stages_seconds"]["prepare"] = time.perf_counter() - started
+    # Preparation returns only after H2D/database construction is synchronized.
     # Zero means no iteration cap, not a single-iteration smoke benchmark.
     started = time.perf_counter()
     checked("run", 0)
@@ -277,11 +289,13 @@ def run_gpu(
   timeout: int = 900,
   warmups: int = 1,
   repeats: int = 3,
+  export_tuples: bool = True,
 ) -> dict:
   """Return a process-gated report; timeout applies to build and each fresh run.
 
   Requires the checkout's CUDA compiler/runtime dependencies and an available
-  GPU. Export borrows canonical index columns and uses bounded host buffers.
+  GPU. By default, export borrows canonical index columns and uses bounded host
+  buffers; export_tuples=False omits tuple exports for a cardinality-only benchmark.
   Neither a child-written report nor native return alone is success:
   normal process teardown must also finish within the timeout.
   """
@@ -301,6 +315,9 @@ def run_gpu(
     "dataset": facts.name,
     "plan": plan,
     "memory_resource": os.environ.get("SRDATALOG_RMM_RESOURCE") or "pool",
+    "export_mode": "exact-tuples" if export_tuples else "none",
+    "validation_mode": "exact-tuples" if export_tuples else "cardinality-only",
+    "measurement_mode": "fixedpoint-only",
     "facts": str(facts),
     "source_sha256": _sha256(_SOURCE),
     "timings_seconds": [],
@@ -311,7 +328,7 @@ def run_gpu(
     "timeout_seconds_per_process": timeout,
     "warmups": warmups,
     "repeats": repeats,
-    "timing_boundary": "fresh H2D database + entire unlimited fixedpoint + checked device synchronization",
+    "timing_boundary": _TIMING_BOUNDARY,
     "process_isolation": "one fresh process per warmup/measured run; normal exit required",
   }
   report_path = output / "report.json"
@@ -341,7 +358,7 @@ def run_gpu(
     for index in range(-warmups, repeats):
       label = f"warmup-{index + warmups:03d}" if index < 0 else f"run-{index:03d}"
       run_path = output / f"{label}.json"
-      export = output / "relations" if index == repeats - 1 else None
+      export = output / "relations" if export_tuples and index == repeats - 1 else None
       command = [*worker, "_run", str(output / "build.json"), str(facts), str(run_path)]
       if export is not None:
         command.append(str(export))
@@ -372,6 +389,9 @@ def run_gpu(
     report["load_seconds"] = [
       run["stages_seconds"]["load"] for run in report["runs"] if not run["warmup"]
     ]
+    report["prepare_seconds"] = [
+      run["stages_seconds"]["prepare"] for run in report["runs"] if not run["warmup"]
+    ]
     report["status"] = "passed"
     _save(report_path, report)
     return report
@@ -400,6 +420,10 @@ def _main() -> None:
   parser.add_argument("--timeout", type=int, default=900)
   parser.add_argument("--warmups", type=int, default=1)
   parser.add_argument("--repeats", type=int, default=3)
+  parser.add_argument(
+    "--no-export", dest="export_tuples", action="store_false",
+    help="Skip tuple export; benchmark/validation uses relation cardinalities only",
+  )
   args = parser.parse_args()
   print(json.dumps(run_gpu(**vars(args)), indent=2))
 

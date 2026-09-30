@@ -314,6 +314,41 @@ Jython; small compressed inputs do not imply small fixedpoints. Run performance
 measurements without competing CPU/GPU workloads. Compilation and a small GPU
 smoke test do not establish that a complete dataset fits in available VRAM.
 
+### Computation-only large-workload comparison
+
+[Recorded measurements](https://github.com/harp-lab/srdatalog-python/releases/download/doop-compute-only-v1/measurements.json)
+use Soufflé 2.4 compiled with `-O3` and 12 threads on an AMD Threadripper PRO
+5945WX, versus SRDatalog's bitmap plan on an RTX 6000 Ada with `cuda_async`.
+Each engine runs in a fresh process: one warmup and three measured repetitions,
+alternating CPU/GPU per workload after **all compilation finishes**.
+The table reports median complete-fixedpoint seconds, excluding input loading,
+H2D database preparation, counts and tuple export. No tuple files are written.
+Internal rule/index RAM/VRAM accesses remain included.
+
+| Dataset | Soufflé CPU seconds | SRDatalog GPU seconds | CPU/GPU median ratio |
+|---|---:|---:|---:|
+| batik | 31.41 | 2.96 | 10.6× |
+| eclipse | 15.34 | 2.83 | 5.4× |
+| h2 | 25.52 | 2.82 | 9.1× |
+| fop | 36.48 | 2.58 | 14.1× |
+| jruby | 56.81 | 5.62 | 10.1× |
+| pdfbox | 48.34 | 3.82 | 12.6× |
+| soot | 164.98 | 21.10 | 7.8× |
+| jython | 323.90 | 14.31 | 22.6× |
+| scala | 235.21 | 19.05 | 12.3× |
+| kotlin 1.4.32 | 306.03 | 18.43 | 16.6× |
+
+All 80 processes (including warmups) exited normally and matched all 74
+cardinalities against the immutable exact CPU oracles. These count-only runs
+do **not** establish fresh tuple equality; the separate v2 exact-export proofs
+remain available. Raw samples, preparation timings, build/input fingerprints
+and hardware configuration are in the evidence release.
+Three samples are not a comprehensive scalability study: CPU times varied
+notably for PDFBox (46.83–59.72 s) and Soot (164.41–190.31 s). Filesystem input
+cache and CPU/GPU clock state are uncontrolled. Only Soufflé is compared here,
+not other CPU engines. GPU progress diagnostics remain enabled; their small
+console-output overhead is included, rather than subtracted or hidden.
+
 ## Regenerating from Nim
 
 When upstream Nim sources change, regenerate every benchmark with:

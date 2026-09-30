@@ -135,18 +135,18 @@
       "extraction_provenance": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v1/chart.provenance.json"
     },
     {
-      "name": "h2o",
+      "name": "groovy",
       "tier": "medium",
-      "reference_vpt_rows": 17930029,
-      "archive_bytes": 681540893,
-      "archive_sha256": "65dfd99a751a7de2d6181b6be0eaa7643e2b3303cd2b47c53187c51fa081d816",
-      "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/h2o.zip",
-      "corpus": "DaCapo 23.11-MR2-chopin",
-      "repository": "NemoYuu/flowlog_benchmark",
-      "revision": "da9e91b3ff75d94604f57ba2b21ef3aa97e241ec",
-      "upstream_reference_vpt_rows": 17911631,
-      "upstream_reference_source": "https://github.com/flowlog-rs/flowlog-bench/blob/caa5f4afb630f8c275f3ea541f628f9c58245a8d/docs/data/doop-data-prep.md",
-      "reference_source": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v1/measurements.json"
+      "reference_vpt_rows": 19565192,
+      "archive_bytes": 104905632,
+      "archive_sha256": "abc3bf42d02359e015af7f3c5426c2cb8ebc5136ea4ca6b20c266d04c9cb60be",
+      "url": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/groovy.zip",
+      "corpus": "Independent JVM applications",
+      "application_version": "2.4.21",
+      "repository": "harp-lab/srdatalog-python",
+      "revision": "sha256:abc3bf42d02359e015af7f3c5426c2cb8ebc5136ea4ca6b20c266d04c9cb60be",
+      "reference_source": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/measurements.json",
+      "extraction_provenance": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/groovy.provenance.json"
     },
     {
       "name": "javac",
@@ -305,16 +305,16 @@
     {
       "name": "kotlin",
       "tier": "xlarge",
-      "reference_vpt_rows": 1076040872,
-      "archive_bytes": 327922522,
-      "archive_sha256": "a5f7762186335d6244c04945e99dc05e28135972222d415538e4901fa9785698",
-      "url": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v1/kotlin.zip",
+      "reference_vpt_rows": 719597196,
+      "archive_bytes": 316271020,
+      "archive_sha256": "0c83841d8cf010113d3786eab987cd98a7ec103035d026150577f49d6fa322b9",
+      "url": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/kotlin.zip",
       "corpus": "Independent JVM applications",
-      "application_version": "1.5.31",
+      "application_version": "1.4.32",
       "repository": "harp-lab/srdatalog-python",
-      "revision": "sha256:a5f7762186335d6244c04945e99dc05e28135972222d415538e4901fa9785698",
-      "reference_source": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v1/measurements.json",
-      "extraction_provenance": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v1/kotlin.provenance.json"
+      "revision": "sha256:0c83841d8cf010113d3786eab987cd98a7ec103035d026150577f49d6fa322b9",
+      "reference_source": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/measurements.json",
+      "extraction_provenance": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/kotlin.provenance.json"
     }
   ]
 }

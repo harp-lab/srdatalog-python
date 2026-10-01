@@ -20,7 +20,7 @@ on this box.
 | `polonius_test` | 38 | 38 | 32 | 68 | Rust borrow-checker |
 | `ddisasm` | 39 | 23 | 11 | 30 | Binary disassembly (needs `--meta`) |
 | `reg_scc` | 16 | 10 | 2 | 9 | Register-SCC subquery of ddisasm |
-| `doop` | 76 | 84 | 16 | 60 | Java points-to (needs `--meta`) |
+| `doop` | 75 | — | — | — | Corrected Java points-to query: 37 consumed inputs + 38 IDBs; other compile metrics not remeasured (needs `--meta`) |
 
 ## LSQB triangle variants
 
@@ -60,6 +60,46 @@ diagnosing where time is going on your box.
 
 ## Real-application DOOP corpus
 
+> **DOOP evidence correction:** the historical v2 exact comparisons validate
+> GPU execution against the CPU translation of the same canonical Python query,
+> which contained an **unguarded `Object[]` store bug**. They do **not** establish
+> equivalence to the upstream DOOP query. The historical computation-only and
+> Nsight Systems (`nsys`) results likewise measure that old query, not a
+> performance baseline for the corrected query. Existing release assets remain
+> immutable historical evidence; no corrected-query timings are claimed here.
+
+The corrected query factors the `Object[]` store eligibility check into a unary
+`EligibleObjectArrayHeap(heap)` relation. It requires the stored heap's
+`HeapAllocation_Type(heap, heaptype)`, the `Object[]` component type from
+`ComponentType(ObjectArray, comptype)`, and
+`SupertypeOf(comptype, heaptype)`. `AIPT_Store_ObjectArray` joins this unary
+eligibility filter, preserving the stored-heap-type, component-type, and subtype
+guards without materializing an `Object[]` array-heap/stored-heap pair Cartesian
+product. The current instantiated contract has **75 relations and 38 IDBs**,
+using the same **39 prepared input files**, of which 37 are consumed.
+
+The corrected Eclipse run uses unchanged prepared tuples and produces
+`VarPointsTo=39,139,806`, `InstanceFieldPointsTo=9,676,775`, and
+`ArrayIndexPointsTo=321,887`, matching the independently executed upstream
+raw-fact oracle's cardinalities. Corrected CPU/GPU exports match all **38 IDB
+tuple sets** exactly. This is not a claim of full upstream tuple equivalence
+or corrected validation for the other 20 applications.
+`EligibleObjectArrayHeap` has 52,237 rows; the non-Object-array compatibility
+helper remains 16,979,586 rows rather than adding 76,004,835 Object-array pairs.
+
+Current-session fixedpoint samples were 41.78/40.95/41.47 s on Soufflé
+(12 threads) and 117.10/119.48/121.36 s on the GPU bitmap plan. Loading,
+H2D and exports are outside these timers; the final repetition exports
+separately for correctness. The unchanged historical GPU binary also took
+117.29 s in the same session, versus its historical 2.83 s median.
+Therefore these timings do **not** establish a guard-induced regression or
+speedup; the large environment/timing shift remains unexplained.
+Speculative outer-variable-order overrides produced 117.33/122.53/117.44 s
+and were not retained. A smaller eligibility set alone does not establish a
+faster physical plan. The [guard correction evidence](https://github.com/harp-lab/srdatalog-python/releases/tag/doop-object-array-guard-v1)
+preserves both attempts and the control. Existing manifests pin the old query:
+prepare into a **fresh root**, without rewriting historical identities.
+
 `examples/doop_benchmark.py` combines eleven retained DaCapo
 23.11-MR2-chopin applications from the
 [published FlowLog facts](https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/tree/main/dataset/csv)
@@ -70,30 +110,32 @@ revision, and per-application provenance. The published
 is immutable. The catalog's
 [native-admission revision](https://github.com/harp-lab/srdatalog-python/releases/tag/doop-corpus-expanded-v2)
 replaces H2O with Groovy and Kotlin 1.5.31 with 1.4.32. It contains the
-replacement raw archives, extraction provenance, updated CPU measurements,
-complete native correctness evidence, selection audit and memory diagnoses.
+replacement raw archives, extraction provenance, historical CPU measurements,
+native CPU/GPU agreement evidence for the old query, selection audit and memory diagnoses.
 No binaries or facts are stored in Git.
 
-The **local scheduling tiers** now uniformly use measured canonical SRDatalog
-CPU `VarPointsTo` cardinality, not archive size or mixed upstream analyses.
-The thresholds are unchanged; these are not official DOOP dataset editions.
+The **local scheduling tiers** mostly use historical canonical SRDatalog CPU
+`VarPointsTo` cardinalities measured with the unguarded query, not archive size
+or mixed upstream analyses. Eclipse alone has a corrected measurement and
+entry-level query hash; the others retain the catalog's historical reference
+query hash. The thresholds are unchanged and are not official DOOP editions.
 The retained Chopin archives are unchanged, and their upstream cardinalities
-remain separately recorded for traceability. Every selected application has
-completed the unchanged canonical CPU query with 74 relation counts and all
-37 IDB exports. Zero warmups and one repetition establish cardinality evidence,
-not comparative performance or GPU equivalence.
+remain separately recorded for traceability. In the historical v2 validation,
+every selected application completed the old canonical CPU query with 74 relation
+counts and all 37 IDB exports. Zero warmups and one repetition establish historical
+cardinality evidence, not comparative performance or upstream equivalence.
 
 The catalog has **21 distinct applications: 6 small, 5 medium, 6 large, 4 xlarge**,
 compared with the original 5/2/4/1 distribution.
 
-| Tier | Canonical VPT rows | Applications |
+| Tier | Historical unguarded-query VPT rows | Applications |
 |---|---:|---|
 | small | < 15 million | xalan, zxing, biojava, pmd, bloat, sunflow |
 | medium | 15–<30 million | clojure, chart, groovy, javac, spring |
 | large | 30–<100 million | batik, eclipse, h2, fop, jruby, pdfbox |
 | xlarge | >= 100 million | soot, jython, scala, kotlin |
 
-| New application | Version / source | Measured VPT rows |
+| New application | Version / source | Historical unguarded-query VPT rows |
 |---|---|---:|
 | bloat | DaCapo 2006 | 11,227,250 |
 | chart | DaCapo 2006 | 17,221,612 |
@@ -114,6 +156,9 @@ counted as new applications. Raw archive preparation was checked for byte-identi
 normalized relations and metadata against the immutable CPU-validated inputs.
 Recorded absolute paths in the evidence identify the original runs; portable
 use goes through the catalog commands below.
+
+The memory diagnoses and VPT counts below also describe the historical
+unguarded-query runs, not new measurements of the corrected query.
 
 VPT tiers do **not** predict GPU memory requirements. H2O was removed from the
 local 48 GB catalog after tracing its nonrecursive `CastTo` precomputation:
@@ -137,24 +182,27 @@ entrypoint and complete extracted facts, not a sample of the old input.
 It yields 719,597,196 canonical VPT rows and remains the single Kotlin
 application in the xlarge tier.
 
-All **21 selected applications** completed native SRDatalog's **bitmap** plan
-with `SRDATALOG_RMM_RESOURCE=cuda_async` on an RTX 6000 Ada (48 GB).
+In the **historical v2 unguarded-query validation**, all **21 selected applications**
+completed native SRDatalog's **bitmap** plan with
+`SRDATALOG_RMM_RESOURCE=cuda_async` on an RTX 6000 Ada (48 GB).
 Each exited normally, matched all 74 relation counts, and matched all 37 CPU
 IDB tuple sets exactly: **777 complete relation-set comparisons**, without
 sampling, CPU fallback, managed memory, or host spill.
 The [native validation evidence](https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/native-validation.json)
 records per-application builds, input identities, counts and exact comparisons.
-These zero-warmup, single-repeat runs establish correctness, not speedups.
+These zero-warmup, single-repeat runs establish CPU/GPU agreement for the old
+query, not upstream equivalence, corrected-query validation, or speedups.
 
 The [baseline audit](https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/baseline-validation.json)
 contains 20 exact native passes (19 earlier ownership-fixed `pool` runs, plus
-the current Kotlin `cuda_async` run), not a same-build performance comparison.
-Jython's baseline still fails: at recursive step 26, zero-based iteration 113,
+the historical Kotlin `cuda_async` run), not a same-build performance comparison.
+Jython's historical baseline run failed: at recursive step 26, zero-based iteration 113,
 its combined `VarPointsTo` NEW output has 3,026,761,641 rows before deduplication.
 Index sorting requests 22.562 GiB of scratch while 32.045 GiB is live:
 54.607 GiB exceeds the GPU's 47.363 GiB addressable memory.
 This is baseline intermediate/sort overhead, not grounds to discard Jython:
-the bitmap plan passes all 37 exact comparisons on the same complete input.
+the bitmap plan passed all 37 exact comparisons for the historical unguarded
+query on the same complete input.
 The [allocation trace](https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v2/jython-baseline-memory.json)
 records the failing operation and live/reserved storage separately.
 
@@ -196,10 +244,11 @@ including descriptors and heap types, then materializes each projected relation
 as a set with `sort -u`; it never samples rows or adds synthetic roots.
 Required files, arities, signed-int32 numeric domains, and functional attributes
 needed by the normalization are checked explicitly.
-The instantiated program currently uses 37 of those inputs and has 37 derived
-relations; `Var_DeclaringMethod` and `isVirtualMethodInvocation_Insn` are declared
-but unused. Preparation reports all declared files; execution reports the
-actually consumed input rows and bytes separately.
+The instantiated program currently uses 37 of those inputs and has 38 derived
+relations, for 75 relations in total; `Var_DeclaringMethod` and
+`isVirtualMethodInvocation_Insn` are declared but unused. Preparation reports all
+declared files; execution reports the actually consumed input rows and bytes
+separately.
 
 Each `prepared/APP/` contains the input CSV files (tab-delimited despite their
 extension), `meta.json`, `str2num.json`, and `manifest.json`. The manifest records
@@ -251,7 +300,7 @@ python examples/run_doop_suite.py --all \
     --backend gpu --plan bitmap --jobs 2 \
     --reference /path/to/results/cpu/suite.json
 
-# The validated full-catalog configuration uses device-only cuda_async:
+# The historical v2 full-catalog validation used device-only cuda_async:
 SRDATALOG_RMM_RESOURCE=cuda_async \
 python examples/run_doop_suite.py --dataset kotlin \
     --root /path/to/doop-data --output /path/to/results/kotlin-bitmap-async \
@@ -274,13 +323,14 @@ Both fixedpoint timers exclude input loading, tuple serialization/export and
 cardinality checks. Internal RAM/VRAM accesses and rule/index work remain part
 of execution; this is complete fixedpoint timing, not kernel-only timing.
 Historical v2 GPU reports include H2D setup and must not be mixed with this
-new timing boundary.
+new timing boundary. They also executed the old unguarded query, so changing
+the timer boundary alone does not make them a corrected-query baseline.
 Every run reaches an unlimited fixedpoint and must exit normally.
 Failures and timeouts retain logs and appear explicitly in `suite.json`;
 the command exits unsuccessfully if any selected dataset fails.
 
-By default, the final measured run records all 74 relation cardinalities and
-exports all 37 derived relation sets. With `--reference`, comparison requires
+By default, the final measured run records all 75 relation cardinalities and
+exports all 38 derived relation sets. With `--reference`, comparison requires
 matching query/input identities, complete relation coverage, equal cardinalities,
 and exact integer tuple sets after external sorting—not just matching VPT counts.
 Without a reference, correctness is `not_compared`, even when execution passes.
@@ -314,7 +364,12 @@ Jython; small compressed inputs do not imply small fixedpoints. Run performance
 measurements without competing CPU/GPU workloads. Compilation and a small GPU
 smoke test do not establish that a complete dataset fits in available VRAM.
 
-### Computation-only large-workload comparison
+### Historical computation-only large-workload comparison (unguarded query)
+
+These measurements and associated `nsys` profiles predate the `Object[]`
+eligibility correction. They are retained for traceability only: neither their
+timings nor their CPU/GPU ratios describe the corrected query. A corrected-query
+performance baseline requires fresh runs and matching query/input identities.
 
 [Recorded measurements](https://github.com/harp-lab/srdatalog-python/releases/download/doop-compute-only-v1/measurements.json)
 use Soufflé 2.4 compiled with `-O3` and 12 threads on an AMD Threadripper PRO
@@ -338,11 +393,12 @@ Internal rule/index RAM/VRAM accesses remain included.
 | scala | 235.21 | 19.05 | 12.3× |
 | kotlin 1.4.32 | 306.03 | 18.43 | 16.6× |
 
-All 80 processes (including warmups) exited normally and matched all 74
-cardinalities against the immutable exact CPU oracles. These count-only runs
-do **not** establish fresh tuple equality; the separate v2 exact-export proofs
-remain available. Raw samples, preparation timings, build/input fingerprints
-and hardware configuration are in the evidence release.
+All 80 historical processes (including warmups) exited normally and matched all
+74 old-query cardinalities against the immutable old-query CPU oracles. These
+count-only runs do **not** establish fresh tuple equality or upstream equivalence;
+the separate v2 exact-export proofs also concern only the old unguarded query.
+Raw samples, preparation timings, build/input fingerprints and hardware
+configuration are in the evidence release.
 Three samples are not a comprehensive scalability study: CPU times varied
 notably for PDFBox (46.83–59.72 s) and Soot (164.41–190.31 s). Filesystem input
 cache and CPU/GPU clock state are uncontrolled. Only Soufflé is compared here,
@@ -362,3 +418,7 @@ done
 The translator is deliberately noisy — it raises on any syntax it
 hasn't been taught, so you'll see exactly which benchmarks regressed.
 See `tools/nim_to_dsl.py`'s header for the full supported subset.
+
+For DOOP, regeneration must preserve the corrected unary `Object[]` eligibility
+guard described above; a successful translation or CPU/GPU match alone does not
+prove equivalence to the upstream query.

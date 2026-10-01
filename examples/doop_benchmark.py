@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
       if args.json:
         print(json.dumps(datasets, indent=2))
       else:
-        print('Local tiers use measured canonical VarPointsTo rows, NOT input or archive size.')
+        print(load_catalog()['tier_note'])
         print(f'{"DATASET":12} {"TIER":8} {"REFERENCE VPT":>15} {"ARCHIVE MB":>12}')
         for item in datasets:
           print(

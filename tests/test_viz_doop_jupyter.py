@@ -1,5 +1,4 @@
-'''End-to-end Jupyter test on the doop benchmark — the largest program
-in the suite (78 rules, 96 runner variants, 74 relations).
+'''End-to-end Jupyter test on the large, recursive DOOP benchmark.
 
 Doop is the stress test for our visualization pipeline: real-world
 recursion fanout, dataset_const integers baked in via Const(meta[...]),

@@ -2,7 +2,8 @@
   "schema_version": 2,
   "suite": "doop-real-applications",
   "tier_metric": "canonical_VarPointsTo_rows",
-  "tier_note": "Local scheduling tiers use measured canonical SRDatalog CPU VarPointsTo cardinality, not input bytes or official DOOP editions.",
+  "tier_note": "Scheduling tiers use historical canonical CPU counts, not input bytes. Unless an entry overrides reference_query_sha256, counts belong to the unguarded Object[] query and are not corrected-query validation.",
+  "reference_query_sha256": "a94c5967991dfe4e97fa740c57c120ec9c3cfe98203375f87cb20173852d255a",
   "tiers": {
     "small": {
       "min_rows": 0,
@@ -193,7 +194,8 @@
     {
       "name": "eclipse",
       "tier": "large",
-      "reference_vpt_rows": 39165777,
+      "reference_vpt_rows": 39139806,
+      "reference_query_sha256": "3b9c44856a0a469c48b832e03d8d8f78149a99a765cecb9c80d99cffaa162e94",
       "archive_bytes": 44907723,
       "archive_sha256": "bae047f6d5fe1dfaa3c171516922e66ba3d2f8dd7244b43059c2ec7e6677ffc3",
       "url": "https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/resolve/da9e91b3ff75d94604f57ba2b21ef3aa97e241ec/dataset/csv/eclipse.zip",
@@ -202,7 +204,7 @@
       "revision": "da9e91b3ff75d94604f57ba2b21ef3aa97e241ec",
       "upstream_reference_vpt_rows": 39139806,
       "upstream_reference_source": "https://github.com/flowlog-rs/flowlog-bench/blob/caa5f4afb630f8c275f3ea541f628f9c58245a8d/docs/data/doop-data-prep.md",
-      "reference_source": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-corpus-expanded-v1/measurements.json"
+      "reference_source": "https://github.com/harp-lab/srdatalog-python/releases/download/doop-object-array-guard-v1/measurements.json"
     },
     {
       "name": "h2",

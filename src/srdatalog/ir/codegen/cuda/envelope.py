@@ -75,7 +75,7 @@ def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None
   '''Recursive helper for `assign_handle_positions`. `offset_box` is a
   one-element list used as a mutable counter (Python closures can't
   reassign captured ints).'''
-  if isinstance(node, m.ColumnSource | m.Scan | m.Aggregate | m.Negation):
+  if isinstance(node, m.ColumnSource | m.Scan | m.Aggregate | m.Negation | m.SemiJoin):
     node.handle_start = offset_box[0]
     offset_box[0] += 1
   elif isinstance(node, m.ColumnJoin | m.CartesianJoin):
@@ -107,7 +107,7 @@ def count_handles(ops: list[m.MirNode]) -> int:
       for src in op.sources:
         h = getattr(src, 'handle_start', -1)
         result = max(result, h + 1)
-    elif isinstance(op, m.Scan | m.Negation | m.Aggregate):
+    elif isinstance(op, m.Scan | m.Negation | m.SemiJoin | m.Aggregate):
       result = max(result, getattr(op, 'handle_start', -1) + 1)
   return result
 
@@ -178,7 +178,7 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
             src.version.code,
             src.handle_start,
           )
-    elif isinstance(op, m.Scan | m.Negation | m.Aggregate):
+    elif isinstance(op, m.Scan | m.Negation | m.SemiJoin | m.Aggregate):
       _record_spec(
         specs,
         seen,
@@ -295,7 +295,7 @@ def emit_view_declarations(
             view_vars[str(src.handle_start)] = view_var
             view_vars[f'__base__{src.handle_start}'] = str(spec_to_base_slot[k])
             break
-    elif isinstance(op, m.Scan | m.Negation | m.Aggregate):
+    elif isinstance(op, m.Scan | m.Negation | m.SemiJoin | m.Aggregate):
       k = _spec_key(op.rel_name, list(op.index), op.version.code)
       for kv_key, view_var in spec_to_view_var:
         if kv_key == k:

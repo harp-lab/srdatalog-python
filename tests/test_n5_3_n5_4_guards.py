@@ -1,4 +1,4 @@
-'''N5.3 + N5.4 — D2L edge cases.
+'''N5.4 — D2L edge cases.
 
   - **N5.4 (Scan over D2L FULL_VER)** — matches Nim: emits a
     single-view scan (NO segment-loop wrap). Nim's `jitRootScan`
@@ -12,14 +12,6 @@
     here (`jitNegation` at jit_scan_negation.nim:142-187). Both
     ends broken; defer.
 
-  - **N5.3 (single-source nested ColumnJoin)** — guarded by
-    `_supported_pipeline`: the predicate requires `len(sources) >=
-    2` for nested CJs; single-source raises `ValueError("unsupported
-    pipeline shape ...")`. Nim emits seg-loop wrap for this shape
-    (jit_instructions.nim:42-143); real gap, defer until workload.
-
-When N5.3 / N5.4 (Negation) land, replace the corresponding guards
-with byte-equivalence tests against checked-in goldens.
 '''
 
 from __future__ import annotations
@@ -29,7 +21,7 @@ import re
 import pytest
 
 import srdatalog.ir.mir.types as m
-from srdatalog.compile import compile_kernel_body, compile_pipeline
+from srdatalog.compile import compile_kernel_body
 from srdatalog.ir.hir.types import Version
 
 # -----------------------------------------------------------------------------
@@ -150,60 +142,3 @@ def test_n5_4_negation_d2l_full_raises():
   assert 'Neg' in msg
 
 
-# -----------------------------------------------------------------------------
-# N5.3 — single-source nested CJ rejected by `_supported_pipeline`.
-# -----------------------------------------------------------------------------
-
-
-def test_n5_3_single_source_nested_cj_raises():
-  '''A pipeline whose nested CJ has `len(sources) == 1` is rejected
-  by `_supported_pipeline` with a clear ValueError naming the shape.
-
-  When N5.3 lands, this test should flip — the pipeline will compile
-  and a byte-equivalence test will replace this guard.
-  '''
-  src_a = m.ColumnSource(
-    rel_name='A',
-    version=Version.FULL,
-    index=[0, 1],
-    prefix_vars=[],
-    handle_start=0,
-  )
-  src_b = m.ColumnSource(
-    rel_name='B',
-    version=Version.FULL,
-    index=[0, 1],
-    prefix_vars=[],
-    handle_start=1,
-  )
-  root_cj = m.ColumnJoin(
-    var_name='y',
-    sources=[src_a, src_b],
-    handle_start=0,
-  )
-  src_c = m.ColumnSource(
-    rel_name='C',
-    version=Version.FULL,
-    index=[0, 1],
-    prefix_vars=['y'],
-    handle_start=2,
-  )
-  nested_cj = m.ColumnJoin(
-    var_name='z',
-    sources=[src_c],
-    handle_start=2,
-  )
-  insert = m.InsertInto(
-    rel_name='Dst',
-    version=Version.NEW,
-    vars=['y', 'z'],
-    index=[0, 1],
-  )
-  ep = m.ExecutePipeline(
-    pipeline=[root_cj, nested_cj, insert],
-    source_specs=[src_a, src_b, src_c],
-    dest_specs=[insert],
-    rule_name='CjSingle',
-  )
-  with pytest.raises(ValueError, match=r'unsupported pipeline shape'):
-    compile_pipeline(ep)

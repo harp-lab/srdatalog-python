@@ -13,6 +13,7 @@ from __future__ import annotations
 from srdatalog.ir.codegen.cuda.render import EmitCtx, emit, emit_expr, register_render
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
   SaChildRange,
+  SaContains,
   SaDegree,
   SaGetVal,
   SaGetValAt,
@@ -34,6 +35,16 @@ from srdatalog.ir.dialects.relation.sorted_array.ops import (
 @register_render(SaRoot, mode='expr')
 def _render_sa_root(op: SaRoot, ctx: EmitCtx) -> str:
   return f'HandleType(0, {op.view_name}.num_rows_, 0)'
+
+
+@register_render(SaContains, mode='expr')
+def _render_sa_contains(op: SaContains, ctx: EmitCtx) -> str:
+  lookup = 'group_contains' if op.cooperative else 'seq_contains'
+  tile = f', {ctx.tile_var}' if op.cooperative else ''
+  return (
+    f'SRDatalog::GPU::{lookup}<ValueType>('
+    f'{op.view_name}.col_data(), {op.view_name}.num_rows_, {op.key_var}{tile})'
+  )
 
 
 @register_render(SaValid, mode='expr')

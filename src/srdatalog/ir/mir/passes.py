@@ -23,7 +23,7 @@ from srdatalog.ir.hir.types import Version
 
 def _has_prefix(source) -> bool:
   '''Source node has a non-empty prefix. Mirrors Nim's hasPrefix.'''
-  if isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation)):
+  if isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation, mir.SemiJoin)):
     return len(source.prefix_vars) > 0
   return False
 
@@ -36,7 +36,7 @@ def _regenerate_source_specs(ep: mir.ExecutePipeline) -> None:
   '''
   from srdatalog.ir.hir.lower import _extract_pipeline_sources
 
-  specs: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
+  specs: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.SemiJoin | mir.Aggregate] = []
   for op in ep.pipeline:
     _extract_pipeline_sources(op, specs)
   ep.source_specs = specs
@@ -86,7 +86,7 @@ def _collect_needed_indices(node: mir.MirNode, rel_name: str, out: set[tuple[int
   tuples targeting `rel_name`. DELTA dispatches through FULL on the first
   fixpoint iteration, so both count.
   '''
-  if isinstance(node, mir.ColumnSource):
+  if isinstance(node, (mir.ColumnSource, mir.SemiJoin)):
     if node.rel_name == rel_name and node.version in (Version.FULL, Version.DELTA):
       out.add(tuple(node.index))
   elif isinstance(node, mir.ColumnJoin) or isinstance(node, mir.CartesianJoin):
@@ -357,7 +357,7 @@ def elide_dead_full_reconstructions(
   raw_required: set[str] = set()
 
   def source_read(source, step: int) -> bool:
-    if not isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation)):
+    if not isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation, mir.SemiJoin)):
       return False
     last_use[source.rel_name] = max(step, last_use.get(source.rel_name, -1))
     if source.version in (Version.FULL, Version.DELTA):
@@ -390,7 +390,7 @@ def elide_dead_full_reconstructions(
           raw_required.add(dest.rel_name)
       return all(
         isinstance(op, (
-          mir.Scan, mir.ColumnJoin, mir.CartesianJoin, mir.Negation,
+          mir.Scan, mir.ColumnJoin, mir.CartesianJoin, mir.Negation, mir.SemiJoin,
           mir.Filter, mir.ConstantBind, mir.InsertInto,
           mir.BalancedScan, mir.PositionedExtract,
         ))

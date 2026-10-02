@@ -54,7 +54,7 @@ def _index_spec(node: m.MirNode) -> str:
   if isinstance(node, m.CartesianJoin):
     return " ".join(_flatten_specs(s) for s in node.sources)
 
-  if isinstance(node, m.ColumnSource) or isinstance(node, m.Negation):
+  if isinstance(node, (m.ColumnSource, m.Negation, m.SemiJoin)):
     rel, ver, idx = node.rel_name, node.version, node.index
   elif isinstance(node, m.InsertInto):
     # Dest always uses FULL index for dedup logic (matches Nim).
@@ -245,10 +245,10 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
     res += ")"
     return res
 
-  if isinstance(node, m.Negation):
+  if isinstance(node, (m.Negation, m.SemiJoin)):
     return (
       p
-      + "(negation"
+      + ("(semijoin" if isinstance(node, m.SemiJoin) else "(negation")
       + " #:schema "
       + node.rel_name
       + " #:ver "

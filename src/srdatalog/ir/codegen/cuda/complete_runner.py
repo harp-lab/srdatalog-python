@@ -101,7 +101,7 @@ def _src_schema(src: m.MirNode) -> str:
     return src.rel_name
   if isinstance(src, m.Scan):
     return src.rel_name
-  if isinstance(src, m.Negation):
+  if isinstance(src, (m.Negation, m.SemiJoin)):
     return src.rel_name
   raise AssertionError(f"unsupported source spec kind: {type(src).__name__}")
 
@@ -111,7 +111,7 @@ def _src_version_cpp(src: m.MirNode) -> str:
     return _version_to_cpp(src.version.code)
   if isinstance(src, m.Scan):
     return _version_to_cpp(src.version.code)
-  if isinstance(src, m.Negation):
+  if isinstance(src, (m.Negation, m.SemiJoin)):
     return _version_to_cpp(src.version.code)
   raise AssertionError(f"unsupported source spec kind: {type(src).__name__}")
 
@@ -121,7 +121,7 @@ def _src_mir_version(src: m.MirNode) -> str:
     return src.version.code
   if isinstance(src, m.Scan):
     return src.version.code
-  if isinstance(src, m.Negation):
+  if isinstance(src, (m.Negation, m.SemiJoin)):
     return src.version.code
   if isinstance(src, m.Aggregate):
     return src.version.code
@@ -133,7 +133,7 @@ def _src_index(src: m.MirNode) -> list[int]:
     return list(src.index)
   if isinstance(src, m.Scan):
     return list(src.index)
-  if isinstance(src, m.Negation):
+  if isinstance(src, (m.Negation, m.SemiJoin)):
     return list(src.index)
   raise AssertionError(f"unsupported source spec kind: {type(src).__name__}")
 

@@ -51,6 +51,7 @@ from srdatalog.ir.dialects.parallel.data.block_group import (
 from srdatalog.ir.dialects.relation.d2l import D2lSegmentLoop, view_count
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
   SaChildRange,
+  SaContains,
   SaDegree,
   SaGetVal,
   SaGetValAt,
@@ -157,6 +158,10 @@ class LoweringCtx:
   # handle to alias by the same (rel, cols, prefix_vars, ver) key
   # that the outer CJ used to register it.
   handle_vars: dict[str, str] = field(default_factory=dict)
+  # Narrowed handles contain offsets into one physical segment. Pair them
+  # with that segment's view, not a spec-deduplicated mutable view variable:
+  # another occurrence of the same D2L index may enter a different segment.
+  handle_view_vars: dict[str, str] = field(default_factory=dict)
   # Cartesian-bound var names. Used to decide which Negation prefix
   # vars are pre-Cartesian (= bound by an outer scope) vs in-Cartesian
   # (= bound by the current Cart and per-thread).
@@ -231,31 +236,31 @@ def _supported_pipeline(ops: list[mir.MirNode]) -> bool:
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
-      if isinstance(op, mir.Negation):
+      if isinstance(op, (mir.Negation, mir.SemiJoin)):
         continue
       if isinstance(op, mir.CartesianJoin):
         continue
       return False
     return True
 
-  if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
+  if isinstance(head, mir.ColumnJoin) and head.sources:
     # M3+M5+M7+M5.x shape: multi-source root CJ; middle can hold
     # nested CJs / Filter / ConstantBind / Negation / Cartesian.
     for op in middle:
       if isinstance(op, (mir.Filter, mir.ConstantBind)):
         continue
-      if isinstance(op, mir.ColumnJoin) and len(op.sources) >= 2:
+      if isinstance(op, mir.ColumnJoin) and op.sources:
         continue
       if isinstance(op, mir.CartesianJoin):
         continue
-      if isinstance(op, mir.Negation):
+      if isinstance(op, (mir.Negation, mir.SemiJoin)):
         continue
       return False
     return True
 
   if isinstance(head, mir.CartesianJoin):
-    # M7.x: root CartesianJoin followed by trailing InsertIntos.
-    # No middle ops yet (no fixture uses Cart-then-Filter-then-Insert).
+    # Root Cartesian lowering supports only a terminal product. The planner
+    # anchors filtered disconnected products in a single-source ColumnJoin.
     return len(middle) == 0
 
   return False
@@ -618,7 +623,7 @@ def _lower_root_cj_multi(
     return _lower_root_cj_bg(cj_op, rest, ctx)
 
   num_sources = len(cj_op.sources)
-  assert num_sources >= 2
+  assert num_sources >= 1
 
   # Step 1: register state keys + bind join var so the body's nested
   # CJ can find the outer handles by state key. Names of outer
@@ -627,7 +632,7 @@ def _lower_root_cj_multi(
   source_view_names: list[str] = []
   registered_state_keys: list[str] = []
 
-  for src in cj_op.sources:
+  for source_idx, src in enumerate(cj_op.sources):
     assert isinstance(src, mir.ColumnSource)
     handle_var = f'h_{src.rel_name}_{src.handle_start}_root'
     source_handle_names.append(handle_var)
@@ -637,10 +642,18 @@ def _lower_root_cj_multi(
       raise ValueError(
         f'_lower_root_cj_multi: no view var for source handle_idx {src.handle_start}'
       )
+    multi_view = view_count(src.version.code, ctx.rel_index_types.get(src.rel_name, '')) > 1
+    if source_idx == 0 and multi_view:
+      src_view = f'bound_view_{handle_var}'
     source_view_names.append(src_view)
 
-    state_key = _state_key(src.rel_name, list(src.index), [cj_op.var_name], src.version)
+    state_key = _state_key(
+      src.rel_name, list(src.index), [cj_op.var_name], src.version, src.clause_idx,
+    )
     ctx.handle_vars[state_key] = handle_var
+    ctx.handle_view_vars[state_key] = (
+      f'view_{src.rel_name}_{src.handle_start}' if source_idx > 0 and multi_view else src_view
+    )
     registered_state_keys.append(state_key)
 
   ctx.bound_vars.append(cj_op.var_name)
@@ -659,9 +672,15 @@ def _lower_root_cj_multi(
   ctx.bound_vars.pop()
   for k in registered_state_keys:
     ctx.handle_vars.pop(k, None)
+    ctx.handle_view_vars.pop(k, None)
 
   # Step 3: now allocate our outer-scope names.
   outer_stmts: list[Op] = []
+  first = cj_op.sources[0]
+  if source_view_names[0] != ctx.view_var_names[str(first.handle_start)]:
+    outer_stmts.append(Bind(
+      name=source_view_names[0], expr=VarRef(name=ctx.view_var_names[str(first.handle_start)]),
+    ))
 
   if ctx.debug:
     outer_stmts.append(
@@ -858,7 +877,7 @@ def _lower_root_cj_bg(
   saved point, then allocate our own counter-bumped scaffold names.
   '''
   num_sources = len(cj_op.sources)
-  assert num_sources >= 2
+  assert num_sources >= 1
 
   # Step 1: register state keys + bind join var so the body's nested
   # CJ can find the outer handles by state key. Names of outer
@@ -870,7 +889,7 @@ def _lower_root_cj_bg(
   source_index_types: list[str] = []
   registered_state_keys: list[str] = []
 
-  for src in cj_op.sources:
+  for source_idx, src in enumerate(cj_op.sources):
     assert isinstance(src, mir.ColumnSource)
     handle_var = f'h_{src.rel_name}_{src.handle_start}_root'
     source_handle_names.append(handle_var)
@@ -878,14 +897,22 @@ def _lower_root_cj_bg(
     src_view = ctx.view_var_names.get(str(src.handle_start), '')
     if not src_view:
       raise ValueError(f'_lower_root_cj_bg: no view var for source handle_idx {src.handle_start}')
-    source_view_names.append(src_view)
     idx_type = ctx.rel_index_types.get(src.rel_name, '')
+    multi_view = view_count(src.version.code, idx_type) > 1
+    if source_idx == 0 and multi_view:
+      src_view = f'bound_view_{handle_var}'
+    source_view_names.append(src_view)
     source_index_types.append(idx_type)
     source_view_counts.append(view_count(src.version.code, idx_type))
     source_base_slots.append(ctx.view_slot_bases.get(str(src.handle_start), src.handle_start))
 
-    state_key = _state_key(src.rel_name, list(src.index), [cj_op.var_name], src.version)
+    state_key = _state_key(
+      src.rel_name, list(src.index), [cj_op.var_name], src.version, src.clause_idx,
+    )
     ctx.handle_vars[state_key] = handle_var
+    ctx.handle_view_vars[state_key] = (
+      f'bound_view_{handle_var}' if multi_view else src_view
+    )
     registered_state_keys.append(state_key)
 
   ctx.bound_vars.append(cj_op.var_name)
@@ -905,6 +932,7 @@ def _lower_root_cj_bg(
   ctx.bound_vars.pop()
   for k in registered_state_keys:
     ctx.handle_vars.pop(k, None)
+    ctx.handle_view_vars.pop(k, None)
 
   # Step 3: allocate our outer-scope names. Order matches legacy
   # `jit_root_column_join_block_group` (key_idx, root_val, then
@@ -928,6 +956,11 @@ def _lower_root_cj_bg(
   )
 
   outer_stmts: list[Op] = []
+  first = cj_op.sources[0]
+  if source_view_names[0] != ctx.view_var_names[str(first.handle_start)]:
+    outer_stmts.append(Bind(
+      name=source_view_names[0], expr=VarRef(name=ctx.view_var_names[str(first.handle_start)]),
+    ))
   if ctx.debug:
     outer_stmts.append(
       Comment(
@@ -1020,7 +1053,7 @@ def _lower_inner_chain(
       return Block(stmts=(bind_stmt, *rest_op.stmts))
     return Block(stmts=(bind_stmt, rest_op))
 
-  if isinstance(head, mir.ColumnJoin) and len(head.sources) >= 2:
+  if isinstance(head, mir.ColumnJoin) and head.sources:
     return _lower_nested_cj_multi(head, tail, ctx)
 
   if isinstance(head, mir.CartesianJoin):
@@ -1028,6 +1061,9 @@ def _lower_inner_chain(
 
   if isinstance(head, mir.Negation):
     return _lower_negation(head, tail, ctx)
+
+  if isinstance(head, mir.SemiJoin):
+    return _lower_semijoin(head, tail, ctx)
 
   raise ValueError(f'unsupported inner op: {type(head).__name__}')
 
@@ -1112,7 +1148,9 @@ def _lower_nested_cart_tiled(
   for src in cart_op.sources:
     assert isinstance(src, mir.ColumnSource)
     degree_var_names.append(ctx.fresh('degree'))
-    parent_state_key = _state_key(src.rel_name, list(src.index), src.prefix_vars, src.version)
+    parent_state_key = _state_key(
+      src.rel_name, list(src.index), src.prefix_vars, src.version, src.clause_idx,
+    )
     parent_handle = ctx.handle_vars.get(parent_state_key, '')
     if parent_handle:
       alias_targets.append(parent_handle)
@@ -1124,7 +1162,9 @@ def _lower_nested_cart_tiled(
         f'{src.prefix_vars} but no full-state-key match'
       )
     handle_var_names.append(ctx.fresh(f'h_{src.rel_name}_{src.handle_start}'))
-    src_view = ctx.view_var_names.get(str(src.handle_start), '')
+    src_view = ctx.handle_view_vars.get(
+      parent_state_key, ctx.view_var_names.get(str(src.handle_start), ''),
+    )
     if not src_view:
       raise ValueError(
         f'_lower_nested_cart_tiled: no view var for source handle_idx {src.handle_start}'
@@ -1280,6 +1320,41 @@ def _lower_tiled_ballot_block(
     valid_var=ctx.tiled_cartesian_valid_var,
     outputs=tuple(outputs),
   )
+
+
+def _lower_semijoin(
+  probe: mir.SemiJoin, rest: list[mir.MirNode], ctx: LoweringCtx,
+) -> Op:
+  '''Positive membership using one lower_bound and equality, not a range.
+
+  Cartesian lanes have different keys and must use sequential lookup,
+  never a cooperative warp lookup. Both passes evaluate the predicate;
+  its explicit MIR op disqualifies count-as-product shortcuts.
+  '''
+  index_type = ctx.rel_index_types.get(probe.rel_name, '')
+  if index_type not in ("", "DeviceSortedArrayIndex", "SRDatalog::GPU::DeviceSortedArrayIndex"):
+    raise ValueError("SemiJoin requires a single-segment DeviceSortedArrayIndex")
+  view = ctx.view_var_names.get(str(probe.handle_start), '')
+  if not view:
+    raise ValueError(f'SemiJoin: no view for handle {probe.handle_start}')
+  if len(probe.prefix_vars) != 1 or probe.index != [0]:
+    raise ValueError("SemiJoin currently requires a fully bound unary key")
+  body = _lower_inner_chain(rest, ctx)
+  membership = ctx.fresh(f'exists_{probe.rel_name}_{probe.handle_start}')
+  expr = SaContains(
+    view_name=view,
+    key_var=_sanitize_var_name(probe.prefix_vars[0]),
+    cooperative=not ctx.inside_cartesian,
+  )
+  condition = membership
+  fold_var = ctx.ws_cartesian_valid_var or ctx.tiled_cartesian_valid_var
+  if fold_var:
+    continuation = Block(stmts=(
+      RawString(text=f'{fold_var} = {fold_var} && ({condition});'), body,
+    ))
+  else:
+    continuation = If(cond=RawString(text=condition), body=body)
+  return Block(stmts=(Bind(name=membership, expr=expr, type_decl='bool'), continuation))
 
 
 def _lower_negation(
@@ -1582,7 +1657,9 @@ def _lower_nested_cart(
     #      (used by Scan + CartesianJoin where the prefix vars are bound
     #      by the Scan, not by an enclosing CJ — handle_vars is empty
     #      because Scan doesn't register state keys).
-    parent_state_key = _state_key(src.rel_name, list(src.index), src.prefix_vars, src.version)
+    parent_state_key = _state_key(
+      src.rel_name, list(src.index), src.prefix_vars, src.version, src.clause_idx,
+    )
     parent_handle = ctx.handle_vars.get(parent_state_key, '')
 
     if parent_handle:
@@ -1595,7 +1672,9 @@ def _lower_nested_cart(
 
     handle_var_names.append(ctx.fresh(f'h_{src.rel_name}_{src.handle_start}'))
 
-    src_view = ctx.view_var_names.get(str(src.handle_start), '')
+    src_view = ctx.handle_view_vars.get(
+      parent_state_key, ctx.view_var_names.get(str(src.handle_start), ''),
+    )
     if not src_view:
       raise ValueError(f'_lower_nested_cart: no view var for source handle_idx {src.handle_start}')
     view_var_names.append(src_view)
@@ -1935,23 +2014,37 @@ def _lower_nested_cj_multi(
       view.num_rows_, 0)`. No alias.
   '''
   num_sources = len(cj_op.sources)
-  assert num_sources >= 2
+  assert num_sources >= 1
 
   inner_var_sanitized = _sanitize_var_name(cj_op.var_name)
 
   # Step 1: pre-register the deterministic ch_<rel>_<src>_<var>
   # names so any deeper nested CJ in body can find them by state key.
   registered_state_keys: list[str] = []
+  source_view_names: list[str] = []
   for src in cj_op.sources:
     assert isinstance(src, mir.ColumnSource)
     ch_name = f'ch_{src.rel_name}_{src.handle_start}_{inner_var_sanitized}'
+    parent_key = _state_key(
+      src.rel_name, list(src.index), src.prefix_vars, src.version, src.clause_idx,
+    )
+    src_view = ctx.handle_view_vars.get(
+      parent_key, ctx.view_var_names.get(str(src.handle_start), ''),
+    )
+    if not src.prefix_vars and view_count(
+      src.version.code, ctx.rel_index_types.get(src.rel_name, ''),
+    ) > 1:
+      src_view = f'bound_view_{ch_name}'
+    source_view_names.append(src_view)
     new_state_key = _state_key(
       src.rel_name,
       list(src.index),
       [*src.prefix_vars, cj_op.var_name],
       src.version,
+      src.clause_idx,
     )
     ctx.handle_vars[new_state_key] = ch_name
+    ctx.handle_view_vars[new_state_key] = src_view
     registered_state_keys.append(new_state_key)
 
   ctx.bound_vars.append(cj_op.var_name)
@@ -1964,29 +2057,30 @@ def _lower_nested_cj_multi(
   ctx.bound_vars.pop()
   for k in registered_state_keys:
     ctx.handle_vars.pop(k, None)
+    ctx.handle_view_vars.pop(k, None)
 
   # Step 3: allocate our scaffold names — aliases (or fresh roots
   # for prefix-empty sources), intersect, iter.
   source_alias_names: list[str] = []
-  source_view_names: list[str] = []
   alias_bind_stmts: list[Op] = []
 
-  for src in cj_op.sources:
+  for source_idx, src in enumerate(cj_op.sources):
     assert isinstance(src, mir.ColumnSource)
 
-    src_view = ctx.view_var_names.get(str(src.handle_start), '')
+    src_view = source_view_names[source_idx]
     if not src_view:
       raise ValueError(
         f'_lower_nested_cj_multi: no view var for source handle_idx {src.handle_start}'
       )
-    source_view_names.append(src_view)
 
     alias_var = ctx.fresh(f'h_{src.rel_name}_{src.handle_start}')
     source_alias_names.append(alias_var)
 
     if src.prefix_vars:
       # Aliased from a parent handle in the enclosing scope.
-      parent_state_key = _state_key(src.rel_name, list(src.index), src.prefix_vars, src.version)
+      parent_state_key = _state_key(
+        src.rel_name, list(src.index), src.prefix_vars, src.version, src.clause_idx,
+      )
       parent_handle = ctx.handle_vars.get(parent_state_key, '')
       if not parent_handle:
         raise ValueError(
@@ -1995,6 +2089,10 @@ def _lower_nested_cj_multi(
       alias_bind_stmts.append(Bind(name=alias_var, expr=VarRef(name=parent_handle)))
     else:
       # Fresh source: brand-new root handle, no narrowing.
+      if src_view != ctx.view_var_names[str(src.handle_start)]:
+        alias_bind_stmts.append(Bind(
+          name=src_view, expr=VarRef(name=ctx.view_var_names[str(src.handle_start)]),
+        ))
       alias_bind_stmts.append(Bind(name=alias_var, expr=SaRoot(view_name=src_view)))
 
   intersect_var = ctx.fresh('intersect')
@@ -2220,7 +2318,7 @@ def _var_used_in_op(var_name: str, op: mir.MirNode) -> bool:
       if var_name in vfs:
         return True
     return any(var_name in src.prefix_vars for src in op.sources)
-  if isinstance(op, mir.Negation | mir.Aggregate):
+  if isinstance(op, mir.Negation | mir.SemiJoin | mir.Aggregate):
     return var_name in op.prefix_vars
   if isinstance(op, mir.InsertInto):
     return var_name in op.vars
@@ -2297,11 +2395,13 @@ def _state_key(
   index: list[int],
   prefix_vars: list[str],
   version: Version,
+  clause_idx: int,
 ) -> str:
-  '''Mirror gen_handle_state_key from legacy.
+  '''Identify a narrowed logical source, not just its physical index.
 
-  Format: `<rel>_<col0>_<col1>_..._<version>` (or with prefix_vars
-  appended).
+  Distinct occurrences sharing a prefix still choose FULL/HEAD segments
+  independently. Their handles must not alias each other. HIR clause_idx
+  remains stable across the occurrence's ColumnJoin and Cartesian steps.
   '''
   ver_str = version.code
   base = rel_name + '_' + '_'.join(str(c) for c in index)
@@ -2309,7 +2409,7 @@ def _state_key(
     base = base + '_' + ver_str
   if prefix_vars:
     base = base + '_' + '_'.join(prefix_vars)
-  return base
+  return f'{base}_clause_{clause_idx}'
 
 
 def _sanitize_var_name(name: str) -> str:

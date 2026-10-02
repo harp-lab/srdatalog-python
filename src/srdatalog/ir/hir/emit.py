@@ -182,6 +182,8 @@ def _variant_obj(v: HirRuleVariant, is_recursive: bool) -> dict:
   obj["varOrder"] = list(v.var_order)
   obj["joins"] = [_access_obj(ap) for ap in v.access_patterns]
   obj["negations"] = [_access_obj(ap) for ap in v.negation_patterns]
+  if v.semijoin_patterns:
+    obj["semijoins"] = [_access_obj(ap) for ap in v.semijoin_patterns]
   return obj
 
 

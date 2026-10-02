@@ -21,10 +21,20 @@ are plain function calls.
 3. **Semi-join optimization** — opt-in via `rule.with_semi_join()`; rewrites 3+ body-atom rules into a semi-join form when profitable.
 4. **Stratification** — partitions rules into strata, handles negation / aggregation dependencies.
 5. **Semi-naive variant generation** — one variant per delta position.
-6. **Join planning** — builds a var-order / clause-order / access-pattern per variant.
+6. **Join planning** — builds a var-order / clause-order / access-pattern per variant. Static unary `NoProvenance` sets can become bound-key semijoin filters rather than tuple generators.
 7. **Temp-rel synthesis** (pass 4.5) — splits rules with `SPLIT` markers.
 8. **Index selection** — picks the minimal set of indexes to build per relation.
 9. **Temp-rel index registration** (pass 5.5) — merges temp-rel indexes back into the global index map.
+
+Bound-key semijoins are distinct from the opt-in materialized semi-join rewrite.
+They introduce no relation or columns and do not count as additional equality
+joins when classifying variables. Filters execute after their key is bound,
+before unrelated fanout where supported. A filtered key in the mandatory DELTA
+generator retains early DELTA-column traversal order; the predicate itself
+never becomes the generator. Explicit user orders are preserved. Lone unary generators,
+current-SCC predicates, custom/multisegment predicate indexes, and unsupported
+split/balanced shapes retain ordinary joins. This is a conservative structural
+heuristic, not a statistics-based globally optimal join order.
 
 ## HIR → MIR
 
@@ -36,6 +46,17 @@ variant into a sequence of steps. Each step is either:
   joins → filter → materialize).
 - `FixpointPlan` — a recursive stratum with delta-merge bookkeeping.
 - `ParallelGroup` — a set of pipelines safe to run concurrently.
+- `SemiJoin` — positive membership in a static sorted set. Both count and
+  materialize evaluate it with a one-sided lower-bound-plus-equality lookup:
+  warp-uniform keys use `group_contains`, independent Cartesian lanes use
+  `seq_contains`. No upper-bound search or child handle is needed. Filter-only
+  input indexes are initialized before recursive execution.
+
+Narrowed handles retain their own physical FULL/HEAD view and logical clause
+identity. Nested occurrences of the same two-level index must not overwrite
+the view paired with an outer handle's row offsets, including when their bound
+prefixes are identical. HIR supplies stable `clause_idx` values; hand-authored
+MIR must distinguish repeated logical source occurrences likewise.
 
 MIR passes then run:
 

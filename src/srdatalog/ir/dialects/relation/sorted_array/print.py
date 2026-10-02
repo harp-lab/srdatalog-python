@@ -1,13 +1,14 @@
 '''Print_i for the relation.sorted_array dialect.
 
 See docs/stage3a_execution_plan.md §1 + ../../iir/cf/print.py for the
-contract. Twelve ops, each maps to a single s-expression form.
+contract. Each op maps to a single s-expression form.
 '''
 
 from __future__ import annotations
 
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
   SaChildRange,
+  SaContains,
   SaDegree,
   SaGetVal,
   SaGetValAt,
@@ -24,6 +25,7 @@ from srdatalog.ir.print_iir import _ind, print_iir
 
 OPS: tuple[type, ...] = (
   SaChildRange,
+  SaContains,
   SaDegree,
   SaGetVal,
   SaGetValAt,
@@ -43,6 +45,13 @@ def print_op(op, indent: int = 0) -> str:
 
   if isinstance(op, SaRoot):
     return p + f'(sa-root #:view-name {op.view_name})'
+
+  if isinstance(op, SaContains):
+    return (
+      p
+      + f'(sa-contains #:view-name {op.view_name} #:key-var {op.key_var} '
+      + f'#:cooperative {"true" if op.cooperative else "false"})'
+    )
 
   if isinstance(op, SaValid):
     return p + f'(sa-valid #:handle-name {op.handle_name})'

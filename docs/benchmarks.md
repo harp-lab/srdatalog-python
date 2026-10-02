@@ -87,7 +87,7 @@ or corrected validation for the other 20 applications.
 `EligibleObjectArrayHeap` has 52,237 rows; the non-Object-array compatibility
 helper remains 16,979,586 rows rather than adding 76,004,835 Object-array pairs.
 
-Current-session fixedpoint samples were 41.78/40.95/41.47 s on Soufflé
+An earlier shared-workstation session recorded 41.78/40.95/41.47 s on Soufflé
 (12 threads) and 117.10/119.48/121.36 s on the GPU bitmap plan. Loading,
 H2D and exports are outside these timers; the final repetition exports
 separately for correctness. The unchanged historical GPU binary also took
@@ -99,6 +99,26 @@ and were not retained. A smaller eligibility set alone does not establish a
 faster physical plan. The [guard correction evidence](https://github.com/harp-lab/srdatalog-python/releases/tag/doop-object-array-guard-v1)
 preserves both attempts and the control. Existing manifests pin the old query:
 prepare into a **fresh root**, without rewriting historical identities.
+
+Subsequent local runs with no competing GPU compute process before each run
+used the **same corrected logical query** to compare compiler generations.
+The semijoin-aware compiler recognizes eligible static unary sets as bound-key
+filters, preserves filtered DELTA-key traversal, and emits one-sided membership
+probes instead of generic intersections. It creates no extra recursive relation
+and introduces no DOOP-specific planner branch.
+
+| Eclipse GPU compiler | Median fixedpoint seconds |
+|---|---:|
+| Previous guarded compiler | 3.228 |
+| Semijoin-aware compiler | 2.928 |
+
+One warmup and five measured fresh processes per compiler, alternating order,
+on RTX 6000 Ada with device-only `cuda_async`: **9.3% less fixedpoint time**.
+Loading, H2D, counts and tuple export are outside the timer. All 75 counts
+matched; a separate final export matched all 38 CPU IDB tuple sets exactly.
+This is an Eclipse result, not a corpus-wide performance claim or a globally
+optimal cost model. [Samples, build identities and correctness evidence](https://github.com/harp-lab/srdatalog-python/releases/tag/doop-semijoin-planner-v1)
+also retain the unsuccessful intermediate implementation's measurements.
 
 `examples/doop_benchmark.py` combines eleven retained DaCapo
 23.11-MR2-chopin applications from the

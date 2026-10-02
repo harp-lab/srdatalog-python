@@ -86,7 +86,7 @@ def _collect_indices_from_variants(
     for pat in v.access_patterns:
       if version is None or pat.version is version:
         out.setdefault(pat.rel_name, set()).add(tuple(pat.index_cols))
-    for pat in v.negation_patterns:
+    for pat in (*v.negation_patterns, *v.semijoin_patterns):
       if version is None or pat.version is version:
         out.setdefault(pat.rel_name, set()).add(tuple(pat.index_cols))
   return out

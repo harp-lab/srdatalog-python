@@ -76,7 +76,7 @@ def _version_str_of(node: m.MirNode) -> str:
 
 def extract_source_info(src_spec: m.MirNode) -> tuple[str, str, list[int]]:
   '''Pull `(rel_name, version-as-C++-code, index)` from any source node.'''
-  if isinstance(src_spec, (m.ColumnSource, m.Scan, m.Negation, m.Aggregate)):
+  if isinstance(src_spec, (m.ColumnSource, m.Scan, m.Negation, m.SemiJoin, m.Aggregate)):
     return src_spec.rel_name, src_spec.version.code, list(src_spec.index)
   return "", "", []
 
@@ -688,7 +688,10 @@ def gen_fixpoint_body(
 
     for ep in exec_pipelines:
       for src_spec in _required_index_sources(ep):
-        if isinstance(src_spec, m.ColumnSource):
+        if isinstance(src_spec, (m.ColumnSource, m.SemiJoin)):
+          # Runner setup uses ensure_index(..., false): it preserves
+          # authoritative merged indices but does not build a cold EDB
+          # predicate. Probe-only inputs need this eager bootstrap too.
           ver = version_string(src_spec.version.code)
           spec_type = gen_index_spec_type(src_spec.rel_name, ver, list(src_spec.index))
           out += i + f"mir_helpers::create_index_fn<{spec_type}>(db, 0);\n"

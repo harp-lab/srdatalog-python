@@ -19,6 +19,7 @@ from __future__ import annotations
 from srdatalog.ir.core import Dialect
 from srdatalog.ir.dialects.relation.sorted_array.ops import (
   SaChildRange,
+  SaContains,
   SaDegree,
   SaGetVal,
   SaGetValAt,
@@ -40,6 +41,7 @@ DIALECT = Dialect(
   types=[SaHandle, SaView],
   ops=[
     SaChildRange,
+    SaContains,
     SaDegree,
     SaGetVal,
     SaGetValAt,
@@ -56,6 +58,7 @@ DIALECT = Dialect(
 __all__ = [
   'DIALECT',
   'SaChildRange',
+  'SaContains',
   'SaDegree',
   'SaGetVal',
   'SaGetValAt',

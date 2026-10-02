@@ -102,7 +102,7 @@ def _assign_handle_positions_rec(node: m.MirNode, offset_box: list[int]) -> None
     isinstance(node, m.ColumnSource)
     or isinstance(node, m.Scan)
     or isinstance(node, m.Aggregate)
-    or isinstance(node, m.Negation)
+    or isinstance(node, (m.Negation, m.SemiJoin))
   ):
     node.handle_start = offset_box[0]
     offset_box[0] += 1
@@ -140,6 +140,6 @@ def count_handles_in_pipeline(ops: list[m.MirNode]) -> int:
       for src in op.sources:
         h = getattr(src, "handle_start", -1)
         result = max(result, h + 1)
-    elif isinstance(op, m.Scan) or isinstance(op, m.Negation) or isinstance(op, m.Aggregate):
+    elif isinstance(op, m.Scan) or isinstance(op, (m.Negation, m.SemiJoin)) or isinstance(op, m.Aggregate):
       result = max(result, getattr(op, "handle_start", -1) + 1)
   return result

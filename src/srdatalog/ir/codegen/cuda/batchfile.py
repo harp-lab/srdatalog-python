@@ -105,7 +105,7 @@ def generate_pipeline(pipeline: m.ExecutePipeline, ctx: CodeGenContext) -> str:
   if isinstance(first_op, m.ColumnJoin) and len(first_op.sources) > 1:
     root_var_name = "TODO"  # mhk's placeholder — cjVarName equivalent
     for src in first_op.sources:
-      if not isinstance(src, (m.ColumnSource, m.Scan, m.Negation, m.Aggregate)):
+      if not isinstance(src, (m.ColumnSource, m.Scan, m.Negation, m.SemiJoin, m.Aggregate)):
         continue
       state_key = spec_key(src.rel_name, src.version, list(src.index)) + "_" + root_var_name
       handle_var = f"h_{src.rel_name}_{getattr(src, 'handle_start', 0)}_root"

@@ -314,7 +314,7 @@ def _gen_final_print_block(
     out += "        auto& idx = rel.get_index(canonical_idx);\n"
     out += (
       f'        std::cout << " >>>>>>>>>>>>>>>>> {d.rel_name} : " '
-      "<< idx.root().degree() << std::endl;\n"
+      "<< idx.size() << std::endl;\n"
     )
     out += "      } else {\n"
     out += (
@@ -740,6 +740,7 @@ def _gen_relation_export_helper() -> str:
   '''Bounded host-side TSV export without rebuilding an index from stale columns.'''
   return r'''
 #include <array>
+#include "gpu/device_2level_index.h"
 #include <fstream>
 #include <locale>
 #include <type_traits>
@@ -749,6 +750,14 @@ inline void srdatalog_check_gpu(GPU_ERROR_T status) {
   if (status != GPU_SUCCESS)
     throw std::runtime_error(GPU_GET_ERROR_STRING(status));
 }
+
+template<class Index>
+struct srdatalog_segmented_tsv_index : std::false_type {};
+
+template<class Attrs, class Value, class RowId>
+struct srdatalog_segmented_tsv_index<
+    SRDatalog::GPU::Device2LevelIndex<NoProvenance, Attrs, Value, RowId>>
+    : std::true_type {};
 
 template<class Schema, class DB>
 void srdatalog_write_tsv(DB& db, const char* path, const SRDatalog::IndexSpec& canonical) {
@@ -770,32 +779,45 @@ void srdatalog_write_tsv(DB& db, const char* path, const SRDatalog::IndexSpec& c
   } else {
     // Index maintenance can leave intern columns stale. Borrow authoritative
     // index storage and undo its column permutation without a second GPU copy.
-    std::array<const Value*, arity> device_columns{};
-    std::size_t rows = relation.size();
+    std::array<std::array<const Value*, arity>, 2> device_columns{};
+    std::array<std::size_t, 2> segment_rows{};
     if (!canonical.cols.empty()) {
       if (canonical.cols.size() != arity || !relation.has_index(canonical))
         throw std::runtime_error("TSV export: missing canonical index");
       auto& index = relation.get_index(canonical);
-      // Two-level indexes expose only FULL through data(); consolidate HEAD
-      // before borrowing it. Fixedpoint-exit reconstruction normally did this.
-      if constexpr (requires { index.compact(); }) index.compact();
-      srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());
-      rows = index.size();
-      if (rows) {
-        const auto view = index.data().view();
+      const auto borrow_segment = [&](const auto& segment, std::size_t slot) {
+        segment_rows[slot] = segment.size();
+        if (!segment_rows[slot]) return;
+        const auto view = segment.data().view();
         std::array<bool, arity> seen{};
         for (std::size_t position = 0; position < arity; ++position) {
           const auto logical = canonical.cols[position];
           if (logical < 0 || logical >= arity || seen[logical])
             throw std::runtime_error("TSV export: invalid canonical permutation");
           seen[logical] = true;
-          device_columns[logical] = view.column_ptr(position);
+          device_columns[slot][logical] = view.column_ptr(position);
         }
+      };
+      if constexpr (srdatalog_segmented_tsv_index<typename Rel::IndexTypeInst>::value) {
+        // Built-in NoProvenance FULL/HEAD contain disjoint, individually sorted
+        // tuple sets: DELTA excludes both segments before it is merged into HEAD.
+        // TSV promises logical tuples, not global row ordering; emit both without
+        // materializing their union. Neither segment nor live DELTA is consumed.
+        srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());
+        borrow_segment(index.full(), 0);
+        borrow_segment(index.head(), 1);
+      } else {
+        // Preserve existing consolidation for other representations/semirings;
+        // their segment or provenance contracts may differ from the built-in.
+        if constexpr (requires { index.compact(); }) index.compact();
+        srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());
+        borrow_segment(index, 0);
       }
-    } else if (rows) {
+    } else if (const auto rows = relation.size()) {
+      segment_rows[0] = rows;
       const auto view = relation.unsafe_interned_columns().view();
       for (std::size_t column = 0; column < arity; ++column)
-        device_columns[column] = view.column_ptr(column);
+        device_columns[0][column] = view.column_ptr(column);
     }
     std::ofstream output;
     output.exceptions(std::ios::failbit | std::ios::badbit);
@@ -803,20 +825,24 @@ void srdatalog_write_tsv(DB& db, const char* path, const SRDatalog::IndexSpec& c
     output.open(path, std::ios::out | std::ios::trunc);
     constexpr std::size_t chunk_rows = 65536;
     std::array<std::vector<Value>, arity> host;
-    for (auto& column : host) column.resize(std::min(rows, chunk_rows));
-    for (std::size_t first = 0; first < rows; first += chunk_rows) {
-      const auto count = std::min(chunk_rows, rows - first);
-      for (std::size_t column = 0; column < arity; ++column) {
-        srdatalog_check_gpu(GPU_MEMCPY(
-            host[column].data(), device_columns[column] + first,
-            count * sizeof(Value), GPU_DEVICE_TO_HOST));
-      }
-      for (std::size_t row = 0; row < count; ++row) {
-        [&]<std::size_t... I>(std::index_sequence<I...>) {
-          ((output << (I ? "\t" : "")
-                   << +static_cast<std::tuple_element_t<I, Attrs>>(host[I][row])), ...);
-        }(std::make_index_sequence<arity>{});
-        output << '\n';
+    for (auto& column : host)
+      column.resize(std::min(std::max(segment_rows[0], segment_rows[1]), chunk_rows));
+    for (std::size_t segment = 0; segment < segment_rows.size(); ++segment) {
+      const auto rows = segment_rows[segment];
+      for (std::size_t first = 0; first < rows; first += chunk_rows) {
+        const auto count = std::min(chunk_rows, rows - first);
+        for (std::size_t column = 0; column < arity; ++column) {
+          srdatalog_check_gpu(GPU_MEMCPY(
+              host[column].data(), device_columns[segment][column] + first,
+              count * sizeof(Value), GPU_DEVICE_TO_HOST));
+        }
+        for (std::size_t row = 0; row < count; ++row) {
+          [&]<std::size_t... I>(std::index_sequence<I...>) {
+            ((output << (I ? "\t" : "")
+                     << +static_cast<std::tuple_element_t<I, Attrs>>(host[I][row])), ...);
+          }(std::make_index_sequence<arity>{});
+          output << '\n';
+        }
       }
     }
     output.close();
@@ -838,7 +864,8 @@ def gen_extern_c_shim(
   Exposes (all C-ABI, return 0 on success / nonzero on error):
     - `srdatalog_init()`                     — init CUDA
     - `srdatalog_load_csv(rel, path)`        — load_from_file for one relation
-    - `srdatalog_run(max_iters)`             — copy-to-device + _Runner::run
+    - `srdatalog_prepare()`                 — fresh device DB + checked H2D completion
+    - `srdatalog_run(max_iters)`             — use prepared DB once or copy fresh + run
     - `srdatalog_shutdown()`                 — free host + device DB
     - `srdatalog_size(rel_name)`             — count result or device relation size
     - `srdatalog_synchronize()`              — checked device synchronization
@@ -846,9 +873,11 @@ def gen_extern_c_shim(
     - `srdatalog_export_tsv(rel_name, path)` — integer tuples in logical column order
 
   The shim uses a file-scope `HostDB*` holding the live SemiNaiveDatabase
-  so Python can stage data via multiple `load_csv` calls before `run`. It
-  retains the post-run device DB because computed results are not copied
-  back to the host DB.
+  so Python can stage data via multiple `load_csv` calls before `run`. Optional
+  `prepare` stages a fresh device DB before the caller's compute-only timer;
+  the next run consumes it. Loading invalidates preparation, and subsequent runs
+  rebuild from the host DB, preserving empty-IDB repeated-run semantics.
+  The post-run device DB is retained because results are not copied to the host.
   The checked cardinality/export APIs use the compiler's canonical index map.
   Export supports integer-valued SoA relations, rejects count-only results, and
   requires a completed run. The caller owns the destination file/directory.
@@ -868,6 +897,13 @@ def gen_extern_c_shim(
     f"using {host_db} = SRDatalog::AST::SemiNaiveDatabase<{blueprint}>;",
     f"static {host_db}* g_host_db = nullptr;",
     f"static {device_db}* g_device_db = nullptr;",
+    "static bool g_device_prepared = false;",
+    "",
+    "static void srdatalog_prepare_device() {",
+    "  g_device_prepared = false;",
+    "  if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
+    f"  g_device_db = new {device_db}(SRDatalog::GPU::copy_host_to_device(*g_host_db));",
+    "}",
     "",
     'extern "C" {',
     "",
@@ -882,6 +918,7 @@ def gen_extern_c_shim(
     "int srdatalog_load_csv(const char* rel_name, const char* path) {",
     "  if (!rel_name || !path) return 1;",
     "  try {",
+    "    g_device_prepared = false;",
     f"    if (!g_host_db) g_host_db = new {host_db}();",
     "    std::string rn(rel_name);",
   ]
@@ -921,6 +958,7 @@ def gen_extern_c_shim(
     "int srdatalog_load_all(const char* data_dir) {",
     "  if (!data_dir) return 1;",
     "  try {",
+    "    g_device_prepared = false;",
     f"    if (!g_host_db) g_host_db = new {host_db}();",
     f"    {ruleset_name}_Runner::load_data(*g_host_db, std::string(data_dir));",
     "    return 0;",
@@ -930,13 +968,24 @@ def gen_extern_c_shim(
     "  }",
     "}",
     "",
+    "int srdatalog_prepare() {",
+    "  if (!g_host_db) return 1;",
+    "  try {",
+    "    srdatalog_prepare_device();",
+    "    srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());",
+    "    g_device_prepared = true;",
+    "    return 0;",
+    "  } catch (const std::exception& e) {",
+    '    std::cerr << "srdatalog_prepare: " << e.what() << std::endl;',
+    "    return 2;",
+    "  } catch (...) { return 3; }",
+    "}",
+    "",
     "int srdatalog_run(unsigned long long max_iters) {",
     "  if (!g_host_db) return 1;",
     "  try {",
-    "    if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
-  ]
-  out += [
-    f"    g_device_db = new {device_db}(SRDatalog::GPU::copy_host_to_device(*g_host_db));",
+    "    if (!g_device_prepared) srdatalog_prepare_device();",
+    "    g_device_prepared = false;",
     f"    {ruleset_name}_Runner::run(*g_device_db, max_iters ? (std::size_t)max_iters : std::numeric_limits<std::size_t>::max());",
     "    return 0;",
     "  } catch (const std::exception& e) {",
@@ -956,10 +1005,15 @@ def gen_extern_c_shim(
     ]
   out.append("  if (g_device_db) {")
   for d in decls:
-    out.append(
-      f'    if (rn == "{d.rel_name}") return (unsigned long long) '
-      f"get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_device_db).size();"
-    )
+    out.append(f'    if (rn == "{d.rel_name}") {{')
+    out.append(f'      auto& rel = get_relation_by_schema<{d.rel_name}, FULL_VER>(*g_device_db);')
+    if d.rel_name in canonical:
+      cols = ", ".join(str(c) for c in canonical[d.rel_name])
+      out.append(f"      SRDatalog::IndexSpec spec{{{cols}}};")
+      out.append('      return rel.has_index(spec) ? (unsigned long long)rel.get_index(spec).size() : 0ULL;')
+    else:
+      out.append('      return (unsigned long long)rel.size();')
+    out.append('    }')
   out += ["  }", "  if (!g_host_db) return 0;"]
   for d in decls:
     cols = ", ".join(str(i) for i in range(len(d.types)))
@@ -1032,6 +1086,7 @@ def gen_extern_c_shim(
     "",
     "int srdatalog_shutdown() {",
     "  try {",
+    "    g_device_prepared = false;",
     "    srdatalog_check_gpu(GPU_DEVICE_SYNCHRONIZE());",
     "    if (g_device_db) { delete g_device_db; g_device_db = nullptr; }",
     "    if (g_host_db) { delete g_host_db; g_host_db = nullptr; }",

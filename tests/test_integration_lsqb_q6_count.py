@@ -1,6 +1,6 @@
 '''lsqb_q6_count.nim -- 2-hop interest path with count pragma + filter'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Filter, Program, Relation, Var
 
@@ -39,7 +39,7 @@ def test_lsqb_q6_count_hir():
 
 
 def test_lsqb_q6_count_mir():
-  diff_mir(build_lsqb_q6_count(), "lsqb_q6_count")
+  check_mir_lifetimes(build_lsqb_q6_count())
 
 
 if __name__ == "__main__":

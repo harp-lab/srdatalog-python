@@ -174,6 +174,10 @@ def gen_materialized_join_kernel(
   insert_ops: list[m.InsertInto] = []
 
   for op in ops:
+    if isinstance(op, m.SemiJoin):
+      # HIR emits probes only on the ordinary WCOJ path. Never silently
+      # erase one if a caller supplies an unsupported materialized pipeline.
+      raise ValueError("SemiJoin requires the sorted-array pipeline backend")
     if isinstance(op, m.Scan):
       scan_op = op
     elif isinstance(op, m.ProbeJoin):
@@ -316,6 +320,8 @@ def gen_materialized_runner(
   insert_ops: list[m.InsertInto] = []
 
   for op in pipeline:
+    if isinstance(op, m.SemiJoin):
+      raise ValueError("SemiJoin requires the sorted-array pipeline backend")
     if isinstance(op, m.Scan):
       scan_op = op
     elif isinstance(op, m.ProbeJoin):

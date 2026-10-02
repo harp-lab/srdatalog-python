@@ -76,7 +76,7 @@ def _version_str_of(node: m.MirNode) -> str:
 
 def extract_source_info(src_spec: m.MirNode) -> tuple[str, str, list[int]]:
   '''Pull `(rel_name, version-as-C++-code, index)` from any source node.'''
-  if isinstance(src_spec, (m.ColumnSource, m.Scan, m.Negation, m.Aggregate)):
+  if isinstance(src_spec, (m.ColumnSource, m.Scan, m.Negation, m.SemiJoin, m.Aggregate)):
     return src_spec.rel_name, src_spec.version.code, list(src_spec.index)
   return "", "", []
 
@@ -582,7 +582,8 @@ def gen_instruction_code(
       return indent + f"// skip merge_index for count_only rel {instr.rel_name}\n"
     spec_type = gen_index_spec_type(instr.rel_name, "FULL_VER", list(instr.index))
     out = indent + 'nvtxRangePushA("merge");\n'
-    out += indent + f"SRDatalog::GPU::mir_helpers::merge_index_fn<{spec_type}>(db);\n"
+    consume = ", true" if instr.consume_delta else ""
+    out += indent + f"SRDatalog::GPU::mir_helpers::merge_index_fn<{spec_type}{consume}>(db);\n"
     out += indent + 'nvtxRangePop();  // merge\n'
     return out
 
@@ -687,7 +688,10 @@ def gen_fixpoint_body(
 
     for ep in exec_pipelines:
       for src_spec in _required_index_sources(ep):
-        if isinstance(src_spec, m.ColumnSource):
+        if isinstance(src_spec, (m.ColumnSource, m.SemiJoin)):
+          # Runner setup uses ensure_index(..., false): it preserves
+          # authoritative merged indices but does not build a cold EDB
+          # predicate. Probe-only inputs need this eager bootstrap too.
           ver = version_string(src_spec.version.code)
           spec_type = gen_index_spec_type(src_spec.rel_name, ver, list(src_spec.index))
           out += i + f"mir_helpers::create_index_fn<{spec_type}>(db, 0);\n"
@@ -708,6 +712,8 @@ def gen_fixpoint_body(
 
   # Fixpoint loop.
   out += i + "bool _tail_mode = false;\n"
+  if plan.index_only_exit_relations:
+    out += i + "bool _fixedpoint_converged = false;\n"
   out += i + "for (std::size_t iter = 0; iter < max_iterations; ++iter) {\n"
 
   if canonical_specs:
@@ -741,7 +747,10 @@ def gen_fixpoint_body(
     out += i3 + '} else if (std::getenv("SRDATALOG_PRINT_DELTA")) {\n'
     out += i3 + '  std::cerr << "[iter " << iter << "] delta=" << total_new_facts << std::endl;\n'
     out += i3 + "}\n"
-    out += i3 + "if (total_new_facts == 0) break;\n"
+    if plan.index_only_exit_relations:
+      out += i3 + "if (total_new_facts == 0) { _fixedpoint_converged = true; break; }\n"
+    else:
+      out += i3 + "if (total_new_facts == 0) break;\n"
     out += (
       i3 + '_tail_mode = (std::getenv("SRDATALOG_NO_TAIL") == nullptr) '
       '&& (total_new_facts < 1000);\n'
@@ -785,10 +794,19 @@ def gen_fixpoint_body(
   out += i + "}\n"
   out += i + "GPU_DEVICE_SYNCHRONIZE();\n\n"
 
+  if plan.index_only_exit_relations:
+    out += i + "if (_fixedpoint_converged) {\n"
+    for rel_name in sorted(plan.index_only_exit_relations):
+      for version in ("NEW_VER", "DELTA_VER"):
+        out += (
+          i2 + f"get_relation_by_schema<{rel_name}, {version}>(db).release_device_storage();\n"
+        )
+    out += i + "}\n"
   out += i + "// Reconstruct intern columns from canonical index\n"
   for rel_name, cols in canonical_specs:
-    spec_type = gen_index_spec_type(rel_name, "FULL_VER", cols)
-    out += i + f"mir_helpers::reconstruct_fn<{spec_type}>(db);\n"
+    if rel_name not in plan.index_only_exit_relations:
+      spec_type = gen_index_spec_type(rel_name, "FULL_VER", cols)
+      out += i + f"mir_helpers::reconstruct_fn<{spec_type}>(db);\n"
 
   return out
 

@@ -84,7 +84,7 @@ struct NodeView {
   // Access accessor for unified Scan interface
   [[nodiscard]] GPU_HD ValueTypeParam get_value(uint32_t depth,
                                                 uint32_t sorted_idx) const noexcept {
-    return col_data_[depth * stride_ + sorted_idx];
+    return col_data_[static_cast<std::size_t>(depth) * stride_ + sorted_idx];
   }
 
   // Access provenance for unified Scan interface
@@ -233,7 +233,7 @@ class NodeHandle {
   [[nodiscard]] __device__ RowIdType column_position() const noexcept;
   /// @brief get a offset with respect to the data array
   template <int COLUMN>
-  [[nodiscard]] __device__ RowIdType offset(RowIdType row, const View& view) const noexcept;
+  [[nodiscard]] __device__ std::size_t offset(RowIdType row, const View& view) const noexcept;
 
   /// @brief Unified value access (Direct)
   /// @param view The handle's view
@@ -241,7 +241,7 @@ class NodeHandle {
   [[nodiscard]] GPU_HD ValueTypeParam get_value_at(const View& view,
                                                    std::size_t idx) const noexcept {
     // Access column at current depth, offset by begin_ + idx
-    return view.col_data_[depth_ * view.stride_ + begin_ + idx];
+    return view.col_data_[static_cast<std::size_t>(depth_) * view.stride_ + begin_ + idx];
   }
 
   /// @brief Unified provenance access (Direct)
@@ -260,7 +260,8 @@ class NodeHandle {
   ///          For LSM indices, use get_value_at() instead.
   [[nodiscard]] __device__ cuda_std::span<const ValueTypeParam> values(
       const View& view) const noexcept {
-    const ValueTypeParam* col_ptr = view.col_data_ + (depth_ * view.stride_);
+    const ValueTypeParam* col_ptr =
+        view.col_data_ + static_cast<std::size_t>(depth_) * view.stride_;
     return cuda_std::span<const ValueTypeParam>(col_ptr + begin_, end_ - begin_);
   }
 
@@ -423,9 +424,10 @@ class DeviceSortedArrayIndex {
     build_from_encoded_device(spec, encoded_cols, dummy_prov);
   }
 
-  /// @brief Build index by taking ownership of encoded columns (zero-copy for identity spec).
-  /// @details For identity-spec, swaps columns (zero-copy). For non-identity, copies+reorders.
-  ///          After this call, encoded_cols may be empty (swapped into index).
+  /// @brief Build index by consuming full-arity encoded columns and matching provenance.
+  /// @details Full-arity specs reorder columns in place, then swap ownership; identity
+  ///          specs need no reordering. Partial specs retain the copying build path.
+  ///          Consumed arrays have zero logical size (but may retain old index capacity).
   ///          Sets rows_processed_ = 0 so is_dirty() returns false with cleared intern cols.
   ///          Caller should clear intern cols after this call.
   void build_take_ownership(const IndexSpec& spec,

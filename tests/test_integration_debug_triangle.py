@@ -1,6 +1,6 @@
 '''debug_triangle.nim -- simpler triangle, all arity-2 relations'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Program, Relation, Var
 
@@ -25,7 +25,7 @@ def test_debug_triangle_hir():
 
 
 def test_debug_triangle_mir():
-  diff_mir(build_debug_triangle(), "debug_triangle")
+  check_mir_lifetimes(build_debug_triangle())
 
 
 if __name__ == "__main__":

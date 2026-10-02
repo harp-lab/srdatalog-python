@@ -33,6 +33,7 @@ struct scoped_range {
 #endif
 #include <stdexcept>
 #include <thrust/copy.h>
+#include <thrust/count.h>
 #include <thrust/for_each.h>
 #include <thrust/functional.h>
 #include <thrust/iterator/counting_iterator.h>
@@ -456,46 +457,35 @@ void deduplicate_aggregate_and_unique(NDDeviceArray<ValueType, N>& array,
 template <typename ValueType, std::size_t N>
 void generate_unique(const NDDeviceArray<ValueType, N>& array,
                      DeviceArray<ValueType>& root_unique_values) {
-  const uint32_t num_rows = static_cast<uint32_t>(array.num_rows());
-
-  if (num_rows == 0) {
-    root_unique_values.reset();
-    return;
-  }
-
-  if (num_rows == 1) {
-    // Single element: directly build CSR
-    root_unique_values.resize(1);
-    thrust::copy_n(rmm::exec_policy{}, array.template column_ptr<0>(), 1,
-                   root_unique_values.begin());
-    return;
-  }
-
-  // Get column pointer directly (fresh pointer, not from view) to ensure correct stride
+  const std::size_t num_rows = array.num_rows();
   const ValueType* first_col = array.template column_ptr<0>();
 
-  // Step 1: Unique copy using iterator_unique (or reduce_by_key with discard)
-  // We only need the unique keys, not the counts.
-  // However, thrust::unique_copy is for contiguous duplicates.
-  //
-  // Option A: Use unique_copy with start/end of array.column_ptr<0>()
-  // Option B: Keep reduce_by_key but discard values.
-  //
-  // reduce_by_key is optimized and we already have it. Let's just discard the counts.
+  // Count adjacent transitions without materializing a row-sized flags array.
+  // The output allocation must scale with distinct root keys, not full tuples.
+  std::size_t num_roots = num_rows == 0 ? 0 : 1;
+  if (num_rows > 1) {
+    num_roots += thrust::count_if(
+        rmm::exec_policy{}, thrust::make_counting_iterator<std::size_t>(1),
+        thrust::make_counting_iterator(num_rows),
+        [first_col] __device__(std::size_t row) {
+          return first_col[row] != first_col[row - 1];
+        });
+  }
 
-  // Resize to maximum possible size (all unique) first
-  root_unique_values.resize(num_rows);
-
-  // Use unique_copy to extract unique keys
-  // This is semantically equivalent to reduce_by_key on keys with discard on values,
-  // but potentially more robust or optimized for this specific case.
-  auto result_end = thrust::unique_copy(rmm::exec_policy{}, first_col, first_col + num_rows,
-                                        root_unique_values.begin());
-
-  const uint32_t num_csr = result_end - root_unique_values.begin();
-
-  // Resize outputs to actual number of unique keys
-  root_unique_values.resize(num_csr);
+  // Release truly oversized historical capacity before allocating the new output.
+  // Retain up to twice the required keys (or the small-array fast path's 1024
+  // entries) so gradual cardinality decreases do not cause allocation churn.
+  if (root_unique_values.capacity() > num_roots &&
+      root_unique_values.capacity() - num_roots > num_roots &&
+      root_unique_values.capacity() > 1024) {
+    root_unique_values.clear();
+    root_unique_values.shrink_to_fit();
+  }
+  root_unique_values.resize(num_roots);
+  if (num_roots != 0) {
+    thrust::unique_copy(rmm::exec_policy{}, first_col, first_col + num_rows,
+                        root_unique_values.begin());
+  }
 }
 
 }  // namespace SRDatalog::GPU

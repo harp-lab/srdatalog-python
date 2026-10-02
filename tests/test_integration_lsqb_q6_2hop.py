@@ -1,6 +1,6 @@
 '''lsqb_q6_2hop.nim -- 2-hop without count'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Filter, Program, Relation, Var
 
@@ -38,7 +38,7 @@ def test_lsqb_q6_2hop_hir():
 
 
 def test_lsqb_q6_2hop_mir():
-  diff_mir(build_lsqb_q6_2hop(), "lsqb_q6_2hop")
+  check_mir_lifetimes(build_lsqb_q6_2hop())
 
 
 if __name__ == "__main__":

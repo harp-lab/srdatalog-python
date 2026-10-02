@@ -211,6 +211,36 @@ def _lower_multi_clause_body(
   return ops
 
 
+def _schedule_semijoins(
+  ops: list[mir.MirNode], patterns: list[AccessPattern],
+) -> list[mir.MirNode]:
+  '''Probe immediately after the key is bound, in both count/materialize.
+
+  Unlike a join source this op cannot drive traversal or multiply output.
+  Keeping it explicit also prevents count-as-degree/product from bypassing
+  a predicate whose key is generated inside that traversal.
+  '''
+  pending = list(patterns)
+  bound: set[str] = set()
+  result: list[mir.MirNode] = []
+  for op in ops:
+    result.append(op)
+    if isinstance(op, mir.ColumnJoin):
+      bound.add(op.var_name)
+    elif isinstance(op, (mir.Scan, mir.CartesianJoin)):
+      bound.update(op.vars)
+    ready = [p for p in pending if set(p.access_order) <= bound]
+    for p in ready:
+      result.append(mir.SemiJoin(
+        rel_name=p.rel_name, version=p.version, index=list(p.index_cols),
+        prefix_vars=list(p.access_order),
+      ))
+      pending.remove(p)
+  if pending:
+    raise ValueError("semijoin key must be bound by a positive generator")
+  return result
+
+
 def _lower_negations(variant: HirRuleVariant) -> list[mir.MirNode]:
   out: list[mir.MirNode] = []
   for p in variant.negation_patterns:
@@ -456,6 +486,7 @@ def lower_variant_to_pipeline(variant: HirRuleVariant, stratum: HirStratum) -> l
     ops.append(generate_scan(variant.access_patterns[0], bound_vars=[]))
   else:
     ops.extend(_lower_multi_clause_body(variant))
+  ops = _schedule_semijoins(ops, variant.semijoin_patterns)
 
   ops.extend(_lower_negations(variant))
   ops.extend(_lower_filter_and_let_clauses(variant))
@@ -492,8 +523,8 @@ def generate_simple_maintenance(
   arity: int,
 ) -> list[mir.MirNode]:
   '''Maintenance for a non-recursive (simple) SCC: build canonical NEW,
-  size-check, compute delta, clear NEW, rebuild non-canonical DELTAs,
-  merge every index into FULL.
+  compute delta, build and consume secondary DELTAs, then consume canonical
+  DELTA after its last index-building use. Later strata read FULL.
   '''
   assert len(canonical_index) == arity, (
     f"canonical index for {rel_name!r} has {len(canonical_index)} cols, expected arity {arity}"
@@ -504,16 +535,20 @@ def generate_simple_maintenance(
   ops.append(mir.ComputeDeltaIndex(rel_name=rel_name, canonical_index=list(canonical_index)))
   ops.append(mir.ClearRelation(rel_name=rel_name, version=Version.NEW))
   for idx in indices:
-    if list(idx) != list(canonical_index):
-      ops.append(
-        mir.RebuildIndexFromIndex(
-          rel_name=rel_name,
-          source_index=list(canonical_index),
-          target_index=list(idx),
-          version=Version.DELTA,
-        )
+    if list(idx) == list(canonical_index):
+      continue
+    ops.append(
+      mir.RebuildIndexFromIndex(
+        rel_name=rel_name,
+        source_index=list(canonical_index),
+        target_index=list(idx),
+        version=Version.DELTA,
       )
-    ops.append(mir.MergeIndex(rel_name=rel_name, index=list(idx)))
+    )
+    ops.append(mir.MergeIndex(rel_name=rel_name, index=list(idx), consume_delta=True))
+  ops.append(
+    mir.MergeIndex(rel_name=rel_name, index=list(canonical_index), consume_delta=True)
+  )
   return ops
 
 
@@ -567,7 +602,7 @@ def generate_loop_maintenance(
 
 def _extract_pipeline_sources(
   op: mir.MirNode,
-  out: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate],
+  out: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.SemiJoin | mir.Aggregate],
 ) -> None:
   '''Recursively pull source specs out of a pipeline op. Mirrors the
   extractSources inner proc of Nim's wrapInExecutePipeline: joins are
@@ -578,7 +613,7 @@ def _extract_pipeline_sources(
   into source1 and source2); PositionedExtract (recurse into `sources`).
   Aggregate is deferred.
   '''
-  if isinstance(op, (mir.ColumnSource, mir.Scan, mir.Negation, mir.Aggregate)):
+  if isinstance(op, (mir.ColumnSource, mir.Scan, mir.Negation, mir.SemiJoin, mir.Aggregate)):
     out.append(op)
   elif isinstance(op, mir.ColumnJoin) or isinstance(op, mir.CartesianJoin):
     for s in op.sources:
@@ -606,7 +641,7 @@ def wrap_in_execute_pipeline(
   specs (flattened through ColumnJoin/CartesianJoin) and dest specs
   (InsertInto nodes).
   '''
-  sources: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
+  sources: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.SemiJoin | mir.Aggregate] = []
   dests: list[mir.InsertInto] = []
   for op in pipeline:
     _extract_pipeline_sources(op, sources)
@@ -891,20 +926,24 @@ def lower_hir_to_mir_steps(hir: HirProgram) -> list[tuple[mir.MirNode, bool]]:
           rel_name = head.rel
           if rel_name not in modified_rels:
             modified_rels.append(rel_name)
-          if rel_name in stratum.required_indices:
-            canonical_idx = stratum.canonical_index.get(
+
+      # Multiple rules can share a head (e.g. DOOP's Precompute0 rules).
+      # All their output is already in NEW; finalize each relation only once.
+      for rel_name in modified_rels:
+        if rel_name in stratum.required_indices:
+          canonical_idx = stratum.canonical_index.get(
+            rel_name,
+            stratum.required_indices[rel_name][0],
+          )
+          arity = get_arity(rel_name, decls)
+          maintenance_ops.extend(
+            generate_simple_maintenance(
               rel_name,
-              stratum.required_indices[rel_name][0],
+              stratum.required_indices[rel_name],
+              canonical_idx,
+              arity,
             )
-            arity = get_arity(rel_name, decls)
-            maintenance_ops.extend(
-              generate_simple_maintenance(
-                rel_name,
-                stratum.required_indices[rel_name],
-                canonical_idx,
-                arity,
-              )
-            )
+          )
 
       ops: list[mir.MirNode] = []
       # Split phase runs first (sequential; depends on temp being populated).

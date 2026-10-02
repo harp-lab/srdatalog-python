@@ -32,7 +32,7 @@ from srdatalog.ir.codegen.cuda.plugin import plugin_view_count
 # Source-spec helpers
 # -----------------------------------------------------------------------------
 
-_SOURCE_SPEC_TYPES = (m.ColumnSource, m.Scan, m.Negation, m.Aggregate)
+_SOURCE_SPEC_TYPES = (m.ColumnSource, m.Scan, m.Negation, m.SemiJoin, m.Aggregate)
 
 
 def get_source_index(src_spec: m.MirNode) -> list[int]:
@@ -123,12 +123,12 @@ def register_pipeline_handles(
   rel_index_types: dict[str, str],
   root_slots: dict[str, int],
 ) -> None:
-  '''Walk the pipeline body and register every ColumnSource `handle_start`
+  '''Walk pipeline sources and register each `handle_start`
   against the `root_slots` table. Mutates `offsets` in place — matches
   Nim's `registerPipelineHandles` var-param signature.
   '''
   for node in pipeline:
-    if isinstance(node, m.ColumnSource):
+    if isinstance(node, (m.ColumnSource, m.SemiJoin)):
       if node.handle_start not in offsets:
         key = source_spec_key(node)
         if key in root_slots:
@@ -218,7 +218,7 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
             src.version.code,
             src.handle_start,
           )
-    elif isinstance(op, m.Scan) or isinstance(op, m.Negation) or isinstance(op, m.Aggregate):
+    elif isinstance(op, m.Scan) or isinstance(op, (m.Negation, m.SemiJoin)) or isinstance(op, m.Aggregate):
       _record_spec(
         specs,
         seen,
@@ -313,7 +313,7 @@ def jit_emit_view_declarations(
           if kv_key == k:
             ctx.view_vars[str(src.handle_start)] = view_var
             break
-    elif isinstance(op, m.Scan) or isinstance(op, m.Negation) or isinstance(op, m.Aggregate):
+    elif isinstance(op, m.Scan) or isinstance(op, (m.Negation, m.SemiJoin)) or isinstance(op, m.Aggregate):
       k = spec_key(op.rel_name, list(op.index), op.version.code)
       for kv_key, view_var in spec_to_view_var:
         if kv_key == k:

@@ -2,17 +2,18 @@
 
 The Nim HIR pipeline parses AggClause into HIR JSON (kind="aggregation")
 but never constructs a moAggregate MirNode from it. Python mirrors that:
-DSL `agg(...)` round-trips through HIR but disappears from MIR. Both the
-HIR and MIR outputs byte-match the Nim golden.
+DSL `agg(...)` round-trips through HIR but disappears from MIR. HIR schema
+fixtures and MIR index lifetime checks cover the resulting plan.
 '''
 
 import json
 from pathlib import Path
 
+from integration_helpers import check_mir_lifetimes
+
 from srdatalog.dsl import Agg, Program, Relation, Var, agg, count
-from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.hir import compile_to_hir
 from srdatalog.ir.hir.emit import hir_to_obj
-from srdatalog.ir.mir.print import print_mir_sexpr
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -112,26 +113,8 @@ def test_agg_hir_byte_match():
     raise AssertionError("HIR mismatch:\n" + diff)
 
 
-def test_agg_mir_byte_match():
-  '''MIR loses the aggregate (both Nim and Python drop AggClause during
-  lowering). Pipeline is just (insert-into :schema Counts ...).
-  '''
-  mir_prog = compile_to_mir(build_agg_program())
-  actual = print_mir_sexpr(mir_prog)
-  golden = (FIXTURES / "agg_test.mir.sexpr").read_text().rstrip("\n")
-  if actual != golden:
-    import difflib
-
-    diff = "\n".join(
-      difflib.unified_diff(
-        golden.splitlines(),
-        actual.splitlines(),
-        fromfile="nim-golden",
-        tofile="python",
-        lineterm="",
-      )
-    )
-    raise AssertionError("MIR mismatch:\n" + diff)
+def test_agg_mir_index_lifetimes():
+  check_mir_lifetimes(build_agg_program())
 
 
 if __name__ == "__main__":
@@ -142,7 +125,7 @@ if __name__ == "__main__":
     test_analyze_rule_counts_agg_args_and_result_var_as_positive,
     test_var_order_puts_agg_args_then_result_var,
     test_agg_hir_byte_match,
-    test_agg_mir_byte_match,
+    test_agg_mir_index_lifetimes,
   ]
   for t in tests:
     t()

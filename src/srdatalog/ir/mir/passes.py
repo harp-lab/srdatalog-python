@@ -11,6 +11,8 @@ Order (matches Nim's registerMirOptimizePass priorities):
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import srdatalog.ir.mir.types as mir
 from srdatalog.ir.hir.types import Version
 
@@ -21,7 +23,7 @@ from srdatalog.ir.hir.types import Version
 
 def _has_prefix(source) -> bool:
   '''Source node has a non-empty prefix. Mirrors Nim's hasPrefix.'''
-  if isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation)):
+  if isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation, mir.SemiJoin)):
     return len(source.prefix_vars) > 0
   return False
 
@@ -34,7 +36,7 @@ def _regenerate_source_specs(ep: mir.ExecutePipeline) -> None:
   '''
   from srdatalog.ir.hir.lower import _extract_pipeline_sources
 
-  specs: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.Aggregate] = []
+  specs: list[mir.ColumnSource | mir.Scan | mir.Negation | mir.SemiJoin | mir.Aggregate] = []
   for op in ep.pipeline:
     _extract_pipeline_sources(op, specs)
   ep.source_specs = specs
@@ -84,7 +86,7 @@ def _collect_needed_indices(node: mir.MirNode, rel_name: str, out: set[tuple[int
   tuples targeting `rel_name`. DELTA dispatches through FULL on the first
   fixpoint iteration, so both count.
   '''
-  if isinstance(node, mir.ColumnSource):
+  if isinstance(node, (mir.ColumnSource, mir.SemiJoin)):
     if node.rel_name == rel_name and node.version in (Version.FULL, Version.DELTA):
       out.add(tuple(node.index))
   elif isinstance(node, mir.ColumnJoin) or isinstance(node, mir.CartesianJoin):
@@ -330,6 +332,130 @@ def apply_balanced_scan_pass(
   for node, _ in steps:
     _apply_balanced_scan_pass_recursive(node)
   return steps
+
+
+def elide_dead_full_reconstructions(
+  steps: list[tuple[mir.MirNode, bool]],
+  index_only_relations: set[str],
+  *,
+  terminal_index_only_relations: set[str] | None = None,
+) -> list[tuple[mir.MirNode, bool]]:
+  '''Remove raw FULL copies only for closed, index-backed output consumers.
+
+  Nonrecursive elision requires one producer and every reader's FULL order
+  merged. Recursive exit elision requires no later MIR use of any version.
+  The caller supplies supported index/semiring sets and excludes inputs.
+  Generic MIR compilation does not invoke this CUDA consumer-specific pass.
+  '''
+  writers: dict[str, set[int]] = {}
+  recursive_writers: set[str] = set()
+  last_use: dict[str, int] = {}
+  merged_at: dict[int, dict[str, set[tuple[int, ...]]]] = {}
+  canonical_at: dict[int, dict[str, tuple[int, ...]]] = {}
+  merged: dict[str, set[tuple[int, ...]]] = {}
+  needed: dict[str, set[tuple[int, ...]]] = {}
+  raw_required: set[str] = set()
+
+  def source_read(source, step: int) -> bool:
+    if not isinstance(source, (mir.ColumnSource, mir.Scan, mir.Negation, mir.SemiJoin)):
+      return False
+    last_use[source.rel_name] = max(step, last_use.get(source.rel_name, -1))
+    if source.version in (Version.FULL, Version.DELTA):
+      needed.setdefault(source.rel_name, set()).add(tuple(source.index))
+    return True
+
+  def inspect(node: mir.MirNode, step: int, recursive: bool) -> bool:
+    if isinstance(node, (mir.FixpointPlan, mir.Block)):
+      return all(inspect(op, step, recursive) for op in node.instructions)
+    if isinstance(node, mir.ParallelGroup):
+      return all(inspect(op, step, recursive) for op in node.ops)
+    if isinstance(node, mir.ExecutePipeline):
+      if not all(source_read(source, step) for source in node.source_specs):
+        return False
+      if node.bitmap_join is not None:
+        for source in (node.bitmap_join.assign, node.bitmap_join.points):
+          if not source_read(source, step):
+            return False
+        points = node.bitmap_join.points
+        needed.setdefault(points.rel_name, set()).add(tuple(reversed(points.index)))
+      for dest in node.dest_specs:
+        if dest.version is not Version.NEW:
+          return False
+        writers.setdefault(dest.rel_name, set()).add(step)
+        last_use[dest.rel_name] = max(step, last_use.get(dest.rel_name, -1))
+        if recursive:
+          recursive_writers.add(dest.rel_name)
+        # Dedup-hash capacity currently reads its destination's raw FULL size.
+        if node.dedup_hash:
+          raw_required.add(dest.rel_name)
+      return all(
+        isinstance(op, (
+          mir.Scan, mir.ColumnJoin, mir.CartesianJoin, mir.Negation, mir.SemiJoin,
+          mir.Filter, mir.ConstantBind, mir.InsertInto,
+          mir.BalancedScan, mir.PositionedExtract,
+        ))
+        for op in node.pipeline
+      )
+    if hasattr(node, "rel_name") and not isinstance(node, mir.PostStratumReconstructInternCols):
+      last_use[node.rel_name] = max(step, last_use.get(node.rel_name, -1))
+    if isinstance(node, mir.ComputeDeltaIndex):
+      canonical_at.setdefault(step, {})[node.rel_name] = tuple(node.canonical_index)
+      return True
+    if isinstance(node, mir.MergeIndex):
+      merged.setdefault(node.rel_name, set()).add(tuple(node.index))
+      merged_at.setdefault(step, {}).setdefault(node.rel_name, set()).add(tuple(node.index))
+      return True
+    if isinstance(node, (mir.RebuildIndex, mir.CreateFlatView, mir.CheckSize)):
+      if node.version is Version.FULL:
+        raw_required.add(node.rel_name)
+      return True
+    if isinstance(node, mir.ClearRelation):
+      if node.version is Version.FULL:
+        raw_required.add(node.rel_name)
+      return True
+    if isinstance(node, mir.RebuildIndexFromIndex):
+      if node.version is Version.FULL:
+        needed.setdefault(node.rel_name, set()).add(tuple(node.source_index))
+      return True
+    return isinstance(node, mir.PostStratumReconstructInternCols)
+
+  # In particular, InjectCppHook can read any relation's raw storage. Unknown
+  # operations get the same conservative treatment rather than guessing.
+  if not all(inspect(node, step, recursive) for step, (node, recursive) in enumerate(steps)):
+    return steps
+  removable = {
+    rel for rel in index_only_relations
+    if len(writers.get(rel, set())) == 1
+    and rel not in recursive_writers
+    and rel not in raw_required
+    and needed.get(rel, set()) <= merged.get(rel, set())
+  }
+  terminal_candidates = (
+    index_only_relations
+    if terminal_index_only_relations is None
+    else terminal_index_only_relations
+  )
+  out: list[tuple[mir.MirNode, bool]] = []
+  terminal_exits: dict[str, set[tuple[int, ...]]] = {}
+  for step, (node, recursive) in enumerate(steps):
+    if isinstance(node, mir.FixpointPlan) and recursive:
+      terminal = {
+        rel for rel in terminal_candidates
+        if step in writers.get(rel, set())
+        and last_use.get(rel, -1) == step
+        and canonical_at.get(step, {}).get(rel) in merged_at.get(step, {}).get(rel, set())
+      }
+      if terminal:
+        node = replace(node, index_only_exit_relations=terminal)
+        terminal_exits.update({rel: merged_at[step][rel] for rel in terminal})
+    if isinstance(node, mir.PostStratumReconstructInternCols):
+      if (
+        node.rel_name in removable
+        and tuple(node.canonical_index) in merged.get(node.rel_name, set())
+      ) or tuple(node.canonical_index) in terminal_exits.get(node.rel_name, set()):
+        continue
+    out.append((node, recursive))
+  return out
 
 
 # -----------------------------------------------------------------------------

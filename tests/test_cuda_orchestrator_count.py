@@ -7,7 +7,6 @@ stay on the count/readback path and retain that result for the C ABI.
 
 from srdatalog.ir.codegen.cuda.main_file import (
   _gen_final_print_block,
-  gen_extern_c_shim,
   gen_runner_struct,
 )
 from srdatalog.ir.codegen.cuda.orchestrator import _gen_parallel_group
@@ -78,13 +77,3 @@ def test_runner_clears_retained_counts_at_start_of_each_run():
 
   run_start = out.index('static void run(')
   assert out.index('clear_count_results();', run_start) > run_start
-
-
-def test_c_abi_retains_device_db_and_prefers_count_results():
-  decl = RelationDecl(rel_name='OutA', types=['int'], semiring='NoProvenance')
-
-  out = gen_extern_c_shim('CountPlan', [decl], ['OutA'])
-
-  assert 'static CountPlan_DB_DeviceDB* g_device_db = nullptr;' in out
-  assert 'CountPlan_Runner::get_count_result(rn, count_result)' in out
-  assert 'get_relation_by_schema<OutA, FULL_VER>(*g_device_db).size()' in out

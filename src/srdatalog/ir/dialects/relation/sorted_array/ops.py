@@ -34,6 +34,21 @@ class SaRoot(Op):
 
 @final
 @dataclass(frozen=True, slots=True)
+class SaContains(Op):
+  '''Boolean membership in a unary sorted-array view.
+
+  A fully bound set predicate needs only lower_bound plus equality, not a
+  child range or upper_bound. Cooperative mode requires a uniform key;
+  lane-parallel traversals use the sequential lookup instead.
+  '''
+
+  view_name: str
+  key_var: str
+  cooperative: bool = True
+
+
+@final
+@dataclass(frozen=True, slots=True)
 class SaValid(Op):
   '''Whether a handle is non-empty / non-degenerate.
 

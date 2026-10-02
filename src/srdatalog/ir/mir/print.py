@@ -54,7 +54,7 @@ def _index_spec(node: m.MirNode) -> str:
   if isinstance(node, m.CartesianJoin):
     return " ".join(_flatten_specs(s) for s in node.sources)
 
-  if isinstance(node, m.ColumnSource) or isinstance(node, m.Negation):
+  if isinstance(node, (m.ColumnSource, m.Negation, m.SemiJoin)):
     rel, ver, idx = node.rel_name, node.version, node.index
   elif isinstance(node, m.InsertInto):
     # Dest always uses FULL index for dedup logic (matches Nim).
@@ -245,10 +245,10 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
     res += ")"
     return res
 
-  if isinstance(node, m.Negation):
+  if isinstance(node, (m.Negation, m.SemiJoin)):
     return (
       p
-      + "(negation"
+      + ("(semijoin" if isinstance(node, m.SemiJoin) else "(negation")
       + " #:schema "
       + node.rel_name
       + " #:ver "
@@ -313,7 +313,8 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
     )
 
   if isinstance(node, m.MergeIndex):
-    return p + "(merge-index #:index " + _index(node.rel_name, node.index) + ")"
+    consume = " #:consume-delta #t" if node.consume_delta else ""
+    return p + "(merge-index #:index " + _index(node.rel_name, node.index) + consume + ")"
 
   if isinstance(node, m.MergeRelation):
     return p + "(merge-relation #:schema " + node.rel_name + ")"
@@ -347,6 +348,8 @@ def print_mir_sexpr(node: m.MirNode, indent: int = 0) -> str:
 
   if isinstance(node, m.FixpointPlan):
     body = p + "(fixpoint-plan\n"
+    if node.index_only_exit_relations:
+      body += p + "  #:index-only-exit " + _var_tuple(sorted(node.index_only_exit_relations)) + "\n"
     for instr in node.instructions:
       body += print_mir_sexpr(instr, indent + 2) + "\n"
     body += p + ")"

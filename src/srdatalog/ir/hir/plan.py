@@ -10,10 +10,12 @@ For each variant, compute:
     access_order, prefix_len, index_cols, clause_idx)
   - negation_patterns: per-negation-clause AccessPattern (version forced
     to FULL)
+  - semijoin_patterns: static unary set predicates evaluated after key binding,
+    without introducing additional tuple generators
 
-Mirrors src/srdatalog/hir/join_planner.nim. Not yet ported: user-provided
-rule.plans (DSL doesn't support them), split clauses (SplitClause),
-balanced partitioning pragmas, IfClause/LetClause/AggClause handling.
+Supports per-delta user orders, split rules and balanced-plan hints. The
+default ordering is structural, not cardinality-based; filtered DELTA keys
+retain early traversal while other static predicates do not inflate join counts.
 '''
 
 from __future__ import annotations
@@ -37,10 +39,10 @@ class RuleAnalysis:
   head_vars: set[str] = field(default_factory=set)
 
 
-def analyze_rule(rule: Rule) -> RuleAnalysis:
+def analyze_rule(rule: Rule, semijoin_indices: set[int] | None = None) -> RuleAnalysis:
   r = RuleAnalysis()
   positive_count: dict[str, int] = {}
-  for body in rule.body:
+  for clause_idx, body in enumerate(rule.body):
     cvars: set[str] = set()
     if isinstance(body, Negation):
       # Negation vars are tracked but NOT counted for join_vars (it's a filter, not a join).
@@ -53,7 +55,8 @@ def analyze_rule(rule: Rule) -> RuleAnalysis:
         if arg.kind is ArgKind.LVAR and arg.var_name is not None:
           cvars.add(arg.var_name)
           r.vars.add(arg.var_name)
-          positive_count[arg.var_name] = positive_count.get(arg.var_name, 0) + 1
+          if not semijoin_indices or clause_idx not in semijoin_indices:
+            positive_count[arg.var_name] = positive_count.get(arg.var_name, 0) + 1
     elif isinstance(body, Agg):
       # Aggregate args count as positive (like RelClause), plus the
       # result_var is a produced positive var. Mirrors Nim analyzeRule.
@@ -136,7 +139,9 @@ def _get_produced_vars(body) -> set[str]:
   return set()
 
 
-def compute_clause_order(rule: Rule, delta_idx: int = -1) -> list[int]:
+def compute_clause_order(
+  rule: Rule, delta_idx: int = -1, semijoin_indices: set[int] | None = None,
+) -> list[int]:
   '''Pick body clause execution order using the Nim heuristic:
   1. Dependency-gated runnable set (sorted by source idx for tie-breaking).
   2. Delta clause first when runnable (for recursive variants).
@@ -145,9 +150,14 @@ def compute_clause_order(rule: Rule, delta_idx: int = -1) -> list[int]:
   bound: set[str] = set()
   scheduled: list[int] = []
   remaining: set[int] = set(range(len(rule.body)))
+  semijoin_indices = semijoin_indices or set()
 
   while remaining:
-    runnable = sorted(i for i in remaining if _get_dependencies(rule.body[i]) <= bound)
+    runnable = sorted(
+      i for i in remaining
+      if _get_dependencies(rule.body[i]) <= bound
+      and (i not in semijoin_indices or set(_clause_lvar_names(rule.body[i])) <= bound)
+    )
     if not runnable:
       # Deadlock fallback (shouldn't happen for stratified DSL input, but
       # matches Nim behavior): prefer an Atom, else lowest index.
@@ -158,7 +168,7 @@ def compute_clause_order(rule: Rule, delta_idx: int = -1) -> list[int]:
     # DOWN (drops ineligible bindings ASAP).
     best = -1
     for r in runnable:
-      if isinstance(rule.body[r], Filter):
+      if isinstance(rule.body[r], Filter) or r in semijoin_indices:
         best = r
         break
 
@@ -524,10 +534,69 @@ def bitmap_join_patterns(v: HirRuleVariant) -> tuple[AccessPattern, AccessPatter
   return (first, second) if destination in first.access_order else (second, first)
 
 
-def _plan_variant(v: HirRuleVariant) -> None:
+def _semijoin_indices(
+  v: HirRuleVariant, decls: dict[str, RelationDecl], scc_members: set[str],
+) -> set[int]:
+  '''Select bound-key filters without changing provenance or delta drivers.
+
+  Only single-segment, static unary sets qualify. Keep a real positive
+  generator for each key, including when every occurrence is unary.
+  Split/balanced rules and custom index/provenance contracts conservatively
+  retain their existing join representation.
+  '''
   rule = v.original_rule
-  analysis = analyze_rule(rule)
+  plan = _find_plan(rule, v.delta_idx)
+  if detect_split(rule) >= 0 or (plan and (plan.balanced_root or plan.balanced_sources)):
+    return set()
+  candidates: set[int] = set()
+  for i, body in enumerate(rule.body):
+    if not isinstance(body, Atom) or len(body.args) != 1:
+      continue
+    arg = body.args[0]
+    decl = decls.get(body.rel)
+    if (
+      arg.kind is not ArgKind.LVAR or arg.var_name is None
+      or arg.var_name.startswith("_") or decl is None or len(decl.types) != 1
+      or decl.semiring.rsplit("::", 1)[-1] != "NoProvenance"
+      or decl.count_only or body.rel in scc_members
+      or v.clause_versions[i] is not Version.FULL or i == v.delta_idx
+      or decl.index_type not in ("", "DeviceSortedArrayIndex", "SRDatalog::GPU::DeviceSortedArrayIndex")
+    ):
+      continue
+    candidates.add(i)
+  retained = {i for i, body in enumerate(rule.body) if isinstance(body, Atom)} - candidates
+  # Deterministic anchor for all-unary groups. A previously retained candidate
+  # can generate another predicate's key, never vice versa.
+  selected: set[int] = set()
+  order = plan.clause_order if plan and plan.clause_order else list(range(len(rule.body)))
+  for i in order:
+    if i not in candidates:
+      continue
+    key = rule.body[i].args[0].var_name
+    generators = [j for j in retained if key in _get_produced_vars(rule.body[j])]
+    if plan and plan.clause_order:
+      generators = [j for j in generators if order.index(j) < order.index(i)]
+    if generators:
+      selected.add(i)
+    else:
+      retained.add(i)
+  return selected
+
+
+def _plan_variant(
+  v: HirRuleVariant, decls: dict[str, RelationDecl], scc_members: set[str],
+) -> None:
+  rule = v.original_rule
+  semijoin_indices = _semijoin_indices(v, decls, scc_members)
+  analysis = analyze_rule(rule, semijoin_indices)
   d = v.delta_idx  # -1 for base variants
+  if semijoin_indices and 0 <= d < len(rule.body):
+    delta_vars = _clause_lvar_names(rule.body[d])
+    if delta_vars and not analysis.join_vars.intersection(delta_vars):
+      # Removing the only repeated DELTA key must not let an unrelated
+      # component become the driver. Keep a real DELTA binding step even
+      # though its static predicate is now a probe rather than a source.
+      analysis.join_vars.add(delta_vars[0])
 
   plan = _find_plan(rule, d)
   if plan is not None and plan.var_order:
@@ -537,9 +606,60 @@ def _plan_variant(v: HirRuleVariant) -> None:
     else:
       clause_order = derive_clause_order_from_var_order(rule, var_order, delta_idx=d)
   else:
-    clause_order = compute_clause_order(rule, delta_idx=d)
+    if semijoin_indices and 0 <= d < len(rule.body):
+      # Push static membership into the mandatory DELTA traversal before
+      # unrelated joins/fanout. Retain these binding keys in DELTA column
+      # order even when they are no longer equality-join variables. The
+      # DELTA relation remains the generator; the unary predicate is only
+      # a probe. Explicit variable orders bypass this structural heuristic.
+      delta_vars = _get_produced_vars(rule.body[d])
+      analysis.join_vars.update(
+        rule.body[i].args[0].var_name for i in semijoin_indices
+        if rule.body[i].args[0].var_name in delta_vars
+      )
+    clause_order = (
+      list(plan.clause_order) if plan and plan.clause_order
+      else compute_clause_order(rule, delta_idx=d, semijoin_indices=semijoin_indices)
+    )
     var_order = compute_var_order_from_clauses(rule, clause_order, analysis.join_vars, delta_idx=d)
 
+  if plan and plan.var_order and semijoin_indices:
+    # WCOJ lowers join vars before Cartesian vars. Preserve explicitly ordered
+    # keys ahead of later joins by retaining a single-source generator step.
+    last_join = max((i for i, key in enumerate(var_order) if key in analysis.join_vars), default=-1)
+    generated = set().union(*(
+      _get_produced_vars(body) for i, body in enumerate(rule.body)
+      if isinstance(body, Atom) and i not in semijoin_indices
+    ))
+    analysis.join_vars.update(key for key in var_order[:last_join] if key in generated)
+  # A filter on an independent key must run before unrelated fanout. Make
+  # such keys single-source join steps rather than nesting cooperative
+  # Cartesian loops inside lane-divergent Cartesian bodies. The final key
+  # remains lane-parallel and uses a sequential per-lane membership probe.
+  for i in semijoin_indices:
+    key = rule.body[i].args[0].var_name
+    if key not in var_order:
+      continue
+    later = set(var_order[var_order.index(key) + 1:])
+    if any(
+      later & _get_produced_vars(body) and key not in _get_produced_vars(body)
+      for j, body in enumerate(rule.body)
+      if isinstance(body, Atom) and j not in semijoin_indices
+    ):
+      analysis.join_vars.add(key)
+  if semijoin_indices and not analysis.join_vars:
+    generators = [
+      body for i, body in enumerate(rule.body)
+      if isinstance(body, Atom) and i not in semijoin_indices
+    ]
+    if len(generators) > 1:
+      # The root Cartesian backend only supports a terminal product, not
+      # per-row selection. Anchor disconnected filtered products in an
+      # ordinary generator, leaving the final traversal lane-parallel.
+      generated = set().union(*(_get_produced_vars(body) for body in generators))
+      first = next((key for key in var_order if key in generated), None)
+      if first is not None:
+        analysis.join_vars.add(first)
   # Propagate pragma flags whenever a plan is attached — the pragma
   # branch above is gated on `plan.var_order`, but pragmas like
   # `work_stealing: true` frequently appear on plan entries that have
@@ -579,6 +699,9 @@ def _plan_variant(v: HirRuleVariant) -> None:
     if isinstance(body, Negation):
       pattern.version = Version.FULL
       v.negation_patterns.append(pattern)
+    elif k in semijoin_indices:
+      pattern.prefix_len = len(pattern.access_order)
+      v.semijoin_patterns.append(pattern)
     else:
       v.access_patterns.append(pattern)
 
@@ -608,9 +731,9 @@ def plan_joins(hir: HirProgram) -> HirProgram:
           )
   for stratum in hir.strata:
     for v in stratum.base_variants:
-      _plan_variant(v)
+      _plan_variant(v, decls, stratum.scc_members)
     for v in stratum.recursive_variants:
-      _plan_variant(v)
+      _plan_variant(v, decls, stratum.scc_members)
   return hir
 
 

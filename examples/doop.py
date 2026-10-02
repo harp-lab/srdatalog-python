@@ -576,6 +576,7 @@ ArrayTypeCompat = Relation(
   ),
 )
 IsObjectArrayHeap = Relation("IsObjectArrayHeap", 1, column_types=(int,))
+EligibleObjectArrayHeap = Relation("EligibleObjectArrayHeap", 1, column_types=(int,))
 IsStringHeap = Relation("IsStringHeap", 1, column_types=(int,))
 IsCastableToString = Relation("IsCastableToString", 1, column_types=(int,))
 
@@ -818,6 +819,12 @@ def build_doopdb_program(meta: dict[str, int]) -> Program:
       (IsObjectArrayHeap(baseheap) <= HeapAllocation_Type(baseheap, JAVA_LANG_OBJECT_ARRAY)).named(
         'IsObjectArrayHeap_rule'
       ),
+      (
+        EligibleObjectArrayHeap(heap)
+        <= HeapAllocation_Type(heap, heaptype)
+        & ComponentType(JAVA_LANG_OBJECT_ARRAY, comptype)
+        & SupertypeOf(comptype, heaptype)
+      ).named('EligibleObjectArrayHeap_rule'),
       (IsStringHeap(heap) <= HeapAllocation_Type(heap, JAVA_LANG_STRING_TYPE)).named(
         'IsStringHeap_rule'
       ),
@@ -989,6 +996,7 @@ def build_doopdb_program(meta: dict[str, int]) -> Program:
         & VarPointsTo(baseheap, base)
         & IsObjectArrayHeap(baseheap)
         & VarPointsTo(heap, frm)
+        & EligibleObjectArrayHeap(heap)
       )
       .named('AIPT_Store_ObjectArray')
       .with_plan(delta=1, var_order=['base', 'frm', 'baseheap', 'heap'], block_group=True),

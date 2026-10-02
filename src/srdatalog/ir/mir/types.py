@@ -198,6 +198,22 @@ class Negation:
 
 
 @dataclass
+class SemiJoin:
+  '''Positive EXISTS on an already-bound key; never generates or multiplies rows.
+
+  The planner currently emits FULL, static, unary NoProvenance DSAI probes.
+  Multi-segment indices retain their ordinary join until an OR-over-segments
+  existence implementation is available (checking only FULL misses HEAD).
+  '''
+
+  rel_name: str
+  version: Version
+  index: list[int]
+  prefix_vars: list[str] = field(default_factory=list)
+  handle_start: int = -1
+
+
+@dataclass
 class InsertInto:
   '''(insert-into #:schema R #:ver V #:dedup-index (cols...) #:terms (vars))'''
 
@@ -255,10 +271,11 @@ class ComputeDeltaIndex:
 
 @dataclass
 class MergeIndex:
-  '''(merge-index #:index (R cols...))'''
+  '''Merge DELTA into FULL, optionally consuming DELTA at its last use.'''
 
   rel_name: str
   index: list[int]
+  consume_delta: bool = False
 
 
 @dataclass
@@ -297,7 +314,7 @@ class ExecutePipeline:
 
   pipeline: list[MirNode]
   # column-source / scan / negation / aggregate leaves for scheduler
-  source_specs: list[Union[ColumnSource, Scan, Negation, Aggregate]]
+  source_specs: list[Union[ColumnSource, Scan, Negation, SemiJoin, Aggregate]]
   dest_specs: list[InsertInto]  # insert-into targets
   rule_name: str = ""
   clause_order: list[int] = field(default_factory=list)
@@ -316,6 +333,9 @@ class FixpointPlan:
 
   instructions: list[MirNode]
   schema_arities: list[tuple[str, int]] = field(default_factory=list)
+  # Closed index-backed outputs with no later MIR consumers. Loop maintenance
+  # remains unchanged; only raw exit reconstruction and dead scratch differ.
+  index_only_exit_relations: set[str] = field(default_factory=set)
 
 
 @dataclass
@@ -408,6 +428,7 @@ MirNode = Union[
   Filter,
   ConstantBind,
   Negation,
+  SemiJoin,
   Aggregate,
   CreateFlatView,
   InnerPipeline,

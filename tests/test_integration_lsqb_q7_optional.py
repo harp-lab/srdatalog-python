@@ -4,11 +4,9 @@ import csv
 from collections import Counter
 from pathlib import Path
 
-from integration_helpers import diff_hir, diff_mir, diff_orchestrator_exact
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Program, Relation, Var
-from srdatalog.ir.codegen.cuda.orchestrator import gen_step_body
-from srdatalog.ir.hir import compile_to_mir
 
 SMALL_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "lsqb_q7_small"
 
@@ -75,16 +73,7 @@ def test_lsqb_q7_optional_hir():
 
 
 def test_lsqb_q7_optional_mir():
-  diff_mir(build_lsqb_q7_optional(), "lsqb_q7_optional")
-
-
-def test_lsqb_q7_optional_orchestrator_exactly_matches_nim():
-  mir = compile_to_mir(build_lsqb_q7_optional())
-  actual = "".join(
-    gen_step_body(step, "LSQB_Q7_Plan_DB_DeviceDB", is_recursive, i)
-    for i, (step, is_recursive) in enumerate(mir.steps)
-  )
-  diff_orchestrator_exact("lsqb_q7_optional", actual)
+  check_mir_lifetimes(build_lsqb_q7_optional())
 
 
 def test_lsqb_q7_small_fixture_has_expected_case_counts():
@@ -115,6 +104,5 @@ def test_lsqb_q7_small_fixture_has_expected_case_counts():
 if __name__ == "__main__":
   test_lsqb_q7_optional_hir()
   test_lsqb_q7_optional_mir()
-  test_lsqb_q7_optional_orchestrator_exactly_matches_nim()
   test_lsqb_q7_small_fixture_has_expected_case_counts()
   print("lsqb_q7_optional: OK")

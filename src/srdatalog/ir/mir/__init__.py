@@ -47,6 +47,7 @@ from srdatalog.ir.mir.types import (
   RebuildIndex,
   RebuildIndexFromIndex,
   Scan,
+  SemiJoin,
 )
 
 DIALECT = Dialect(
@@ -67,6 +68,7 @@ DIALECT = Dialect(
     PositionedExtract,
     ProbeJoin,
     Scan,
+    SemiJoin,
     # Fixpoint maintenance
     CheckSize,
     ClearRelation,

@@ -1,12 +1,7 @@
-'''Shared helpers for integration-program byte-match tests.
+'''Integration helpers for HIR fixtures, MIR lifetimes, and JIT codegen.
 
-Each test_integration_<program>.py module builds a Python Program, compiles
-it through the HIR + MIR pipelines, and byte-diffs the output against the
-Nim golden in python/tests/fixtures/integration/.
-
-JIT codegen tests byte-diff C++ output against Nim fixtures in
-python/tests/fixtures/jit/<stem>/. Normalization strips whitespace so the
-fixtures survive the repo's clang-format pre-commit hook.
+MIR checks track live DELTA indexes and completed FULL indexes instead of
+pinning the implementation's instruction ordering to Nim snapshots.
 '''
 
 import json
@@ -16,10 +11,10 @@ from pathlib import Path
 from srdatalog.dsl import Program
 from srdatalog.ir.hir import compile_to_hir, compile_to_mir
 from srdatalog.ir.hir.emit import hir_to_obj
-from srdatalog.ir.mir.print import print_mir_sexpr
+from srdatalog.ir.hir.types import Version
+from srdatalog.ir.mir import types as mir
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "integration"
-JIT_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "jit"
 
 
 def diff_hir(prog: Program, fixture_stem: str) -> None:
@@ -44,24 +39,83 @@ def diff_hir(prog: Program, fixture_stem: str) -> None:
     raise AssertionError(f"{fixture_stem} HIR mismatch:\n" + d[:4000])
 
 
-def diff_mir(prog: Program, fixture_stem: str) -> None:
-  mir_prog = compile_to_mir(prog)
-  actual = print_mir_sexpr(mir_prog)
-  golden = (FIXTURES / f"{fixture_stem}.mir.sexpr").read_text().rstrip("\n")
-  if actual != golden:
-    import difflib
+def check_delta_lifetimes(
+  instructions: list[mir.MirNode], *, recursive: bool
+) -> tuple[set[tuple[str, tuple[int, ...]]], set[tuple[str, tuple[int, ...]]]]:
+  '''Check DELTA dataflow, including every index read after ownership transfer.'''
+  live: set[tuple[str, tuple[int, ...]]] = set()
+  built: set[tuple[str, tuple[int, ...]]] = set()
+  merged: set[tuple[str, tuple[int, ...]]] = set()
+  finalized: set[str] = set()
+  for op in instructions:
+    if isinstance(op, mir.ComputeDeltaIndex):
+      assert op.rel_name not in finalized, f"Repeated finalization of {op.rel_name}"
+      finalized.add(op.rel_name)
+      key = (op.rel_name, tuple(op.canonical_index))
+      live.add(key)
+      built.add(key)
+    elif isinstance(op, mir.ClearRelation) and op.version is Version.DELTA:
+      live = {key for key in live if key[0] != op.rel_name}
+    elif isinstance(op, mir.RebuildIndexFromIndex) and op.version is Version.DELTA:
+      source = (op.rel_name, tuple(op.source_index))
+      assert source in live, f"Rebuilding from consumed DELTA {source}"
+      target = (op.rel_name, tuple(op.target_index))
+      live.add(target)
+      built.add(target)
+    elif isinstance(op, mir.MergeIndex):
+      key = (op.rel_name, tuple(op.index))
+      assert key in live, f"Merging consumed DELTA {key}"
+      assert key not in merged, f"Repeated merge of {key}"
+      assert not (recursive and op.consume_delta), f"Consuming recursive DELTA {key}"
+      merged.add(key)
+      if op.consume_delta:
+        live.remove(key)
+  if recursive:
+    # These sources will be read on the next fixpoint iteration. The first
+    # iteration dispatches DELTA through FULL, not the consumed seed DELTA.
+    for op in instructions:
+      pipelines = op.ops if isinstance(op, mir.ParallelGroup) else [op]
+      for pipeline in pipelines:
+        if isinstance(pipeline, mir.ExecutePipeline):
+          for source in pipeline.source_specs:
+            if source.version is Version.DELTA:
+              key = (source.rel_name, tuple(source.index))
+              assert key in live, f"Missing next-iteration DELTA {key}"
+  else:
+    assert not live, f"Nonrecursive DELTAs retained past last use: {live}"
+    assert merged == built, f"Missing FULL indexes: {built - merged}"
+  return live, merged
 
-    d = "\n".join(
-      difflib.unified_diff(
-        golden.splitlines(),
-        actual.splitlines(),
-        fromfile="nim",
-        tofile="python",
-        lineterm="",
-        n=3,
+
+def check_mir_lifetimes(prog: Program) -> None:
+  '''Compile real query plans and verify finalization and export lifetimes.'''
+  hir = compile_to_hir(prog)
+  strata = iter(hir.strata)
+  full: set[tuple[str, tuple[int, ...]]] = set()
+  for node, recursive in compile_to_mir(prog, hir=hir).steps:
+    if isinstance(node, mir.FixpointPlan):
+      stratum = next(strata)
+      assert recursive == stratum.is_recursive
+      live, merged = check_delta_lifetimes(node.instructions, recursive=recursive)
+      modified = (
+        stratum.scc_members
+        if recursive
+        else {head.rel for v in stratum.base_variants for head in v.original_rule.heads}
       )
-    )
-    raise AssertionError(f"{fixture_stem} MIR mismatch:\n" + d[:4000])
+      required = {
+        (rel, tuple(index))
+        for rel in modified
+        for index in stratum.required_indices.get(rel, [])
+      }
+      if recursive:
+        assert required <= live, f"Missing recursive DELTA indexes: {required - live}"
+      else:
+        assert required <= merged, f"Missing nonrecursive FULL indexes: {required - merged}"
+      full.update(merged)
+    elif isinstance(node, mir.PostStratumReconstructInternCols):
+      key = (node.rel_name, tuple(node.canonical_index))
+      assert key in full, f"Exporting missing canonical FULL {key}"
+  assert next(strata, None) is None, "Missing stratum finalization"
 
 
 # -----------------------------------------------------------------------------
@@ -110,48 +164,3 @@ def _unified_cpp_diff(golden: str, actual: str, label: str, limit: int = 4000) -
       n=3,
     )
   )[:limit]
-
-
-def diff_orchestrator(fixture_stem: str, actual_cpp: str) -> None:
-  '''Byte-diff the emitted orchestrator step bodies against the Nim golden
-  in `fixtures/jit/<stem>/orchestrator.cpp`. Normalization collapses
-  whitespace so clang-format doesn't fight us; semantic drift still fails.
-  '''
-  golden_path = JIT_FIXTURES / fixture_stem / "orchestrator.cpp"
-  golden = golden_path.read_text()
-  if _cpp_norm(actual_cpp) != _cpp_norm(golden):
-    d = _unified_cpp_diff(golden, actual_cpp, fixture_stem)
-    raise AssertionError(f"{fixture_stem} orchestrator mismatch:\n" + d)
-
-
-def diff_orchestrator_exact(fixture_stem: str, actual_cpp: str) -> None:
-  '''Require exact source bytes for a Nim-generated orchestrator golden.'''
-  golden_path = JIT_FIXTURES / fixture_stem / "orchestrator.cpp"
-  golden = golden_path.read_text()
-  if actual_cpp != golden:
-    d = _unified_cpp_diff(golden, actual_cpp, fixture_stem)
-    raise AssertionError(f"{fixture_stem} exact orchestrator mismatch:\n" + d)
-
-
-def diff_jit_batch(fixture_stem: str, rule_name: str, actual_cpp: str) -> None:
-  '''Byte-diff a JIT batch file against the Nim golden in
-  `fixtures/jit/<stem>/jit_batch.<rule>.cpp`.
-  '''
-  golden_path = JIT_FIXTURES / fixture_stem / f"jit_batch.{rule_name}.cpp"
-  golden = golden_path.read_text()
-  if _cpp_norm(actual_cpp) != _cpp_norm(golden):
-    d = _unified_cpp_diff(golden, actual_cpp, f"{fixture_stem}::{rule_name}")
-    raise AssertionError(f"{fixture_stem} jit_batch.{rule_name} mismatch:\n" + d)
-
-
-def diff_jit_runner(fixture_stem: str, rule_name: str, actual_cpp: str) -> None:
-  '''Byte-diff a complete JIT runner struct against the Nim golden in
-  `fixtures/jit/<stem>/jit_runner.<rule>.cpp`. The fixture is the `full`
-  output of `jitCompleteRunner(ep, dbTypeName, relIndexTypes)` — the full
-  `struct JitRunner_<rule>` with kernel defs + phase methods + execute().
-  '''
-  golden_path = JIT_FIXTURES / fixture_stem / f"jit_runner.{rule_name}.cpp"
-  golden = golden_path.read_text()
-  if _cpp_norm(actual_cpp) != _cpp_norm(golden):
-    d = _unified_cpp_diff(golden, actual_cpp, f"{fixture_stem}::{rule_name}")
-    raise AssertionError(f"{fixture_stem} jit_runner.{rule_name} mismatch:\n" + d)

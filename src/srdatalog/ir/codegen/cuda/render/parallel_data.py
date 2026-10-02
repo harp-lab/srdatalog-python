@@ -196,6 +196,9 @@ def _render_bg_root_cj_multi(op: BgRootCjMulti, ctx: EmitCtx) -> str:
       f'.prefix({op.root_val_var}, {ctx.tile_var}, {src.view_var});\n'
     )
     parts.append(f'{seg_indent}if (!{src.handle_var}.valid()) continue;\n')
+    # Descendants may switch another occurrence of this same index to HEAD
+    # or FULL. Preserve the physical view paired with this handle's offsets.
+    parts.append(f'{seg_indent}auto bound_view_{src.handle_var} = {src.view_var};\n')
 
   # Bind root var at deepest segment indent.
   parts.append(f'{seg_indent}auto {op.var_name} = {op.root_val_var};\n')

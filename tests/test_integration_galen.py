@@ -1,6 +1,6 @@
 '''galen.nim -- 8 rules incl 3-way joins with plan pragmas'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import PlanEntry, Program, Relation, Var
 
@@ -56,7 +56,7 @@ def test_galen_hir():
 
 
 def test_galen_mir():
-  diff_mir(build_galen(), "galen")
+  check_mir_lifetimes(build_galen())
 
 
 if __name__ == "__main__":

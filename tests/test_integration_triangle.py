@@ -1,6 +1,6 @@
 '''triangle.nim -- ZRel(x,y,z) :- RRel(x,y), SRel(y,z,h), TRel(z,x,f)'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Program, Relation, Var
 
@@ -25,7 +25,7 @@ def test_triangle_hir():
 
 
 def test_triangle_mir():
-  diff_mir(build_triangle(), "triangle")
+  check_mir_lifetimes(build_triangle())
 
 
 if __name__ == "__main__":

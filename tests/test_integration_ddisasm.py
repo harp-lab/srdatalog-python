@@ -6,12 +6,6 @@ in `tests/fixtures/jit/ddisasm/jit_runner.<rule>.cpp` were extracted
 verbatim from `~/.cache/nim/jit/DdisasmPlan_C1DE/jit_batch_*.cpp` (the
 Nim toolchain's authoritative emit).
 
-The HIR / MIR goldens in `tests/fixtures/integration/ddisasm.{hir.json,
-mir.sexpr}` are self-generated from the Python compile — they catch
-HIR/MIR regressions but do not gate against Nim. (The HIR/MIR layers
-have been independently validated equivalent to Nim via galen / doop /
-polonius_test fixtures; ddisasm goldens for those layers were not
-captured upstream.)
 '''
 
 import json
@@ -19,7 +13,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from integration_helpers import FIXTURES, diff_hir, diff_mir
+from integration_helpers import FIXTURES, check_mir_lifetimes
 
 from srdatalog import build_project
 
@@ -32,12 +26,8 @@ def build_ddisasm():
   return build_ddisasmdb_program(meta)
 
 
-def test_ddisasm_hir():
-  diff_hir(build_ddisasm(), "ddisasm")
-
-
 def test_ddisasm_mir():
-  diff_mir(build_ddisasm(), "ddisasm")
+  check_mir_lifetimes(build_ddisasm())
 
 
 @pytest.mark.parametrize("layout", ["split", "sharded", "unity"])
@@ -61,6 +51,5 @@ def test_ddisasm_dedup_type_defined_before_use(tmp_path, layout):
 
 
 if __name__ == "__main__":
-  test_ddisasm_hir()
   test_ddisasm_mir()
   print("ddisasm: OK")

@@ -22,6 +22,7 @@ from srdatalog.ir.codegen.cuda.main_file import (
 )
 from srdatalog.ir.codegen.cuda.orchestrator import gen_step_body
 from srdatalog.ir.hir import compile_to_hir, compile_to_mir
+from srdatalog.ir.mir.passes import elide_dead_full_reconstructions
 
 if TYPE_CHECKING:
   from srdatalog.dsl import Program
@@ -77,15 +78,36 @@ class CompileResult:
   rel_index_types: dict[str, str] = field(default_factory=dict)
 
 
-def compile_program(program: Program, project_name: str) -> CompileResult:
+def compile_program(
+  program: Program, project_name: str, *, index_only_outputs: bool = False
+) -> CompileResult:
   '''Run the full compile pipeline — HIR → MIR → all emitted strings.
 
   Stops before any file I/O. The resulting `CompileResult` is the
   point both `build_project` (writes it to disk) and the viz module
   (renders it in a webview) branch from.
+  `index_only_outputs` declares a closed consumer that reads results through
+  canonical indexes, not raw FULL columns. Generic/custom C++ callers retain
+  materialized raw output by default.
   '''
   hir = compile_to_hir(program)
   mir = compile_to_mir(program, hir=hir)
+  if index_only_outputs:
+    index_only_relations = {
+      d.rel_name for d in hir.relation_decls
+      if not d.input_file and not d.index_type and d.semiring == "NoProvenance"
+    }
+    terminal_index_only_relations = {
+      d.rel_name for d in hir.relation_decls
+      if not d.input_file
+      and d.index_type in ("", "SRDatalog::GPU::Device2LevelIndex")
+      and d.semiring == "NoProvenance"
+    }
+    mir.steps = elide_dead_full_reconstructions(
+      mir.steps,
+      index_only_relations,
+      terminal_index_only_relations=terminal_index_only_relations,
+    )
 
   ext_db = f"{project_name}_DB"
   device_db = f"{ext_db}_DeviceDB"

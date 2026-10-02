@@ -273,7 +273,9 @@ class Device2LevelIndex {
       head_ = DSAI{};
     } else {
       full_.merge(head_, full_.size());
-      head_.clear();
+      // The merged FULL now owns these tuples. Return obsolete HEAD capacity
+      // to RMM rather than keeping it in a logically empty segment.
+      head_ = DSAI{};
     }
   }
 

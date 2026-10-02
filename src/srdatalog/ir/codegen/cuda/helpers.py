@@ -93,7 +93,7 @@ def assign_handles(pipeline: m.ExecutePipeline) -> m.ExecutePipeline:
 def _source_rel_ver_idx(node: m.MirNode) -> tuple[str, Version, list[int]] | None:
   '''Pull the `(rel, ver, index)` tuple out of any source-bearing leaf.
   Returns None for non-source nodes (ColumnJoin / CartesianJoin / ...).'''
-  if isinstance(node, (m.ColumnSource, m.Scan, m.Negation, m.Aggregate)):
+  if isinstance(node, (m.ColumnSource, m.Scan, m.Negation, m.SemiJoin, m.Aggregate)):
     return node.rel_name, node.version, list(node.index)
   return None
 
@@ -128,7 +128,7 @@ def collect_unique_view_specs(ops: list[m.MirNode]) -> list[ViewSpec]:
         rel, ver, idx = info
         add(rel, ver, idx, getattr(src, "handle_start", -1))
     # single-source leaf ops
-    elif isinstance(op, (m.Scan, m.Negation, m.Aggregate)):
+    elif isinstance(op, (m.Scan, m.Negation, m.SemiJoin, m.Aggregate)):
       info = _source_rel_ver_idx(op)
       if info is None:
         continue
@@ -162,7 +162,7 @@ def find_source_idx(
   '''
   idx_tuple = tuple(index)
   for i, spec in enumerate(specs):
-    if not isinstance(spec, (m.ColumnSource, m.Scan, m.Negation, m.Aggregate)):
+    if not isinstance(spec, (m.ColumnSource, m.Scan, m.Negation, m.SemiJoin, m.Aggregate)):
       continue
     if spec.rel_name != rel_name:
       continue
@@ -232,7 +232,7 @@ def emit_view_declarations(pipeline: m.ExecutePipeline, ctx: CodeGenContext) -> 
           h = getattr(op, "handle_start", None)
           if h is not None:
             ctx.view_vars[h] = spec_to_view_var[key]
-    elif isinstance(op, (m.Scan, m.Negation, m.Aggregate)):
+    elif isinstance(op, (m.Scan, m.Negation, m.SemiJoin, m.Aggregate)):
       info = _source_rel_ver_idx(op)
       if info is None:
         continue

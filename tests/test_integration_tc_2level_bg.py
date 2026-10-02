@@ -1,6 +1,6 @@
 '''tc_2level_bg.nim -- tc with block_group pragma on recursive variant'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Program, Relation, Var
 
@@ -30,7 +30,7 @@ def test_tc_2level_bg_hir():
 
 
 def test_tc_2level_bg_mir():
-  diff_mir(build_tc_2level_bg(), "tc_2level_bg")
+  check_mir_lifetimes(build_tc_2level_bg())
 
 
 if __name__ == "__main__":

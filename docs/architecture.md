@@ -21,10 +21,20 @@ are plain function calls.
 3. **Semi-join optimization** — opt-in via `rule.with_semi_join()`; rewrites 3+ body-atom rules into a semi-join form when profitable.
 4. **Stratification** — partitions rules into strata, handles negation / aggregation dependencies.
 5. **Semi-naive variant generation** — one variant per delta position.
-6. **Join planning** — builds a var-order / clause-order / access-pattern per variant.
+6. **Join planning** — builds a var-order / clause-order / access-pattern per variant. Static unary `NoProvenance` sets can become bound-key semijoin filters rather than tuple generators.
 7. **Temp-rel synthesis** (pass 4.5) — splits rules with `SPLIT` markers.
 8. **Index selection** — picks the minimal set of indexes to build per relation.
 9. **Temp-rel index registration** (pass 5.5) — merges temp-rel indexes back into the global index map.
+
+Bound-key semijoins are distinct from the opt-in materialized semi-join rewrite.
+They introduce no relation or columns and do not count as additional equality
+joins when classifying variables. Filters execute after their key is bound,
+before unrelated fanout where supported. A filtered key in the mandatory DELTA
+generator retains early DELTA-column traversal order; the predicate itself
+never becomes the generator. Explicit user orders are preserved. Lone unary generators,
+current-SCC predicates, custom/multisegment predicate indexes, and unsupported
+split/balanced shapes retain ordinary joins. This is a conservative structural
+heuristic, not a statistics-based globally optimal join order.
 
 ## HIR → MIR
 
@@ -36,6 +46,17 @@ variant into a sequence of steps. Each step is either:
   joins → filter → materialize).
 - `FixpointPlan` — a recursive stratum with delta-merge bookkeeping.
 - `ParallelGroup` — a set of pipelines safe to run concurrently.
+- `SemiJoin` — positive membership in a static sorted set. Both count and
+  materialize evaluate it with a one-sided lower-bound-plus-equality lookup:
+  warp-uniform keys use `group_contains`, independent Cartesian lanes use
+  `seq_contains`. No upper-bound search or child handle is needed. Filter-only
+  input indexes are initialized before recursive execution.
+
+Narrowed handles retain their own physical FULL/HEAD view and logical clause
+identity. Nested occurrences of the same two-level index must not overwrite
+the view paired with an outer handle's row offsets, including when their bound
+prefixes are identical. HIR supplies stable `clause_idx` values; hand-authored
+MIR must distinguish repeated logical source occurrences likewise.
 
 MIR passes then run:
 
@@ -59,17 +80,31 @@ together:
   composes the main.cpp (schemas → DB alias → GPU includes → runner
   fwd decls → `_Runner` struct).
 - {py:func}`srdatalog.codegen.jit.main_file.gen_extern_c_shim` appends
-  the five `extern "C"` entries the ctypes layer expects:
+  the ten `extern "C"` entries used by native callers:
   `srdatalog_init`, `srdatalog_load_all`, `srdatalog_load_csv`,
-  `srdatalog_run`, `srdatalog_size`, `srdatalog_shutdown`.
+  `srdatalog_prepare`, `srdatalog_run`, `srdatalog_size`, `srdatalog_get_size`,
+  `srdatalog_export_tsv`, `srdatalog_synchronize`, `srdatalog_shutdown`.
 - {py:func}`srdatalog.codegen.jit.cache.write_jit_project` writes the
   `.cpp` tree to `<cache_base>/jit/<Project>_<hash>/`.
 
-**Byte-match property**: for every rule that compiles through the
-standard path, the emitted `jit_batch_N.cpp` is byte-identical to what
-the upstream Nim codegen writes to its own cache — verified by the
-`test_e2e_batch_match_nim.py` fixture suite (125 / 127 passing; the
-last 2 require the work-stealing runner variant which is deferred).
+**Behavioral validation** checks MIR index availability and DELTA lifetimes,
+including secondary-index reads before ownership transfer and retention across
+recursive iterations. Native CUDA regressions exercise result tuples, consuming
+index ownership, provenance, wide column addressing, and process teardown;
+enable them with `SRDATALOG_JIT_RUN_COMPILE_TESTS=1`. Historical Nim source
+formatting is not a compatibility contract.
+
+`build_project(index_only_outputs=True)` enables proven-dead raw FULL
+reconstruction elimination for closed, index-backed C-ABI consumers such as the
+DOOP suite. Generic and custom C++ builds keep raw output storage by default.
+The opt-in analysis preserves reconstruction for raw readers, opaque hooks,
+unsupported representations, and nonterminal recursive consumers. Terminal
+recursive results may omit raw exit copies only when no later MIR consumer needs
+them; live recursive DELTA remains intact during iteration, and dead scratch is
+released only after synchronized convergence. Counts and TSV exports observe the
+complete logical relations through their canonical indexes. Built-in
+NoProvenance two-level indexes export both base and HEAD in bounded host chunks,
+without allocating a compacted device-sized output table.
 
 ## Compile → load
 
@@ -99,9 +134,18 @@ mode=RTLD_GLOBAL)`. Symbols:
 | `srdatalog_init()` | `int()` | `SRDatalog::GPU::init_cuda()` |
 | `srdatalog_load_csv(rel, path)` | `int(const char*, const char*)` | Per-relation CSV load; only dispatches to relations declared with `input_file`. |
 | `srdatalog_load_all(dir)` | `int(const char*)` | Convenience — iterates every `input_file` relation. |
-| `srdatalog_run(max_iters)` | `int(uint64_t)` | Copy host→device, call `<Project>_Runner::run`, `0` means unlimited. |
-| `srdatalog_size(rel)` | `uint64_t(const char*)` | Canonical-index size on the host DB. |
-| `srdatalog_shutdown()` | `int()` | Free the host DB. |
+| `srdatalog_prepare()` | `int()` | Construct a fresh device DB and finish H2D transfer before timing. |
+| `srdatalog_run(max_iters)` | `int(uint64_t)` | Consume a prepared DB once, or copy fresh host→device; run complete fixedpoint, `0` means unlimited. |
+| `srdatalog_size(rel)` | `uint64_t(const char*)` | Canonical-index size on the device DB after execution; legacy zero-on-missing probe. |
+| `srdatalog_get_size(rel, out)` | `int(const char*, uint64_t*)` | Checked size read; reports missing indexes rather than masking errors. |
+| `srdatalog_export_tsv(rel, path)` | `int(const char*, const char*)` | Export logical tuples after execution. |
+| `srdatalog_synchronize()` | `int()` | Checked completion boundary for GPU work. |
+| `srdatalog_shutdown()` | `int()` | Synchronize and free host and device DBs. |
+
+Preparation is a one-shot snapshot, not a result cache. Loading more host inputs
+invalidates it; repeated runs without preparation still reconstruct empty IDBs.
+The DOOP benchmark calls preparation outside its fixedpoint timer and collects
+counts/optional exports afterward.
 
 ## Nim ↔ Python parity
 

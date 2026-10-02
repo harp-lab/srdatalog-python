@@ -94,6 +94,8 @@ class HirRuleVariant:
   temp_rel_name: str = ""
   access_patterns: list[AccessPattern] = field(default_factory=list)
   negation_patterns: list[AccessPattern] = field(default_factory=list)
+  # Positive bound-key existence predicates, distinct from generators/negation.
+  semijoin_patterns: list[AccessPattern] = field(default_factory=list)
   balanced_root: list[str] = field(default_factory=list)
   balanced_sources: list[str] = field(default_factory=list)
   # Codegen hints (pragma-driven)

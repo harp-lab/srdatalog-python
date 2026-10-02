@@ -1,6 +1,6 @@
 '''print_mir.nim -- same as andersen but no input pragmas, different Load plan'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import PlanEntry, Program, Relation, Var
 
@@ -47,7 +47,7 @@ def test_print_mir_hir():
 
 
 def test_print_mir_mir():
-  diff_mir(build_print_mir(), "print_mir")
+  check_mir_lifetimes(build_print_mir())
 
 
 if __name__ == "__main__":

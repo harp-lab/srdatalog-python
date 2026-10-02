@@ -1,6 +1,6 @@
 '''sg.nim -- same-generation with filter + recursive case'''
 
-from integration_helpers import diff_hir, diff_mir
+from integration_helpers import check_mir_lifetimes, diff_hir
 
 from srdatalog.dsl import Filter, Program, Relation, Var
 
@@ -27,7 +27,7 @@ def test_sg_hir():
 
 
 def test_sg_mir():
-  diff_mir(build_sg(), "sg")
+  check_mir_lifetimes(build_sg())
 
 
 if __name__ == "__main__":

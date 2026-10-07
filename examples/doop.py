@@ -1,7 +1,8 @@
-"""Auto-generated from /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/doop/doop_bg_2level.nim by tools/nim_to_dsl.py.
-Do not edit manually — regenerate via:
+"""Canonical DOOP query, originally translated from doop_bg_2level.nim.
 
-    python tools/nim_to_dsl.py /home/stargazermiao/workspace/SRDatalog/integration_tests/examples/doop/doop_bg_2level.nim --out <this file>
+Maintained exact array-store partitions preserve Object[] and String[] type
+guards without materializing their heap-pair products. Regenerating from the
+upstream Nim query alone does not preserve these optimizations.
 """
 
 from __future__ import annotations
@@ -538,8 +539,8 @@ VirtualMethodInvocation = Relation(
   ),
   print_size=True,
 )
-HeapAllocSuperType = Relation(
-  "HeapAllocSuperType",
+NonStringHeapAllocSuperType = Relation(
+  "NonStringHeapAllocSuperType",
   2,
   column_types=(
     int,
@@ -577,6 +578,8 @@ ArrayTypeCompat = Relation(
 )
 IsObjectArrayHeap = Relation("IsObjectArrayHeap", 1, column_types=(int,))
 EligibleObjectArrayHeap = Relation("EligibleObjectArrayHeap", 1, column_types=(int,))
+IsStringArrayHeap = Relation("IsStringArrayHeap", 1, column_types=(int,))
+EligibleStringArrayHeap = Relation("EligibleStringArrayHeap", 1, column_types=(int,))
 IsStringHeap = Relation("IsStringHeap", 1, column_types=(int,))
 IsCastableToString = Relation("IsCastableToString", 1, column_types=(int,))
 
@@ -590,7 +593,9 @@ def build_doopdb_program(meta: dict[str, int]) -> Program:
   `json.load(open("batik_meta.json"))` or similar. Each declared
   dataset_const binds to a Python-local `Const(meta[key])` at the top
   of this function; any missing key raises KeyError loudly here
-  instead of surfacing as silent wrong integers downstream.
+  instead of surfacing as silent wrong integers downstream. In particular,
+  `java_lang_String_array` identifies the semantic java.lang.String[] type,
+  not a heap or a fact derived from a previous fixedpoint.
   """
   a = Var("a")
   actual = Var("actual")
@@ -651,12 +656,16 @@ def build_doopdb_program(meta: dict[str, int]) -> Program:
   JAVA_LANG_CLONEABLE = Const(meta["java_lang_Cloneable"])
   JAVA_LANG_OBJECT = Const(meta["java_lang_Object"])
   JAVA_LANG_OBJECT_ARRAY = Const(meta["java_lang_Object_array"])
+  JAVA_LANG_STRING_ARRAY = Const(meta["java_lang_String_array"])
   JAVA_LANG_STRING_TYPE = Const(meta["java_lang_String_type"])
   MAIN = Const(meta["main"])
   MAIN_DESCRIPTOR = Const(meta["main_descriptor"])
   PUBLIC = Const(meta["public"])
   REGISTER_NATIVES_METHOD = Const(meta["register_natives_method"])
   STATIC = Const(meta["static"])
+
+  if JAVA_LANG_STRING_ARRAY.value == JAVA_LANG_OBJECT_ARRAY.value:
+    raise ValueError("String[] and Object[] must have distinct semantic type identifiers")
 
   return Program(
     rules=[
@@ -805,17 +814,30 @@ def build_doopdb_program(meta: dict[str, int]) -> Program:
         & VirtualMethodInvocation_Descriptor(invocation, descriptor)
       ).named('Precompute2'),
       (
-        HeapAllocSuperType(heap, baseheap)
+        NonStringHeapAllocSuperType(heap, baseheap)
         <= HeapAllocation_Type(heap, heaptype)
         & HeapAllocation_Type(baseheap, baseheaptype)
         & ComponentType(baseheaptype, comptype)
         & SupertypeOf(comptype, heaptype)
-        & Filter(('baseheaptype',), f"return baseheaptype != {JAVA_LANG_OBJECT_ARRAY.value};")
+        & Filter(
+          ('baseheaptype',),
+          f"return baseheaptype != {JAVA_LANG_OBJECT_ARRAY.value} "
+          f"&& baseheaptype != {JAVA_LANG_STRING_ARRAY.value};",
+        )
       )
       .named('HeapAllocHelper')
       .with_plan(
         var_order=['heaptype', 'comptype', 'baseheaptype', 'heap', 'baseheap'], block_group=True
       ),
+      (IsStringArrayHeap(baseheap) <= HeapAllocation_Type(baseheap, JAVA_LANG_STRING_ARRAY)).named(
+        'IsStringArrayHeap_rule'
+      ),
+      (
+        EligibleStringArrayHeap(heap)
+        <= HeapAllocation_Type(heap, heaptype)
+        & ComponentType(JAVA_LANG_STRING_ARRAY, comptype)
+        & SupertypeOf(comptype, heaptype)
+      ).named('EligibleStringArrayHeap_rule'),
       (IsObjectArrayHeap(baseheap) <= HeapAllocation_Type(baseheap, JAVA_LANG_OBJECT_ARRAY)).named(
         'IsObjectArrayHeap_rule'
       ),
@@ -1005,9 +1027,19 @@ def build_doopdb_program(meta: dict[str, int]) -> Program:
         <= ReachableSortedIndex(frm, base)
         & VarPointsTo(baseheap, base)
         & VarPointsTo(heap, frm)
-        & HeapAllocSuperType(heap, baseheap)
+        & NonStringHeapAllocSuperType(heap, baseheap)
       )
       .named('AIPT_Store')
+      .with_plan(delta=1, var_order=['base', 'frm', 'baseheap', 'heap'], block_group=True),
+      (
+        ArrayIndexPointsTo(baseheap, heap)
+        <= ReachableSortedIndex(frm, base)
+        & VarPointsTo(baseheap, base)
+        & IsStringArrayHeap(baseheap)
+        & VarPointsTo(heap, frm)
+        & EligibleStringArrayHeap(heap)
+      )
+      .named('AIPT_Store_StringArray')
       .with_plan(delta=1, var_order=['base', 'frm', 'baseheap', 'heap'], block_group=True),
     ],
   )

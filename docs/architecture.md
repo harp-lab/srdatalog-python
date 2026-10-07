@@ -147,14 +147,58 @@ invalidates it; repeated runs without preparation still reconstruct empty IDBs.
 The DOOP benchmark calls preparation outside its fixedpoint timer and collects
 counts/optional exports afterward.
 
+## Canonical DOOP array-store partition
+
+`examples/doop.py` maintains an exact type partition for array stores. The
+`Object[]` branch retains its stored-heap type, `ComponentType`, and
+`SupertypeOf` guards. The `String[]` branch uses two static unary relations:
+
+- `IsStringArrayHeap(baseheap)` requires
+  `HeapAllocation_Type(baseheap, java.lang.String[])`.
+- `EligibleStringArrayHeap(heap)` requires `HeapAllocation_Type(heap, heaptype)`,
+  `ComponentType(java.lang.String[], comptype)`, and
+  `SupertypeOf(comptype, heaptype)`.
+
+`AIPT_Store_StringArray` joins both filters with reachable stores and both
+`VarPointsTo` operands. Missing component-type facts therefore produce no
+eligible stores, and stored heaps with compatible subtype facts remain valid;
+eligibility is not restricted to heaps typed exactly `java.lang.String`.
+The general branch uses `NonStringHeapAllocSuperType`, excluding both
+`java.lang.Object[]` and `java.lang.String[]` base types. There is no
+materialized filtered-source points-to helper, heap merging, or dependence on
+the final points-to result of an earlier run.
+
+The old internal `HeapAllocSuperType` is not exported or retained as an alias.
+In `(heap, baseheap)` column order it is reconstructible exactly as
+`NonStringHeapAllocSuperType UNION
+(EligibleStringArrayHeap × IsStringArrayHeap)`. This is a set union; adding
+partition cardinalities additionally requires functional
+`HeapAllocation_Type` so that a base heap cannot belong to both partitions.
+All other logical relation tuple sets are unchanged. The instantiated query
+has **77 relations: 37 consumed inputs and 40 IDBs**, while preparation still
+produces the same 39 input files.
+
+The builder requires `meta["java_lang_String_array"]`, the semantic
+`java.lang.String[]` identifier in the same global symbol dictionary as the
+other constants. It must differ from `java_lang_Object_array`.
+`doop_suite.prepare.CONSTANTS` interns this symbol even if it is absent from
+the raw facts; this creates no heap, type, or component-type fact. The new
+constant is appended so existing constants keep their interning order.
+Existing source-pinned prepared manifests must not be repointed: prepare
+into a fresh output root to obtain metadata and identities for the new
+canonical source and adapter.
+
 ## Nim ↔ Python parity
 
 `tools/nim_to_dsl.py` auto-translates upstream Nim programs to Python
 DSL. Every benchmark under `integration_tests/examples/` in the
-upstream tree is already translated; regenerate with:
+upstream tree was initially translated. The canonical DOOP query now includes
+the maintained exact partitions described above; do not overwrite it with
+unmodified translator output. For other queries, regenerate with:
 
 ```bash
 for nim in integration_tests/examples/*/*.nim; do
+  case "$nim" in */doop/*) continue ;; esac
   python tools/nim_to_dsl.py "$nim" --out examples/$(basename "$nim" .nim).py
 done
 ```

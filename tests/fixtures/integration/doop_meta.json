@@ -14,5 +14,6 @@
   "desiredAssertionStatus_method": 926489,
   "java_lang_String_type": 434817,
   "java_lang_Class_type": 712330,
-  "java_lang_Object_array": 522484
+  "java_lang_Object_array": 522484,
+  "java_lang_String_array": 18
 }

@@ -102,17 +102,24 @@ def test_compute_only_driver_retains_recursive_unused_and_empty_relations(tmp_pa
   assert completed.stdout == "", "Generated printsize I/O must stay outside the fixedpoint"
 
 
-def test_canonical_object_array_store_matches_upstream_type_join(tmp_path):
+def test_canonical_array_stores_match_upstream_type_join_and_propagate_new_points(tmp_path):
   if shutil.which(os.environ.get("SOUFFLE", "souffle")) is None:
     pytest.skip("Souffle and development headers are required for the embedded driver")
   meta_path = Path(__file__).parent / "fixtures" / "integration" / "doop_meta.json"
   meta = json.loads(meta_path.read_text())
   canonical = doop.build_doopdb_program(meta)
   selected_names = {
+    "HeapAllocHelper",
     "IsObjectArrayHeap_rule",
     "EligibleObjectArrayHeap_rule",
+    "IsStringArrayHeap_rule",
+    "EligibleStringArrayHeap_rule",
     "ReachableSortedIndex_rule",
+    "AIPT_Store",
     "AIPT_Store_ObjectArray",
+    "AIPT_Store_StringArray",
+    "ArrayTypeCompatPrecompute",
+    "VPT_LoadArray",
   }
   rules = [rule for rule in canonical.rules if rule.name in selected_names]
   heap, heaptype = Var("heap"), Var("heaptype")
@@ -127,8 +134,8 @@ def test_canonical_object_array_store_matches_upstream_type_join(tmp_path):
     doop.VarPointsTo(heap, frm) <= seed_points(heap, frm),
     doop.SupertypeOf(comptype, heaptype) <= seed_supertype(comptype, heaptype),
     doop.Reachable(method) <= seed_reachable(method),
-    # Original unfactored store formula: both allocation types and the
-    # component/supertype join must exist, even when the base is Object[].
+    # Independent upstream formula, before either special-array split.
+    # Both allocation types and the component/supertype join are required.
     upstream(baseheap, heap)
     <= doop.Reachable(method)
     & doop.StoreArrayIndex(frm, base, method)
@@ -146,30 +153,66 @@ def test_canonical_object_array_store_matches_upstream_type_join(tmp_path):
   env["OMP_NUM_THREADS"] = "2"
   build = _build(source, tmp_path, 2, env, 120)
 
-  # 101 is compatible, 102 incompatible, 103 untyped, and 104 has two
-  # compatible types plus an incompatible one. Two source variables create
-  # distinct derivations of the same store, not merely duplicate input rows.
+  # Source heaps: 101/105 fit String[], 102 fits only the ordinary array,
+  # 103 is untyped, and 104 has both compatible and incompatible types.
+  # Base heaps: 10/50/51 are Object[], 11/15 are String[], 12 is ordinary,
+  # 13 is untyped, and 14 has no component relation.
   object_array = meta["java_lang_Object_array"]
+  string_array = meta["java_lang_String_array"]
+  ordinary_array = 204
   facts = {
     "HeapAllocation_Type.csv": (
-      f"10\t{object_array}\n101\t201\n102\t202\n"
-      "104\t201\n104\t203\n104\t202\n"
+      f"10\t{object_array}\n50\t{object_array}\n51\t{object_array}\n"
+      f"11\t{string_array}\n15\t{string_array}\n12\t{ordinary_array}\n14\t205\n"
+      "101\t201\n102\t202\n104\t201\n104\t203\n104\t202\n105\t203\n"
     ),
     "SeedPoints.csv": (
-      "10\t1\n101\t2\n102\t2\n103\t2\n104\t2\n104\t3\n"
+      "10\t1\n12\t5\n13\t6\n14\t7\n15\t8\n101\t2\n102\t2\n103\t2\n104\t2\n"
+      "104\t3\n50\t30\n11\t31\n51\t32\n105\t33\n"
     ),
-    "SeedSupertype.csv": "200\t201\n200\t203\n",
     "SeedReachable.csv": "9\n",
-    "StoreArrayIndex.csv": "2\t1\t9\n3\t1\t9\n",
+    "StoreArrayIndex.csv": (
+      "2\t1\t9\n3\t1\t9\n2\t4\t9\n2\t5\t9\n2\t6\t9\n2\t7\t9\n2\t8\t9\n"
+      "31\t30\t9\n33\t32\t9\n2\t8\t99\n"
+    ),
+    # These two loads discover a new destination array and a new source
+    # heap only after stores have fired, exercising both recursive inputs.
+    "LoadArrayIndex.csv": "30\t4\t9\n32\t2\t9\n",
+    "Var_Type.csv": "4\t200\n2\t200\n",
   }
   for filename, contents in facts.items():
     (tmp_path / filename).write_text(contents, encoding="utf-8")
 
-  for case, components, expected in [
-    ("component-present", f"{object_array}\t200\n", {(10, 101), (10, 104)}),
-    ("component-missing", "", set()),
+  for case, missing_component, string_compatible in [
+    ("all-components", None, True),
+    ("missing-string-component", string_array, True),
+    ("missing-object-component", object_array, True),
+    ("missing-ordinary-component", ordinary_array, True),
+    ("missing-string-supertype", None, False),
   ]:
-    (tmp_path / "ComponentType.csv").write_text(components, encoding="utf-8")
+    components = [(object_array, 200), (string_array, 201), (ordinary_array, 202)]
+    (tmp_path / "ComponentType.csv").write_text(
+      "".join(f"{array}\t{component}\n" for array, component in components
+              if array != missing_component),
+      encoding="utf-8",
+    )
+    (tmp_path / "SeedSupertype.csv").write_text(
+      f"200\t201\n200\t202\n200\t203\n200\t200\n200\t{string_array}\n202\t202\n"
+      + ("201\t201\n201\t203\n" if string_compatible else ""),
+      encoding="utf-8",
+    )
+    object_present = missing_component != object_array
+    string_present = missing_component != string_array and string_compatible
+    ordinary_present = missing_component != ordinary_array
+    expected = set()
+    if object_present:
+      expected.update({(10, 101), (10, 102), (10, 104), (10, 105), (50, 11), (51, 105)})
+    if string_present:
+      expected.update({(15, 101), (15, 104)})
+      if object_present:
+        expected.update({(11, 101), (11, 104), (11, 105), (15, 105)})
+    if ordinary_present:
+      expected.update({(12, 102), (12, 104)})
     outputs = tmp_path / case
     subprocess.run(
       [
@@ -185,9 +228,28 @@ def test_canonical_object_array_store_matches_upstream_type_join(tmp_path):
       assert len(parsed) == len(set(parsed)), f"{case}: {name} must have set semantics"
       return set(parsed)
 
-    assert tuples("UpstreamArrayIndexPointsTo") == expected
-    assert tuples("ArrayIndexPointsTo") == expected
-    assert tuples("EligibleObjectArrayHeap") == {(heap,) for _, heap in expected}
+    assert tuples("UpstreamArrayIndexPointsTo") == expected, case
+    assert tuples("ArrayIndexPointsTo") == expected, case
+    assert tuples("EligibleStringArrayHeap") == (
+      {(101,), (104,), (105,)} if string_present else set()
+    ), case
+    assert tuples("EligibleObjectArrayHeap") == (
+      {(11,), (15,), (101,), (102,), (104,), (105,)} if object_present else set()
+    ), case
+    assert tuples("NonStringHeapAllocSuperType") == (
+      {(102, 12), (104, 12)} if ordinary_present else set()
+    ), case
+    points = tuples("VarPointsTo")
+    assert ((11, 4) in points) == object_present, case
+    assert ((105, 2) in points) == object_present, case
+
+
+def test_canonical_array_metadata_requires_distinct_string_and_object_types():
+  meta_path = Path(__file__).parent / "fixtures" / "integration" / "doop_meta.json"
+  meta = json.loads(meta_path.read_text())
+  meta["java_lang_String_array"] = meta["java_lang_Object_array"]
+  with pytest.raises(ValueError):
+    doop.build_doopdb_program(meta)
 
 
 

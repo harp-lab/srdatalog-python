@@ -39,6 +39,7 @@ CONSTANTS = {
   "class_init_method": "<java.util.prefs.Base64: void main(java.lang.String[])>",
   "register_natives_method": "<sun.java2d.loops.GraphicsPrimitiveMgr: void main(java.lang.String[])>",
   "desiredAssertionStatus_method": "<sun.security.provider.PolicyParser: void main(java.lang.String[])>",
+  "java_lang_String_array": "java.lang.String[]",
 }
 ALIASES = {
   "Method_Modifier": "Method-Modifier",

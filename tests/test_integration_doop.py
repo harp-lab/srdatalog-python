@@ -1,9 +1,8 @@
-'''doop_bg_2level.nim -- multi-head rules + dataset_consts.
+"""DOOP compiler lifetime checks using synthetic, distinct symbol IDs.
 
-The `meta` dict is loaded from batik_meta.json (same file used on the
-Nim side at fixture-generation time) so the `Const(meta[...])` bindings
-inside build_doopdb_program resolve to byte-identical integer literals.
-'''
+The metadata fixture supplies constants only; it is not paired with a
+dataset or a generated-code snapshot.
+"""
 
 import json
 import sys

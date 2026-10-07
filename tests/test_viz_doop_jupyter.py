@@ -18,9 +18,8 @@ Two layers tested:
             larger but proves the kernel-roundtrip survives the
             mass of generated C++ that doop emits.
 
-Skipped if the doop example or batik_meta.json isn't accessible —
-this test depends on the SRDatalog/integration_tests/examples checkout
-sitting next to the python repo (the standard dev layout).
+Uses the repository's synthetic metadata fixture; no sibling dataset
+checkout is required.
 '''
 
 from __future__ import annotations
@@ -34,11 +33,8 @@ import pytest
 
 VIZ_MIME = "application/vnd.srdatalog.viz+json"
 
-# Paths the test depends on. The python repo sits next to SRDatalog in
-# the standard dev layout — `~/workspace/{SRDatalog,srdatalog-python}/`.
 _REPO = Path(__file__).resolve().parent.parent
-_NIM = _REPO.parent / "SRDatalog"
-_DOOP_META = _NIM / "integration_tests/examples/doop/batik_meta.json"
+_DOOP_META = _REPO / "tests/fixtures/integration/doop_meta.json"
 _DOOP_PY = _REPO / "examples/doop.py"
 
 
@@ -73,7 +69,7 @@ def doop_program():
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not _HAS_DOOP, reason="doop example or batik_meta not present")
+@pytest.mark.skipif(not _HAS_DOOP, reason="doop example or metadata fixture not present")
 def test_doop_default_jupyter_bundle_size_budget(doop_program):
   '''Default `_repr_mimebundle_` must omit JIT and stay under a soft
   size budget. Doop without JIT is ~300 KB; with JIT ~3 MB. The 1 MB
@@ -84,28 +80,24 @@ def test_doop_default_jupyter_bundle_size_budget(doop_program):
   assert "jit" not in payload
   size = len(json.dumps(payload))
   assert size < 1024 * 1024, f"default bundle too large: {size / 1024:.0f} KB"
-  # Sanity: the program metadata is what we expect for batik.
-  assert len(payload["rules"]) == 78
-  assert len(payload["relations"]) == 74
+  assert [rule["name"] for rule in payload["rules"]] == [rule.name for rule in doop_program.rules]
+  assert set(payload["relations"]) == {relation.name for relation in doop_program.relations}
 
 
-@pytest.mark.skipif(not _HAS_DOOP, reason="doop example or batik_meta not present")
+@pytest.mark.skipif(not _HAS_DOOP, reason="doop example or metadata fixture not present")
 def test_doop_full_bundle_has_all_runners(doop_program):
   '''When we explicitly opt in (CLI / show()), the JIT block contains
   one entry per runner — including the `_D{n}` delta-suffixed names
   for recursive rules.'''
+  from srdatalog.ir.codegen.cuda.batchfile import _collect_pipelines
+  from srdatalog.ir.hir import compile_to_mir
   from srdatalog.viz.bundle import get_visualization_bundle
 
   bundle = get_visualization_bundle(doop_program, include_jit=True)
   assert bundle["has_jit"] is True
-  # 96 runners on doop (78 rules; recursive rules emit multiple delta
-  # variants — VarPointsTo alone produces several).
-  assert len(bundle["jit"]) >= 78  # at minimum one per rule
-  # Every runner code blob mentions `JitRunner_<name>` — quick smoke
-  # test that we didn't accidentally store stale strings.
-  for name, code in bundle["jit"].items():
-    base = name.split("_D")[0] if "_D" in name else name
-    assert f"JitRunner_{base}" in code or f"JitRunner_{name}" in code
+  expected_runners = {pipeline.rule_name for pipeline in _collect_pipelines(compile_to_mir(doop_program))}
+  assert set(bundle["jit"]) == expected_runners
+  assert all(isinstance(code, str) and code for code in bundle["jit"].values())
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +109,7 @@ def test_doop_full_bundle_has_all_runners(doop_program):
   not _HAS_DOOP or not _HAS_NBCLIENT,
   reason="doop or nbclient/ipykernel not installed",
 )
-def test_doop_notebook_roundtrip_emits_viz_mime(tmp_path):
+def test_doop_notebook_roundtrip_emits_viz_mime(tmp_path, doop_program):
   '''Run doop's program through an actual Jupyter kernel and confirm
   the mime bundle survives the message-spec encoding. Doop is large
   enough that this catches latent issues (e.g. JSON serialization
@@ -152,5 +144,6 @@ def test_doop_notebook_roundtrip_emits_viz_mime(tmp_path):
   assert VIZ_MIME in result.data
   payload = result.data[VIZ_MIME]
   parsed = json.loads(payload) if isinstance(payload, str) else payload
-  assert len(parsed["rules"]) == 78
+  assert [rule["name"] for rule in parsed["rules"]] == [rule.name for rule in doop_program.rules]
+  assert set(parsed["relations"]) == {relation.name for relation in doop_program.relations}
   assert parsed["has_jit"] is False  # default Jupyter path

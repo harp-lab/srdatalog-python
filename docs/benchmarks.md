@@ -1,10 +1,11 @@
 # Benchmarks
 
 Every benchmark from the upstream Nim reference under
-`integration_tests/examples/` is auto-translated to Python DSL via
-`tools/nim_to_dsl.py` and lives in `examples/`. All compile through
-HIR/MIR cleanly; the smoke-tested ones also compile + run end-to-end
-on this box.
+`integration_tests/examples/` was initially translated to Python DSL via
+`tools/nim_to_dsl.py` and lives in `examples/`. The canonical DOOP query now
+maintains exact array-store partitions rather than unmodified translator
+output. Historical compilation and execution evidence below is scoped to
+the query and compiler versions measured.
 
 ## Canonical benchmarks
 
@@ -20,7 +21,7 @@ on this box.
 | `polonius_test` | 38 | 38 | 32 | 68 | Rust borrow-checker |
 | `ddisasm` | 39 | 23 | 11 | 30 | Binary disassembly (needs `--meta`) |
 | `reg_scc` | 16 | 10 | 2 | 9 | Register-SCC subquery of ddisasm |
-| `doop` | 75 | — | — | — | Corrected Java points-to query: 37 consumed inputs + 38 IDBs; other compile metrics not remeasured (needs `--meta`) |
+| `doop` | 77 | — | — | — | Exact Object[]/String[] partitions: 37 consumed inputs + 40 IDBs; other compile metrics not remeasured (needs `--meta`) |
 
 ## LSQB triangle variants
 
@@ -66,26 +67,27 @@ diagnosing where time is going on your box.
 > equivalence to the upstream DOOP query. The historical computation-only and
 > Nsight Systems (`nsys`) results likewise measure that old query, not a
 > performance baseline for the corrected query. Existing release assets remain
-> immutable historical evidence; no corrected-query timings are claimed here.
+> immutable historical evidence; they do not measure the current String[] split.
 
-The corrected query factors the `Object[]` store eligibility check into a unary
+The guarded query factors the `Object[]` store eligibility check into a unary
 `EligibleObjectArrayHeap(heap)` relation. It requires the stored heap's
 `HeapAllocation_Type(heap, heaptype)`, the `Object[]` component type from
 `ComponentType(ObjectArray, comptype)`, and
 `SupertypeOf(comptype, heaptype)`. `AIPT_Store_ObjectArray` joins this unary
 eligibility filter, preserving the stored-heap-type, component-type, and subtype
 guards without materializing an `Object[]` array-heap/stored-heap pair Cartesian
-product. The current instantiated contract has **75 relations and 38 IDBs**,
-using the same **39 prepared input files**, of which 37 are consumed.
+product. Before the String[] split, that query had **75 relations and 38
+IDBs**, using the same **39 prepared input files**, of which 37 are consumed.
 
-The corrected Eclipse run uses unchanged prepared tuples and produces
+The guarded, pre-String[]-split Eclipse run uses unchanged prepared tuples and produces
 `VarPointsTo=39,139,806`, `InstanceFieldPointsTo=9,676,775`, and
 `ArrayIndexPointsTo=321,887`, matching the independently executed upstream
 raw-fact oracle's cardinalities. Corrected CPU/GPU exports match all **38 IDB
 tuple sets** exactly. This is not a claim of full upstream tuple equivalence
 or corrected validation for the other 20 applications.
-`EligibleObjectArrayHeap` has 52,237 rows; the non-Object-array compatibility
-helper remains 16,979,586 rows rather than adding 76,004,835 Object-array pairs.
+In that run, `EligibleObjectArrayHeap` has 52,237 rows; the non-Object-array
+compatibility helper has 16,979,586 rows rather than adding 76,004,835
+Object-array pairs.
 
 An earlier shared-workstation session recorded 41.78/40.95/41.47 s on Soufflé
 (12 threads) and 117.10/119.48/121.36 s on the GPU bitmap plan. Loading,
@@ -120,6 +122,91 @@ This is an Eclipse result, not a corpus-wide performance claim or a globally
 optimal cost model. [Samples, build identities and correctness evidence](https://github.com/harp-lab/srdatalog-python/releases/tag/doop-semijoin-planner-v1)
 also retain the unsuccessful intermediate implementation's measurements.
 
+### Exact String[] split
+
+The current canonical query also factors `String[]` compatibility into
+`IsStringArrayHeap` and `EligibleStringArrayHeap`, avoiding the dense
+stored-heap/base-array-heap compatibility product for that type. The
+`Object[]` branch is unchanged; the general compatibility helper is now
+`NonStringHeapAllocSuperType` and excludes both special array types.
+The String[] branch retains all `HeapAllocation_Type`, `ComponentType`, and
+`SupertypeOf` guards and joins the original reachable stores and points-to
+relations. It does not materialize a filtered-source points-to helper.
+
+This is an exact rewrite, not heap merging or a shortcut using previously
+computed final relations. All 37 other pre-split IDB tuple sets are
+unchanged; the removed `HeapAllocSuperType` is reconstructed in
+`(heap, baseheap)` order as `NonStringHeapAllocSuperType UNION
+(EligibleStringArrayHeap × IsStringArrayHeap)`. A count-only reconstruction
+by addition is valid only after checking that the two sets are disjoint
+(functional heap typing suffices). The current contract is **77 relations
+and 40 IDBs**, with the same 39 prepared input files.
+
+Preparation now emits the required `java_lang_String_array` metadata key.
+Use a **fresh preparation root**: canonical-source, adapter, metadata and
+symbol identities belong to the new run, and historical manifests and
+catalog reference counts must not be rewritten. The earlier Eclipse
+timings above remain evidence for the pre-split query; use the paired
+full-corpus measurements below to assess this rewrite.
+
+#### Full 21-workload validation
+
+All 21 workloads passed complete tuple-set comparison for the 37 unchanged
+IDBs, exact reconstruction of the old compatibility helper, and independent
+SQL checks of the replacement helpers. The integrated canonical rule lists
+(including execution plans) and emitted Souffle programs match the frozen
+split candidate for every dataset.
+
+GPU medians below use one excluded warmup and three fresh measured processes
+per variant, alternating order, on an RTX 6000 Ada with `cuda_async`.
+Both Jython variants use the bitmap assignment plan; all other workloads
+use the baseline plan. Fixedpoint time excludes compilation, input loading,
+H2D, cardinality collection, export and teardown.
+
+| Workload | Corrected baseline (s) | String[] split (s) | Time reduction |
+|---|---:|---:|---:|
+| xalan | 1.0214 | 0.9813 | 3.93% |
+| zxing | 0.9115 | 0.9013 | 1.13% |
+| biojava | 1.3936 | 1.2544 | 9.99% |
+| pmd | 1.0191 | 0.9440 | 7.37% |
+| bloat | 0.8553 | 0.8529 | 0.28% |
+| sunflow | 1.0146 | 1.0091 | 0.55% |
+| clojure | 0.9887 | 0.9825 | 0.62% |
+| chart | 1.0113 | 0.9736 | 3.73% |
+| groovy | 1.4984 | 1.4141 | 5.63% |
+| javac | 1.6321 | 1.5763 | 3.42% |
+| spring | 1.8957 | 1.7967 | 5.22% |
+| batik | 1.7963 | 1.7426 | 2.99% |
+| eclipse | 1.6559 | 1.5097 | 8.82% |
+| h2 | 1.7030 | 1.3999 | 17.80% |
+| fop | 1.5708 | 1.4980 | 4.64% |
+| jruby | 3.1992 | 3.0203 | 5.59% |
+| pdfbox | 2.4222 | 1.9209 | 20.69% |
+| soot | 11.9914 | 11.8949 | 0.81% |
+| jython | 14.8489 | 15.1009 | **-1.70%** |
+| scala | 11.7723 | 9.1308 | 22.44% |
+| kotlin | 13.4214 | 10.1172 | 24.62% |
+
+Geometric-mean speedup is **1.080x**. Twenty point estimates improve;
+Jython regresses by 1.70%. Three samples do not establish statistical
+significance for small differences. This is not a universal speedup claim.
+The 17 non-xlarge CPU oracles were freshly executed; the four corrected
+xlarge CPU oracles were reused only after query, metadata, manifest and
+input identities matched. No historical GPU timings were reused, and peak
+GPU memory was not instrumented in this full-corpus run.
+
+Local evidence is `/data/doop-full-string-split/`: `table.json`, `table.csv`,
+`summary.json`, `comparisons/`, and `integrated-identity.json`.
+The frozen benchmark source is commit `42b4846`; its guarded baseline query
+SHA-256 is `3b9c44856a0a469c48b832e03d8d8f78149a99a765cecb9c80d99cffaa162e94`.
+The frozen split adapter SHA-256 is
+`45867775077b5485f62f96b3e23500bbf2ac48a3bceab25949ece91df4e2b245`.
+`full21-evidence.zip` retains source, vendored-dependency identities, commands,
+reports and comparison proofs, without large tuple exports or build caches.
+Its SHA-256 is `1744bdf362e227e3feb3f10a3e744795bd1593d60c08a26d1a0d1cd687e3433c`.
+
+### Corpus provenance and historical admission
+
 `examples/doop_benchmark.py` combines eleven retained DaCapo
 23.11-MR2-chopin applications from the
 [published FlowLog facts](https://huggingface.co/datasets/NemoYuu/flowlog_benchmark/tree/main/dataset/csv)
@@ -136,9 +223,11 @@ No binaries or facts are stored in Git.
 
 The **local scheduling tiers** mostly use historical canonical SRDatalog CPU
 `VarPointsTo` cardinalities measured with the unguarded query, not archive size
-or mixed upstream analyses. Eclipse alone has a corrected measurement and
-entry-level query hash; the others retain the catalog's historical reference
-query hash. The thresholds are unchanged and are not official DOOP editions.
+or mixed upstream analyses. In that historical catalog, Eclipse alone has
+an entry-level corrected-query hash; the others retain the historical reference
+query hash. Current full-corpus validation is recorded above, separately from
+those immutable reference measurements. Tier thresholds are unchanged and
+are not official DOOP editions.
 The retained Chopin archives are unchanged, and their upstream cardinalities
 remain separately recorded for traceability. In the historical v2 validation,
 every selected application completed the old canonical CPU query with 74 relation
@@ -439,6 +528,6 @@ The translator is deliberately noisy — it raises on any syntax it
 hasn't been taught, so you'll see exactly which benchmarks regressed.
 See `tools/nim_to_dsl.py`'s header for the full supported subset.
 
-For DOOP, regeneration must preserve the corrected unary `Object[]` eligibility
-guard described above; a successful translation or CPU/GPU match alone does not
-prove equivalence to the upstream query.
+For DOOP, regeneration must preserve the exact guarded `Object[]` and `String[]`
+partitions described above; a successful translation or CPU/GPU match alone
+does not prove equivalence to the upstream query.

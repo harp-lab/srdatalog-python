@@ -155,6 +155,9 @@ def test_complete_projection_preserves_shared_ids_roots_and_set_semantics(tmp_pa
   meta = json.loads((output / "meta.json").read_text())
   assert meta["class_init_method"] == symbols[EXCLUDED]
   assert meta["main_descriptor"] == symbols["void(java.lang.String[])"]
+  assert meta["java_lang_String_array"] == symbols["java.lang.String[]"]
+  assert meta["java_lang_Object_array"] == symbols["java.lang.Object[]"]
+  assert meta["java_lang_String_array"] != meta["java_lang_Object_array"]
   assert manifest["relations"]["AssignHeapAllocation"]["rows_before_set_dedup"] == 3
   assert manifest["relations"]["AssignHeapAllocation"]["rows"] == 1
   assert manifest["source_relations"]["AssignHeapAllocation"]["rows"] == 3

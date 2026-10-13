@@ -1,0 +1,42 @@
+% Requires \usepackage{booktabs,graphicx}.
+\begin{table*}[t]
+\centering\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrr}
+\toprule
+Workload & Souffl\'e host & FlowLog host & GPU host & GPU pool used & GPU resident (sampled) \\
+\midrule
+xalan & 0.37 & 1.06 & 0.44 & 3.95 & 4.40 \\
+zxing & 0.44 & 1.14 & 0.41 & 1.70 & 2.22 \\
+biojava & 0.58 & 1.71 & 0.51 & 8.58 & 9.06 \\
+pmd & 0.54 & 1.55$^{\dagger}$ & 0.42 & 2.57 & 3.03 \\
+bloat & 0.51 & 1.62 & 0.38 & 1.00 & 1.59 \\
+sunflow & 0.85 & 2.12 & 0.41 & 1.71 & 2.44 \\
+clojure & 0.73 & 2.05 & 0.43 & 3.04 & 3.50 \\
+chart & 0.93 & 2.40 & 0.42 & 2.01 & 2.78 \\
+groovy & 1.02 & 2.95 & 0.45 & 3.75 & 4.22 \\
+javac & 1.21 & 3.40$^{\dagger}$ & 0.49 & 5.77 & 6.25 \\
+spring & 1.28 & 3.38$^{\dagger}$ & 0.42 & 2.75 & 3.47 \\
+batik & 1.81 & 5.00 & 0.44 & 3.40 & 4.12 \\
+eclipse & 1.47 & 5.74 & 0.39 & 2.07 & 2.81 \\
+h2 & 1.77 & 5.55 & 0.42 & 3.00 & 3.72 \\
+fop & 1.88 & 5.40 & 0.44 & 3.51 & 4.25 \\
+jruby & 2.89 & 7.48 & 0.49 & 5.08 & 5.87 \\
+pdfbox & 3.28 & 8.69 & 0.46 & 4.46 & 5.22 \\
+soot$^{\ddagger}$ & 14.06 & 40.47 & 0.50 & 14.55 & 15.53 \\
+jython$^{\ddagger}$ & 17.46 & 65.33 & 0.47 & 15.33 & 16.34 \\
+scala$^{\ddagger}$ & 25.46 & 90.49 & 0.52 & 22.93 & 23.87 \\
+kotlin$^{\ddagger}$ & 25.89 & $\mathrm{ML}_{96}$ & 0.64 & 40.66 & 41.78 \\
+\bottomrule
+\end{tabular}}
+\caption{Memory measurements in GiB ($2^{30}$ bytes). Host columns are process
+peak RSS. GPU pool used is the CUDA async pool's allocated high-water mark,
+including initial priming but excluding CUDA context and non-pool allocations.
+GPU resident is the per-process NVML peak sampled every 20\,ms; it includes
+reservation/context overhead but is a sampled lower bound, not an exact upper
+bound. Pool and resident columns overlap: do not add them. Device measurements
+were collected in separate untimed runs. All GPU cases completed on one
+48\,GiB-class device; CPU and GPU-host runs used a 96\,GiB host cap with no swap.
+Failure and validation annotations follow Table~\ref{tab:doop-native-process}.}
+\label{tab:doop-native-memory}
+\end{table*}

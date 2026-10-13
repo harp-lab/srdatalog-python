@@ -49,6 +49,7 @@ lib.srdatalog_run(0)
 getting_started
 architecture
 benchmarks
+doop_cpu_gpu
 compile_performance
 cuda_pch_blocker
 ```

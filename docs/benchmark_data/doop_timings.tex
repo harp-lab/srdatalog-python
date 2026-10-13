@@ -1,0 +1,52 @@
+% Requires \usepackage{booktabs,graphicx}.
+\begin{table*}[t]
+\centering\small
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lrrrrrr}
+\toprule
+Workload & Input (M facts) & Souffl\'e 12T (s) & FlowLog 12W (s) & GPU process (s) & vs.\ Souffl\'e & vs.\ FlowLog \\
+\midrule
+xalan & 5.11 & 5.107 & 2.434 & 1.579 & 3.24$\times$ & 1.54$\times$ \\
+zxing & 3.61 & 6.027 & 3.013 & 1.423 & 4.24$\times$ & 2.12$\times$ \\
+biojava & 8.10 & 7.607 & 3.681 & 2.078 & 3.66$\times$ & 1.77$\times$ \\
+pmd & 4.28 & 6.576 & 4.609$^{\dagger}$ & 1.484 & 4.43$\times$ & 3.11$\times^{\dagger}$ \\
+bloat & 2.11 & 5.732 & 4.627 & 1.280 & 4.48$\times$ & 3.62$\times$ \\
+sunflow & 3.43 & 9.459 & 6.408 & 1.493 & 6.34$\times$ & 4.29$\times$ \\
+clojure & 4.55 & 7.396 & 6.737 & 1.540 & 4.80$\times$ & 4.37$\times$ \\
+chart & 4.10 & 9.973 & 8.420 & 1.500 & 6.65$\times$ & 5.61$\times$ \\
+groovy & 5.37 & 12.877 & 10.359 & 2.013 & 6.40$\times$ & 5.15$\times$ \\
+javac & 7.36 & 15.419 & 11.050$^{\dagger}$ & 2.298 & 6.71$\times$ & 4.81$\times^{\dagger}$ \\
+spring & 4.10 & 16.243 & 12.027$^{\dagger}$ & 2.320 & 7.00$\times$ & 5.18$\times^{\dagger}$ \\
+batik & 5.03 & 20.828 & 17.488 & 2.316 & 8.99$\times$ & 7.55$\times$ \\
+eclipse & 2.28 & 16.483 & 17.899 & 1.969 & 8.37$\times$ & 9.09$\times$ \\
+h2 & 4.19 & 18.815 & 16.073 & 1.955 & 9.62$\times$ & 8.22$\times$ \\
+fop & 5.25 & 19.586 & 16.966 & 2.106 & 9.30$\times$ & 8.06$\times$ \\
+jruby & 7.65 & 37.970 & 29.741 & 3.756 & 10.11$\times$ & 7.92$\times$ \\
+pdfbox & 5.93 & 38.124 & 36.494 & 2.570 & 14.83$\times$ & 14.20$\times$ \\
+soot$^{\ddagger}$ & 7.58 & 283.213 & 201.826 & 12.845 & 22.05$\times$ & 15.71$\times$ \\
+jython$^{\ddagger}$ & 6.20 & 478.184 & 801.993 & 16.007 & 29.87$\times$ & 50.10$\times$ \\
+scala$^{\ddagger}$ & 8.70 & 323.936 & 325.731 & 13.485 & 24.02$\times$ & 24.16$\times$ \\
+kotlin$^{\ddagger}$ & 14.23 & 369.331 & $\mathrm{ML}_{96}$ & 11.829 & 31.22$\times$ & --- \\
+\bottomrule
+\end{tabular}}
+\caption{DOOP artifact-query extension to 21 real-application workloads.
+Median of three fresh processes after one excluded warmup, on an AMD Threadripper
+PRO 5945WX host and an RTX 6000 Ada GPU. CPU configurations use 12 workers/threads;
+no single-thread measurements enter this table. Process times include engine
+initialization, input loading, execution, and teardown, but exclude compilation,
+input preparation, and tuple-file export. Native CPU inputs use the artifact's
+34-relation numeric schema; GPU process times start from 37 projected relations.
+Consequently these are \emph{engine-process} comparisons, not equal-starting-point
+pipeline end-to-end speedups. Ratios are CPU median process time divided by GPU
+median process time, computed before rounding. Ratios marked $\dagger$ or on
+$\ddagger$ rows are descriptive timings, not full-tuple-equivalence speedup claims.
+Input sizes describe the native 34-relation files; input bytes, GPU input sizes
+and GPU fixedpoint times remain available in the accompanying CSV/JSON.
+$\mathrm{ML}_{96}$ denotes an observed 96\,GiB host-memory-cap termination, not a
+runtime or a physical-machine OOM claim. $\dagger$: FlowLog's MethodLookup has
+6/2/2 extra tuples on PMD/Javac/Spring; the other 11 shared output sets match.
+$\ddagger$: available native counts match, but no new full tuple comparison was
+performed on these four xlarge cases; Kotlin FlowLog did not finish.
+GPU's previously validated exact query and identity proofs are retained.}
+\label{tab:doop-native-process}
+\end{table*}

@@ -7,6 +7,10 @@ maintains exact array-store partitions rather than unmodified translator
 output. Historical compilation and execution evidence below is scoped to
 the query and compiler versions measured.
 
+For the completed native-artifact CPU comparison, see
+[DOOP CPU/GPU speedups and memory measurements](doop_cpu_gpu.md), including
+portable CSV and LaTeX tables, validation coverage, and timing-boundary caveats.
+
 ## Canonical benchmarks
 
 | Benchmark | Relations | Rules | Strata | MIR steps | Notes |

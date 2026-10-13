@@ -1,0 +1,70 @@
+{
+ "dataset": "soot",
+ "sof_rows": 329343,
+ "ff_derivation": {
+  "o_f_units": 115011,
+  "witnesses": 9079613.0,
+  "max_unit": 19596
+ },
+ "ff_edges": 230293,
+ "propagation_by_from": {
+  "units": 8672,
+  "total": 23772215.0,
+  "max": 4898465,
+  "median": 6.0,
+  "p99": 39658.0,
+  "max_over_warp_fair_share": 1872.6588969517566
+ },
+ "propagation_by_edge": {
+  "units": 93587,
+  "total": 23772215.0,
+  "max": 19881,
+  "median": 1.0,
+  "p99": 4433.0,
+  "max_over_warp_fair_share": 7.60040778698998
+ },
+ "ff_derivation_by_o_f": {
+  "units": 115011,
+  "total": 9079613.0,
+  "max": 19596,
+  "median": 4.0,
+  "p99": 1139.0,
+  "max_over_warp_fair_share": 19.6141011736954
+ },
+ "seconds": 5.351329612080008
+}
+{
+ "dataset": "jython",
+ "sof_rows": 180858,
+ "ff_derivation": {
+  "o_f_units": 66964,
+  "witnesses": 5218825.0,
+  "max_unit": 220527
+ },
+ "ff_edges": 576559,
+ "propagation_by_from": {
+  "units": 6179,
+  "total": 19257329.0,
+  "max": 6302380,
+  "median": 3.0,
+  "p99": 48069.0,
+  "max_over_warp_fair_share": 2974.245776244463
+ },
+ "propagation_by_edge": {
+  "units": 45874,
+  "total": 19257329.0,
+  "max": 13473,
+  "median": 2.0,
+  "p99": 5341.0,
+  "max_over_warp_fair_share": 6.358235038722142
+ },
+ "ff_derivation_by_o_f": {
+  "units": 66964,
+  "total": 5218825.0,
+  "max": 220527,
+  "median": 9.0,
+  "p99": 264.0,
+  "max_over_warp_fair_share": 384.02310405119925
+ },
+ "seconds": 5.264307240955532
+}

@@ -1,0 +1,92 @@
+{
+ "dataset": "soot",
+ "resolution_unique_per_type": false,
+ "L0_base": {
+  "units": 92698,
+  "total": 76172140.0,
+  "max": 509795,
+  "median": 3.0,
+  "p99": 4433.0,
+  "max_over_warp_fair_share": 60.822985411726656
+ },
+ "L_base_inv": {
+  "units": 136702,
+  "total": 76172140.0,
+  "max": 19958,
+  "median": 2.0,
+  "p99": 4433.0,
+  "max_over_warp_fair_share": 2.381163296711895
+ },
+ "L_base_inv_type": {
+  "units": 1456950,
+  "total": 76172140.0,
+  "max": 10821,
+  "median": 1.0,
+  "p99": 4273.0,
+  "max_over_warp_fair_share": 1.2910395848140803
+ },
+ "by_thisP": {
+  "units": 27076,
+  "total": 76172140.0,
+  "max": 26817798,
+  "median": 4.0,
+  "p99": 4434.75,
+  "max_over_warp_fair_share": 3199.596968445419
+ },
+ "type_factored_rows": 1455933,
+ "pt_base_type_rows": [
+  1242934,
+  69650004
+ ],
+ "top_bases": [
+  {
+   "base": 1118942,
+   "w": 509795,
+   "invs": 115,
+   "pts": 4433
+  },
+  {
+   "base": 1120925,
+   "w": 509795,
+   "invs": 115,
+   "pts": 4433
+  },
+  {
+   "base": 454028,
+   "w": 132990,
+   "invs": 30,
+   "pts": 4433
+  },
+  {
+   "base": 454242,
+   "w": 110825,
+   "invs": 25,
+   "pts": 4433
+  },
+  {
+   "base": 1183679,
+   "w": 70928,
+   "invs": 16,
+   "pts": 4433
+  },
+  {
+   "base": 1470506,
+   "w": 66495,
+   "invs": 15,
+   "pts": 4433
+  },
+  {
+   "base": 1370944,
+   "w": 66495,
+   "invs": 15,
+   "pts": 4433
+  },
+  {
+   "base": 434624,
+   "w": 66495,
+   "invs": 15,
+   "pts": 4433
+  }
+ ],
+ "seconds": 7.169832794927061
+}

@@ -1,0 +1,998 @@
+{
+  "candidate_report": "/data/doop-field-flow/correctness/kotlin/field-flow/comparison-input.json",
+  "comparison_outside_fixedpoint_timing": true,
+  "dataset": "kotlin",
+  "helpers": [
+    {
+      "expected_unique_rows": 1430,
+      "export_rows": 1430,
+      "extra": 0,
+      "method": "SQL EXCEPT in both directions; complete integer sets",
+      "missing": 0,
+      "passed": true,
+      "relation": "IsStringArrayHeap",
+      "reported_rows": 1430,
+      "unique_export_rows": 1430
+    },
+    {
+      "expected_unique_rows": 70450,
+      "export_rows": 70450,
+      "extra": 0,
+      "method": "SQL EXCEPT in both directions; complete integer sets",
+      "missing": 0,
+      "passed": true,
+      "relation": "EligibleStringArrayHeap",
+      "reported_rows": 70450,
+      "unique_export_rows": 70450
+    },
+    {
+      "expected_unique_rows": 21351521,
+      "export_rows": 21351521,
+      "extra": 0,
+      "method": "SQL EXCEPT in both directions; complete integer sets",
+      "missing": 0,
+      "passed": true,
+      "relation": "NonStringHeapAllocSuperType",
+      "reported_rows": 21351521,
+      "unique_export_rows": 21351521
+    },
+    {
+      "eligible_heaps": 70450,
+      "logical_product_rows": 100743500,
+      "logical_reconstructed_rows": 122095021,
+      "method": "Disjoint nonstring equality plus exact String[] subset membership, uniqueness and product cardinality; no Cartesian product materialized",
+      "multiply_typed_heaps": 0,
+      "nonstring_rows": 21351521,
+      "oracle_export_rows": 122095021,
+      "oracle_reported_rows": 122095021,
+      "oracle_string_ineligible_pairs": 0,
+      "oracle_string_rows": 100743500,
+      "oracle_string_unique_rows": 100743500,
+      "passed": true,
+      "relation": "HeapAllocSuperType",
+      "string_array_heaps": 1430
+    },
+    {
+      "expected_unique_rows": 29221,
+      "export_rows": 29221,
+      "extra": 0,
+      "method": "Definition over CPU-oracle VarPointsTo; SQL EXCEPT both directions",
+      "missing": 0,
+      "passed": true,
+      "relation": "ReachableStoreInstanceField",
+      "reported_rows": 29221,
+      "unique_export_rows": 29221
+    },
+    {
+      "expected_unique_rows": 257379,
+      "export_rows": 257379,
+      "extra": 0,
+      "method": "Definition over CPU-oracle VarPointsTo; SQL EXCEPT both directions",
+      "missing": 0,
+      "passed": true,
+      "relation": "StoreObjFrom",
+      "reported_rows": 257379,
+      "unique_export_rows": 257379
+    },
+    {
+      "expected_unique_rows": 231626,
+      "export_rows": 231626,
+      "extra": 0,
+      "method": "Definition over CPU-oracle VarPointsTo; SQL EXCEPT both directions",
+      "missing": 0,
+      "passed": true,
+      "relation": "FieldFlow",
+      "reported_rows": 231626,
+      "unique_export_rows": 231626
+    }
+  ],
+  "input_manifest_sha256": "2604327935c363cb5786be89a7b44967cca4c61c08b3373ad93b299cd12565e1",
+  "oracle_report": "/data/doop-corrected-xlarge/cpu/kotlin/result.json",
+  "original_idb_count": 38,
+  "original_source_sha256": "3b9c44856a0a469c48b832e03d8d8f78149a99a765cecb9c80d99cffaa162e94",
+  "passed": true,
+  "program_identity_sha256": null,
+  "relations": [
+    {
+      "candidate_rows": 1064017,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 1064017,
+      "passed": true,
+      "relation": "ActualParam"
+    },
+    {
+      "candidate_rows": 22620,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 22620,
+      "passed": true,
+      "relation": "ApplicationClass"
+    },
+    {
+      "candidate_rows": 1688,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 1688,
+      "passed": true,
+      "relation": "ArrayType"
+    },
+    {
+      "candidate_rows": 189949,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 189949,
+      "passed": true,
+      "relation": "AssignCast"
+    },
+    {
+      "candidate_rows": 341779,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 341779,
+      "passed": true,
+      "relation": "AssignHeapAllocation"
+    },
+    {
+      "candidate_rows": 1036348,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 1036348,
+      "passed": true,
+      "relation": "AssignLocal"
+    },
+    {
+      "candidate_rows": 608921,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 608921,
+      "passed": true,
+      "relation": "AssignReturnValue"
+    },
+    {
+      "candidate_rows": 30276,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 30276,
+      "passed": true,
+      "relation": "ClassType"
+    },
+    {
+      "candidate_rows": 1688,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 1688,
+      "passed": true,
+      "relation": "ComponentType"
+    },
+    {
+      "candidate_rows": 30242,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 30242,
+      "passed": true,
+      "relation": "DirectSuperclass"
+    },
+    {
+      "candidate_rows": 17277,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 17277,
+      "passed": true,
+      "relation": "DirectSuperinterface"
+    },
+    {
+      "candidate_rows": 89063,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 89063,
+      "passed": true,
+      "relation": "Field_DeclaringType"
+    },
+    {
+      "candidate_rows": 347755,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 347755,
+      "passed": true,
+      "relation": "FormalParam"
+    },
+    {
+      "candidate_rows": 198056,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 198056,
+      "passed": true,
+      "relation": "HeapAllocation_Type"
+    },
+    {
+      "candidate_rows": 3474297,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 3474297,
+      "passed": true,
+      "relation": "Instruction_Method"
+    },
+    {
+      "candidate_rows": 3751,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 3751,
+      "passed": true,
+      "relation": "InterfaceType"
+    },
+    {
+      "candidate_rows": 24132,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 24132,
+      "passed": true,
+      "relation": "LoadArrayIndex"
+    },
+    {
+      "candidate_rows": 239953,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 239953,
+      "passed": true,
+      "relation": "LoadInstanceField"
+    },
+    {
+      "candidate_rows": 111133,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 111133,
+      "passed": true,
+      "relation": "LoadStaticField"
+    },
+    {
+      "candidate_rows": 1,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 1,
+      "passed": true,
+      "relation": "MainClass"
+    },
+    {
+      "candidate_rows": 1005713,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 1005713,
+      "passed": true,
+      "relation": "MethodInvocation_Method"
+    },
+    {
+      "candidate_rows": 302044,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 302044,
+      "passed": true,
+      "relation": "Method_DeclaringType"
+    },
+    {
+      "candidate_rows": 302044,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 302044,
+      "passed": true,
+      "relation": "Method_Descriptor"
+    },
+    {
+      "candidate_rows": 492329,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 492329,
+      "passed": true,
+      "relation": "Method_Modifier"
+    },
+    {
+      "candidate_rows": 302044,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 302044,
+      "passed": true,
+      "relation": "Method_SimpleName"
+    },
+    {
+      "candidate_rows": 225053,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 225053,
+      "passed": true,
+      "relation": "ReturnVar"
+    },
+    {
+      "candidate_rows": 187066,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 187066,
+      "passed": true,
+      "relation": "SpecialMethodInvocation_Base"
+    },
+    {
+      "candidate_rows": 276871,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 276871,
+      "passed": true,
+      "relation": "StaticMethodInvocation"
+    },
+    {
+      "candidate_rows": 96622,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 96622,
+      "passed": true,
+      "relation": "StoreArrayIndex"
+    },
+    {
+      "candidate_rows": 93222,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 93222,
+      "passed": true,
+      "relation": "StoreInstanceField"
+    },
+    {
+      "candidate_rows": 27368,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 27368,
+      "passed": true,
+      "relation": "StoreStaticField"
+    },
+    {
+      "candidate_rows": 244698,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 244698,
+      "passed": true,
+      "relation": "ThisVar"
+    },
+    {
+      "candidate_rows": 3400375,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 3400375,
+      "passed": true,
+      "relation": "Var_Type"
+    },
+    {
+      "candidate_rows": 541776,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 541776,
+      "passed": true,
+      "relation": "VirtualMethodInvocation_Base"
+    },
+    {
+      "candidate_rows": 541721,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 541721,
+      "passed": true,
+      "relation": "VirtualMethodInvocation_Descriptor"
+    },
+    {
+      "candidate_rows": 541721,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 541721,
+      "passed": true,
+      "relation": "VirtualMethodInvocation_SimpleName"
+    },
+    {
+      "candidate_rows": 276871,
+      "method": "Identical checksum-validated prepared inputs",
+      "oracle_rows": 276871,
+      "passed": true,
+      "relation": "isStaticMethodInvocation_Insn"
+    },
+    {
+      "candidate_rows": 4997390,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 4997390,
+      "passed": true,
+      "relation": "ArrayIndexPointsTo",
+      "sorted_unique_sha256": [
+        "aa456ea901b6301df37145a1d2994ed06598892207f7e82de8ea4c87159318f6",
+        "aa456ea901b6301df37145a1d2994ed06598892207f7e82de8ea4c87159318f6"
+      ],
+      "unique_export_rows": [
+        4997390,
+        4997390
+      ]
+    },
+    {
+      "candidate_rows": 42405,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 42405,
+      "passed": true,
+      "relation": "ArrayTypeCompat",
+      "sorted_unique_sha256": [
+        "f9607a47421d75464707799fbff9c3968a79187f40d43c85ebb89ec63ca19241",
+        "f9607a47421d75464707799fbff9c3968a79187f40d43c85ebb89ec63ca19241"
+      ],
+      "unique_export_rows": [
+        42405,
+        42405
+      ]
+    },
+    {
+      "candidate_rows": 917385,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 917385,
+      "passed": true,
+      "relation": "Assign",
+      "sorted_unique_sha256": [
+        "b33d681486b39d343cef030988f97eae48e1d541da849c2bf9888182464d53fd",
+        "b33d681486b39d343cef030988f97eae48e1d541da849c2bf9888182464d53fd"
+      ],
+      "unique_export_rows": [
+        917385,
+        917385
+      ]
+    },
+    {
+      "candidate_rows": 540382,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 540382,
+      "passed": true,
+      "relation": "CallGraphEdge",
+      "sorted_unique_sha256": [
+        "0b1cfe70116be62e734c0855966cdc0c64e2dd97745236ca1c9eb8e1166e7cff",
+        "0b1cfe70116be62e734c0855966cdc0c64e2dd97745236ca1c9eb8e1166e7cff"
+      ],
+      "unique_export_rows": [
+        540382,
+        540382
+      ]
+    },
+    {
+      "candidate_rows": 680489496,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 680489496,
+      "passed": true,
+      "relation": "CastTo",
+      "sorted_unique_sha256": [
+        "0e2c971969a6529c1f20afc4585d31d97e082c7afb4ec4c74aeb5b4a48838caf",
+        "0e2c971969a6529c1f20afc4585d31d97e082c7afb4ec4c74aeb5b4a48838caf"
+      ],
+      "unique_export_rows": [
+        680489496,
+        680489496
+      ]
+    },
+    {
+      "candidate_rows": 9291,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 9291,
+      "passed": true,
+      "relation": "ClassInitializer",
+      "sorted_unique_sha256": [
+        "0eabcb5c78ce352c856f8bd27d54887a76f99ae08b106a190eccadbd270fbec6",
+        "0eabcb5c78ce352c856f8bd27d54887a76f99ae08b106a190eccadbd270fbec6"
+      ],
+      "unique_export_rows": [
+        9291,
+        9291
+      ]
+    },
+    {
+      "candidate_rows": 30242,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 30242,
+      "passed": true,
+      "relation": "DirectSubclass",
+      "sorted_unique_sha256": [
+        "e765956e9a702a486cabe2c7b950cae6d9a8e7d90d71687af7a9382888e202fe",
+        "e765956e9a702a486cabe2c7b950cae6d9a8e7d90d71687af7a9382888e202fe"
+      ],
+      "unique_export_rows": [
+        30242,
+        30242
+      ]
+    },
+    {
+      "candidate_rows": 198055,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 198055,
+      "passed": true,
+      "relation": "EligibleObjectArrayHeap",
+      "sorted_unique_sha256": [
+        "c21209c5f71ce1cc27ae7658e94db40a89d07479e56c95c30ccf8cb75f31666e",
+        "c21209c5f71ce1cc27ae7658e94db40a89d07479e56c95c30ccf8cb75f31666e"
+      ],
+      "unique_export_rows": [
+        198055,
+        198055
+      ]
+    },
+    {
+      "candidate_rows": 11057129,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 11057129,
+      "passed": true,
+      "relation": "HeapHelper",
+      "sorted_unique_sha256": [
+        "c20a97f5f06c48c5859df54515b5d0f09bb3d539f8722d409888ac43d4b3c9c7",
+        "c20a97f5f06c48c5859df54515b5d0f09bb3d539f8722d409888ac43d4b3c9c7"
+      ],
+      "unique_export_rows": [
+        11057129,
+        11057129
+      ]
+    },
+    {
+      "candidate_rows": 13075388,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 13075388,
+      "passed": true,
+      "relation": "HeapHelperNoThis",
+      "sorted_unique_sha256": [
+        "c379abb29b8bf7ccb38129f543e02058466670a5e7d861d3507d0c2680c2f31a",
+        "c379abb29b8bf7ccb38129f543e02058466670a5e7d861d3507d0c2680c2f31a"
+      ],
+      "unique_export_rows": [
+        13075388,
+        13075388
+      ]
+    },
+    {
+      "candidate_rows": 12794,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 12794,
+      "passed": true,
+      "relation": "InitializedClass",
+      "sorted_unique_sha256": [
+        "334f903a0f7fa6fdf6dd2251d6ccd4a447c4f725fc4b1bdf803681fdf5a10db4",
+        "334f903a0f7fa6fdf6dd2251d6ccd4a447c4f725fc4b1bdf803681fdf5a10db4"
+      ],
+      "unique_export_rows": [
+        12794,
+        12794
+      ]
+    },
+    {
+      "candidate_rows": 141575120,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 141575120,
+      "passed": true,
+      "relation": "InstanceFieldPointsTo",
+      "sorted_unique_sha256": [
+        "ee4ca24704b767fb92baeb68ee30787395c97eca36785198afc845588d8453d9",
+        "ee4ca24704b767fb92baeb68ee30787395c97eca36785198afc845588d8453d9"
+      ],
+      "unique_export_rows": [
+        141575120,
+        141575120
+      ]
+    },
+    {
+      "candidate_rows": 5,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 5,
+      "passed": true,
+      "relation": "IsCastableToString",
+      "sorted_unique_sha256": [
+        "5923af54d4132ee0f56273a96bf888d1168e23810f0df3b4e1f4f76e6e6497c2",
+        "5923af54d4132ee0f56273a96bf888d1168e23810f0df3b4e1f4f76e6e6497c2"
+      ],
+      "unique_export_rows": [
+        5,
+        5
+      ]
+    },
+    {
+      "candidate_rows": 6243,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 6243,
+      "passed": true,
+      "relation": "IsObjectArrayHeap",
+      "sorted_unique_sha256": [
+        "5d5fe7bc001fed8cdc3edad7bc5e3686e54e8524858b2f7abb3af93d4e39ac95",
+        "5d5fe7bc001fed8cdc3edad7bc5e3686e54e8524858b2f7abb3af93d4e39ac95"
+      ],
+      "unique_export_rows": [
+        6243,
+        6243
+      ]
+    },
+    {
+      "candidate_rows": 70450,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 70450,
+      "passed": true,
+      "relation": "IsStringHeap",
+      "sorted_unique_sha256": [
+        "28ea903d4a173927b84819650f39b093a8a47318f41acb8de8975bf418226b02",
+        "28ea903d4a173927b84819650f39b093a8a47318f41acb8de8975bf418226b02"
+      ],
+      "unique_export_rows": [
+        70450,
+        70450
+      ]
+    },
+    {
+      "candidate_rows": 1,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 1,
+      "passed": true,
+      "relation": "MainMethodDeclaration",
+      "sorted_unique_sha256": [
+        "58d793fc68d929f31775135fe6b3115c3d8bdf7ab4bb175d0a1b7144929a9346",
+        "58d793fc68d929f31775135fe6b3115c3d8bdf7ab4bb175d0a1b7144929a9346"
+      ],
+      "unique_export_rows": [
+        1,
+        1
+      ]
+    },
+    {
+      "candidate_rows": 282355,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 282355,
+      "passed": true,
+      "relation": "MethodImplemented",
+      "sorted_unique_sha256": [
+        "d1d35e91bf3d418b9c0df732ad58bd8f21a84452e499dc646271d41a1743e837",
+        "d1d35e91bf3d418b9c0df732ad58bd8f21a84452e499dc646271d41a1743e837"
+      ],
+      "unique_export_rows": [
+        282355,
+        282355
+      ]
+    },
+    {
+      "candidate_rows": 728842,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 728842,
+      "passed": true,
+      "relation": "MethodInvocation_Base",
+      "sorted_unique_sha256": [
+        "7c104ff56916dc5ba9d4319c034d687d9088ed02948e21a45a5f0492849db341",
+        "7c104ff56916dc5ba9d4319c034d687d9088ed02948e21a45a5f0492849db341"
+      ],
+      "unique_export_rows": [
+        728842,
+        728842
+      ]
+    },
+    {
+      "candidate_rows": 1192003,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 1192003,
+      "passed": true,
+      "relation": "MethodLookup",
+      "sorted_unique_sha256": [
+        "825789446f540049abe10c03d1b012e8f24bf8ab187359768bcadfbab6a98599",
+        "825789446f540049abe10c03d1b012e8f24bf8ab187359768bcadfbab6a98599"
+      ],
+      "unique_export_rows": [
+        1192003,
+        1192003
+      ]
+    },
+    {
+      "candidate_rows": 74015,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 74015,
+      "passed": true,
+      "relation": "Reachable",
+      "sorted_unique_sha256": [
+        "dca4fdf5e0e2b80c7111384bac5e3dff4ad78004bc7f8ad44cfbdd3a0a70ebf3",
+        "dca4fdf5e0e2b80c7111384bac5e3dff4ad78004bc7f8ad44cfbdd3a0a70ebf3"
+      ],
+      "unique_export_rows": [
+        74015,
+        74015
+      ]
+    },
+    {
+      "candidate_rows": 1000391,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 1000391,
+      "passed": true,
+      "relation": "ReachableInstruction",
+      "sorted_unique_sha256": [
+        "282d12fd88c102451a92c00dd38cacbfc062933c0cb945f9e61a1f36bd4a3ec5",
+        "282d12fd88c102451a92c00dd38cacbfc062933c0cb945f9e61a1f36bd4a3ec5"
+      ],
+      "unique_export_rows": [
+        1000391,
+        1000391
+      ]
+    },
+    {
+      "candidate_rows": 68698,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 68698,
+      "passed": true,
+      "relation": "ReachableLoadInstanceField",
+      "sorted_unique_sha256": [
+        "d3933eacc5bc221acedbfacf7b406a0ab683783404d03024df8d3127b846e326",
+        "d3933eacc5bc221acedbfacf7b406a0ab683783404d03024df8d3127b846e326"
+      ],
+      "unique_export_rows": [
+        68698,
+        68698
+      ]
+    },
+    {
+      "candidate_rows": 30000,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 30000,
+      "passed": true,
+      "relation": "ReachableSortedIndex",
+      "sorted_unique_sha256": [
+        "a62741c97fb2a3dedecdbf30220ff3dd7b16beb890ddfe2efb9c55c32863c959",
+        "a62741c97fb2a3dedecdbf30220ff3dd7b16beb890ddfe2efb9c55c32863c959"
+      ],
+      "unique_export_rows": [
+        30000,
+        30000
+      ]
+    },
+    {
+      "candidate_rows": 157185,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 157185,
+      "passed": true,
+      "relation": "StaticFieldPointsTo",
+      "sorted_unique_sha256": [
+        "b3dc60024f6627aeff730ea5097452176348ac278553356ffcfc6a02de78d312",
+        "b3dc60024f6627aeff730ea5097452176348ac278553356ffcfc6a02de78d312"
+      ],
+      "unique_export_rows": [
+        157185,
+        157185
+      ]
+    },
+    {
+      "candidate_rows": 60993,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 60993,
+      "passed": true,
+      "relation": "Subclass",
+      "sorted_unique_sha256": [
+        "82056d924429d08c984a2275d5343699c8bda66f0c8c7361c0480bae5e2fa21d",
+        "82056d924429d08c984a2275d5343699c8bda66f0c8c7361c0480bae5e2fa21d"
+      ],
+      "unique_export_rows": [
+        60993,
+        60993
+      ]
+    },
+    {
+      "candidate_rows": 178709,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 178709,
+      "passed": true,
+      "relation": "SubtypeOf",
+      "sorted_unique_sha256": [
+        "f425f4b282bd0116deb1015062bb7f9660b89e397d2e2a59aa94409c4c475ddf",
+        "f425f4b282bd0116deb1015062bb7f9660b89e397d2e2a59aa94409c4c475ddf"
+      ],
+      "unique_export_rows": [
+        178709,
+        178709
+      ]
+    },
+    {
+      "candidate_rows": 142994,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 142994,
+      "passed": true,
+      "relation": "SubtypeOfDifferent",
+      "sorted_unique_sha256": [
+        "94aba3f9c5da82772e43671ea7da7fce4e4a66b54b276406a17ec3bb590f4131",
+        "94aba3f9c5da82772e43671ea7da7fce4e4a66b54b276406a17ec3bb590f4131"
+      ],
+      "unique_export_rows": [
+        142994,
+        142994
+      ]
+    },
+    {
+      "candidate_rows": 60993,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 60993,
+      "passed": true,
+      "relation": "Superclass",
+      "sorted_unique_sha256": [
+        "04af7f512ccd1310aeb57d93a15904967354f108d961f981b079323b64dd9147",
+        "04af7f512ccd1310aeb57d93a15904967354f108d961f981b079323b64dd9147"
+      ],
+      "unique_export_rows": [
+        60993,
+        60993
+      ]
+    },
+    {
+      "candidate_rows": 68177,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 68177,
+      "passed": true,
+      "relation": "Superinterface",
+      "sorted_unique_sha256": [
+        "7b04aa5c5074c5af406f1395ebe6cef25896580ee6a0df44724c3596e29bad86",
+        "7b04aa5c5074c5af406f1395ebe6cef25896580ee6a0df44724c3596e29bad86"
+      ],
+      "unique_export_rows": [
+        68177,
+        68177
+      ]
+    },
+    {
+      "candidate_rows": 178709,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 178709,
+      "passed": true,
+      "relation": "SupertypeOf",
+      "sorted_unique_sha256": [
+        "33ec9956822a888e7b5b1914f2e7fec0deb4525f44858f4cbe44feb97894a02a",
+        "33ec9956822a888e7b5b1914f2e7fec0deb4525f44858f4cbe44feb97894a02a"
+      ],
+      "unique_export_rows": [
+        178709,
+        178709
+      ]
+    },
+    {
+      "candidate_rows": 718756242,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 718756242,
+      "passed": true,
+      "relation": "VarPointsTo",
+      "sorted_unique_sha256": [
+        "959269bfcfbad97dde2c1178a2760e0f6e482770040af7d14d36afc3f7974f4f",
+        "959269bfcfbad97dde2c1178a2760e0f6e482770040af7d14d36afc3f7974f4f"
+      ],
+      "unique_export_rows": [
+        718756242,
+        718756242
+      ]
+    },
+    {
+      "candidate_rows": 541721,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 541721,
+      "passed": true,
+      "relation": "VirtualMethodInvocation",
+      "sorted_unique_sha256": [
+        "1826282064b6cebe21eb5226cbcc3bbc9f9e3b08b99bc15b78d33201854fe7a1",
+        "1826282064b6cebe21eb5226cbcc3bbc9f9e3b08b99bc15b78d33201854fe7a1"
+      ],
+      "unique_export_rows": [
+        541721,
+        541721
+      ]
+    },
+    {
+      "candidate_rows": 1688,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 1688,
+      "passed": true,
+      "relation": "isArrayType_IDB",
+      "sorted_unique_sha256": [
+        "78a97f87f7b2903fd8542e51a0a38f6727450c3da52dd7aa6155e27847141481",
+        "78a97f87f7b2903fd8542e51a0a38f6727450c3da52dd7aa6155e27847141481"
+      ],
+      "unique_export_rows": [
+        1688,
+        1688
+      ]
+    },
+    {
+      "candidate_rows": 30276,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 30276,
+      "passed": true,
+      "relation": "isClassType_IDB",
+      "sorted_unique_sha256": [
+        "1b6fb34377f3879568bcf9f96690477605208ad543d0460502640b6cb3d95455",
+        "1b6fb34377f3879568bcf9f96690477605208ad543d0460502640b6cb3d95455"
+      ],
+      "unique_export_rows": [
+        30276,
+        30276
+      ]
+    },
+    {
+      "candidate_rows": 3751,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 3751,
+      "passed": true,
+      "relation": "isInterfaceType_IDB",
+      "sorted_unique_sha256": [
+        "a8b1da97922cc4359b4ab4c1a604557bc289b04416998a09e071daa4e812e7b9",
+        "a8b1da97922cc4359b4ab4c1a604557bc289b04416998a09e071daa4e812e7b9"
+      ],
+      "unique_export_rows": [
+        3751,
+        3751
+      ]
+    },
+    {
+      "candidate_rows": 35715,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 35715,
+      "passed": true,
+      "relation": "isReferenceType",
+      "sorted_unique_sha256": [
+        "112ec70cd876eb73a94e26c93b9efa1e33885b6a1f1e922f14608ded2600947d",
+        "112ec70cd876eb73a94e26c93b9efa1e33885b6a1f1e922f14608ded2600947d"
+      ],
+      "unique_export_rows": [
+        35715,
+        35715
+      ]
+    },
+    {
+      "candidate_rows": 35715,
+      "equal_tuple_sets": true,
+      "method": "Complete sorted unique integer TSV sets; no sampling",
+      "oracle_rows": 35715,
+      "passed": true,
+      "relation": "isType",
+      "sorted_unique_sha256": [
+        "112ec70cd876eb73a94e26c93b9efa1e33885b6a1f1e922f14608ded2600947d",
+        "112ec70cd876eb73a94e26c93b9efa1e33885b6a1f1e922f14608ded2600947d"
+      ],
+      "unique_export_rows": [
+        35715,
+        35715
+      ]
+    }
+  ],
+  "resources": {
+    "duckdb_memory": "16GB",
+    "duckdb_threads": 4,
+    "minimum_free_bytes": 171798691840,
+    "scratch_policy": "One relation at a time; scratch deleted after comparison; exports retained",
+    "sort_memory": "32G",
+    "sort_threads": 8
+  },
+  "rewrite_sha256": null,
+  "status": "passed",
+  "unchanged_original_idbs": [
+    "ArrayIndexPointsTo",
+    "ArrayTypeCompat",
+    "Assign",
+    "CallGraphEdge",
+    "CastTo",
+    "ClassInitializer",
+    "DirectSubclass",
+    "EligibleObjectArrayHeap",
+    "HeapHelper",
+    "HeapHelperNoThis",
+    "InitializedClass",
+    "InstanceFieldPointsTo",
+    "IsCastableToString",
+    "IsObjectArrayHeap",
+    "IsStringHeap",
+    "MainMethodDeclaration",
+    "MethodImplemented",
+    "MethodInvocation_Base",
+    "MethodLookup",
+    "Reachable",
+    "ReachableInstruction",
+    "ReachableLoadInstanceField",
+    "ReachableSortedIndex",
+    "StaticFieldPointsTo",
+    "Subclass",
+    "SubtypeOf",
+    "SubtypeOfDifferent",
+    "Superclass",
+    "Superinterface",
+    "SupertypeOf",
+    "VarPointsTo",
+    "VirtualMethodInvocation",
+    "isArrayType_IDB",
+    "isClassType_IDB",
+    "isInterfaceType_IDB",
+    "isReferenceType",
+    "isType"
+  ],
+  "variant": "field-flow"
+}

@@ -1,0 +1,80 @@
+{
+ "dataset": "soot",
+ "warps": 9088,
+ "L0_baseheap": {
+  "units": 22062,
+  "total": 3047868481.0,
+  "max": 4898465,
+  "median": 50.0,
+  "p99": 1939906.0,
+  "max_over_warp_fair_share": 14.606027194911631
+ },
+ "L1_baseheap_sig": {
+  "units": 58309,
+  "total": 3047868481.0,
+  "max": 4898465,
+  "median": 18.0,
+  "p99": 1924349.0,
+  "max_over_warp_fair_share": 14.606027194911631
+ },
+ "L2_baseheap_sig_base": {
+  "units": 2025358,
+  "total": 3047868481.0,
+  "max": 119148,
+  "median": 1751.0,
+  "p99": 5253.0,
+  "max_over_warp_fair_share": 0.35527025878909635
+ },
+ "cells": {
+  "cells": 64853,
+  "distinct_content_sets": 7751,
+  "ifpt_rows": 56676564,
+  "rows_if_sets_shared": 2585007
+ },
+ "duplicate_derivations": {
+  "total": 3047868481.0,
+  "after_memoizing_identical_content_and_dest_sets": 25094538.0,
+  "redundant_fraction": 0.9917665285899192
+ },
+ "seconds": 4.628297261893749
+}
+{
+ "dataset": "jython",
+ "warps": 9088,
+ "L0_baseheap": {
+  "units": 18691,
+  "total": 1085480429.0,
+  "max": 537146,
+  "median": 1504.0,
+  "p99": 275978.0,
+  "max_over_warp_fair_share": 4.497163391971206
+ },
+ "L1_baseheap_sig": {
+  "units": 50666,
+  "total": 1085480429.0,
+  "max": 308568,
+  "median": 88.0,
+  "p99": 174408.0,
+  "max_over_warp_fair_share": 2.583433021066472
+ },
+ "L2_baseheap_sig_base": {
+  "units": 408678,
+  "total": 1085480429.0,
+  "max": 67080,
+  "median": 2.0,
+  "p99": 67080.0,
+  "max_over_warp_fair_share": 0.5616158741448852
+ },
+ "cells": {
+  "cells": 54129,
+  "distinct_content_sets": 3375,
+  "ifpt_rows": 102901097,
+  "rows_if_sets_shared": 1993675
+ },
+ "duplicate_derivations": {
+  "total": 1085480429.0,
+  "after_memoizing_identical_content_and_dest_sets": 68271406.0,
+  "redundant_fraction": 0.9371048945922543
+ },
+ "seconds": 5.504267749842256
+}
